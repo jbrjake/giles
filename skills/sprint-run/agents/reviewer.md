@@ -86,6 +86,10 @@ Post a GitHub PR review in character:
 {Rationale for the verdict}
 ```
 
+#### Commit Format Enforcement
+When requesting changes, verify that all commits on the PR branch follow conventional
+commit format. If any commit messages are malformed, flag them in the review.
+
 ### 4. Post as GitHub Review
 Use `gh` to post the review:
 ```bash

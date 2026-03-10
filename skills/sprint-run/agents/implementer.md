@@ -64,6 +64,7 @@ If your changes affect project navigation or add new modules/concepts:
 
 ### 5. Push and Mark Ready
 - Push commits to your branch
+- All commits use the conventional commit wrapper: `python {plugin_root}/scripts/commit.py "type(scope): description"`
 - Update PR description with:
   - Final design decisions
   - Test results (output excerpt from CI check commands)

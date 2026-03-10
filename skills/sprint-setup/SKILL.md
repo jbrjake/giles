@@ -297,6 +297,9 @@ The exact steps, commands, and validations are all driven by `project.toml`, not
 hardcoded. This ensures the CI workflow matches the actual project language and
 build system.
 
+Commit the generated workflow using:
+`python {plugin_root}/scripts/commit.py "ci: add GitHub Actions workflow"`
+
 ### 2.6 Initialize tracking files
 
 Create the sprint tracking structure. Read the sprint count from

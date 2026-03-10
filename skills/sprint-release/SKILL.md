@@ -33,6 +33,10 @@ and stop.
    milestone-specific gate criteria. Each milestone defines its own gates; do not
    assume gates from a different milestone apply.
 
+4. **Conventional commits.** All commits since the last release tag must follow
+   conventional commit format. The release script calculates the version from
+   the commit log. Run `python {plugin_root}/scripts/commit.py --help` for format.
+
 ---
 
 ## Step 1: Gate Validation
