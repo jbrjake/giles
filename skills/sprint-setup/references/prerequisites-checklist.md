@@ -44,10 +44,7 @@ which require authenticated API access.
 find ~/.claude/plugins -type d -name "superpowers" 2>/dev/null | head -1 | grep -q . && echo "OK" || echo "MISSING"
 ```
 
-If missing:
-```
-claude plugin add anthropic/superpowers
-```
+If missing, install the superpowers plugin via Claude Code's plugin system.
 
 Superpowers provides TDD, code review, verification, and other process skills that
 the sprint process orchestrates. The `sprint-run` skill delegates implementation

@@ -119,7 +119,7 @@ where it left off using GitHub state as the source of truth.
 
 ## Requirements
 
-- Claude Code with the [superpowers](https://github.com/anthropics/superpowers) plugin
+- Claude Code with the superpowers plugin
 - GitHub CLI (`gh`) installed and authenticated
 - Python 3.10+ (for sprint scripts)
 - A GitHub repository with a configured remote
