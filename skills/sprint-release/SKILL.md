@@ -33,6 +33,10 @@ and stop.
    milestone-specific gate criteria. Each milestone defines its own gates; do not
    assume gates from a different milestone apply.
 
+4. **Conventional commits.** All commits since the last release tag must follow
+   conventional commit format. The release script calculates the version from
+   the commit log. Run `python {plugin_root}/scripts/commit.py --help` for format.
+
 ---
 
 ## Step 1: Gate Validation
@@ -169,12 +173,13 @@ After the release is published, perform these housekeeping steps.
 ### Close the GitHub Milestone
 
 ```bash
-# Read repo from project.toml [project] repo
-milestone_number=$(gh api repos/${repo}/milestones \
-  --jq '.[] | select(.title | contains("{milestone_title}")) | .number')
-gh api repos/${repo}/milestones/${milestone_number} \
+milestone_number=$(gh api repos/{owner}/{repo}/milestones \
+  --jq ".[] | select(.title == \"${milestone_title}\") | .number")
+gh api repos/{owner}/{repo}/milestones/${milestone_number} \
   -X PATCH -f state=closed
 ```
+
+Note: `{owner}` and `{repo}` are auto-expanded by `gh api` from the git remote. `${milestone_title}` is a shell variable.
 
 ### Update Tracking Files
 

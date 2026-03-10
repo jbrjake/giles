@@ -453,6 +453,9 @@ def get_ci_commands(config: dict) -> list[str]:
 
 def main() -> None:
     """Run validation from the command line."""
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     config_dir = sys.argv[1] if len(sys.argv) > 1 else "sprint-config"
 
     ok, errors = validate_project(config_dir)

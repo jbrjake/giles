@@ -206,6 +206,9 @@ def _fm_val(frontmatter: str, key: str) -> str | None:
 # -- Main --------------------------------------------------------------------
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     if len(sys.argv) != 2 or not sys.argv[1].isdigit():
         print(
             "Usage: python update_burndown.py <sprint-number>",

@@ -219,6 +219,9 @@ def create_milestones_on_github(config: dict) -> None:
 
 def main() -> None:
     """Run the full bootstrap using config."""
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     config = load_config()
     project_name = config.get("project", {}).get("name", "Project")
 

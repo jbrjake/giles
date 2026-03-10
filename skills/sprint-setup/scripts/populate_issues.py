@@ -310,6 +310,9 @@ def create_issue(
 
 def main() -> None:
     """Parse milestones and create GitHub issues."""
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     config = load_config()
     project_name = config.get("project", {}).get("name", "Project")
     print(f"=== {project_name} Issue Population ===\n")

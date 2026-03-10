@@ -86,6 +86,10 @@ Post a GitHub PR review in character:
 {Rationale for the verdict}
 ```
 
+#### Commit Format Enforcement
+When requesting changes, verify that all commits on the PR branch follow conventional
+commit format. If any commit messages are malformed, flag them in the review.
+
 ### 4. Post as GitHub Review
 Use `gh` to post the review:
 ```bash
@@ -97,7 +101,7 @@ gh pr review {pr_number} --request-changes --body "..."
 Also post inline comments on specific code locations where needed:
 ```bash
 # Read repo from project.toml [project] repo
-gh api repos/${repo}/pulls/{pr_number}/comments -f body="..." -f path="..." -F line={N} -f side=RIGHT
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments -f body="..." -f path="..." -F line={N} -f side=RIGHT
 ```
 
 ## Review Standards by Persona

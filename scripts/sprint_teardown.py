@@ -346,6 +346,9 @@ def print_github_cleanup_hints() -> None:
 
 def main() -> None:
     """Entry point."""
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     # Parse args
     dry_run = "--dry-run" in sys.argv
     force = "--force" in sys.argv or "-f" in sys.argv

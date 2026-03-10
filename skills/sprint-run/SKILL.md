@@ -146,6 +146,17 @@ and acceptance criteria, then produces a design.
 The PR description carries full context because reviewers should never
 need to leave the PR to understand what they are reviewing.
 
+#### Commit Convention
+
+All commits MUST use the conventional commit wrapper:
+
+```bash
+python {plugin_root}/scripts/commit.py "feat(module): description"
+```
+
+Do not use raw `git commit -m`. The wrapper validates message format and
+checks atomicity. See `scripts/commit.py --help` for flags.
+
 ### DESIGN --> DEVELOPMENT
 
 Dispatch the implementer as a subagent. Read `skills/sprint-run/agents/implementer.md`

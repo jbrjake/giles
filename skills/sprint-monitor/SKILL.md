@@ -136,7 +136,7 @@ If the script is missing or fails, reconstruct status manually:
 
 ```bash
 # Read repo from project.toml [project] repo
-gh api repos/${repo}/milestones --jq '.[] | select(.title | startswith("Sprint")) | {title, open_issues, closed_issues}'
+gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title | startswith("Sprint")) | {title, open_issues, closed_issues}'
 ```
 
 Update `SPRINT-STATUS.md` directly with the counts.

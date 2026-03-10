@@ -658,6 +658,9 @@ def print_generation_summary(gen: ConfigGenerator) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     root = os.path.abspath(root)
 
