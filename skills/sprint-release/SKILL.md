@@ -169,12 +169,13 @@ After the release is published, perform these housekeeping steps.
 ### Close the GitHub Milestone
 
 ```bash
-# Read repo from project.toml [project] repo
-milestone_number=$(gh api repos/${repo}/milestones \
-  --jq '.[] | select(.title | contains("{milestone_title}")) | .number')
-gh api repos/${repo}/milestones/${milestone_number} \
+milestone_number=$(gh api repos/{owner}/{repo}/milestones \
+  --jq ".[] | select(.title == \"${milestone_title}\") | .number")
+gh api repos/{owner}/{repo}/milestones/${milestone_number} \
   -X PATCH -f state=closed
 ```
+
+Note: `{owner}` and `{repo}` are auto-expanded by `gh api` from the git remote. `${milestone_title}` is a shell variable.
 
 ### Update Tracking Files
 

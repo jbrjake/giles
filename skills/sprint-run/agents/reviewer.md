@@ -97,7 +97,7 @@ gh pr review {pr_number} --request-changes --body "..."
 Also post inline comments on specific code locations where needed:
 ```bash
 # Read repo from project.toml [project] repo
-gh api repos/${repo}/pulls/{pr_number}/comments -f body="..." -f path="..." -F line={N} -f side=RIGHT
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments -f body="..." -f path="..." -F line={N} -f side=RIGHT
 ```
 
 ## Review Standards by Persona
