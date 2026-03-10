@@ -27,8 +27,6 @@ _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 from validate_config import load_config
-from commit import validate_message
-
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 
 
@@ -406,7 +404,12 @@ def do_release(
     else:
         # 2-3. Write version and commit
         write_version_to_toml(new_ver, toml_path)
-        subprocess.run(["git", "add", str(toml_path)], check=True)
+        r = subprocess.run(
+            ["git", "add", str(toml_path)], capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            print(f"git add failed: {r.stderr.strip()}", file=sys.stderr)
+            return False
         r = subprocess.run(
             [sys.executable, str(COMMIT_PY), f"chore: bump version to {new_ver}"],
             capture_output=True, text=True,
@@ -416,14 +419,21 @@ def do_release(
             return False
 
         # 4-5. Tag and push
-        subprocess.run(
+        r = subprocess.run(
             ["git", "tag", "-a", f"v{new_ver}",
              "-m", f"Release {new_ver}: {milestone_title}"],
-            check=True,
+            capture_output=True, text=True,
         )
-        subprocess.run(
-            ["git", "push", "origin", f"v{new_ver}"], check=True,
+        if r.returncode != 0:
+            print(f"Tag creation failed: {r.stderr.strip()}", file=sys.stderr)
+            return False
+        r = subprocess.run(
+            ["git", "push", "origin", f"v{new_ver}"],
+            capture_output=True, text=True,
         )
+        if r.returncode != 0:
+            print(f"Tag push failed: {r.stderr.strip()}", file=sys.stderr)
+            return False
 
     # 6. Generate release notes
     notes = generate_release_notes(
