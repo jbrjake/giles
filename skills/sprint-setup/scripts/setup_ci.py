@@ -340,7 +340,9 @@ def main() -> None:
         print(f"  - {cmd}")
     if build_command:
         print(f"  - Build: {build_command}")
-    print("  - Doc size limits (.md and .rs < 750 lines)")
+    extensions = _LANG_EXTENSIONS.get(language.lower(), [".md"])
+    ext_display = " and ".join(extensions)
+    print(f"  - Doc size limits ({ext_display} < 750 lines)")
     print()
     print("Next steps:")
     print(f"  git add {workflow_path.relative_to(repo_root)}")
