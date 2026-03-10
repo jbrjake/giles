@@ -3,6 +3,13 @@ name: sprint-release
 description: Release management for project milestones — tagging, building, CI monitoring, and release notes. Use when a milestone is complete, creating a release, tagging a version, generating release notes, or managing the release pipeline. Also triggers on "create release", "tag release", "milestone complete", "cut a release", "release notes".
 ---
 
+## Quick Reference
+
+| Phase | Read These First |
+|-------|-----------------|
+| Gate Validation | `references/release-checklist.md` |
+| Scripts | `scripts/release_gate.py --help` |
+
 # Sprint Release Skill
 
 Invoked at milestone boundaries (after the final sprint of a release completes).
