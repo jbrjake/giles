@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from scripts.test_lifecycle import FakeGitHub
+    from fake_github import FakeGitHub
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden" / "recordings"
 
