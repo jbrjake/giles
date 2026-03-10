@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""Quick status check for sprint monitoring.
+
+Usage: python check_status.py [sprint-number]
+
+Config-driven: reads sprints_dir and repo from project.toml via
+validate_config.load_config(). No hardcoded project-specific values.
+
+If sprint-number is omitted, reads from SPRINT-STATUS.md. Checks CI,
+open PRs, and milestone progress. Writes timestamped log (keeps 10).
+Exit: 0 = no action needed, 1 = action needed, 2 = usage error.
+"""
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# -- Import shared config ----------------------------------------------------
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
+from validate_config import load_config
+
+MAX_LOGS = 10
+
+
+def gh(args: list[str]) -> str:
+    r = subprocess.run(
+        ["gh", *args], capture_output=True, text=True, timeout=30
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def gh_json(args: list[str]) -> list | dict:
+    raw = gh(args)
+    return json.loads(raw) if raw else []
+
+
+def detect_sprint(sprints_dir: Path) -> int | None:
+    status_file = sprints_dir / "SPRINT-STATUS.md"
+    if not status_file.exists():
+        return None
+    m = re.search(
+        r"Current Sprint:\s*(\d+)",
+        status_file.read_text(encoding="utf-8"),
+    )
+    return int(m.group(1)) if m else None
+
+
+# -- CI check ----------------------------------------------------------------
+
+def check_ci() -> tuple[list[str], list[str]]:
+    runs = gh_json([
+        "run", "list", "--limit", "5",
+        "--json", "status,conclusion,name,headBranch,databaseId",
+    ])
+    if not runs:
+        return ["CI: no recent runs"], []
+
+    passing = sum(1 for r in runs if r.get("conclusion") == "success")
+    failing = [r for r in runs if r.get("conclusion") == "failure"]
+    in_prog = [
+        r for r in runs
+        if r.get("status") in ("in_progress", "queued")
+    ]
+
+    parts = []
+    if passing:
+        parts.append(f"{passing} passing")
+    if failing:
+        parts.append(f"{len(failing)} failing")
+    if in_prog:
+        parts.append(f"{len(in_prog)} in progress")
+
+    report, actions = [f"CI: {', '.join(parts)}"], []
+    for run in failing:
+        branch = run.get("headBranch", "?")
+        name = run.get("name", "?")
+        report.append(f"  - {name} on {branch}: FAILED")
+        run_id = run.get("databaseId")
+        if run_id:
+            try:
+                log = gh(["run", "view", str(run_id), "--log-failed"])
+                err = _first_error(log)
+                if err:
+                    report.append(f"    Error: {err}")
+                    actions.append(f"CI failing on {branch}: {err}")
+            except RuntimeError:
+                actions.append(
+                    f"CI failing on {branch} (could not read logs)"
+                )
+    return report, actions
+
+
+def _first_error(log: str) -> str:
+    for line in log.splitlines():
+        if any(
+            kw in line.lower()
+            for kw in ("error", "failed", "panicked", "assert")
+        ):
+            cleaned = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+            return cleaned[:117] + "..." if len(cleaned) > 120 else cleaned
+    return ""
+
+
+# -- PR check ----------------------------------------------------------------
+
+def check_prs() -> tuple[list[str], list[str]]:
+    prs = gh_json([
+        "pr", "list",
+        "--json",
+        "number,title,reviewDecision,labels,statusCheckRollup,createdAt",
+    ])
+    if not prs:
+        return ["PRs: none open"], []
+
+    needs_review: list[tuple[str, str]] = []
+    approved: list[tuple[str, bool]] = []
+    changes_req: list[str] = []
+
+    for pr in prs:
+        entry = f"#{pr.get('number', '?')}: {pr.get('title', '?')}"
+        checks = pr.get("statusCheckRollup") or []
+        ci_ok = all(
+            c.get("conclusion") == "SUCCESS"
+            for c in checks
+            if c.get("status") == "COMPLETED"
+        )
+        match pr.get("reviewDecision", ""):
+            case "APPROVED":
+                approved.append((entry, ci_ok))
+            case "CHANGES_REQUESTED":
+                changes_req.append(entry)
+            case _:
+                needs_review.append((entry, pr.get("createdAt", "")))
+
+    parts = [f"{len(prs)} open"]
+    if needs_review:
+        parts.append(f"{len(needs_review)} needs review")
+    if approved:
+        parts.append(f"{len(approved)} approved")
+    if changes_req:
+        parts.append(f"{len(changes_req)} changes requested")
+
+    report, actions = [f"PRs: {', '.join(parts)}"], []
+    for entry, ci_ok in approved:
+        tag = "CI green, ready to merge" if ci_ok else "CI pending/failing"
+        report.append(f"  - {entry}: approved ({tag})")
+        if ci_ok:
+            actions.append(
+                f"{entry}: approved + CI green -- ready to merge"
+            )
+    for entry, created in needs_review:
+        age = _age(created)
+        report.append(f"  - {entry}: awaiting review ({age})")
+        if _hours(created) > 2:
+            actions.append(f"{entry}: awaiting review for {age}")
+    for entry in changes_req:
+        report.append(f"  - {entry}: changes requested")
+    return report, actions
+
+
+def _hours(iso: str) -> float:
+    if not iso:
+        return 0.0
+    try:
+        return (
+            datetime.now(timezone.utc)
+            - datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        ).total_seconds() / 3600
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _age(iso: str) -> str:
+    h = _hours(iso)
+    if h < 1:
+        return f"{int(h * 60)}m"
+    return f"{h:.1f}h" if h < 24 else f"{h / 24:.1f}d"
+
+
+# -- Milestone progress ------------------------------------------------------
+
+def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
+    try:
+        milestones = gh_json([
+            "api", "repos/{owner}/{repo}/milestones", "--paginate",
+        ])
+    except RuntimeError:
+        return ["Progress: could not query milestones"], []
+
+    ms = next(
+        (
+            m
+            for m in (milestones if isinstance(milestones, list) else [])
+            if m.get("title", "").startswith(f"Sprint {sprint_num}")
+        ),
+        None,
+    )
+    if ms is None:
+        return [f"Progress: no milestone for Sprint {sprint_num}"], []
+
+    opened = ms.get("open_issues", 0)
+    closed = ms.get("closed_issues", 0)
+    total = opened + closed
+    pct = round(closed / total * 100) if total else 0
+
+    sp_part = ""
+    try:
+        issues = gh_json([
+            "issue", "list", "--milestone", ms["title"],
+            "--state", "all",
+            "--json", "state,labels,body", "--limit", "200",
+        ])
+        t_sp, d_sp = _count_sp(issues)
+        if t_sp:
+            sp_part = f", {d_sp}/{t_sp} SP"
+    except RuntimeError:
+        pass
+    return [f"Progress: {closed}/{total} stories done{sp_part} ({pct}%)"], []
+
+
+def _count_sp(issues: list[dict]) -> tuple[int, int]:
+    t = d = 0
+    for i in issues:
+        sp = _extract_sp(i)
+        t += sp
+        if i.get("state") == "closed":
+            d += sp
+    return t, d
+
+
+def _extract_sp(issue: dict) -> int:
+    for label in issue.get("labels", []):
+        name = label if isinstance(label, str) else label.get("name", "")
+        if m := re.match(r"sp:(\d+)", name):
+            return int(m.group(1))
+    body = issue.get("body", "") or ""
+    if m := re.search(
+        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
+    ):
+        return int(m.group(1))
+    return 0
+
+
+# -- Log management ----------------------------------------------------------
+
+def write_log(
+    sprint_num: int, report: str, now: datetime, sprints_dir: Path
+) -> Path:
+    d = sprints_dir / f"sprint-{sprint_num}"
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"monitor-{now.strftime('%Y%m%d-%H%M%S')}.log"
+    path.write_text(report, encoding="utf-8")
+    logs = sorted(d.glob("monitor-*.log"))
+    while len(logs) > MAX_LOGS:
+        logs.pop(0).unlink()
+    return path
+
+
+# -- Main --------------------------------------------------------------------
+
+def main() -> None:
+    config = load_config()
+    sprints_dir = Path(
+        config.get("paths", {}).get("sprints_dir", "sprints")
+    )
+
+    sprint_num: int | None = None
+    if len(sys.argv) >= 2:
+        if sys.argv[1].isdigit():
+            sprint_num = int(sys.argv[1])
+        else:
+            print(
+                "Usage: python check_status.py [sprint-number]",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+    else:
+        sprint_num = detect_sprint(sprints_dir)
+
+    if sprint_num is None:
+        print(
+            "Cannot determine sprint. Provide argument or ensure "
+            "SPRINT-STATUS.md exists.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    now = datetime.now(timezone.utc)
+    report_lines: list[str] = [f"=== Sprint {sprint_num} Status ==="]
+    action_lines: list[str] = []
+
+    for fn in [check_ci, check_prs, lambda: check_milestone(sprint_num)]:
+        try:
+            r, a = fn()
+            report_lines.extend(r)
+            action_lines.extend(a)
+        except RuntimeError as exc:
+            report_lines.append(f"Check failed: {exc}")
+
+    if action_lines:
+        report_lines += [
+            "", "Action needed:",
+        ] + [f"  - {a}" for a in action_lines]
+
+    full = "\n".join(report_lines)
+    print(full)
+
+    try:
+        lp = write_log(sprint_num, full, now, sprints_dir)
+        print(f"\nLog written: {lp}")
+    except OSError as exc:
+        print(
+            f"\nWarning: could not write log: {exc}", file=sys.stderr
+        )
+
+    sys.exit(1 if action_lines else 0)
+
+
+if __name__ == "__main__":
+    main()

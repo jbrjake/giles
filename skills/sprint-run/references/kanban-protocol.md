@@ -1,0 +1,75 @@
+# Kanban Protocol
+
+Load this reference when transitioning stories between states or updating
+tracking artifacts.
+
+## States
+
+| State | Label | Description |
+|---|---|---|
+| todo | `kanban:todo` | Story accepted into sprint, not yet started |
+| design | `kanban:design` | Implementer reading PRDs, writing design notes, creating branch |
+| dev | `kanban:dev` | TDD in progress: failing tests, implementation, green |
+| review | `kanban:review` | PR ready, reviewer persona evaluating |
+| integration | `kanban:integration` | Approved, CI green, merging |
+| done | `kanban:done` | Merged, issue closed, burndown updated |
+
+## Transitions
+
+```
+todo → design       Implementer starts reading PRDs, creates branch
+design → dev        Design notes written, draft PR opened
+dev → review        Tests pass, PR marked ready for review
+review → dev        Changes requested by reviewer
+review → integration Approved by reviewer
+integration → done  CI green, merged, issue closed
+```
+
+## Rules
+
+- Allow only ONE story per persona in `dev` state at a time. This prevents
+  context thrashing. A persona may have multiple stories in `design` because
+  reading does not conflict.
+- The `review → dev` loop can repeat at most 3 times. After 3 rounds of
+  changes-requested, escalate to the user for guidance.
+- Moving to `done` requires ALL of the following:
+  1. CI green on the PR
+  2. PR approved by reviewer persona
+  3. PR merged to target branch
+  4. GitHub issue closed
+  5. Burndown chart updated
+  6. Story tracking file updated
+- Every transition updates three artifacts:
+  1. GitHub issue label (swap old kanban label for new one)
+  2. Story tracking file in `{sprints_dir}/sprint-{N}/`
+  3. Sprint status file
+
+## GitHub Label Sync
+
+On each transition, execute these steps in order:
+
+1. Remove the old `kanban:*` label from the GitHub issue
+2. Add the new `kanban:*` label to the GitHub issue
+3. Update the project board column if using GitHub Projects
+4. Log the transition in the story tracking file with a timestamp
+
+## WIP Limits
+
+| State | Max stories (whole team) |
+|---|---|
+| design | No limit |
+| dev | 1 per persona |
+| review | 2 per reviewer persona |
+| integration | 3 |
+
+If a WIP limit is reached, the team must pull stories through the bottleneck
+before starting new work.
+
+## Blocked Stories
+
+If a story is blocked:
+
+1. Add the `blocked` label to the GitHub issue
+2. Comment on the issue describing the blocker and what unblocks it
+3. Move the persona to their next-priority story
+4. Raise the blocker in the next ceremony or immediately if critical

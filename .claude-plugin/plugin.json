@@ -1,0 +1,13 @@
+{
+  "name": "giles",
+  "description": "A plugin for agile agentic coding that takes it too far",
+  "version": "0.1.0",
+  "author": {
+    "name": "Jon Rubin",
+    "email": "jb.rubin@gmail.com",
+    "url": "https://github.com/jbrjake" 
+  },
+  "repository": "https://github.com/jbrjake/giles",
+  "license": "MIT",
+  "keywords": ["agile", "sprint", "scrum", "burndown", "PR"]
+}

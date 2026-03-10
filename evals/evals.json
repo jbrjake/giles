@@ -1,0 +1,88 @@
+{
+  "skill_name": "sprint-process",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Set up the Dreamcatcher project for sprint development. I want to use GitHub for tracking.",
+      "expected_output": "Sprint-setup skill triggers. Checks prerequisites (gh CLI, superpowers, git remote, Rust toolchain). Creates GitHub labels, milestones, project board. Populates issues from milestone-1 docs. Sets up CI workflow. Initializes tracking files.",
+      "files": [],
+      "expectations": [
+        "Checks for gh CLI installation",
+        "Checks for superpowers plugin",
+        "Creates persona labels on GitHub",
+        "Creates sprint milestones on GitHub",
+        "Creates GitHub issues for Sprint 1 stories",
+        "Generates .github/workflows/ci.yml",
+        "Creates SPRINT-STATUS.md"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Start sprint 1 for Dreamcatcher",
+      "expected_output": "Sprint-run skill triggers. Reads SPRINT-STATUS.md, detects no active sprint. Runs kickoff ceremony with Rachel as facilitator. Presents Sprint 1 stories. Assigns personas. Team members raise concerns in character. Creates kickoff.md.",
+      "files": [],
+      "expectations": [
+        "Reads SPRINT-STATUS.md to detect sprint state",
+        "Presents sprint goal from milestone doc",
+        "Assigns implementer and reviewer personas to stories",
+        "At least 2 team members raise concerns in character",
+        "Creates kickoff.md in sprint-1 directory",
+        "Updates SPRINT-STATUS.md with phase=development"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Work the next story in the sprint",
+      "expected_output": "Sprint-run picks up the next todo story. Creates branch, opens draft PR with full context. Invokes TDD (failing tests first). Implements. Pushes. Opens for review by different persona. Reviewer posts GitHub PR review.",
+      "files": [],
+      "expectations": [
+        "Identifies next story from SPRINT-STATUS.md or GitHub",
+        "Creates a feature branch",
+        "Opens a PR with persona header and full story context in description",
+        "PR description includes acceptance criteria and PRD excerpts",
+        "Writes failing tests before implementation",
+        "Reviewer is a different persona than implementer",
+        "Review is posted as GitHub PR review"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "What's the sprint status?",
+      "expected_output": "Sprint-monitor triggers. Checks CI, open PRs, milestone progress. Reports a one-line status summary.",
+      "files": [],
+      "expectations": [
+        "Checks GitHub CI run status",
+        "Checks open PR states",
+        "Reports milestone progress (stories done, SP remaining)",
+        "Outputs a concise status line"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "All sprint 1 stories are done. Run the demo.",
+      "expected_output": "Sprint-run enters demo phase. Each implementer persona presents their story. Actually runs cargo build and cargo test. Captures output as artifacts. Rachel confirms acceptance.",
+      "files": [],
+      "expectations": [
+        "Each story presented by its implementer persona",
+        "Actually executes cargo build --release",
+        "Actually executes cargo test",
+        "Saves artifacts to demo-artifacts directory",
+        "Walks through acceptance criteria with evidence",
+        "Creates demo.md"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Run the sprint 1 retrospective",
+      "expected_output": "Sprint-run enters retro phase. Personas reflect using Start/Stop/Continue. Feedback is distilled into doc changes. RULES.md or DEVELOPMENT.md may be updated.",
+      "files": [],
+      "expectations": [
+        "Multiple personas provide Start/Stop/Continue feedback in character",
+        "Identifies patterns across feedback",
+        "Proposes specific doc changes",
+        "Creates retro.md",
+        "Updates SPRINT-STATUS.md with velocity data"
+      ]
+    }
+  ]
+}
