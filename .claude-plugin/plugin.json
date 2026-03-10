@@ -1,13 +1,20 @@
 {
   "name": "giles",
   "description": "A plugin for agile agentic coding that takes it too far",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Jon Rubin",
     "email": "jb.rubin@gmail.com",
-    "url": "https://github.com/jbrjake" 
+    "url": "https://github.com/jbrjake"
   },
   "repository": "https://github.com/jbrjake/giles",
   "license": "MIT",
-  "keywords": ["agile", "sprint", "scrum", "burndown", "PR"]
+  "keywords": ["agile", "sprint", "scrum", "burndown", "PR"],
+  "skills": [
+    "skills/sprint-setup/SKILL.md",
+    "skills/sprint-run/SKILL.md",
+    "skills/sprint-monitor/SKILL.md",
+    "skills/sprint-release/SKILL.md",
+    "skills/sprint-teardown/SKILL.md"
+  ]
 }
