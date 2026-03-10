@@ -3,6 +3,13 @@ name: sprint-monitor
 description: Continuous CI/PR/burndown monitoring for active sprints, designed for /loop. Use when setting up automated monitoring, checking CI status, babysitting PRs, or updating burndown progress. Also triggers on "monitor sprint", "check CI", "babysit PRs", "update burndown", "sprint status", "what's the sprint status".
 ---
 
+## Quick Reference
+
+| Step | Script |
+|------|--------|
+| Full status check | `scripts/check_status.py [sprint-number]` |
+| Burndown update | `skills/sprint-run/scripts/update_burndown.py` |
+
 # Sprint Monitor
 
 ## Overview

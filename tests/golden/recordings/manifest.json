@@ -1,0 +1,11 @@
+{
+  "project": "hexwise",
+  "phases": [
+    "01-setup-init",
+    "02-setup-labels",
+    "03-setup-milestones",
+    "04-setup-issues",
+    "05-setup-ci"
+  ],
+  "total": 5
+}

@@ -9,9 +9,7 @@ Run: python scripts/test_lifecycle.py -v
 """
 from __future__ import annotations
 
-import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -24,10 +22,12 @@ from unittest.mock import patch
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PLUGIN_ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
+sys.path.insert(0, str(PLUGIN_ROOT / "tests"))
 
 from validate_config import parse_simple_toml, validate_project
 from sprint_init import ProjectScanner, ConfigGenerator
 from commit import validate_message, check_atomicity
+from fake_github import FakeGitHub, make_patched_subprocess
 
 sys.path.insert(0, str(PLUGIN_ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
@@ -41,234 +41,6 @@ import populate_issues
 
 sys.path.insert(0, str(PLUGIN_ROOT / "skills" / "sprint-run" / "scripts"))
 import update_burndown
-
-
-# ---------------------------------------------------------------------------
-# FakeGitHub: in-memory GitHub state
-# ---------------------------------------------------------------------------
-
-class FakeGitHub:
-    """Simulate GitHub API responses for gh CLI calls."""
-
-    def __init__(self):
-        self.labels: dict[str, dict] = {}
-        self.milestones: list[dict] = []
-        self.issues: list[dict] = []
-        self.releases: list[dict] = []
-        self.runs: list[dict] = []
-        self.prs: list[dict] = []
-        self._next_issue = 1
-        self._next_ms = 1
-
-    def handle(self, args: list[str]) -> subprocess.CompletedProcess:
-        """Dispatch gh CLI args to the appropriate handler."""
-        if not args:
-            return self._fail("no args")
-
-        cmd = args[0]
-        if cmd == "label":
-            return self._handle_label(args[1:])
-        elif cmd == "api":
-            return self._handle_api(args[1:])
-        elif cmd == "issue":
-            return self._handle_issue(args[1:])
-        elif cmd == "run":
-            return self._handle_run(args[1:])
-        elif cmd == "pr":
-            return self._handle_pr(args[1:])
-        elif cmd == "release":
-            return self._handle_release(args[1:])
-        elif cmd == "auth":
-            return self._ok("")
-        elif cmd == "--version":
-            return self._ok("gh version 2.40.0 (fake)")
-        else:
-            return self._fail(f"unknown command: {cmd}")
-
-    def _ok(self, stdout: str) -> subprocess.CompletedProcess:
-        return subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=stdout, stderr="",
-        )
-
-    def _fail(self, msg: str) -> subprocess.CompletedProcess:
-        return subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr=msg,
-        )
-
-    def _handle_label(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args or args[0] != "create":
-            return self._fail("only label create supported")
-        name = args[1] if len(args) > 1 else ""
-        color = ""
-        desc = ""
-        i = 2
-        while i < len(args):
-            if args[i] == "--color" and i + 1 < len(args):
-                color = args[i + 1]
-                i += 2
-            elif args[i] == "--description" and i + 1 < len(args):
-                desc = args[i + 1]
-                i += 2
-            elif args[i] == "--force":
-                i += 1
-            else:
-                i += 1
-        self.labels[name] = {"name": name, "color": color, "description": desc}
-        return self._ok("")
-
-    def _handle_api(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args:
-            return self._fail("no api path")
-        path = args[0]
-        # Create milestone
-        if "milestones" in path and "-f" in args:
-            title = ""
-            description = ""
-            for i, a in enumerate(args):
-                if a == "-f" and i + 1 < len(args):
-                    kv = args[i + 1]
-                    if kv.startswith("title="):
-                        title = kv[6:]
-                    elif kv.startswith("description="):
-                        description = kv[12:]
-            ms = {
-                "number": self._next_ms,
-                "title": title,
-                "description": description,
-                "state": "open",
-                "open_issues": 0,
-                "closed_issues": 0,
-            }
-            self._next_ms += 1
-            self.milestones.append(ms)
-            return self._ok(json.dumps(ms))
-
-        # List milestones
-        if "milestones" in path and "-f" not in args and "-X" not in args:
-            return self._ok(json.dumps(self.milestones))
-
-        # PATCH milestone (close)
-        if "milestones" in path and "-X" in args:
-            return self._ok("{}")
-
-        return self._ok("[]")
-
-    def _handle_issue(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args:
-            return self._fail("no issue subcommand")
-        sub = args[0]
-        if sub == "create":
-            title = ""
-            body = ""
-            labels = []
-            milestone = ""
-            i = 1
-            while i < len(args):
-                if args[i] == "--title" and i + 1 < len(args):
-                    title = args[i + 1]
-                    i += 2
-                elif args[i] == "--body" and i + 1 < len(args):
-                    body = args[i + 1]
-                    i += 2
-                elif args[i] == "--label" and i + 1 < len(args):
-                    labels.append(args[i + 1])
-                    i += 2
-                elif args[i] == "--milestone" and i + 1 < len(args):
-                    milestone = args[i + 1]
-                    i += 2
-                else:
-                    i += 1
-            issue = {
-                "number": self._next_issue,
-                "title": title,
-                "body": body,
-                "state": "open",
-                "labels": [{"name": l} for l in labels],
-                "milestone": {"title": milestone} if milestone else None,
-                "closedAt": None,
-            }
-            self._next_issue += 1
-            self.issues.append(issue)
-            url = f"https://github.com/testowner/testrepo/issues/{issue['number']}"
-            return self._ok(url)
-
-        elif sub == "list":
-            state_filter = "open"
-            milestone_filter = ""
-            json_fields = ""
-            i = 1
-            while i < len(args):
-                if args[i] == "--state" and i + 1 < len(args):
-                    state_filter = args[i + 1]
-                    i += 2
-                elif args[i] == "--milestone" and i + 1 < len(args):
-                    milestone_filter = args[i + 1]
-                    i += 2
-                elif args[i] == "--json" and i + 1 < len(args):
-                    json_fields = args[i + 1]
-                    i += 2
-                elif args[i] == "--limit" and i + 1 < len(args):
-                    i += 2
-                else:
-                    i += 1
-            filtered = self.issues
-            if state_filter != "all":
-                filtered = [
-                    iss for iss in filtered
-                    if iss.get("state") == state_filter
-                ]
-            if milestone_filter:
-                filtered = [
-                    iss for iss in filtered
-                    if (iss.get("milestone") or {}).get("title") == milestone_filter
-                ]
-            return self._ok(json.dumps(filtered))
-        return self._fail(f"issue {sub} not supported")
-
-    def _handle_run(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args:
-            return self._fail("no run subcommand")
-        sub = args[0]
-        if sub == "list":
-            return self._ok(json.dumps(self.runs))
-        elif sub == "view":
-            return self._ok("no logs")
-        return self._fail(f"run {sub} not supported")
-
-    def _handle_pr(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args:
-            return self._fail("no pr subcommand")
-        sub = args[0]
-        if sub == "list":
-            return self._ok(json.dumps(self.prs))
-        return self._fail(f"pr {sub} not supported")
-
-    def _handle_release(self, args: list[str]) -> subprocess.CompletedProcess:
-        if not args:
-            return self._fail("no release subcommand")
-        sub = args[0]
-        if sub == "create":
-            tag = args[1] if len(args) > 1 else ""
-            self.releases.append({"tag_name": tag})
-            return self._ok(f"https://github.com/testowner/testrepo/releases/tag/{tag}")
-        elif sub == "view":
-            tag = args[1] if len(args) > 1 else ""
-            return self._ok(json.dumps({
-                "url": f"https://github.com/testowner/testrepo/releases/tag/{tag}"
-            }))
-        return self._fail(f"release {sub} not supported")
-
-
-def make_patched_subprocess(fake_gh: FakeGitHub):
-    """Create a subprocess.run replacement that intercepts gh calls."""
-    _real_run = subprocess.run
-
-    def patched_run(args, *a, **kw):
-        if isinstance(args, list) and args and args[0] == "gh":
-            return fake_gh.handle(args[1:])
-        return _real_run(args, *a, **kw)
-
-    return patched_run
 
 
 # ---------------------------------------------------------------------------

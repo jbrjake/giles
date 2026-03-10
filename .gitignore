@@ -1,11 +1,25 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.egg-info/
 .venv/
+.pytest_cache/
 
 # macOS
 .DS_Store
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# User-generated config (not part of plugin distribution)
+sprint-config/
+
+# Build artifacts
+target/
+
+# Worktree artifacts
+.claude/worktrees/
+
+# Test artifacts
+tests/golden_snapshots/

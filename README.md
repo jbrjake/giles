@@ -1,115 +1,128 @@
 # giles
 
-Agile sprint orchestration plugin for Claude Code. Runs sprints with persona-based
-development — fictional team members implement stories, review PRs, and run
-ceremonies in character.
+An agile sprint plugin for Claude Code. Giles orchestrates GitHub issues, PRs,
+CI, kanban tracking, and sprint ceremonies using fictional team personas that
+implement and review code in-character.
 
-## Prerequisites
+## Quick Start
 
-Before installing giles, make sure you have:
+1. Install the plugin:
+   ```
+   claude plugin add jbrjake/giles
+   ```
 
-- **Claude Code** — [claude.ai/code](https://claude.ai/code)
-- **GitHub CLI** — installed and authenticated (`gh auth login`)
-- **Git** — with a GitHub remote configured
-- **Python 3.10+** — for scripts (stdlib only, no pip packages needed)
-- **Superpowers plugin** — install with `claude plugin add anthropic/superpowers`
+2. Bootstrap your project:
+   ```
+   /sprint-setup
+   ```
+   This scans your project, generates `sprint-config/`, creates GitHub labels,
+   milestones, issues, and a CI workflow.
 
-## Install
+3. Run your first sprint:
+   ```
+   /sprint-run
+   ```
 
-```bash
-claude plugin add jbrjake/giles
-```
+4. Monitor progress (optional):
+   ```
+   /loop 5m sprint-monitor
+   ```
 
-Available from [jbrjake/claude-plugin-marketplace](https://github.com/jbrjake/claude-plugin-marketplace).
+## What It Does
 
-## Prepare Your Project
+| Skill | Purpose |
+|-------|---------|
+| `sprint-setup` | One-time bootstrap: labels, milestones, issues, CI, project board |
+| `sprint-run` | Sprint execution: kickoff → stories (TDD) → demo → retro |
+| `sprint-monitor` | Continuous CI/PR/burndown monitoring (designed for `/loop`) |
+| `sprint-release` | Milestone release: gates, tag, GitHub Release |
+| `sprint-teardown` | Safe removal of `sprint-config/` when done |
 
-giles auto-detects your project structure, but works best when you have:
-
-### Team Personas
-
-Markdown files with these headings (one file per persona):
-
-```markdown
-# Persona Name
-
-## Role
-Senior Engineer
-
-## Voice
-Direct and technical.
-
-## Domain
-Backend systems.
-
-## Background
-10 years experience.
-
-## Review Focus
-Performance and correctness.
-```
-
-### Sprint Backlog
-
-Milestone docs with story tables:
-
-```markdown
-# Sprint 1: Walking Skeleton
-
-### Sprint 1: Foundation
-
-| US-0101 | Basic setup | S01 | 3 | P0 |
-| US-0102 | Core feature | S01 | 5 | P1 |
-```
-
-Columns: Story ID | Title | Saga | Story Points | Priority
-
-### Optional Files
-
-- **Rules doc** — project conventions and constraints
-- **Development guide** — dev process documentation
-- **Architecture doc** — system design reference
-
-## First Run
-
-1. **Setup** — run the `sprint-setup` skill. It will:
-   - Auto-detect your project and generate `sprint-config/`
-   - Create GitHub labels, milestones, and issues
-   - Generate a CI workflow
-
-2. **Sprint** — run the `sprint-run` skill. It will:
-   - Run a kickoff ceremony with persona assignments
-   - Execute stories with TDD and in-persona PR reviews
-   - Run demo and retrospective ceremonies
-
-## Lifecycle
+## Demo: What a Sprint Looks Like
 
 ```
-sprint-setup → sprint-run (repeat per sprint) → sprint-release → sprint-teardown
+$ claude
+> /sprint-setup
+
+Phase 0: Scanning project...
+  ✓ Detected Rust project (Cargo.toml)
+  ✓ Found 3 team personas (docs/team/)
+  ✓ Found 2 milestones with 6 stories (docs/backlog/)
+  ✓ Generated sprint-config/
+
+Step 1: Checking prerequisites...
+  ✓ gh CLI installed
+  ✓ GitHub authenticated
+  ✓ Git remote: origin → github.com/you/yourproject
+
+Step 2: Bootstrapping GitHub...
+  ✓ Created 22 labels (persona, sprint, kanban, priority, type)
+  ✓ Created 2 milestones
+  ✓ Created 6 issues from backlog
+  ✓ Generated .github/workflows/ci.yml
+
+> /sprint-run
+
+Sprint 1 Kickoff — "Core: Parse, Match, Print"
+  Rusti (Lead Dev): "Let's start with US-0101 — hex parsing."
+  Palette (Designer): "I'll review color-matching in US-0102."
+
+[Stories move through kanban: TODO → DESIGN → DEV → REVIEW → INTEGRATION → DONE]
+[Each story: TDD implementation → PR → in-persona review → merge]
+
+Sprint 1 Demo — all 3 stories complete, 11 SP delivered
+Sprint 1 Retro — Start/Stop/Continue format
 ```
 
-- **sprint-setup** — one-time project bootstrap
-- **sprint-run** — kickoff, stories, demo, retro (repeats each sprint)
-- **sprint-monitor** — continuous CI/PR/burndown checks (use with `/loop 5m`)
-- **sprint-release** — gate validation, versioning, GitHub Release
-- **sprint-teardown** — safe removal of sprint-config/
+## Project Structure
 
-## Commit Conventions
+Giles expects your project to have:
 
-giles enforces [conventional commits](https://www.conventionalcommits.org/) via
-`scripts/commit.py`. All skills use this wrapper instead of raw `git commit`.
+- **Team personas** — markdown files describing fictional developers (name, role, voice, domain)
+- **Sprint backlog** — milestone files with story tables (`| US-NNNN | title | sprint | points | priority |`)
+- **Project rules** — coding standards and conventions
 
-```
-feat: add user authentication
-fix(parser): handle empty input
-feat!: redesign API (breaking change)
-```
+The `sprint-setup` skill scans for these files automatically. If they don't exist,
+it provides templates to get started.
 
-Versions are auto-calculated from the commit log at release time:
-- `feat:` → minor bump
-- `fix:` → patch bump
-- `!` or `BREAKING CHANGE:` → major bump
-- Base version: `0.1.0` if no semver tags exist
+## Configuration
+
+All project-specific values live in `sprint-config/project.toml`, generated by
+`sprint-setup`. Key sections:
+
+- `[project]` — name, repo, language
+- `[paths]` — team_dir, backlog_dir, sprints_dir
+- `[ci]` — check_commands, build_command
+- `[conventions]` — commit format, branch naming
+
+## FAQ
+
+**Q: Do I need to write the persona files myself?**
+A: You can, or you can let `sprint-setup` generate templates. The personas just
+need a name, role, and voice description in markdown.
+
+**Q: What languages does Giles support?**
+A: The CI workflow generator supports Rust, Python, Node.js, and Go out of the
+box. Other languages work but need manual CI configuration.
+
+**Q: Can I use Giles without GitHub?**
+A: Not currently — Giles uses `gh` CLI for issues, PRs, labels, and milestones.
+GitHub is required.
+
+**Q: How do I add stories mid-sprint?**
+A: Add them to the milestone file in `sprint-config/backlog/milestones/`, then
+re-run `populate_issues.py`. It's idempotent — existing issues won't be duplicated.
+
+**Q: What if I lose context mid-sprint?**
+A: Run `/sprint-run` again. It detects the current sprint phase and resumes from
+where it left off using GitHub state as the source of truth.
+
+## Requirements
+
+- Claude Code with the superpowers plugin
+- GitHub CLI (`gh`) installed and authenticated
+- Python 3.10+ (for sprint scripts)
+- A GitHub repository with a configured remote
 
 ## License
 
