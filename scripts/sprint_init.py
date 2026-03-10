@@ -19,6 +19,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Import validation for self-check after generation
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPTS_DIR))
+from validate_config import validate_project
+
 EXCLUDED_DIRS = {
     ".git", "node_modules", "target", ".venv", "__pycache__",
     "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
@@ -667,6 +672,20 @@ def main() -> None:
     gen = ConfigGenerator(scan)
     gen.generate()
     print_generation_summary(gen)
+
+    # Self-validate generated config
+    print("\n=== Validating Generated Config ===\n")
+    ok, errors = validate_project(str(gen.config_dir))
+    if ok:
+        print("  Self-validation passed.")
+    else:
+        print("  Self-validation FAILED. This is a bug in sprint_init.py:")
+        for err in errors:
+            print(f"    x {err}")
+        print()
+        print("  The generated config does not pass validate_config.py.")
+        print("  Please file a bug report.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
