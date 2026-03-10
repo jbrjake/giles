@@ -88,7 +88,7 @@ which require authenticated API access.
 Check for the superpowers plugin:
 
 ```bash
-ls ~/.claude/plugins/anthropic/superpowers/ 2>/dev/null && echo "OK" || echo "MISSING"
+find ~/.claude/plugins -type d -name "superpowers" 2>/dev/null | head -1 | grep -q . && echo "OK" || echo "MISSING"
 ```
 
 If missing, install it:

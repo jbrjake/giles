@@ -157,15 +157,31 @@ def _generate_build_job(
 """
 
 
-def _docs_lint_job() -> str:
-    """Standard doc-size-limit job (project-agnostic)."""
-    return """\
+_LANG_EXTENSIONS: dict[str, list[str]] = {
+    "rust": [".md", ".rs"],
+    "python": [".md", ".py"],
+    "node": [".md", ".ts", ".tsx", ".js"],
+    "nodejs": [".md", ".ts", ".tsx", ".js"],
+    "node.js": [".md", ".ts", ".tsx", ".js"],
+    "javascript": [".md", ".ts", ".tsx", ".js"],
+    "typescript": [".md", ".ts", ".tsx", ".js"],
+    "go": [".md", ".go"],
+    "golang": [".md", ".go"],
+}
+
+
+def _docs_lint_job(language: str = "") -> str:
+    """Standard doc-size-limit job with language-appropriate extensions."""
+    extensions = _LANG_EXTENSIONS.get(language.lower(), [".md"])
+    find_args = " -o ".join(f"-name '*{ext}'" for ext in extensions)
+    ext_display = " and ".join(extensions)
+    return f"""\
   docs-lint:
     name: Doc Size Limits
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check .md and .rs files under 750 lines
+      - name: Check {ext_display} files under 750 lines
         run: |
           FAILED=0
           while IFS= read -r -d '' file; do
@@ -174,12 +190,12 @@ def _docs_lint_job() -> str:
               echo "FAIL: $file has $LINES lines (limit: 750)"
               FAILED=1
             fi
-          done < <(find . -type f \\( -name '*.md' -o -name '*.rs' \\) -not -path './.git/*' -print0)
+          done < <(find . -type f \\( {find_args} \\) -not -path './.git/*' -print0)
           if [ "$FAILED" -eq 1 ]; then
             echo "One or more files exceed the 750-line hard limit."
             exit 1
           fi
-          echo "PASS: All .md and .rs files within 750-line limit."
+          echo "PASS: All {ext_display} files within 750-line limit."
 """
 
 
@@ -215,18 +231,22 @@ def generate_ci_yaml(config: dict) -> str:
 
     lines.append("jobs:")
 
-    # Check jobs (linting, formatting, etc.)
+    # Identify test command early so we can skip it from check jobs
+    test_cmd = _find_test_command(check_commands)
+
+    # Check jobs (linting, formatting, etc.) — skip test commands
+    # since they get a dedicated cross-OS matrix job below
     job_names: list[str] = []
     for i, cmd in enumerate(check_commands):
-        # Derive a job name from the command
+        if test_cmd and cmd == test_cmd:
+            continue
         name = _job_name_from_command(cmd, i)
         job = _generate_check_job(name, cmd, setup)
         lines.append(job)
         slug = name.lower().replace(" ", "-").replace("/", "-")
         job_names.append(slug)
 
-    # Test job -- look for a test command in check_commands
-    test_cmd = _find_test_command(check_commands)
+    # Test job -- cross-OS matrix is more valuable than a single-OS check
     if test_cmd:
         multi_os = language in ("rust", "go", "python")
         lines.append(_generate_test_job(test_cmd, setup, multi_os))
@@ -236,8 +256,8 @@ def generate_ci_yaml(config: dict) -> str:
     if build_command:
         lines.append(_generate_build_job(build_command, setup, job_names[:]))
 
-    # Docs lint (always included)
-    lines.append(_docs_lint_job())
+    # Docs lint (always included, language-aware extensions)
+    lines.append(_docs_lint_job(language))
 
     return "\n".join(lines)
 

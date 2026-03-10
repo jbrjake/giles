@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Set up the Dreamcatcher project for sprint development. I want to use GitHub for tracking.",
-      "expected_output": "Sprint-setup skill triggers. Checks prerequisites (gh CLI, superpowers, git remote, Rust toolchain). Creates GitHub labels, milestones, project board. Populates issues from milestone-1 docs. Sets up CI workflow. Initializes tracking files.",
+      "prompt": "Set up this project for sprint development. I want to use GitHub for tracking.",
+      "expected_output": "Sprint-setup skill triggers. Checks prerequisites (gh CLI, superpowers, git remote, language toolchain). Creates GitHub labels, milestones, project board. Populates issues from milestone docs. Sets up CI workflow. Initializes tracking files.",
       "files": [],
       "expectations": [
         "Checks for gh CLI installation",
@@ -18,8 +18,8 @@
     },
     {
       "id": 2,
-      "prompt": "Start sprint 1 for Dreamcatcher",
-      "expected_output": "Sprint-run skill triggers. Reads SPRINT-STATUS.md, detects no active sprint. Runs kickoff ceremony with Rachel as facilitator. Presents Sprint 1 stories. Assigns personas. Team members raise concerns in character. Creates kickoff.md.",
+      "prompt": "Start sprint 1",
+      "expected_output": "Sprint-run skill triggers. Reads SPRINT-STATUS.md, detects no active sprint. Runs kickoff ceremony with the PM persona as facilitator. Presents Sprint 1 stories. Assigns personas. Team members raise concerns in character. Creates kickoff.md.",
       "files": [],
       "expectations": [
         "Reads SPRINT-STATUS.md to detect sprint state",
@@ -60,12 +60,12 @@
     {
       "id": 5,
       "prompt": "All sprint 1 stories are done. Run the demo.",
-      "expected_output": "Sprint-run enters demo phase. Each implementer persona presents their story. Actually runs cargo build and cargo test. Captures output as artifacts. Rachel confirms acceptance.",
+      "expected_output": "Sprint-run enters demo phase. Each implementer persona presents their story. Actually runs the build command and check commands from project.toml. Captures output as artifacts. PM persona confirms acceptance.",
       "files": [],
       "expectations": [
         "Each story presented by its implementer persona",
-        "Actually executes cargo build --release",
-        "Actually executes cargo test",
+        "Actually executes the build command from project.toml",
+        "Actually executes the check commands from project.toml",
         "Saves artifacts to demo-artifacts directory",
         "Walks through acceptance criteria with evidence",
         "Creates demo.md"
@@ -74,7 +74,7 @@
     {
       "id": 6,
       "prompt": "Run the sprint 1 retrospective",
-      "expected_output": "Sprint-run enters retro phase. Personas reflect using Start/Stop/Continue. Feedback is distilled into doc changes. RULES.md or DEVELOPMENT.md may be updated.",
+      "expected_output": "Sprint-run enters retro phase. Personas reflect using Start/Stop/Continue. Feedback is distilled into doc changes. Project rules or development guide may be updated.",
       "files": [],
       "expectations": [
         "Multiple personas provide Start/Stop/Continue feedback in character",

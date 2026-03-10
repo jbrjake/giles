@@ -526,7 +526,8 @@ class ConfigGenerator:
         for sf in personas:
             name = Path(sf.path).stem.replace("-", " ").replace("_", " ").title()
             role = self._infer_role(sf.path)
-            rows.append(f"| {name} | {role} | {sf.path} |")
+            filename = Path(sf.path).stem + ".md"
+            rows.append(f"| {name} | {role} | {filename} |")
         rows.append("")
         self._write("team/INDEX.md", "\n".join(rows))
 
