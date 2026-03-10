@@ -479,6 +479,32 @@ class ConfigGenerator:
 
         self._write("project.toml", "\n".join(lines))
 
+    def _infer_role(self, persona_path: str) -> str:
+        """Infer a persona's role from their file's ## Role heading."""
+        full = self.root / persona_path
+        if not full.is_file():
+            return "Team Member"
+        try:
+            text = full.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return "Team Member"
+        in_role = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("## Role"):
+                in_role = True
+                # Check if role is on the same line: ## Role: Senior Engineer
+                after = stripped[len("## Role"):].lstrip(":").strip()
+                if after:
+                    return after
+                continue
+            if in_role:
+                if stripped.startswith("#"):
+                    break
+                if stripped:
+                    return stripped
+        return "Team Member"
+
     def generate_team(self) -> None:
         personas = self.scan.persona_files
         if not personas:
@@ -488,13 +514,14 @@ class ConfigGenerator:
         for sf in personas:
             name = Path(sf.path).stem
             self._symlink(f"team/{name}.md", sf.path)
-        # Generate INDEX
+        # Generate INDEX with Name | Role | File columns
         rows = ["# Team Index", "",
-                "| Name | File | Confidence |",
-                "|------|------|------------|"]
+                "| Name | Role | File |",
+                "|------|------|------|"]
         for sf in personas:
             name = Path(sf.path).stem.replace("-", " ").replace("_", " ").title()
-            rows.append(f"| {name} | [{sf.path}]({sf.path}) | {sf.confidence:.0%} |")
+            role = self._infer_role(sf.path)
+            rows.append(f"| {name} | {role} | {sf.path} |")
         rows.append("")
         self._write("team/INDEX.md", "\n".join(rows))
 
