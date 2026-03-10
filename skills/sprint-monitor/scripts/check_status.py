@@ -265,6 +265,9 @@ def write_log(
 # -- Main --------------------------------------------------------------------
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     config = load_config()
     sprints_dir = Path(
         config.get("paths", {}).get("sprints_dir", "sprints")

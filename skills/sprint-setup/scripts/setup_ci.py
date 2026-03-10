@@ -303,6 +303,9 @@ def check_prerequisites() -> None:
 
 def main() -> None:
     """Generate the CI workflow file from config."""
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     config = load_config()
     project_name = config.get("project", {}).get("name", "Project")
     language = config.get("project", {}).get("language", "unknown")
