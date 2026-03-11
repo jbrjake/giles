@@ -5,7 +5,7 @@ End-to-end test: sprint_init -> bootstrap_github -> populate_issues ->
 version calculation. FakeGitHub intercepts gh CLI calls via subprocess
 patching. Real git operations run against a temp repo.
 
-Run: python scripts/test_lifecycle.py -v
+Run: python -m unittest tests.test_lifecycle -v
 """
 from __future__ import annotations
 
@@ -19,27 +19,26 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPTS_DIR = Path(__file__).resolve().parent
-PLUGIN_ROOT = SCRIPTS_DIR.parent
-sys.path.insert(0, str(SCRIPTS_DIR))
-sys.path.insert(0, str(PLUGIN_ROOT / "tests"))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 from validate_config import parse_simple_toml, validate_project
 from sprint_init import ProjectScanner, ConfigGenerator
 from commit import validate_message, check_atomicity
 from fake_github import FakeGitHub, make_patched_subprocess
 
-sys.path.insert(0, str(PLUGIN_ROOT / "skills" / "sprint-release" / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
     determine_bump, bump_version, write_version_to_toml,
     generate_release_notes,
 )
 
-sys.path.insert(0, str(PLUGIN_ROOT / "skills" / "sprint-setup" / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
 import bootstrap_github
 import populate_issues
 
-sys.path.insert(0, str(PLUGIN_ROOT / "skills" / "sprint-run" / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
 import update_burndown
 
 
