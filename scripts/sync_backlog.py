@@ -133,3 +133,46 @@ def check_sync(
         return SyncResult("throttled", False, "throttled, will sync later")
 
     return SyncResult("sync", True, "files stabilized, syncing")
+
+
+def do_sync(config: dict) -> dict[str, int]:
+    """Run the idempotent milestone + issue creation. Return counts.
+
+    Imports bootstrap_github and populate_issues lazily to avoid pulling
+    in the setup scripts at module load time.
+    """
+    # Lazy import — only needed when actually syncing
+    _setup_scripts = str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts")
+    if _setup_scripts not in sys.path:
+        sys.path.insert(0, _setup_scripts)
+    import bootstrap_github
+    import populate_issues
+
+    result = {"milestones": 0, "issues": 0}
+
+    # 1. Create milestones
+    milestone_files = get_milestones(config)
+    if not milestone_files:
+        return result
+
+    bootstrap_github.create_milestones_on_github(config)
+    result["milestones"] = len(milestone_files)
+
+    # 2. Create issues
+    stories = populate_issues.parse_milestone_stories(milestone_files, config)
+    if not stories:
+        return result
+
+    populate_issues.enrich_from_epics(stories, config)
+    existing = populate_issues.get_existing_issues()
+    milestone_numbers = populate_issues.get_milestone_numbers()
+    milestone_titles = populate_issues._build_milestone_title_map(milestone_files)
+
+    created = 0
+    for story in stories:
+        if story.story_id in existing:
+            continue
+        if populate_issues.create_issue(story, milestone_numbers, milestone_titles):
+            created += 1
+    result["issues"] = created
+    return result

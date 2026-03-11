@@ -12,8 +12,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 import sync_backlog
+from fake_github import FakeGitHub, make_patched_subprocess
 
 
 class TestHashMilestoneFiles(unittest.TestCase):
@@ -148,3 +150,55 @@ class TestCheckSync(unittest.TestCase):
         result = sync_backlog.check_sync(pending, state, datetime.now(timezone.utc))
         self.assertEqual(result.status, "sync")
         self.assertTrue(result.should_sync)
+
+
+class TestDoSync(unittest.TestCase):
+    """Test that do_sync calls bootstrap + populate correctly."""
+
+    def _write_config_and_milestones(self, td: str) -> dict:
+        """Set up a minimal sprint-config in td, return config dict."""
+        root = Path(td)
+        config_dir = root / "sprint-config"
+        config_dir.mkdir()
+        backlog = config_dir / "backlog"
+        backlog.mkdir()
+        ms_dir = backlog / "milestones"
+        ms_dir.mkdir()
+        (ms_dir / "milestone-1.md").write_text(
+            "# Milestone 1: Walking Skeleton\n\n"
+            "### Sprint 1: Foundation\n\n"
+            "| ID | Title | Saga | SP | Pri |\n"
+            "|------|-------|------|----|----- |\n"
+            "| US-0001 | Setup CI | S01 | 3 | P1 |\n"
+            "| US-0002 | Add auth | S01 | 5 | P1 |\n"
+        )
+        config = {
+            "project": {"name": "test", "repo": "owner/repo", "language": "python"},
+            "paths": {"backlog_dir": str(backlog), "team_dir": str(config_dir / "team"),
+                       "sprints_dir": str(root / "sprints")},
+            "ci": {"check_commands": ["pytest"], "build_command": "echo ok"},
+        }
+        return config
+
+    def test_do_sync_creates_milestones_and_issues(self):
+        fake_gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as td:
+            config = self._write_config_and_milestones(td)
+            with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                created = sync_backlog.do_sync(config)
+            self.assertGreater(len(fake_gh.milestones), 0)
+            self.assertGreater(len(fake_gh.issues), 0)
+            self.assertIn("milestones", created)
+            self.assertIn("issues", created)
+
+    def test_do_sync_idempotent(self):
+        """Running do_sync twice doesn't duplicate issues."""
+        fake_gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as td:
+            config = self._write_config_and_milestones(td)
+            with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                sync_backlog.do_sync(config)
+                count_after_first = len(fake_gh.issues)
+                sync_backlog.do_sync(config)
+                count_after_second = len(fake_gh.issues)
+            self.assertEqual(count_after_first, count_after_second)
