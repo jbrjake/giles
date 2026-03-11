@@ -18,6 +18,10 @@ and acceptance criteria, then produces a design.
    `{sprints_dir}/sprint-{N}/stories/US-XXXX-slug.md`.
 2. Create branch using the pattern from
    `config [conventions] branch_pattern` (e.g., `sprint-{N}/US-XXXX-slug`).
+   ```bash
+   git checkout -b {branch_name} {base_branch}
+   git push -u origin {branch_name}
+   ```
 3. Open a **draft PR** with full context in the description:
    - Story ID, title, acceptance criteria (copied in full)
    - Relevant PRD excerpts (so the reviewer can work entirely from the
@@ -25,7 +29,16 @@ and acceptance criteria, then produces a design.
    - Design decisions and rationale
    - Persona header: who implements, who reviews
    - Links to related stories/PRDs (for reference, not required reading)
+   ```bash
+   gh pr create --draft --base {base_branch} --head {branch_name} \
+     --title "{story_id}: {story_title}" \
+     --body "{pr_description}"
+   ```
 4. Apply labels: persona, sprint, saga, priority, `kanban:design`.
+   ```bash
+   gh pr edit {pr_number} --add-label "persona:{persona},sprint:{N},saga:{saga},priority:{pri},kanban:design"
+   gh issue edit {issue_number} --remove-label "kanban:todo" --add-label "kanban:design"
+   ```
 5. Update the GitHub issue label to `kanban:design`.
 
 The PR description carries full context because reviewers should never
@@ -58,6 +71,11 @@ review style.
    are defined, update those progressive disclosure docs in lockstep
    with code changes. Code without updated docs is incomplete work.
 4. Push commits to the branch. Mark PR as ready for review.
+   ```bash
+   git push origin {branch_name}
+   gh pr ready {pr_number}
+   gh issue edit {issue_number} --remove-label "kanban:design" --add-label "kanban:dev"
+   ```
 5. Update the GitHub issue label to `kanban:dev`.
 
 ---
@@ -85,15 +103,30 @@ full agent protocol. The reviewer's persona file (from
 
 ## REVIEW --> INTEGRATION
 
-1. Confirm CI is green -- check GitHub Actions status via `gh`.
+1. Confirm CI is green:
+   ```bash
+   gh pr checks {pr_number} --watch
+   ```
 2. Invoke `superpowers:verification-before-completion` to run the
    project's verification suite.
-3. Squash-merge the PR to main.
-4. Close the GitHub issue.
-5. Update burndown: run `skills/sprint-run/scripts/update_burndown.py`.
+3. Squash-merge the PR to the base branch:
+   ```bash
+   gh pr merge {pr_number} --squash --delete-branch
+   ```
+4. Close the GitHub issue:
+   ```bash
+   gh issue close {issue_number}
+   ```
+5. Update burndown:
+   ```bash
+   python skills/sprint-run/scripts/update_burndown.py
+   ```
 6. Update story tracking file: set status = done, record completion date.
 7. Update `SPRINT-STATUS.md` with the completed story.
-8. Update the GitHub issue label to `kanban:done`.
+8. Update the GitHub issue label:
+   ```bash
+   gh issue edit {issue_number} --remove-label "kanban:review" --add-label "kanban:done"
+   ```
 
 ---
 
