@@ -243,6 +243,16 @@ class TestHexwisePipeline(unittest.TestCase):
         self.assertIn("cargo test", yaml_content)
         self.assertIn("cargo clippy", yaml_content)
 
+    def test_ci_workflow_uses_configured_branch(self):
+        """setup_ci uses base_branch from config instead of hardcoded main."""
+        config = self._generate_config()
+        config["project"]["base_branch"] = "develop"
+        sys.path.insert(0, str(_REPO_ROOT / "skills" / "sprint-setup" / "scripts"))
+        from setup_ci import generate_ci_yaml
+        yaml_content = generate_ci_yaml(config)
+        self.assertIn("branches: [develop]", yaml_content)
+        self.assertNotIn("branches: [main]", yaml_content)
+
     def test_state_dump(self):
         """FakeGitHub.dump_state() captures full state for golden snapshots."""
         config = self._generate_config()

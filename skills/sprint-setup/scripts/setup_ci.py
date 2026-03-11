@@ -212,15 +212,17 @@ def generate_ci_yaml(config: dict) -> str:
     else:
         setup = f"      # TODO: Add setup steps for {language}"
 
+    base_branch = config.get("project", {}).get("base_branch", "main")
+
     # Header
     lines = [
         "name: CI",
         "",
         "on:",
         "  push:",
-        "    branches: [main]",
+        f"    branches: [{base_branch}]",
         "  pull_request:",
-        "    branches: [main]",
+        f"    branches: [{base_branch}]",
         "",
         "permissions:",
         "  contents: read",
