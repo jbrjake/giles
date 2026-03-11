@@ -36,7 +36,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
-| `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :22, `get_team_personas()` :398, `get_milestones()` :426 |
+| `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :22, `get_team_personas()` :398, `get_milestones()` :426, `get_base_branch()` :450 |
 | `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :349, `ConfigGenerator.generate()` :499 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
 | `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_milestones_on_github()` :200, `main()` :242 |
@@ -88,6 +88,7 @@ sprint-config/
 ```
 
 Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command` (see `validate_config.py:177`).
+Optional: `project.base_branch` (defaults to `main` — branch PRs target and CI watches).
 
 Template: `references/skeletons/project.toml.tmpl`
 

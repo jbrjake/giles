@@ -24,6 +24,7 @@ you need without reading entire files.
 | 398 | `get_team_personas()` | Personas from team/INDEX.md |
 | 426 | `get_milestones()` | Milestone file paths from config |
 | 441 | `get_ci_commands()` | CI check commands from [ci] section |
+| 450 | `get_base_branch()` | Base branch from config, defaults to 'main' |
 
 ### scripts/sprint_init.py
 | Line | Function | Purpose |
@@ -213,11 +214,11 @@ you need without reading entire files.
 | Line | Section |
 |------|---------|
 | 12 | TODO --> DESIGN (read PRDs, create branch, design notes) |
-| 34 | Commit convention |
-| 47 | DESIGN --> DEVELOPMENT (TDD via superpowers) |
-| 65 | DEVELOPMENT --> REVIEW (PR ready, dispatch reviewer) |
-| 86 | REVIEW --> INTEGRATION (CI green, squash-merge) |
-| 100 | Parallel dispatch for independent stories |
+| 47 | Commit convention |
+| 60 | DESIGN --> DEVELOPMENT (TDD via superpowers) |
+| 83 | DEVELOPMENT --> REVIEW (PR ready, dispatch reviewer) |
+| 104 | REVIEW --> INTEGRATION (CI green, squash-merge) |
+| 133 | Parallel dispatch for independent stories |
 
 ### skills/sprint-run/references/tracking-formats.md
 | Line | Section |
