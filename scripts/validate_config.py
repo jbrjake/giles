@@ -447,6 +447,12 @@ def get_ci_commands(config: dict) -> list[str]:
     return [str(commands)]
 
 
+def get_base_branch(config: dict) -> str:
+    """Return the base branch from config, defaulting to 'main'."""
+    branch = config.get("project", {}).get("base_branch", "main")
+    return branch if branch else "main"
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------

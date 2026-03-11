@@ -573,5 +573,22 @@ class TestExtractSP(unittest.TestCase):
         self.assertEqual(update_burndown.extract_sp(issue), 3)
 
 
+class TestGetBaseBranch(unittest.TestCase):
+    def test_returns_configured_branch(self):
+        config = {"project": {"base_branch": "develop"}}
+        from validate_config import get_base_branch
+        self.assertEqual(get_base_branch(config), "develop")
+
+    def test_defaults_to_main(self):
+        config = {"project": {"name": "test"}}
+        from validate_config import get_base_branch
+        self.assertEqual(get_base_branch(config), "main")
+
+    def test_empty_string_defaults_to_main(self):
+        config = {"project": {"base_branch": ""}}
+        from validate_config import get_base_branch
+        self.assertEqual(get_base_branch(config), "main")
+
+
 if __name__ == "__main__":
     unittest.main()
