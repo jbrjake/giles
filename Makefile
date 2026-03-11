@@ -29,6 +29,7 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile scripts/sprint_init.py
 	$(PYTHON) -m py_compile scripts/sprint_teardown.py
 	$(PYTHON) -m py_compile scripts/commit.py
+	$(PYTHON) -m py_compile scripts/sync_backlog.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/bootstrap_github.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/populate_issues.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/setup_ci.py

@@ -232,7 +232,7 @@ and fixes are not re-applied to passing CI.
 
 ## Manual Invocation
 
-When invoked outside of `/loop`, run all four steps once and output the full
+When invoked outside of `/loop`, run all five steps once and output the full
 report. Accept optional flags:
 
 - `--ci-only` -- run only Step 1.

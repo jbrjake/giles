@@ -100,6 +100,21 @@ you need without reading entire files.
 | 100 | `write_burndown()` | Generate burndown.md from milestone data |
 | 139 | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
 
+### scripts/sync_backlog.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 28 | `THROTTLE_FLOOR_SECONDS` | 600s (10 min) — minimum interval between syncs |
+| 29 | `STATE_FILENAME` | `.sync-state.json` — persisted in sprint-config/ |
+| 32 | `hash_milestone_files()` | SHA-256 hash each milestone file for change detection |
+| 44 | `_default_state()` | Fresh state dict: file_hashes, pending_hashes, last_sync_at |
+| 53 | `load_state()` | Load .sync-state.json, return defaults on missing/corrupt |
+| 72 | `save_state()` | Write state as pretty-printed JSON |
+| 78 | `SyncResult` | Dataclass: status, should_sync, message |
+| 86 | `_is_throttled()` | Check if last sync was within throttle floor |
+| 98 | `check_sync()` | Decision engine: debounce + throttle + revert detection |
+| 138 | `do_sync()` | Lazy-imports bootstrap_github + populate_issues, runs sync |
+| 181 | `main()` | Full cycle: load config, hash, decide, sync, save state |
+
 ### skills/sprint-monitor/scripts/check_status.py
 | Line | Function | Purpose |
 |------|----------|---------|
@@ -131,11 +146,12 @@ you need without reading entire files.
 ### skills/sprint-monitor/SKILL.md
 | Line | Section |
 |------|---------|
-| 45 | Step 1: Check CI status |
-| 79 | Step 2: Check open PRs |
-| 128 | Step 3: Update burndown |
-| 151 | Step 4: Report |
-| 171 | Rate limiting and deduplication |
+| 46 | Step 0: Sync backlog (debounce + throttle) |
+| 69 | Step 1: Check CI status |
+| 103 | Step 2: Check open PRs |
+| 152 | Step 3: Update burndown |
+| 175 | Step 4: Report |
+| 195 | Rate limiting and deduplication |
 
 ### skills/sprint-release/SKILL.md
 | Line | Section |

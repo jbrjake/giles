@@ -44,6 +44,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :202, `_SETUP_REGISTRY` :60 (Rust/Python/Node/Go) |
 | `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :201, `create_from_issue()` :248 |
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |
+| `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
 | `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :56, `check_prs()` :112, `check_milestone()` :188 |
 
 ### Skill Entry Points
@@ -52,7 +53,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 |-------|----------|-------------|
 | sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
 | sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :28, Phase 1: Kickoff :43, Phase 2: Story execution :49, Phase 3: Demo :64, Phase 4: Retro :70 |
-| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, CI check :45, PR check :79, Burndown :128, Rate limiting :171 |
+| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, Backlog sync :46, CI check :69, PR check :103, Burndown :152, Rate limiting :195 |
 | sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
 
