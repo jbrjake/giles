@@ -436,6 +436,15 @@ class ConfigGenerator:
         lines.append('[project]')
         lines.append(f'name = "{s.project_name.value or "unknown"}"')
         lines.append(f'language = "{s.language.value}"')
+        # Detect current branch for base_branch default
+        try:
+            _result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, check=True)
+            _current_branch = _result.stdout.strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            _current_branch = "main"
+        lines.append(f'base_branch = "{_current_branch}"')
         if s.repo.value:
             lines.append(f'repo = "{s.repo.value}"')
         else:
