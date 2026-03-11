@@ -8,7 +8,7 @@ gh CLI or git calls.
 Also tests check_status.py, bootstrap_github.py, populate_issues.py,
 sync_tracking.py, and update_burndown.py with mocked subprocess calls.
 
-Run: python scripts/test_gh_interactions.py -v
+Run: python -m unittest tests.test_gh_interactions -v
 """
 from __future__ import annotations
 
@@ -20,14 +20,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-SCRIPTS_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(SCRIPTS_DIR))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from commit import validate_message, check_atomicity
 
-sys.path.insert(0, str(
-    SCRIPTS_DIR.parent / "skills" / "sprint-release" / "scripts"
-))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
     determine_bump, bump_version, calculate_version,
     find_latest_semver_tag, parse_commits_since,
@@ -36,20 +34,14 @@ from release_gate import (
     validate_gates, print_gate_summary,
 )
 
-sys.path.insert(0, str(
-    SCRIPTS_DIR.parent / "skills" / "sprint-monitor" / "scripts"
-))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
 import check_status
 
-sys.path.insert(0, str(
-    SCRIPTS_DIR.parent / "skills" / "sprint-setup" / "scripts"
-))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
 import bootstrap_github
 import populate_issues
 
-sys.path.insert(0, str(
-    SCRIPTS_DIR.parent / "skills" / "sprint-run" / "scripts"
-))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
 import sync_tracking
 import update_burndown
 
