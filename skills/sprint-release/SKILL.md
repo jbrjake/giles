@@ -29,9 +29,9 @@ and stop.
    specified by `project.toml [paths] sprints_dir` and confirm every sprint in
    the milestone shows status `Done` with final velocity recorded.
 
-2. **CI passing on main.** Run:
+2. **CI passing on base branch.** Read `base_branch` from `project.toml [project] base_branch` (default: `main`). Run:
    ```bash
-   gh run list --branch main --limit 1
+   gh run list --branch {base_branch} --limit 1
    ```
    Confirm the most recent workflow run has status `completed` and conclusion
    `success`. If CI is failing, do not proceed -- fix CI first.
@@ -218,7 +218,7 @@ If CI fails during any step of the release process, follow this procedure.
 
 1. **Read the failure logs.**
    ```bash
-   gh run list --branch main --limit 1 --json databaseId --jq '.[0].databaseId'
+   gh run list --branch {base_branch} --limit 1 --json databaseId --jq '.[0].databaseId'
    # then:
    gh run view {run_id} --log-failed
    ```
