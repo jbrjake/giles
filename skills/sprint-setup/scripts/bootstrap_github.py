@@ -88,16 +88,38 @@ def create_persona_labels(config: dict) -> None:
         create_label(f"persona:{name}", color, f"Assigned to {persona['name']}")
 
 
+def _collect_sprint_numbers(milestone_files: list[str]) -> set[int]:
+    """Scan milestone files for all sprint section numbers.
+
+    A milestone file may contain multiple ``### Sprint N:`` sections.
+    Falls back to inferring from the filename if no sections are found.
+    """
+    sprint_nums: set[int] = set()
+    for mf_path in milestone_files:
+        mf = Path(mf_path)
+        if not mf.is_file():
+            continue
+        text = mf.read_text(encoding="utf-8")
+        found = re.findall(r"### Sprint (\d+):", text)
+        if found:
+            sprint_nums.update(int(n) for n in found)
+        else:
+            # Infer sprint number from filename (e.g. milestone-2.md)
+            m = re.search(r"(\d+)", mf.stem)
+            sprint_nums.add(int(m.group(1)) if m else 1)
+    return sprint_nums
+
+
 def create_sprint_labels(config: dict) -> None:
-    """Create sprint labels -- one per milestone file found in backlog/milestones/."""
+    """Create sprint labels -- one per sprint section found across all milestones."""
     milestone_files = get_milestones(config)
-    sprint_count = len(milestone_files)
-    if sprint_count == 0:
-        print("  (no milestone files found)")
+    sprint_nums = _collect_sprint_numbers(milestone_files)
+    if not sprint_nums:
+        print("  (no sprints found in milestone files)")
         return
     print("\nSprint labels:")
-    for i in range(1, sprint_count + 1):
-        create_label(f"sprint:{i}", "0075ca", f"Sprint {i}")
+    for n in sorted(sprint_nums):
+        create_label(f"sprint:{n}", "0075ca", f"Sprint {n}")
 
 
 def _parse_saga_labels_from_backlog(config: dict) -> list[tuple[str, str]]:

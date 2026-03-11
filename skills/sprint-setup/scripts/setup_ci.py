@@ -29,7 +29,7 @@ def _rust_setup_steps() -> str:
 def _python_setup_steps(version: str = "3.12") -> str:
     """Python setup steps."""
     return f"""\
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "{version}"
       - name: Install dependencies
@@ -38,10 +38,10 @@ def _python_setup_steps(version: str = "3.12") -> str:
           pip install -r requirements.txt || true"""
 
 
-def _node_setup_steps(version: str = "20") -> str:
+def _node_setup_steps(version: str = "22") -> str:
     """Node.js setup steps."""
     return f"""\
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "{version}"
           cache: npm
@@ -51,7 +51,7 @@ def _node_setup_steps(version: str = "20") -> str:
 def _go_setup_steps(version: str = "1.22") -> str:
     """Go setup steps."""
     return (
-        "      - uses: actions/setup-go@v5\n"
+        "      - uses: actions/setup-go@v6\n"
         "        with:\n"
         f'          go-version: "{version}"'
     )
@@ -99,7 +99,7 @@ def _generate_check_job(
     name: {name}
     runs-on: ubuntu-latest{needs_line}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 {setup}
       - name: {name}
         run: {command}
@@ -119,7 +119,7 @@ def _generate_test_job(
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{{{ matrix.os }}}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 {setup}
       - name: Test
         run: {command}
@@ -129,7 +129,7 @@ def _generate_test_job(
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 {setup}
       - name: Test
         run: {command}
@@ -150,7 +150,7 @@ def _generate_build_job(
     name: Build
     runs-on: ubuntu-latest{needs_line}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 {setup}
       - name: Build
         run: {command}
@@ -180,7 +180,7 @@ def _docs_lint_job(language: str = "") -> str:
     name: Doc Size Limits
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check {ext_display} files under 750 lines
         run: |
           FAILED=0
@@ -221,6 +221,9 @@ def generate_ci_yaml(config: dict) -> str:
         "    branches: [main]",
         "  pull_request:",
         "    branches: [main]",
+        "",
+        "permissions:",
+        "  contents: read",
         "",
     ]
 

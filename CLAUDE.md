@@ -29,6 +29,9 @@ evals/evals.json             — skill evaluation scenarios
 
 ## Quick File Lookup
 
+For detailed line-number indices of all functions, sections, and reference files,
+see `CHEATSHEET.md`. The tables below are a summary.
+
 ### Scripts (all stdlib-only Python 3.10+, no venv packages needed)
 
 | Script | Purpose | Key functions |
@@ -36,9 +39,9 @@ evals/evals.json             — skill evaluation scenarios
 | `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :22, `get_team_personas()` :398, `get_milestones()` :426 |
 | `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :349, `ConfigGenerator.generate()` :499 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
-| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `create_static_labels()` :149, `main()` :220 |
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `create_issue()` :287, `enrich_from_epics()` :151 |
-| `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :186, `_SETUP_REGISTRY` :60 (Rust/Python/Node/Go) |
+| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_milestones_on_github()` :200, `main()` :242 |
+| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `enrich_from_epics()` :151, `_build_milestone_title_map()` :238, `create_issue()` :298 |
+| `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :202, `_SETUP_REGISTRY` :60 (Rust/Python/Node/Go) |
 | `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :201, `create_from_issue()` :248 |
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |
 | `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :56, `check_prs()` :112, `check_milestone()` :188 |
@@ -47,10 +50,10 @@ evals/evals.json             — skill evaluation scenarios
 
 | Skill | SKILL.md | Key sections |
 |-------|----------|-------------|
-| sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :13, Step 1: Prerequisites :42, Step 2: GitHub bootstrap :167 |
-| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :47, Phase 1: Kickoff :65, Phase 2: Story execution :118, Phase 3: Demo :207, Phase 4: Retro :249, Context recovery :297, Tracking formats :325 |
-| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :22, CI check :38, PR check :74, Burndown :121, Rate limiting :162 |
-| sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :38, Tag+release :68, Build artifacts :91, GitHub Release :113, Rollback :230 |
+| sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
+| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :28, Phase 1: Kickoff :43, Phase 2: Story execution :49, Phase 3: Demo :64, Phase 4: Retro :70 |
+| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, CI check :45, PR check :79, Burndown :128, Rate limiting :171 |
+| sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
 
 ### Reference Files
@@ -106,8 +109,8 @@ Template: `references/skeletons/project.toml.tmpl`
 |------|-----------|
 | Add a new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) |
 | Modify config validation | Edit `scripts/validate_config.py` — `_REQUIRED_FILES` :164, `_REQUIRED_TOML_KEYS` :177 |
-| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` :149 or create new function |
+| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` :171 or create new function |
 | Add language support to CI | Edit `skills/sprint-setup/scripts/setup_ci.py` — add to `_SETUP_REGISTRY` :60 and `_ENV_BLOCKS` :74 |
 | Add a new kanban state | Update `skills/sprint-run/references/kanban-protocol.md` + `sync_tracking.py:27` `KANBAN_STATES` |
-| Change sprint tracking format | Edit `skills/sprint-run/SKILL.md` "Tracking File Formats" :325 + update `sync_tracking.py` and `update_burndown.py` |
+| Change sprint tracking format | Edit `skills/sprint-run/references/tracking-formats.md` + update `sync_tracking.py` and `update_burndown.py` |
 | Add a skeleton template | Create `references/skeletons/<name>.tmpl`, wire it in `sprint_init.py:ConfigGenerator` |

@@ -238,19 +238,30 @@ def get_milestone_numbers() -> dict[str, int]:
 def _build_milestone_title_map(
     milestone_files: list[str],
 ) -> dict[int, str]:
-    """Map sprint number -> milestone title by reading milestone file headings."""
+    """Map sprint number -> milestone title by reading milestone file headings.
+
+    A milestone file may contain multiple ``### Sprint N:`` sections.
+    Each sprint maps to the title (``# heading``) of the file that contains it.
+    Falls back to filename-based inference when no sprint sections exist.
+    """
     result: dict[int, str] = {}
-    for i, mf_path in enumerate(milestone_files, 1):
+    for mf_path in milestone_files:
         mf = Path(mf_path)
         if not mf.is_file():
-            result[i] = f"Sprint {i}"
             continue
         text = mf.read_text(encoding="utf-8")
         heading = re.search(r"^#\s+(.+)", text, re.MULTILINE)
-        if heading:
-            result[i] = heading.group(1).strip()
+        title = heading.group(1).strip() if heading else mf.stem
+
+        # Find all sprint sections in this file
+        sprint_nums = re.findall(r"### Sprint (\d+):", text)
+        if sprint_nums:
+            for n in sprint_nums:
+                result[int(n)] = title
         else:
-            result[i] = f"Sprint {i}"
+            # Infer sprint number from filename
+            num = _infer_sprint_number(mf)
+            result[num] = title
     return result
 
 
