@@ -32,10 +32,33 @@ Read `{team_dir}/{persona_file}` for your full character profile — voice, conc
 
 ### 1. Create Branch and Draft PR
 ```bash
-git checkout -b {branch_name} main
+git checkout -b {branch_name} {base_branch}
 ```
-Open a draft PR with full context. The PR description is CRITICAL — the reviewer will work entirely from it. Include:
-- Your persona header: `> **{persona_name}** · {persona_role} · Implementation`
+```bash
+git push -u origin {branch_name}
+gh pr create --draft --base {base_branch} --head {branch_name} \
+  --title "{story_id}: {story_title}" \
+  --label "persona:{persona_name}" --label "sprint:{sprint_number}" \
+  --label "kanban:design" --milestone "{milestone_title}" \
+  --body "$(cat <<'EOF'
+> **{persona_name}** · {persona_role} · Implementation
+
+## Story
+**{story_id}** — {story_title} | Sprint {sprint_number} | {sp} SP | {priority}
+
+## Acceptance Criteria
+{acceptance_criteria}
+
+## PRD Context
+{relevant_prd_excerpts}
+
+## Design Decisions
+(to be filled during design phase)
+EOF
+)"
+```
+
+The PR description is CRITICAL — the reviewer will work entirely from it. The command above populates the initial body; update it as you go. Guidance on content:
 - Story ID, title, acceptance criteria (copied in full, not linked)
 - All relevant PRD excerpts (enough that the reviewer never needs to open a PRD)
 - Design decisions you made and why
@@ -63,25 +86,44 @@ If your changes affect project navigation or add new modules/concepts:
 - This must happen IN THE SAME COMMIT as the code change, not after
 
 ### 5. Push and Mark Ready
-- Push commits to your branch
-- All commits use the conventional commit wrapper: `python {plugin_root}/scripts/commit.py "type(scope): description"`
-- Update PR description with:
-  - Final design decisions
-  - Test results (output excerpt from CI check commands)
-  - Coverage notes
-  - Any areas of uncertainty for the reviewer
-- Mark PR as ready for review (remove draft status)
-- Add reviewer persona label to the PR
-- Update story tracking file: status = review
-- Update GitHub issue label: `kanban:review`
+All commits use the conventional commit wrapper: `python {plugin_root}/scripts/commit.py "type(scope): description"`
+
+```bash
+# Push all commits
+git push origin {branch_name}
+
+# Mark PR as ready for review
+gh pr ready {pr_number}
+
+# Add reviewer persona label
+gh pr edit {pr_number} --add-label "persona:{reviewer_name}"
+
+# Update GitHub issue kanban label
+gh issue edit {issue_number} --remove-label "kanban:dev" --add-label "kanban:review"
+```
+
+Before pushing, update the PR description with:
+- Final design decisions
+- Test results (output excerpt from CI check commands)
+- Coverage notes
+- Any areas of uncertainty for the reviewer
+
+Also update the story tracking file: set status = review.
 
 ### 6. Respond to Review Feedback
 If the reviewer requests changes:
 - Read their feedback carefully (they review in character too)
 - Address each comment
-- Push new commits
-- Re-request review
-- Update PR description with what changed
+
+```bash
+# Push fixes
+git push origin {branch_name}
+
+# Re-request review
+gh pr edit {pr_number} --add-reviewer {reviewer_github_handle}
+```
+
+Update the PR description with what changed.
 
 ## Conventions Checklist
 Before marking ready for review, verify:
