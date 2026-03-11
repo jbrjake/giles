@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -69,3 +70,81 @@ class TestStateFile(unittest.TestCase):
             (Path(td) / sync_backlog.STATE_FILENAME).write_text("not json")
             state = sync_backlog.load_state(Path(td))
             self.assertEqual(state["file_hashes"], {})
+
+
+class TestCheckSync(unittest.TestCase):
+    """Test the debounce + throttle scheduling algorithm."""
+
+    def _make_hashes(self, content: str = "v1") -> dict[str, str]:
+        """Helper: create a simple hash dict."""
+        import hashlib
+        h = hashlib.sha256(content.encode()).hexdigest()
+        return {"milestone-1.md": h}
+
+    def test_no_change_returns_no_changes(self):
+        """When hashes match stored state, report no changes."""
+        hashes = self._make_hashes("v1")
+        state = {"file_hashes": hashes.copy(), "pending_hashes": None, "last_sync_at": None}
+        result = sync_backlog.check_sync(hashes, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "no_changes")
+        self.assertFalse(result.should_sync)
+
+    def test_first_change_triggers_debounce(self):
+        """First detection of changed files sets pending, doesn't sync."""
+        old = self._make_hashes("v1")
+        new = self._make_hashes("v2")
+        state = {"file_hashes": old, "pending_hashes": None, "last_sync_at": None}
+        result = sync_backlog.check_sync(new, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "debouncing")
+        self.assertFalse(result.should_sync)
+        self.assertEqual(state["pending_hashes"], new)
+
+    def test_still_changing_re_debounces(self):
+        """If files changed again since pending, update pending, don't sync."""
+        old = self._make_hashes("v1")
+        pending = self._make_hashes("v2")
+        newest = self._make_hashes("v3")
+        state = {"file_hashes": old, "pending_hashes": pending, "last_sync_at": None}
+        result = sync_backlog.check_sync(newest, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "debouncing")
+        self.assertFalse(result.should_sync)
+        self.assertEqual(state["pending_hashes"], newest)
+
+    def test_stabilized_triggers_sync(self):
+        """When current hashes match pending, sync should fire."""
+        old = self._make_hashes("v1")
+        pending = self._make_hashes("v2")
+        state = {"file_hashes": old, "pending_hashes": pending.copy(), "last_sync_at": None}
+        result = sync_backlog.check_sync(pending, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "sync")
+        self.assertTrue(result.should_sync)
+
+    def test_revert_cancels_pending(self):
+        """If files revert to stored state while pending, cancel the sync."""
+        original = self._make_hashes("v1")
+        pending = self._make_hashes("v2")
+        state = {"file_hashes": original, "pending_hashes": pending, "last_sync_at": None}
+        result = sync_backlog.check_sync(original, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "no_changes")
+        self.assertFalse(result.should_sync)
+        self.assertIsNone(state["pending_hashes"])
+
+    def test_throttle_blocks_sync(self):
+        """When last sync was recent, skip even if files changed."""
+        old = self._make_hashes("v1")
+        new = self._make_hashes("v2")
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        state = {"file_hashes": old, "pending_hashes": new.copy(), "last_sync_at": recent}
+        result = sync_backlog.check_sync(new, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "throttled")
+        self.assertFalse(result.should_sync)
+
+    def test_throttle_expired_allows_sync(self):
+        """When last sync was long ago, allow sync."""
+        old = self._make_hashes("v1")
+        pending = self._make_hashes("v2")
+        old_time = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+        state = {"file_hashes": old, "pending_hashes": pending.copy(), "last_sync_at": old_time}
+        result = sync_backlog.check_sync(pending, state, datetime.now(timezone.utc))
+        self.assertEqual(result.status, "sync")
+        self.assertTrue(result.should_sync)

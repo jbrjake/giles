@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -72,3 +73,63 @@ def save_state(config_dir: Path, state: dict) -> None:
     """Write sync state to .sync-state.json."""
     path = config_dir / STATE_FILENAME
     path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+@dataclass
+class SyncResult:
+    """Result of the sync scheduling decision."""
+    status: str        # "no_changes", "debouncing", "throttled", "sync"
+    should_sync: bool
+    message: str = ""
+
+
+def _is_throttled(state: dict, now: datetime) -> bool:
+    """Check if last sync was within the throttle floor."""
+    last = state.get("last_sync_at")
+    if not last:
+        return False
+    try:
+        last_dt = datetime.fromisoformat(last)
+        return (now - last_dt).total_seconds() < THROTTLE_FLOOR_SECONDS
+    except (ValueError, TypeError):
+        return False
+
+
+def check_sync(
+    current_hashes: dict[str, str],
+    state: dict,
+    now: datetime,
+) -> SyncResult:
+    """Decide whether to sync based on file hashes, debounce, and throttle.
+
+    Mutates state in-place (sets pending_hashes, etc.). Caller is
+    responsible for saving state and performing the actual sync.
+    """
+    stored = state.get("file_hashes", {})
+    pending = state.get("pending_hashes")
+
+    # No change at all
+    if current_hashes == stored and pending is None:
+        return SyncResult("no_changes", False, "no changes detected")
+
+    # Edits reverted to stored state while debounce was pending
+    if current_hashes == stored and pending is not None:
+        state["pending_hashes"] = None
+        return SyncResult("no_changes", False, "changes reverted, cancelled pending sync")
+
+    # Files differ from stored — something changed
+    if current_hashes != stored:
+        if pending is None:
+            # First detection: start debounce
+            state["pending_hashes"] = current_hashes
+            return SyncResult("debouncing", False, "change detected, debouncing")
+        if current_hashes != pending:
+            # Still changing: re-debounce
+            state["pending_hashes"] = current_hashes
+            return SyncResult("debouncing", False, "files still changing, re-debouncing")
+
+    # current_hashes == pending (stabilized) — ready to sync if not throttled
+    if _is_throttled(state, now):
+        return SyncResult("throttled", False, "throttled, will sync later")
+
+    return SyncResult("sync", True, "files stabilized, syncing")
