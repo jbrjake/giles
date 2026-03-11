@@ -18,7 +18,8 @@ This skill is designed for use with `/loop 5m sprint-monitor`. Run it
 autonomously on each invocation: check GitHub state, take action where needed,
 and report. Invoke manually for a one-time status check.
 
-Each invocation performs four steps in order:
+Each invocation performs five steps in order:
+0. Sync backlog to GitHub (milestones + issues)
 1. Check CI status
 2. Check open PRs
 3. Update burndown
@@ -41,6 +42,29 @@ gh auth status
 test -f "${sprints_dir}/SPRINT-STATUS.md" || echo "SPRINT-STATUS.md missing"
 grep -q "phase:.*development" "${sprints_dir}/SPRINT-STATUS.md" || echo "No active development phase"
 ```
+
+## Step 0 -- Sync Backlog
+
+Run the backlog sync engine to detect new or changed milestone files and
+create corresponding GitHub milestones and issues:
+
+```bash
+python3 scripts/sync_backlog.py
+```
+
+This script:
+- Hashes milestone files and compares against cached state.
+- **Debounce:** waits one iteration after detecting a change before syncing
+  (in case the user is still editing).
+- **Throttle:** syncs at most once per 10 minutes.
+- Delegates to the idempotent `bootstrap_github.create_milestones_on_github()`
+  and `populate_issues.create_issue()` functions.
+- Prints a one-line status: `sync: no changes detected`, `sync: change detected,
+  debouncing`, `sync: throttled, will sync later`, or `sync: created N issues,
+  synced M milestones`.
+
+If the script fails, log the error and continue with Step 1. The sync is
+best-effort and must not block monitoring.
 
 ## Step 1 -- Check CI Status
 

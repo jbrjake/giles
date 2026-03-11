@@ -23,6 +23,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import load_config
 
+# -- Import sync engine ------------------------------------------------------
+try:
+    from sync_backlog import main as sync_backlog_main
+except ImportError:
+    sync_backlog_main = None
+
 MAX_LOGS = 10
 
 
@@ -297,6 +303,14 @@ def main() -> None:
     now = datetime.now(timezone.utc)
     report_lines: list[str] = [f"=== Sprint {sprint_num} Status ==="]
     action_lines: list[str] = []
+
+    # Step 0: Sync backlog
+    if sync_backlog_main is not None:
+        try:
+            sync_status = sync_backlog_main()
+            report_lines.append(f"Sync: {sync_status}")
+        except Exception as exc:
+            report_lines.append(f"Sync: error — {exc}")
 
     for fn in [check_ci, check_prs, lambda: check_milestone(sprint_num)]:
         try:
