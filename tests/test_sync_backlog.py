@@ -184,7 +184,7 @@ class TestDoSync(unittest.TestCase):
         fake_gh = FakeGitHub()
         with tempfile.TemporaryDirectory() as td:
             config = self._write_config_and_milestones(td)
-            with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+            with patch("subprocess.run", make_patched_subprocess(fake_gh, verbose=True)):
                 created = sync_backlog.do_sync(config)
             self.assertGreater(len(fake_gh.milestones), 0)
             self.assertGreater(len(fake_gh.issues), 0)
@@ -196,7 +196,7 @@ class TestDoSync(unittest.TestCase):
         fake_gh = FakeGitHub()
         with tempfile.TemporaryDirectory() as td:
             config = self._write_config_and_milestones(td)
-            with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+            with patch("subprocess.run", make_patched_subprocess(fake_gh, verbose=True)):
                 sync_backlog.do_sync(config)
                 count_after_first = len(fake_gh.issues)
                 sync_backlog.do_sync(config)
@@ -252,7 +252,7 @@ class TestMain(unittest.TestCase):
             old_cwd = os.getcwd()
             try:
                 os.chdir(td)
-                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                with patch("subprocess.run", make_patched_subprocess(fake_gh, verbose=True)):
                     status = sync_backlog.main()
                 self.assertEqual(status, "debouncing")
                 # No issues created yet (debouncing)
@@ -269,7 +269,7 @@ class TestMain(unittest.TestCase):
             old_cwd = os.getcwd()
             try:
                 os.chdir(td)
-                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                with patch("subprocess.run", make_patched_subprocess(fake_gh, verbose=True)):
                     sync_backlog.main()  # debounce
                     status = sync_backlog.main()  # sync
                 self.assertEqual(status, "sync")
@@ -286,7 +286,7 @@ class TestMain(unittest.TestCase):
             old_cwd = os.getcwd()
             try:
                 os.chdir(td)
-                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                with patch("subprocess.run", make_patched_subprocess(fake_gh, verbose=True)):
                     sync_backlog.main()  # debounce
                     sync_backlog.main()  # sync
                     status = sync_backlog.main()  # no changes

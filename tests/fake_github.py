@@ -497,12 +497,19 @@ class FakeGitHub:
         }
 
 
-def make_patched_subprocess(fake_gh: FakeGitHub):
-    """Create a subprocess.run replacement that intercepts gh calls."""
+def make_patched_subprocess(fake_gh: FakeGitHub, verbose: bool = False):
+    """Create a subprocess.run replacement that intercepts gh calls.
+
+    When verbose=True, prints each intercepted gh command as it would
+    appear on the command line, so test output shows the real API calls.
+    """
+    import shlex
     _real_run = subprocess.run
 
     def patched_run(args, *a, **kw):
         if isinstance(args, list) and args and args[0] == "gh":
+            if verbose:
+                print(f"  $ {shlex.join(args)}")
             return fake_gh.handle(args[1:])
         return _real_run(args, *a, **kw)
 
