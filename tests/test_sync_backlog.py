@@ -202,3 +202,94 @@ class TestDoSync(unittest.TestCase):
                 sync_backlog.do_sync(config)
                 count_after_second = len(fake_gh.issues)
             self.assertEqual(count_after_first, count_after_second)
+
+
+class TestMain(unittest.TestCase):
+    """Test the main() entry point end-to-end."""
+
+    def _setup_project(self, td: str) -> Path:
+        """Create minimal sprint-config with project.toml + milestone."""
+        root = Path(td)
+        config_dir = root / "sprint-config"
+        config_dir.mkdir()
+        backlog = config_dir / "backlog"
+        backlog.mkdir()
+        ms_dir = backlog / "milestones"
+        ms_dir.mkdir()
+        (ms_dir / "milestone-1.md").write_text(
+            "# Milestone 1: Walking Skeleton\n\n"
+            "### Sprint 1: Foundation\n\n"
+            "| ID | Title | Saga | SP | Pri |\n"
+            "|------|-------|------|----|----- |\n"
+            "| US-0001 | Setup CI | S01 | 3 | P1 |\n"
+        )
+        (backlog / "INDEX.md").write_text("| Saga | Name |\n|---|---|\n")
+        (config_dir / "rules.md").write_text("# Rules\n")
+        (config_dir / "development.md").write_text("# Development\n")
+        team_dir = config_dir / "team"
+        team_dir.mkdir()
+        (team_dir / "INDEX.md").write_text(
+            "| Name | Role | File |\n|---|---|---|\n"
+            "| Alice | Dev | alice.md |\n"
+            "| Bob | Reviewer | bob.md |\n"
+        )
+        (team_dir / "alice.md").write_text("# Alice\nDeveloper persona.\n")
+        (team_dir / "bob.md").write_text("# Bob\nReviewer persona.\n")
+        (config_dir / "project.toml").write_text(
+            f'[project]\nname = "test"\nrepo = "o/r"\nlanguage = "python"\n\n'
+            f'[paths]\nteam_dir = "{team_dir}"\nbacklog_dir = "{backlog}"\n'
+            f'sprints_dir = "{root / "sprints"}"\n\n'
+            f'[ci]\ncheck_commands = ["pytest"]\nbuild_command = "echo ok"\n'
+        )
+        return config_dir
+
+    def test_first_run_debounces(self):
+        """First invocation with no prior state detects change and debounces."""
+        fake_gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as td:
+            config_dir = self._setup_project(td)
+            import os
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                    status = sync_backlog.main()
+                self.assertEqual(status, "debouncing")
+                # No issues created yet (debouncing)
+                self.assertEqual(len(fake_gh.issues), 0)
+            finally:
+                os.chdir(old_cwd)
+
+    def test_second_run_syncs(self):
+        """Second invocation (stable files) performs the sync."""
+        fake_gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as td:
+            config_dir = self._setup_project(td)
+            import os
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                    sync_backlog.main()  # debounce
+                    status = sync_backlog.main()  # sync
+                self.assertEqual(status, "sync")
+                self.assertGreater(len(fake_gh.issues), 0)
+            finally:
+                os.chdir(old_cwd)
+
+    def test_third_run_no_changes(self):
+        """After sync, if nothing changed, report no_changes."""
+        fake_gh = FakeGitHub()
+        with tempfile.TemporaryDirectory() as td:
+            config_dir = self._setup_project(td)
+            import os
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                    sync_backlog.main()  # debounce
+                    sync_backlog.main()  # sync
+                    status = sync_backlog.main()  # no changes
+                self.assertEqual(status, "no_changes")
+            finally:
+                os.chdir(old_cwd)

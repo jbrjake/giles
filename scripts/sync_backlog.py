@@ -176,3 +176,51 @@ def do_sync(config: dict) -> dict[str, int]:
             created += 1
     result["issues"] = created
     return result
+
+
+def main() -> str:
+    """Run one sync cycle. Returns status string.
+
+    Intended to be called from sprint-monitor on each loop iteration,
+    or standalone for manual sync.
+    """
+    config = load_config()
+    milestone_files = get_milestones(config)
+
+    if not milestone_files:
+        print("sync: no milestone files found")
+        return "no_changes"
+
+    # Determine config dir for state file
+    paths = config.get("paths", {})
+    backlog_dir = paths.get("backlog_dir", "sprint-config/backlog")
+    config_dir = Path(backlog_dir).parent  # sprint-config/
+
+    now = datetime.now(timezone.utc)
+    current_hashes = hash_milestone_files(milestone_files)
+    state = load_state(config_dir)
+
+    result = check_sync(current_hashes, state, now)
+    print(f"sync: {result.message}")
+
+    if result.should_sync:
+        counts = do_sync(config)
+        state["file_hashes"] = current_hashes
+        state["pending_hashes"] = None
+        state["last_sync_at"] = now.isoformat()
+        print(f"sync: created {counts['issues']} issues, "
+              f"synced {counts['milestones']} milestones")
+    elif result.status == "no_changes":
+        pass  # state unchanged
+    # For debouncing/throttled, state was already mutated by check_sync
+
+    save_state(config_dir, state)
+    return result.status
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"sync: error — {exc}", file=sys.stderr)
+        sys.exit(1)
