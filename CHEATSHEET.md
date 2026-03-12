@@ -77,19 +77,18 @@ you need without reading entire files.
 | Line | Function | Purpose |
 |------|----------|---------|
 | 21 | `Story` | Dataclass: story_id, title, saga, sp, priority, sprint, ACs |
-| 58 | `_DEFAULT_ROW_RE` | Default regex for story table rows |
-| 84 | `parse_milestone_stories()` | Extract stories from all milestone files |
-| 126 | `_infer_sprint_number()` | Guess sprint number from filename |
-| 143 | `_extract_table_field()` | Extract field from markdown table section |
-| 153 | `_DETAIL_BLOCK_RE` | Regex for `### US-XXXX: title` detail block headers |
-| 154 | `_META_ROW_RE` | Regex for `| key | value |` metadata rows in detail blocks |
-| 157 | `parse_detail_blocks()` | Parse `### US-XXXX` detail sections into Story objects |
-| 207 | `enrich_from_epics()` | Enrich stories with ACs, deps, test cases from epic files |
-| 241 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
-| 261 | `get_milestone_numbers()` | Fetch milestone name-to-number mapping from GitHub |
-| 274 | `_build_milestone_title_map()` | Map sprint num to milestone title (by content) |
-| 304 | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
-| 344 | `create_issue()` | Create single GitHub issue with labels + milestone |
+| 59 | `_DEFAULT_ROW_RE` | Default regex for story table rows (optional Epic column) |
+| 85 | `parse_milestone_stories()` | Extract stories from all milestone files |
+| 127 | `_infer_sprint_number()` | Guess sprint number from filename |
+| 146 | `_DETAIL_BLOCK_RE` | Regex for `### US-XXXX: title` detail block headers |
+| 147 | `_META_ROW_RE` | Regex for `| key | value |` metadata rows in detail blocks |
+| 150 | `parse_detail_blocks()` | Parse `### US-XXXX` detail sections into Story objects |
+| 200 | `enrich_from_epics()` | Enrich stories with ACs, deps, test cases from epic files |
+| 234 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
+| 254 | `get_milestone_numbers()` | Fetch milestone name-to-number mapping from GitHub |
+| 267 | `_build_milestone_title_map()` | Map sprint num to milestone title (by content) |
+| 297 | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
+| 337 | `create_issue()` | Create single GitHub issue with labels + milestone |
 
 ### skills/sprint-setup/scripts/setup_ci.py
 | Line | Function | Purpose |

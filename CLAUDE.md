@@ -40,7 +40,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :458, `ConfigGenerator.generate()` :719, `detect_prd_dir()` :340, `detect_test_plan_dir()` :357, `detect_sagas_dir()` :366, `detect_epics_dir()` :375, `detect_story_map()` :384, `detect_team_topology()` :397 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
 | `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_epic_labels()` :200, `create_milestones_on_github()` :211, `main()` :253 |
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `parse_detail_blocks()` :157, `enrich_from_epics()` :207, `format_issue_body()` :304, `_build_milestone_title_map()` :274, `create_issue()` :344 |
+| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :85, `parse_detail_blocks()` :150, `enrich_from_epics()` :200, `format_issue_body()` :297, `_build_milestone_title_map()` :267, `create_issue()` :337 |
 | `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :202, `_SETUP_REGISTRY` :60 (Rust/Python/Node/Go) |
 | `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :201, `create_from_issue()` :248 |
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |

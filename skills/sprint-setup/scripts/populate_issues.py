@@ -54,9 +54,10 @@ def check_prerequisites() -> None:
 
 # -- Story ID pattern --------------------------------------------------------
 
-# Default pattern for story tables: | US-XXXX | title | saga | sp | priority |
+# Story tables: | US-XXXX | title | [epic] | saga | sp | priority |
+# Epic column is optional for backward compat with 5-column format.
 _DEFAULT_ROW_RE = re.compile(
-    r"\|\s*(US-\d{4})\s*\|\s*(.+?)\s*\|\s*(S\d{2})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
+    r"\|\s*(US-\d{4})\s*\|\s*(.+?)\s*\|\s*(?:(E-\d{4})\s*\|\s*)?(S\d{2})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
 )
 
 # Sprint section header pattern
@@ -74,9 +75,9 @@ def _build_row_regex(config: dict) -> re.Pattern:
     backlog = config.get("backlog", {})
     pattern = backlog.get("story_id_pattern", "")
     if pattern:
-        # Build regex: | <story_id> | <title> | <saga> | <sp> | <priority> |
+        # Build regex: | <story_id> | <title> | [epic] | <saga> | <sp> | <priority> |
         return re.compile(
-            rf"\|\s*({pattern})\s*\|\s*(.+?)\s*\|\s*(S\d{{2}})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
+            rf"\|\s*({pattern})\s*\|\s*(.+?)\s*\|\s*(?:(E-\d{{4}})\s*\|\s*)?(S\d{{2}})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
         )
     return _DEFAULT_ROW_RE
 
@@ -104,9 +105,9 @@ def parse_milestone_stories(
             for row in row_re.finditer(m.group(2)):
                 stories.append(Story(
                     story_id=row.group(1), title=row.group(2).strip(),
-                    saga=row.group(3), sp=int(row.group(4)),
-                    priority=row.group(5), sprint=sprint_num,
-                    source_file=str(mf),
+                    epic=row.group(3) or "", saga=row.group(4),
+                    sp=int(row.group(5)), priority=row.group(6),
+                    sprint=sprint_num, source_file=str(mf),
                 ))
 
         # If no sprint sections, scan the whole file for story rows
@@ -115,9 +116,9 @@ def parse_milestone_stories(
             for row in row_re.finditer(content):
                 stories.append(Story(
                     story_id=row.group(1), title=row.group(2).strip(),
-                    saga=row.group(3), sp=int(row.group(4)),
-                    priority=row.group(5), sprint=sprint_num,
-                    source_file=str(mf),
+                    epic=row.group(3) or "", saga=row.group(4),
+                    sp=int(row.group(5)), priority=row.group(6),
+                    sprint=sprint_num, source_file=str(mf),
                 ))
 
     return stories
@@ -138,14 +139,6 @@ def _infer_sprint_number(mf: Path) -> int:
     if m:
         return int(m.group(1))
     return 1
-
-
-def _extract_table_field(section: str, field_name: str) -> str:
-    """Extract a value from a markdown metadata table row."""
-    m = re.search(rf"\| {field_name}\s*\|\s*(.+?)\s*\|", section)
-    if m and m.group(1).strip() not in ("\u2014", ""):
-        return m.group(1).strip()
-    return ""
 
 
 # -- Detail block parser (dreamcatcher format) -------------------------------

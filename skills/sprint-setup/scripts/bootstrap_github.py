@@ -197,7 +197,7 @@ def create_static_labels() -> None:
     create_label("type:chore", "ededed", "Maintenance task")
 
 
-def create_epic_labels(config: dict, epics_dir: Path) -> None:
+def create_epic_labels(epics_dir: Path) -> None:
     """Create epic: labels from epic filenames in epics_dir."""
     epic_re = re.compile(r"(E-\d{4})")
     for f in sorted(epics_dir.glob("*.md")):
@@ -270,7 +270,7 @@ def main() -> None:
     epics_dir = get_epics_dir(config)
     if epics_dir:
         print("\nCreating epic labels...")
-        create_epic_labels(config, epics_dir)
+        create_epic_labels(epics_dir)
 
     create_milestones_on_github(config)
 
