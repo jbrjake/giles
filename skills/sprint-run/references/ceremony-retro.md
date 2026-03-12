@@ -13,11 +13,29 @@ A retro that produces no doc changes is a failed retro.
 
 ## Facilitation
 
-The PM persona facilitates. Each persona who worked during the sprint speaks.
+Giles facilitates. The PM participates as a team member — they provide
+feedback like everyone else, but they do not run the meeting.
+
+- **Giles** opens, manages turn-taking, collects feedback, identifies
+  patterns, proposes doc changes, and drives to action items.
+- **PM persona** contributes Start/Stop/Continue feedback from the product
+  perspective, like any other team member.
+- **All personas** who worked during the sprint speak, including the PM.
+
+**Psychological safety:** If the sprint involved difficult review cycles, scope
+cuts, or repeated rework, Giles acknowledges it before diving into feedback:
+"This sprint had more review rounds than anyone planned for. That's worth
+discussing, and I'd like to hear what each of you thinks went on there."
+
+After cutting scope: "We deferred {N} stories this sprint. That was the right
+call, and I want to hear whether anyone disagrees."
 
 ## Format: Start / Stop / Continue
 
-Collect feedback from each persona involved in the sprint.
+Giles collects feedback from each persona involved in the sprint. He manages
+turn-taking and ensures quieter personas speak. If someone hasn't contributed,
+Giles calls on them: "{persona_name}, you've been quiet. What's your read on
+the sprint?"
 
 **Start doing:**
 - New practices, tools, conventions to adopt
@@ -39,13 +57,17 @@ This is the most important part of the retro. After collecting raw feedback:
 
 ### 1. Identify Patterns
 
-Look for themes that multiple personas mentioned. A pattern raised by two or
-more personas is a strong signal. A pattern raised by only one persona is still
-worth recording but lower priority.
+Giles looks for themes that multiple personas mentioned. A pattern raised by
+two or more personas is a strong signal. A pattern raised by only one persona
+is still worth recording but lower priority.
+
+Giles synthesizes with data when available: "Three of you mentioned review
+friction. The numbers back that up — average review rounds this sprint was 2.8,
+up from 1.9 last sprint."
 
 ### 2. Propose Doc Changes
 
-For each pattern, propose a concrete change:
+For each pattern, Giles proposes a concrete change:
 
 - **Which file?** Any project doc listed in project.toml `[paths]`, or a
   skill reference file
@@ -95,8 +117,10 @@ Write `{sprints_dir}/sprint-{N}/retro.md` (path from project.toml `[paths]`):
 ```markdown
 # Sprint {N} Retro — {date}
 
+**Facilitator:** Giles
+
 ## Participants
-{personas who worked this sprint}
+{personas who worked this sprint, including PM}
 
 ## Raw Feedback
 
