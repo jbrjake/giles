@@ -164,6 +164,44 @@ class TestHexwiseSetup(unittest.TestCase):
         assert scanner.detect_epics_dir() is None
         assert scanner.detect_story_map() is None
 
+    def test_parse_detail_block_story(self):
+        """Parser extracts stories from detail block format in epics."""
+        epic_content = '''
+### US-0101: Parse hex string
+
+| Field | Value |
+|-------|-------|
+| Story Points | 3 |
+| Priority | P0 |
+| Saga | S01 |
+| Epic | E-0101 |
+| Blocked By | — |
+| Blocks | US-0102 |
+| Test Cases | TC-PAR-001, GP-001 |
+
+**As a** CLI user, **I want** to pass a hex color code **so that** I can see its RGB breakdown.
+
+**Acceptance Criteria:**
+- [ ] `AC-01`: Input `#FF5733` returns `R:255 G:87 B:51`
+- [ ] `AC-02`: Handles with/without `#` prefix
+
+**Tasks:**
+- [ ] `T-0101-01`: Validate hex input (1 SP)
+- [ ] `T-0101-02`: Convert to RGB (2 SP)
+'''
+        stories = populate_issues.parse_detail_blocks(epic_content, sprint=1, source_file="test.md")
+        assert len(stories) == 1
+        s = stories[0]
+        assert s.story_id == "US-0101"
+        assert s.title == "Parse hex string"
+        assert s.sp == 3
+        assert s.priority == "P0"
+        assert s.epic == "E-0101"
+        assert s.blocks == "US-0102"
+        assert s.test_cases == "TC-PAR-001, GP-001"
+        assert "CLI user" in s.user_story
+        assert len(s.acceptance_criteria) == 2
+
 
 class TestHexwisePipeline(unittest.TestCase):
     """Full pipeline: init -> bootstrap -> populate against hexwise."""

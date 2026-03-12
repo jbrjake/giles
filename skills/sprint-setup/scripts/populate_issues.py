@@ -148,58 +148,94 @@ def _extract_table_field(section: str, field_name: str) -> str:
     return ""
 
 
-def enrich_from_epics(stories: list[Story], config: dict) -> None:
-    """Enrich stories with user-story text, ACs, metadata from epic files.
+# -- Detail block parser (dreamcatcher format) -------------------------------
 
-    Looks for epic files in backlog_dir. If [paths] epics_dir is set, uses
-    that instead.
-    """
-    paths = config.get("paths", {})
-    backlog_dir = paths.get("backlog_dir", "sprint-config/backlog")
-    epics_dir_str = paths.get("epics_dir", "")
-    if epics_dir_str:
-        epics_dir = Path(epics_dir_str)
-    else:
-        epics_dir = Path(backlog_dir).parent / "epics"
+_DETAIL_BLOCK_RE = re.compile(r"^###\s+(US-\d{4}):\s+(.+)$", re.MULTILINE)
+_META_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$", re.MULTILINE)
 
-    if not epics_dir.is_dir():
-        return
 
-    story_map: dict[str, Story] = {s.story_id: s for s in stories}
-    epic_files = sorted(epics_dir.glob("*.md"))
+def parse_detail_blocks(content: str, sprint: int, source_file: str) -> list[Story]:
+    """Parse detail-block-format stories from epic/milestone content."""
+    stories = []
+    # Split on ### US-XXXX headers
+    parts = _DETAIL_BLOCK_RE.split(content)
+    # parts: [preamble, id1, title1, body1, id2, title2, body2, ...]
+    for i in range(1, len(parts), 3):
+        if i + 2 > len(parts):
+            break
+        story_id, title, body = parts[i], parts[i+1].strip(), parts[i+2]
 
-    for path in epic_files:
-        content = path.read_text(encoding="utf-8")
-        epic_id_m = re.search(r"\| Epic\s*\|\s*(E-\d{4})\s*\|", content)
-        epic_id = epic_id_m.group(1) if epic_id_m else ""
+        # Parse metadata table
+        meta = {}
+        for m in _META_ROW_RE.finditer(body):
+            key, val = m.group(1).strip(), m.group(2).strip()
+            if key != "Field":  # skip header row
+                meta[key.lower().replace(" ", "_")] = val
 
-        # Split on story subsections
-        for section in re.split(r"(?=^### [A-Z]+-\d+:)", content, flags=re.MULTILINE):
-            header = re.match(r"### ([A-Z]+-\d+):\s*(.+)", section)
-            if not header or header.group(1) not in story_map:
-                continue
-            story = story_map[header.group(1)]
-            story.epic = epic_id
+        # Parse user story (strip bold markdown to produce clean text)
+        user_story = ""
+        us_match = re.search(r"\*\*As a\*\*\s+(.+?)(?=\n\n|\n\*\*Acceptance)", body, re.DOTALL)
+        if us_match:
+            raw = us_match.group(0).strip()
+            user_story = raw.replace("**", "")
 
-            # User story
-            us = re.search(
-                r"\*\*As an?\*\*\s*(.+?)\s*\*\*I want\*\*\s*(.+?)"
-                r"\s*\*\*so that\*\*\s*(.+?)(?:\n\n|\n\*\*)",
-                section, re.DOTALL,
-            )
-            if us:
-                story.user_story = (
-                    f"As a {us.group(1).strip().rstrip(',')}, "
-                    f"I want {us.group(2).strip()} "
-                    f"so that {us.group(3).strip().rstrip('.')}."
-                )
-            # Acceptance criteria
-            story.acceptance_criteria = re.findall(
-                r"-\s*\[[ x]\]\s*`?AC-\d+`?:\s*(.+)", section
-            )
-            story.blocked_by = _extract_table_field(section, "Blocked By")
-            story.blocks = _extract_table_field(section, "Blocks")
-            story.test_cases = _extract_table_field(section, "Test Cases")
+        # Parse acceptance criteria
+        ac = re.findall(r"- \[ \] `AC-\d+`:\s*(.+)", body)
+
+        sp = int(meta.get("story_points", "0"))
+        saga = meta.get("saga", "")
+        priority = meta.get("priority", "")
+
+        stories.append(Story(
+            story_id=story_id,
+            title=title,
+            saga=saga,
+            sp=sp,
+            priority=priority,
+            sprint=sprint,
+            user_story=user_story,
+            acceptance_criteria=ac,
+            epic=meta.get("epic", ""),
+            blocked_by=meta.get("blocked_by", "").replace("\u2014", "").strip(),
+            blocks=meta.get("blocks", "").replace("\u2014", "").strip(),
+            test_cases=meta.get("test_cases", "").replace("\u2014", "").strip(),
+            source_file=source_file,
+        ))
+    return stories
+
+
+def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
+    """Enrich stories with detail blocks from epic files, if available."""
+    epics_dir = config.get("paths", {}).get("epics_dir")
+    if not epics_dir:
+        return stories
+    epics_path = Path(epics_dir)
+    if not epics_path.is_dir():
+        return stories
+
+    # Build lookup of existing stories by ID
+    by_id = {s.story_id: s for s in stories}
+    new_stories = []
+
+    for epic_file in sorted(epics_path.glob("*.md")):
+        content = epic_file.read_text(errors="replace")
+        # Infer sprint from stories already parsed from milestones
+        sprint = 1  # default
+        parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file))
+        for ps in parsed:
+            if ps.story_id in by_id:
+                # Merge: detail block fields override table-row fields
+                existing = by_id[ps.story_id]
+                existing.user_story = ps.user_story or existing.user_story
+                existing.acceptance_criteria = ps.acceptance_criteria or existing.acceptance_criteria
+                existing.epic = ps.epic or existing.epic
+                existing.blocked_by = ps.blocked_by or existing.blocked_by
+                existing.blocks = ps.blocks or existing.blocks
+                existing.test_cases = ps.test_cases or existing.test_cases
+            else:
+                new_stories.append(ps)
+
+    return stories + new_stories
 
 
 def get_existing_issues() -> set[str]:
@@ -266,32 +302,42 @@ def _build_milestone_title_map(
 
 
 def format_issue_body(story: Story) -> str:
-    """Format the GitHub issue body from story details."""
-    lines: list[str] = []
-    if story.user_story:
-        lines += [f"> {story.user_story}", ""]
-    lines += ["| Field | Value |", "|-------|-------|",
-              f"| Story Points | {story.sp} |",
-              f"| Priority | {story.priority} |",
-              f"| Saga | {story.saga} |"]
+    """Format enriched GitHub issue body from story."""
+    lines = []
+    # Persona placeholder — updated after kickoff assignment
+    lines.append("> **[Unassigned]** \u00b7 Implementation\n")
+    # Story header
+    lines.append("## Story")
+    lines.append(f"**{story.story_id}** \u2014 {story.title} | Sprint {story.sprint} | {story.sp} SP | {story.priority}")
     if story.epic:
-        lines.append(f"| Epic | {story.epic} |")
-    lines.append(f"| Sprint | {story.sprint} |")
-    for label, val in [("Blocked By", story.blocked_by),
-                       ("Blocks", story.blocks),
-                       ("Test Cases", story.test_cases)]:
-        if val:
-            lines.append(f"| {label} | {val} |")
+        lines.append(f"**Epic:** {story.epic}")
+    if story.saga:
+        lines.append(f"**Saga:** {story.saga}")
     lines.append("")
-    if story.acceptance_criteria:
-        lines += ["## Acceptance Criteria", ""]
-        for i, ac in enumerate(story.acceptance_criteria, 1):
-            lines.append(f"- [ ] **AC-{i:02d}:** {ac}")
+    # User story
+    if story.user_story:
+        lines.append("## User Story")
+        lines.append(story.user_story)
         lines.append("")
-    if story.source_file:
-        lines += ["---", "",
-                  f"Source: `{Path(story.source_file).name}`"
-                  f" | Sprint {story.sprint}"]
+    # Acceptance criteria
+    if story.acceptance_criteria:
+        lines.append("## Acceptance Criteria")
+        for i, ac in enumerate(story.acceptance_criteria, 1):
+            lines.append(f"- [ ] `AC-{i:02d}`: {ac}")
+        lines.append("")
+    # Dependencies
+    if story.blocked_by or story.blocks:
+        lines.append("## Dependencies")
+        if story.blocked_by:
+            lines.append(f"**Blocked by:** {story.blocked_by}")
+        if story.blocks:
+            lines.append(f"**Blocks:** {story.blocks}")
+        lines.append("")
+    # Test coverage references (IDs only, not full content)
+    if story.test_cases:
+        lines.append("## Test Coverage")
+        lines.append(f"**Test cases:** {story.test_cases}")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -342,7 +388,7 @@ def main() -> None:
         sys.exit(1)
 
     print("\nEnriching from epic files...")
-    enrich_from_epics(stories, config)
+    stories = enrich_from_epics(stories, config)
     enriched = sum(1 for s in stories if s.user_story)
     print(f"  Enriched {enriched}/{len(stories)} stories with epic details.")
 
