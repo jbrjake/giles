@@ -134,7 +134,7 @@ class TestGoldenRun(unittest.TestCase):
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
             bootstrap_github.create_milestones_on_github(config)
 
-        self.assertEqual(len(self.fake_gh.milestones), 2)
+        self.assertEqual(len(self.fake_gh.milestones), 3)
         self._check_or_record(
             recorder, replayer, "03-setup-milestones",
             lambda snap: replayer.assert_milestones_match(snap, self.fake_gh),
@@ -161,7 +161,7 @@ class TestGoldenRun(unittest.TestCase):
                 if story.story_id not in populate_issues.get_existing_issues():
                     populate_issues.create_issue(story, ms_numbers, ms_titles)
 
-        self.assertEqual(len(self.fake_gh.issues), 6)
+        self.assertEqual(len(self.fake_gh.issues), 17)
         self._check_or_record(
             recorder, replayer, "04-setup-issues",
             lambda snap: replayer.assert_issues_match(snap, self.fake_gh),

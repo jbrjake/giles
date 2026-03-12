@@ -266,20 +266,21 @@ class ProjectScanner:
         results: list[ScoredFile] = []
         for p in self._glob_md():
             head = self._read_head(p)
-            # Check original headings
+            # Check original headings (compact format, 30 lines sufficient)
             hits = [h for h in PERSONA_HEADINGS
                     if any(line.strip().startswith(h) for line in head)]
-            # Check rich headings
-            rich_hits = [h for h in RICH_PERSONA_HEADINGS
-                         if any(line.strip().startswith(h) for line in head)]
-            # Accept either set (3+ matches)
             if len(hits) >= 3:
                 conf = min(len(hits) / len(PERSONA_HEADINGS), 1.0)
                 results.append(ScoredFile(
                     self._rel(p), conf,
                     f"matched headings: {', '.join(hits)}",
                 ))
-            elif len(rich_hits) >= 3:
+                continue
+            # Rich personas are longer — read more lines for heading scan
+            extended = self._read_head(p, 80)
+            rich_hits = [h for h in RICH_PERSONA_HEADINGS
+                         if any(line.strip().startswith(h) for line in extended)]
+            if len(rich_hits) >= 3:
                 conf = min(len(rich_hits) / len(RICH_PERSONA_HEADINGS), 1.0)
                 results.append(ScoredFile(
                     self._rel(p), conf,
@@ -298,6 +299,8 @@ class ProjectScanner:
         return Detection(None, "no team index found", 0.0)
 
     def detect_backlog_files(self) -> list[ScoredFile]:
+        """Detect milestone files — require sprint headers to distinguish
+        from epics, sagas, PRDs, and other docs that reference stories."""
         story_re = re.compile(r"\|\s*US-\d+|\|\s*Story\s*\|.*\|\s*SP\s*\|",
                               re.I)
         sprint_re = re.compile(r"###?\s*Sprint\s+\d+", re.I)
@@ -309,13 +312,12 @@ class ProjectScanner:
                 continue
             story_hits = len(story_re.findall(text))
             sprint_hits = len(sprint_re.findall(text))
-            total = story_hits + sprint_hits
-            if total >= 1:
-                evidence_parts = []
-                if story_hits:
-                    evidence_parts.append(f"{story_hits} story rows")
-                if sprint_hits:
-                    evidence_parts.append(f"{sprint_hits} sprint headers")
+            # Milestone files must have sprint headers; story rows alone
+            # could be epics, sagas, test plans, or story maps.
+            if sprint_hits >= 1 and story_hits >= 1:
+                total = story_hits + sprint_hits
+                evidence_parts = [f"{story_hits} story rows",
+                                  f"{sprint_hits} sprint headers"]
                 conf = min(total / 10, 1.0)
                 results.append(ScoredFile(
                     self._rel(p), conf, ", ".join(evidence_parts),

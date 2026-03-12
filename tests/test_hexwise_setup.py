@@ -140,29 +140,51 @@ class TestHexwiseSetup(unittest.TestCase):
         config = parse_simple_toml(toml_text)
         self.assertIn("testowner/hexwise", config["project"]["repo"])
 
-    def test_optional_paths_absent(self):
-        """Optional doc paths return None when not configured."""
+    def test_optional_paths_present(self):
+        """Optional doc paths return actual Paths when configured."""
         from validate_config import (
             get_prd_dir, get_test_plan_dir, get_sagas_dir,
             get_epics_dir, get_story_map,
         )
         config = load_config("sprint-config")
-        # Hexwise doesn't have these yet
-        assert get_prd_dir(config) is None
-        assert get_test_plan_dir(config) is None
-        assert get_sagas_dir(config) is None
-        assert get_epics_dir(config) is None
-        assert get_story_map(config) is None
+        # Hexwise now has deep docs — these should be detected and configured
+        assert get_prd_dir(config) is not None
+        assert get_test_plan_dir(config) is not None
+        assert get_sagas_dir(config) is not None
+        assert get_epics_dir(config) is not None
+        assert get_story_map(config) is not None
 
-    def test_scanner_deep_docs_absent(self):
-        """Scanner returns None for deep docs when not present."""
+    def test_scanner_detects_hexwise_deep_docs(self):
+        """Scanner detects PRDs, test plan, sagas, epics in extended Hexwise."""
         scanner = ProjectScanner(self.project_dir)
-        # Call each method and verify graceful None return
-        assert scanner.detect_prd_dir() is None
-        assert scanner.detect_test_plan_dir() is None
-        assert scanner.detect_sagas_dir() is None
-        assert scanner.detect_epics_dir() is None
-        assert scanner.detect_story_map() is None
+        result = scanner.scan()
+        assert result.prd_dir is not None
+        assert result.test_plan_dir is not None
+        assert result.sagas_dir is not None
+        assert result.epics_dir is not None
+        assert result.story_map is not None
+
+    def test_config_generator_includes_optional_paths(self):
+        """Generated project.toml includes optional paths when deep docs detected."""
+        config = load_config("sprint-config")
+        assert config["paths"].get("prd_dir") is not None
+        assert config["paths"].get("sagas_dir") is not None
+        assert config["paths"].get("epics_dir") is not None
+
+    def test_populate_issues_parses_epic_stories(self):
+        """populate_issues extracts stories from epic detail blocks."""
+        from validate_config import get_milestones
+        config = load_config("sprint-config")
+        milestones = get_milestones(config)
+        stories = populate_issues.parse_milestone_stories(milestones, config)
+        stories = populate_issues.enrich_from_epics(stories, config)
+        # Find a known story
+        story_ids = {s.story_id for s in stories}
+        assert "US-0101" in story_ids
+        # Check enrichment worked
+        us0101 = next(s for s in stories if s.story_id == "US-0101")
+        assert us0101.epic != ""
+        assert len(us0101.acceptance_criteria) >= 2
 
     def test_parse_detail_block_story(self):
         """Parser extracts stories from detail block format in epics."""
@@ -278,17 +300,20 @@ class TestHexwisePipeline(unittest.TestCase):
 
         # Verify results
         self.assertGreater(len(self.fake_gh.labels), 10, "Should have many labels")
-        self.assertEqual(len(self.fake_gh.milestones), 2, "Should have 2 milestones")
-        self.assertEqual(len(self.fake_gh.issues), 6, "Should have 6 issues (stories)")
+        self.assertEqual(len(self.fake_gh.milestones), 3, "Should have 3 milestones")
+        self.assertEqual(len(self.fake_gh.issues), 17, "Should have 17 issues (stories)")
 
         # Verify persona labels exist
         persona_labels = [l for l in self.fake_gh.labels if l.startswith("persona:")]
         self.assertEqual(len(persona_labels), 3, "Should have 3 persona labels")
 
-        # Verify stories have correct IDs
+        # Verify stories have correct IDs (all 17 across 3 milestones)
         issue_titles = [iss["title"] for iss in self.fake_gh.issues]
-        for sid in ("US-0101", "US-0102", "US-0103",
-                     "US-0201", "US-0202", "US-0203"):
+        for sid in ("US-0101", "US-0102", "US-0103", "US-0104",
+                     "US-0105", "US-0106", "US-0107", "US-0108",
+                     "US-0201", "US-0202", "US-0203", "US-0204",
+                     "US-0205", "US-0206", "US-0207", "US-0208",
+                     "US-0209"):
             self.assertTrue(
                 any(sid in t for t in issue_titles),
                 f"{sid} not found in {issue_titles}",
