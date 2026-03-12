@@ -26,7 +26,7 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-from validate_config import load_config
+from validate_config import load_config, get_base_branch
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 
 
@@ -151,14 +151,15 @@ def gate_stories(milestone_title: str) -> tuple[bool, str]:
     return False, f"{len(issues)} open: {', '.join(titles)}"
 
 
-def gate_ci() -> tuple[bool, str]:
-    """Gate: most recent CI run on main must be successful."""
+def gate_ci(config: dict) -> tuple[bool, str]:
+    """Gate: most recent CI run on the base branch must be successful."""
+    base_branch = get_base_branch(config)
     runs = gh_json([
-        "run", "list", "--branch", "main", "--limit", "1",
+        "run", "list", "--branch", base_branch, "--limit", "1",
         "--json", "status,conclusion,name",
     ])
     if not runs:
-        return False, "No CI runs found on main"
+        return False, f"No CI runs found on {base_branch}"
     run = runs[0]
     if run.get("conclusion") == "success":
         return True, f"{run.get('name', 'CI')}: success"
@@ -224,7 +225,7 @@ def validate_gates(
     results: list[tuple[str, bool, str]] = []
     gates = [
         ("Stories", lambda: gate_stories(milestone_title)),
-        ("CI", gate_ci),
+        ("CI", lambda: gate_ci(config)),
         ("PRs", lambda: gate_prs(milestone_title)),
         ("Tests", lambda: gate_tests(config)),
         ("Build", lambda: gate_build(config)),
