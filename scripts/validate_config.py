@@ -453,6 +453,51 @@ def get_base_branch(config: dict) -> str:
     return branch if branch else "main"
 
 
+def get_prd_dir(config: dict) -> Path | None:
+    """Return PRD directory path, or None if not configured."""
+    val = config.get("paths", {}).get("prd_dir")
+    if not val:
+        return None
+    p = Path(val)
+    return p if p.is_dir() else None
+
+
+def get_test_plan_dir(config: dict) -> Path | None:
+    """Return test plan directory path, or None if not configured."""
+    val = config.get("paths", {}).get("test_plan_dir")
+    if not val:
+        return None
+    p = Path(val)
+    return p if p.is_dir() else None
+
+
+def get_sagas_dir(config: dict) -> Path | None:
+    """Return sagas directory path, or None if not configured."""
+    val = config.get("paths", {}).get("sagas_dir")
+    if not val:
+        return None
+    p = Path(val)
+    return p if p.is_dir() else None
+
+
+def get_epics_dir(config: dict) -> Path | None:
+    """Return epics directory path, or None if not configured."""
+    val = config.get("paths", {}).get("epics_dir")
+    if not val:
+        return None
+    p = Path(val)
+    return p if p.is_dir() else None
+
+
+def get_story_map(config: dict) -> Path | None:
+    """Return story map index file path, or None if not configured."""
+    val = config.get("paths", {}).get("story_map")
+    if not val:
+        return None
+    p = Path(val)
+    return p if p.is_file() else None
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------

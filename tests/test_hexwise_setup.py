@@ -21,7 +21,7 @@ sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 sys.path.insert(0, str(_REPO_ROOT / "tests"))
 
 from sprint_init import ConfigGenerator, ProjectScanner  # noqa: E402
-from validate_config import parse_simple_toml, validate_project  # noqa: E402
+from validate_config import load_config, parse_simple_toml, validate_project  # noqa: E402
 from fake_github import FakeGitHub, make_patched_subprocess  # noqa: E402
 
 sys.path.insert(0, str(_REPO_ROOT / "skills" / "sprint-setup" / "scripts"))
@@ -139,6 +139,20 @@ class TestHexwiseSetup(unittest.TestCase):
         toml_text = (self.config_dir / "project.toml").read_text()
         config = parse_simple_toml(toml_text)
         self.assertIn("testowner/hexwise", config["project"]["repo"])
+
+    def test_optional_paths_absent(self):
+        """Optional doc paths return None when not configured."""
+        from validate_config import (
+            get_prd_dir, get_test_plan_dir, get_sagas_dir,
+            get_epics_dir, get_story_map,
+        )
+        config = load_config("sprint-config")
+        # Hexwise doesn't have these yet
+        assert get_prd_dir(config) is None
+        assert get_test_plan_dir(config) is None
+        assert get_sagas_dir(config) is None
+        assert get_epics_dir(config) is None
+        assert get_story_map(config) is None
 
 
 class TestHexwisePipeline(unittest.TestCase):
