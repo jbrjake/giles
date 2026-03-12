@@ -37,7 +37,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
 | `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :22, `get_team_personas()` :398, `get_milestones()` :426, `get_base_branch()` :450 |
-| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :349, `ConfigGenerator.generate()` :499 |
+| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :354, `ConfigGenerator.generate()` :573 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
 | `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_milestones_on_github()` :200, `main()` :242 |
 | `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `enrich_from_epics()` :151, `_build_milestone_title_map()` :238, `create_issue()` :298 |

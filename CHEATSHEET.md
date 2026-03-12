@@ -30,10 +30,10 @@ you need without reading entire files.
 | Line | Function | Purpose |
 |------|----------|---------|
 | 79 | `ProjectScanner` | Auto-detects language, personas, milestones, rules |
-| 349 | `ProjectScanner.scan()` | Run full project scan |
+| 354 | `ProjectScanner.scan()` | Run full project scan |
 | 380 | `ConfigGenerator` | Generates sprint-config/ from scan results |
-| 499 | `ConfigGenerator.generate()` | Execute generation |
-| 584 | `print_scan_results()` | Human-readable scan output |
+| 573 | `ConfigGenerator.generate()` | Execute generation |
+| 593 | `print_scan_results()` | Human-readable scan output |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
@@ -214,11 +214,11 @@ you need without reading entire files.
 | Line | Section |
 |------|---------|
 | 12 | TODO --> DESIGN (read PRDs, create branch, design notes) |
-| 47 | Commit convention |
-| 60 | DESIGN --> DEVELOPMENT (TDD via superpowers) |
-| 83 | DEVELOPMENT --> REVIEW (PR ready, dispatch reviewer) |
-| 104 | REVIEW --> INTEGRATION (CI green, squash-merge) |
-| 133 | Parallel dispatch for independent stories |
+| 46 | Commit convention |
+| 59 | DESIGN --> DEVELOPMENT (TDD via superpowers) |
+| 81 | DEVELOPMENT --> REVIEW (PR ready, dispatch reviewer) |
+| 102 | REVIEW --> INTEGRATION (CI green, squash-merge) |
+| 128 | Parallel dispatch for independent stories |
 
 ### skills/sprint-run/references/tracking-formats.md
 | Line | Section |
@@ -300,5 +300,5 @@ See `validate_config.py:177` for the full list.
 | Add language to CI gen | `setup_ci.py:60` (_SETUP_REGISTRY), `:74` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:27` (KANBAN_STATES) |
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:137` (TF), `update_burndown.py:100` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:380` (ConfigGenerator) |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:573` (ConfigGenerator.generate) |
 | Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |

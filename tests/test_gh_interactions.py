@@ -295,7 +295,7 @@ class TestGateCI(unittest.TestCase):
         mock_gh.return_value = [
             {"status": "completed", "conclusion": "success", "name": "CI"},
         ]
-        ok, detail = gate_ci()
+        ok, detail = gate_ci({"project": {}})
         self.assertTrue(ok)
 
     @patch("release_gate.gh_json")
@@ -303,14 +303,14 @@ class TestGateCI(unittest.TestCase):
         mock_gh.return_value = [
             {"status": "completed", "conclusion": "failure", "name": "CI"},
         ]
-        ok, detail = gate_ci()
+        ok, detail = gate_ci({"project": {}})
         self.assertFalse(ok)
         self.assertIn("failure", detail)
 
     @patch("release_gate.gh_json")
     def test_no_runs(self, mock_gh):
         mock_gh.return_value = []
-        ok, detail = gate_ci()
+        ok, detail = gate_ci({"project": {}})
         self.assertFalse(ok)
 
 

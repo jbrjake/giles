@@ -39,7 +39,6 @@ and acceptance criteria, then produces a design.
    gh pr edit {pr_number} --add-label "persona:{persona},sprint:{N},saga:{saga},priority:{pri},kanban:design"
    gh issue edit {issue_number} --remove-label "kanban:todo" --add-label "kanban:design"
    ```
-5. Update the GitHub issue label to `kanban:design`.
 
 The PR description carries full context because reviewers should never
 need to leave the PR to understand what they are reviewing.
@@ -76,7 +75,6 @@ review style.
    gh pr ready {pr_number}
    gh issue edit {issue_number} --remove-label "kanban:design" --add-label "kanban:dev"
    ```
-5. Update the GitHub issue label to `kanban:dev`.
 
 ---
 
@@ -113,8 +111,9 @@ full agent protocol. The reviewer's persona file (from
    ```bash
    gh pr merge {pr_number} --squash --delete-branch
    ```
-4. Close the GitHub issue:
+4. Update the GitHub issue label and close:
    ```bash
+   gh issue edit {issue_number} --remove-label "kanban:review" --add-label "kanban:done"
    gh issue close {issue_number}
    ```
 5. Update burndown:
@@ -123,10 +122,6 @@ full agent protocol. The reviewer's persona file (from
    ```
 6. Update story tracking file: set status = done, record completion date.
 7. Update `SPRINT-STATUS.md` with the completed story.
-8. Update the GitHub issue label:
-   ```bash
-   gh issue edit {issue_number} --remove-label "kanban:review" --add-label "kanban:done"
-   ```
 
 ---
 
