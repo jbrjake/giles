@@ -10,8 +10,20 @@ slideware. No mockups. No "imagine this works."
 
 ## Facilitation
 
-The PM persona introduces each story. The implementer persona presents their
-work.
+Giles opens the demo and manages presentation order. For each story, the
+implementer persona presents their work. The PM confirms acceptance criteria.
+
+- **Giles** opens, manages flow, calls on personas for Q&A, keeps time.
+- **Implementer persona** presents each story they built.
+- **PM persona** confirms acceptance criteria for each story.
+
+**Ensemble framing:** If one story dominated the sprint (star-vehicle sprint),
+Giles gives it 60% of demo time and presents it first. He acknowledges the
+supporting cast: "This was {persona}'s sprint. Let's see the main event, then
+we'll walk the supporting work."
+
+For ensemble sprints, Giles walks stories in priority order with even time
+allocation.
 
 ## For Each Story
 
@@ -62,6 +74,10 @@ whether the test COVERAGE matches what the test plan specified.
 
 ### 4. Team Q&A (in-persona)
 
+Giles manages the Q&A flow. He ensures each persona gets a chance to comment
+from their domain. If a persona hasn't spoken, Giles calls on them:
+"{persona_name}, you've been quiet. Anything from the {domain} perspective?"
+
 - Reviewer persona comments on code quality observations from their review
 - Other team members ask questions from their domain perspective (e.g.,
   memory implications, security implications, adversarial test scenarios,
@@ -73,6 +89,8 @@ Write `{sprints_dir}/sprint-{N}/demo.md` (path from project.toml `[paths]`):
 
 ```markdown
 # Sprint {N} Demo — {date}
+
+**Facilitator:** Giles
 
 ## Stories Demonstrated
 
