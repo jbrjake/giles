@@ -11,9 +11,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [{base_branch}]
   push:
-    branches: [main]
+    branches: [{base_branch}]
 
 jobs:
   check:
@@ -41,7 +41,8 @@ jobs:
 
 ## Notes
 
-- The workflow runs on every PR and push to main
+- `{base_branch}` is a placeholder replaced by the setup script. Comes from `project.toml [project] base_branch` (defaults to `main`)
+- The workflow runs on every PR and push to the base branch
 - Check and build commands are defined in project.toml `[ci]` section
 - Add platform matrix when cross-platform targets are needed
 - The setup script generates the final workflow YAML from this template
