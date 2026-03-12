@@ -26,7 +26,13 @@ Read `{team_dir}/{persona_file}` for your full character profile — voice, conc
 {relevant_prd_excerpts — enough to implement without reading full PRDs}
 
 ### Related Stories
-{dependencies and related stories}
+{dependencies — current GitHub state of blocked_by/blocks stories: merged, in review, or in dev. Sprint-run checks `gh issue view` for each dependency and injects status.}
+
+### Strategic Context
+{saga_context — saga goal and where this story fits in the larger initiative. Omitted if sagas not configured.}
+
+### Test Plan Context
+{test_plan_context — preconditions and expected results from referenced test cases. Omitted if test plan not configured.}
 
 ## Your Process
 
@@ -51,6 +57,12 @@ gh pr create --draft --base {base_branch} --head {branch_name} \
 
 ## PRD Context
 {relevant_prd_excerpts}
+
+## Test References
+{test_case_ids — comma-separated list of test case IDs this story should satisfy}
+
+## Strategic Context
+{saga_goal — one-line saga objective for orientation}
 
 ## Design Decisions
 (to be filled during design phase)
@@ -134,6 +146,8 @@ Before marking ready for review, verify:
 - [ ] File sizes under project limits (see `{rules_file}`)
 - [ ] Navigation docs updated if new files/concepts added (see `project.toml [paths]`)
 - [ ] PR description is self-contained (reviewer doesn't need external docs)
+- [ ] Test plan references covered (if test cases specified in story)
+- [ ] Implementation satisfies PRD non-functional requirements (if PRD excerpts provided)
 
 ## Stay in Character
 Throughout your work, think and communicate as {persona_name}:
