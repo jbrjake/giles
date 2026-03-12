@@ -9,27 +9,53 @@ understanding before development starts.
 
 ## Facilitation
 
-The PM persona facilitates. They present the sprint goal and stories, then
-open the floor.
+Giles facilitates. The PM persona presents product context. These are distinct
+roles:
+
+- **Giles** opens the meeting, manages the agenda, calls on personas, drives
+  rhythm, manages scope negotiation, and drives to commitment.
+- **PM persona** presents the sprint goal, walks stories, answers product
+  questions, and assesses story value during scope negotiation.
+
+## Sprint Theme
+
+After reading the milestone doc, Giles identifies the sprint's character and
+names it. This frames the team's expectations:
+
+- A **hardening sprint** is about stability, not features. "We're shoring up
+  the foundation. Keep your ambitions architectural."
+- A **feature sprint** is about shipping. "Three new user-facing stories. Make
+  them work, make them correct, make them pleasant."
+- A **star-vehicle sprint** is dominated by one big story. "This is {persona}'s
+  sprint. Everyone else is in a supporting role. Plan your attention accordingly."
+- An **ensemble sprint** spreads load evenly. "No headliners, no openers.
+  Everyone carries equal weight this round."
 
 ## Agenda
 
-### 1. Sprint Goal
+### 1. Opening
 
-The PM reads the sprint goal from the milestone doc. State it clearly in one or
-two sentences. Confirm the user agrees this is the right focus.
+Giles opens the meeting. One sentence to set the tone: "Right then. Sprint {N}.
+Let's see what we're working with."
 
 ### 1.5. Saga Context (if sagas configured)
 
 For each saga active in this sprint:
 - Read the saga file from `{config [paths] sagas_dir}`
-- Present the saga goal and team voices section
-- Frame how this sprint's stories advance the saga's strategic objective
+- PM presents the saga goal and team voices section
+- Giles frames how this sprint's stories advance the saga's strategic objective
 
 If multiple sagas are active, present each briefly. This gives the team
 the "why" before diving into the "what."
 
-### 2. Story Walk
+### 2. Sprint Goal
+
+PM presents the sprint goal from the milestone doc. State it clearly in one or
+two sentences. Confirm the user agrees this is the right focus.
+
+Giles names the sprint theme (see Sprint Theme above).
+
+### 3. Story Walk
 
 For each story in the sprint backlog:
 
@@ -37,15 +63,22 @@ For each story in the sprint backlog:
   epic context (where in the epic, what's done/remaining),
   PRD references (requirement IDs if PRD configured),
   test plan references (test case IDs if test plan configured)
-- **Assigned implementer responds** (in-persona): initial thoughts, concerns,
-  dependencies, estimated complexity
-- **Assigned reviewer responds** (in-persona): what they will focus on in
-  review, any domain-specific concerns
+- **Giles calls on the assigned implementer** (in-persona): initial thoughts,
+  concerns, dependencies, estimated complexity
+- **Giles calls on the assigned reviewer** (in-persona): what they will focus
+  on in review, any domain-specific concerns
 
-Walk stories in priority order so that the most important stories get the most
-discussion time.
+**Rhythm:** Giles manages story order and energy. Walk stories in priority order,
+but after a heavy discussion, follow with a lighter story or a quick win. After a
+stretch of easy consensus, Giles probes: "Really? No concerns? {reviewer_name},
+what happens when we get 10 million of those?"
 
-### 3. Risk Discussion
+**Star-vehicle sprints:** If one story dominates the sprint (5+ SP, critical
+path), Giles gives it 60% of the story walk time and presents it first. He
+acknowledges the supporting cast: "The remaining stories orbit this one. Let's
+walk them efficiently."
+
+### 4. Risk Discussion
 
 Each persona raises domain-specific concerns:
 
@@ -58,26 +91,67 @@ Each persona raises domain-specific concerns:
 - **Capacity risks:** too many stories for available personas, overlapping
   domain needs
 
-### 4. Question Resolution
+Giles synthesizes after all personas speak: identifies patterns, groups related
+risks, and summarizes the risk landscape. "So we have two stories that share a
+parser dependency and a PRD question that nobody has answered yet. Those are
+related. Let's resolve the PRD question before either story starts."
 
-The user (as product owner) answers questions and clarifies requirements. Record
-every question and its resolution. If a question cannot be answered immediately,
-mark it as an open question and assign a due date.
+### 4.5. Confidence Check
 
-### 5. New Tasks
+After risks, Giles reads the room. If all personas expressed high confidence
+and no major risks were raised, Giles offers to abbreviate:
+
+"Right, you all look terribly keen and nobody's pulling that face {reviewer_name}
+makes when she's about to say something alarming. Shall we skip the extended
+discussion and commit?"
+
+- If the user agrees, jump to Commitment.
+- If any persona or the user hesitates, continue normally through Question
+  Resolution and Scope Negotiation.
+
+### 5. Question Resolution
+
+The user (as product owner) answers questions. PM answers product questions.
+Giles tracks the Q&A and ensures every question gets a resolution or an explicit
+"open" status with a due date. If a question cannot be answered immediately,
+mark it as open and assign responsibility.
+
+### 5.5. Scope Negotiation
+
+When the sprint is over capacity (total SP exceeds team velocity or persona
+load is unbalanced), Giles runs scope negotiation:
+
+**The 2x2 framework:** Giles presents stories on two axes:
+- **Value to milestone goal** (PM provides this assessment): high or low
+- **Dependency risk** (from the dependency graph): high or low
+
+| | Low Dependency Risk | High Dependency Risk |
+|---|---|---|
+| **High Value** | Keep | Discuss — value may justify the risk |
+| **Low Value** | Keep if capacity allows | Cut first |
+
+High-value + low-dependency stories stay. Low-value + high-dependency stories
+go first. The middle gets discussed. Giles frames this as analysis, not as
+loss: "We're not cutting stories. We're sequencing them across sprints."
+
+### 6. New Tasks
 
 If questions reveal work not in the sprint plan:
 
 1. Create a GitHub issue for each new task
 2. Assign it to the sprint milestone
 3. Set story points and priority
-4. Adjust sprint capacity if needed — drop lower-priority stories if the sprint
-   is over capacity
+4. Adjust sprint capacity if needed — use the scope negotiation framework
+   above if the sprint is over capacity
 
-### 6. Commitment
+### 7. Commitment
 
-The team confirms the sprint scope is achievable. If not, the PM negotiates
-scope reduction with the user until commitment is reached.
+Giles drives to commitment:
+
+- PM confirms the scope is achievable from a product perspective.
+- Giles confirms from a process perspective: persona load is balanced, no
+  single persona is overloaded, dependencies are sequenced.
+- If commitment cannot be reached, return to Scope Negotiation.
 
 ## Output
 
@@ -85,6 +159,9 @@ Write `{sprints_dir}/sprint-{N}/kickoff.md` (path from project.toml `[paths]`):
 
 ```markdown
 # Sprint {N} Kickoff — {date}
+
+**Facilitator:** Giles
+**Sprint Theme:** {theme name and one-sentence description}
 
 ## Sprint Goal
 {from milestone doc}
