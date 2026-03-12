@@ -36,23 +36,23 @@ see `CHEATSHEET.md`. The tables below are a summary.
 
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
-| `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :22, `get_team_personas()` :398, `get_milestones()` :426, `get_base_branch()` :450 |
-| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :354, `ConfigGenerator.generate()` :573 |
+| `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :21, `get_team_personas()` :398, `get_milestones()` :426, `get_base_branch()` :450, `get_prd_dir()` :456, `get_test_plan_dir()` :465, `get_sagas_dir()` :474, `get_epics_dir()` :483, `get_story_map()` :492 |
+| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :458, `ConfigGenerator.generate()` :719, `detect_prd_dir()` :340, `detect_test_plan_dir()` :357, `detect_sagas_dir()` :366, `detect_epics_dir()` :375, `detect_story_map()` :384, `detect_team_topology()` :397 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
-| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_milestones_on_github()` :200, `main()` :242 |
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `enrich_from_epics()` :151, `_build_milestone_title_map()` :238, `create_issue()` :298 |
+| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_epic_labels()` :200, `create_milestones_on_github()` :211, `main()` :253 |
+| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :84, `parse_detail_blocks()` :157, `enrich_from_epics()` :207, `format_issue_body()` :304, `_build_milestone_title_map()` :274, `create_issue()` :344 |
 | `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :202, `_SETUP_REGISTRY` :60 (Rust/Python/Node/Go) |
 | `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :201, `create_from_issue()` :248 |
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |
 | `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
-| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :56, `check_prs()` :112, `check_milestone()` :188 |
+| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :62, `check_prs()` :118, `check_milestone()` :194 |
 
 ### Skill Entry Points
 
 | Skill | SKILL.md | Key sections |
 |-------|----------|-------------|
 | sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
-| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :28, Phase 1: Kickoff :43, Phase 2: Story execution :49, Phase 3: Demo :64, Phase 4: Retro :70 |
+| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Context Assembly :65, Phase 3: Demo :97, Phase 4: Retro :103 |
 | sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, Backlog sync :46, CI check :69, PR check :103, Burndown :152, Rate limiting :195 |
 | sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
@@ -63,11 +63,11 @@ see `CHEATSHEET.md`. The tables below are a summary.
 |------|-------------------|
 | `skills/sprint-run/references/kanban-protocol.md` | State machine (6 states), transition rules, WIP limits |
 | `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format |
-| `skills/sprint-run/references/ceremony-kickoff.md` | Kickoff agenda, output template, exit criteria |
-| `skills/sprint-run/references/ceremony-demo.md` | Demo format, artifact requirements, acceptance verification |
+| `skills/sprint-run/references/ceremony-kickoff.md` | Kickoff agenda, saga context step :22, output template, exit criteria |
+| `skills/sprint-run/references/ceremony-demo.md` | Demo format, artifact requirements, test plan verification :53, acceptance verification |
 | `skills/sprint-run/references/ceremony-retro.md` | Start/Stop/Continue format, feedback distillation, doc change rules |
-| `skills/sprint-run/agents/implementer.md` | Subagent template for story implementation (TDD, PR creation) |
-| `skills/sprint-run/agents/reviewer.md` | Subagent template for PR review (checklist, in-persona voice) |
+| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, strategic context :31, test plan context :34 |
+| `skills/sprint-run/agents/reviewer.md` | Subagent template: PR review, in-persona voice, test coverage verification :63 |
 | `skills/sprint-setup/references/github-conventions.md` | Label taxonomy, issue template, PR template, review template |
 | `skills/sprint-setup/references/ci-workflow-template.md` | CI YAML template structure |
 | `skills/sprint-release/references/release-checklist.md` | Per-milestone gate criteria template |
@@ -89,12 +89,15 @@ sprint-config/
 
 Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command` (see `validate_config.py:177`).
 Optional: `project.base_branch` (defaults to `main` — branch PRs target and CI watches).
+Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`, `paths.feedback_dir`.
 
 Template: `references/skeletons/project.toml.tmpl`
 
 ### Skeleton Templates
 
-`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. Available: `project.toml`, `team-index.md`, `persona.md`, `backlog-index.md`, `milestone.md`, `rules.md`, `development.md`.
+`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. 17 templates:
+- **Core** (7): `project.toml`, `team-index.md`, `persona.md`, `backlog-index.md`, `milestone.md`, `rules.md`, `development.md`
+- **Deep docs** (10): `saga.md`, `epic.md`, `story-detail.md`, `prd-index.md`, `prd-section.md`, `test-plan-index.md`, `golden-path.md`, `test-case.md`, `story-map-index.md`, `team-topology.md`
 
 ## Key Architectural Decisions
 
@@ -116,3 +119,4 @@ Template: `references/skeletons/project.toml.tmpl`
 | Add a new kanban state | Update `skills/sprint-run/references/kanban-protocol.md` + `sync_tracking.py:27` `KANBAN_STATES` |
 | Change sprint tracking format | Edit `skills/sprint-run/references/tracking-formats.md` + update `sync_tracking.py` and `update_burndown.py` |
 | Add a skeleton template | Create `references/skeletons/<name>.tmpl`, wire it in `sprint_init.py:ConfigGenerator` |
+| Add deep documentation support | Set optional TOML keys (`paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`). Sprint-run Context Assembly (:65 in SKILL.md) handles injection into agent prompts. |

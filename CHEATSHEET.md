@@ -25,15 +25,30 @@ you need without reading entire files.
 | 426 | `get_milestones()` | Milestone file paths from config |
 | 441 | `get_ci_commands()` | CI check commands from [ci] section |
 | 450 | `get_base_branch()` | Base branch from config, defaults to 'main' |
+| 456 | `get_prd_dir()` | PRD directory path from config (optional) |
+| 465 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
+| 474 | `get_sagas_dir()` | Sagas directory path from config (optional) |
+| 483 | `get_epics_dir()` | Epics directory path from config (optional) |
+| 492 | `get_story_map()` | Story map file path from config (optional) |
 
 ### scripts/sprint_init.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 79 | `ProjectScanner` | Auto-detects language, personas, milestones, rules |
-| 354 | `ProjectScanner.scan()` | Run full project scan |
-| 380 | `ConfigGenerator` | Generates sprint-config/ from scan results |
-| 573 | `ConfigGenerator.generate()` | Execute generation |
-| 593 | `print_scan_results()` | Human-readable scan output |
+| 35 | `RICH_PERSONA_HEADINGS` | Headings that signal a rich persona file |
+| 60 | `ScanResult` | Dataclass with all detected fields |
+| 89 | `ProjectScanner` | Auto-detects language, personas, milestones, rules, deep docs |
+| 265 | `detect_persona_files()` | Persona files with rich-heading confidence scoring |
+| 328 | `_walk_dirs()` | Walk directories up to max_depth for deep doc detection |
+| 340 | `detect_prd_dir()` | Find PRD directory |
+| 357 | `detect_test_plan_dir()` | Find test plan directory |
+| 366 | `detect_sagas_dir()` | Find sagas directory |
+| 375 | `detect_epics_dir()` | Find epics directory |
+| 384 | `detect_story_map()` | Find story map file |
+| 397 | `detect_team_topology()` | Find team topology file |
+| 458 | `ProjectScanner.scan()` | Run full project scan |
+| 492 | `ConfigGenerator` | Generates sprint-config/ from scan results |
+| 719 | `ConfigGenerator.generate()` | Execute generation |
+| 739 | `print_scan_results()` | Human-readable scan output |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
@@ -52,20 +67,29 @@ you need without reading entire files.
 | 91 | `_collect_sprint_numbers()` | Scan milestone files for ### Sprint N: sections |
 | 113 | `create_sprint_labels()` | One label per sprint found across all milestones |
 | 125 | `_parse_saga_labels_from_backlog()` | Parse saga IDs from backlog/INDEX.md |
+| 160 | `create_saga_labels()` | Create saga labels from backlog INDEX.md |
 | 171 | `create_static_labels()` | Priority, kanban, type labels |
-| 200 | `create_milestones_on_github()` | One GitHub milestone per milestone file |
+| 200 | `create_epic_labels()` | Create labels for epics from epics directory |
+| 211 | `create_milestones_on_github()` | One GitHub milestone per milestone file |
+| 253 | `main()` | Entry point: labels, milestones, epic labels |
 
 ### skills/sprint-setup/scripts/populate_issues.py
 | Line | Function | Purpose |
 |------|----------|---------|
 | 21 | `Story` | Dataclass: story_id, title, saga, sp, priority, sprint, ACs |
+| 58 | `_DEFAULT_ROW_RE` | Default regex for story table rows |
 | 84 | `parse_milestone_stories()` | Extract stories from all milestone files |
 | 126 | `_infer_sprint_number()` | Guess sprint number from filename |
-| 151 | `enrich_from_epics()` | Add user stories, ACs, deps from epic files |
-| 205 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
-| 238 | `_build_milestone_title_map()` | Map sprint num to milestone title (by content) |
-| 268 | `format_issue_body()` | Build GitHub issue body markdown |
-| 298 | `create_issue()` | Create single GitHub issue with labels + milestone |
+| 143 | `_extract_table_field()` | Extract field from markdown table section |
+| 153 | `_DETAIL_BLOCK_RE` | Regex for `### US-XXXX: title` detail block headers |
+| 154 | `_META_ROW_RE` | Regex for `| key | value |` metadata rows in detail blocks |
+| 157 | `parse_detail_blocks()` | Parse `### US-XXXX` detail sections into Story objects |
+| 207 | `enrich_from_epics()` | Enrich stories with ACs, deps, test cases from epic files |
+| 241 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
+| 261 | `get_milestone_numbers()` | Fetch milestone name-to-number mapping from GitHub |
+| 274 | `_build_milestone_title_map()` | Map sprint num to milestone title (by content) |
+| 304 | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
+| 344 | `create_issue()` | Create single GitHub issue with labels + milestone |
 
 ### skills/sprint-setup/scripts/setup_ci.py
 | Line | Function | Purpose |
@@ -119,11 +143,11 @@ you need without reading entire files.
 ### skills/sprint-monitor/scripts/check_status.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 43 | `detect_sprint()` | Read current sprint from SPRINT-STATUS.md |
-| 56 | `check_ci()` | Check recent workflow runs for failures |
-| 112 | `check_prs()` | Check open PRs: stale, needs review, approved |
-| 188 | `check_milestone()` | Milestone progress: SP done vs total |
-| 252 | `write_log()` | Append timestamped entry to monitor log |
+| 49 | `detect_sprint()` | Read current sprint from SPRINT-STATUS.md |
+| 62 | `check_ci()` | Check recent workflow runs for failures |
+| 118 | `check_prs()` | Check open PRs: stale, needs review, approved |
+| 194 | `check_milestone()` | Milestone progress: SP done vs total |
+| 258 | `write_log()` | Append timestamped entry to monitor log |
 
 ## Skill entry points -- section index
 
@@ -137,12 +161,13 @@ you need without reading entire files.
 ### skills/sprint-run/SKILL.md
 | Line | Section |
 |------|---------|
-| 22 | Config and prerequisites |
-| 28 | Phase detection (reads SPRINT-STATUS.md) |
-| 43 | Phase 1: Sprint kickoff (INTERACTIVE) |
-| 49 | Phase 2: Story execution (AUTONOMOUS per-story) |
-| 64 | Phase 3: Sprint demo (INTERACTIVE) |
-| 70 | Phase 4: Sprint retro (INTERACTIVE) |
+| 23 | Config and prerequisites |
+| 29 | Phase detection (reads SPRINT-STATUS.md) |
+| 44 | Phase 1: Sprint kickoff (INTERACTIVE) |
+| 50 | Phase 2: Story execution (AUTONOMOUS per-story) |
+| 65 | Context Assembly for Agent Dispatch |
+| 97 | Phase 3: Sprint demo (INTERACTIVE) |
+| 103 | Phase 4: Sprint retro (INTERACTIVE) |
 
 ### skills/sprint-monitor/SKILL.md
 | Line | Section |
@@ -187,8 +212,9 @@ you need without reading entire files.
 | Line | Section |
 |------|---------|
 | 15 | Agenda: goal, story walk, risks, questions, commitment |
-| 68 | Output template (kickoff.md) |
-| 98 | Exit criteria |
+| 22 | Saga context step (if sagas configured) |
+| 82 | Output template (kickoff.md) |
+| 112 | Exit criteria |
 
 ### skills/sprint-run/references/ceremony-demo.md
 | Line | Section |
@@ -196,19 +222,22 @@ you need without reading entire files.
 | 16 | Per-story flow: context, live demo, AC verification, Q&A |
 | 25 | Live demonstration requirements (real artifacts) |
 | 42 | Acceptance verification procedure |
-| 60 | Output template (demo.md) |
-| 85 | Rules (no incomplete stories, artifact links required) |
+| 53 | Test plan verification (if test plan configured) |
+| 70 | Output template (demo.md) |
+| 94 | Traceability (saga/epic/PRD cross-references) |
+| 99 | Rules (no incomplete stories, artifact links required) |
 
 ### skills/sprint-run/references/ceremony-retro.md
 | Line | Section |
 |------|---------|
 | 18 | Start / Stop / Continue format |
 | 36 | Feedback distillation (identify patterns, propose doc changes) |
-| 57 | User approval gate |
-| 62 | Apply changes to project docs |
-| 68 | Examples of retro-driven doc changes |
-| 82 | Output template (retro.md) |
-| 119 | Rules (must produce at least one doc change) |
+| 56 | PRD feedback loop (retro can update PRD open questions) |
+| 62 | User approval gate |
+| 67 | Apply changes to project docs |
+| 73 | Examples of retro-driven doc changes |
+| 91 | Output template (retro.md) |
+| 128 | Rules (must produce at least one doc change) |
 
 ### skills/sprint-run/references/story-execution.md
 | Line | Section |
@@ -249,17 +278,19 @@ you need without reading entire files.
 ### skills/sprint-run/agents/implementer.md
 Dispatched per story. Receives: persona context, story assignment, requirements,
 PRD context. Follows TDD, creates PR with self-contained description, stays in
-character.
+character. Sections: Strategic Context :31, Test Plan Context :34, Design :79,
+Implement with TDD :83, Progressive Disclosure Docs :94, Conventions Checklist :140.
 
 ### skills/sprint-run/agents/reviewer.md
 Dispatched after implementation. Different persona from implementer. Reviews
 from PR description + diff only (validates PR description sufficiency). Posts
-review via `gh pr review` with persona header.
+review via `gh pr review` with persona header. Sections: Read PR :18, Read Diff :28,
+Test Coverage Verification :63, Post Review :74, Commit Format :102.
 
 ## Skeleton templates
 
 All in `references/skeletons/`. Used by `sprint_init.py` when project files
-are missing.
+are missing. 17 templates: 7 core + 10 deep-doc.
 
 | Template | Creates |
 |----------|---------|
@@ -270,6 +301,16 @@ are missing.
 | `milestone.md.tmpl` | Milestone file with sprint sections and story tables |
 | `rules.md.tmpl` | Project rules and conventions |
 | `development.md.tmpl` | Development process guide |
+| `saga.md.tmpl` | Saga: goal, team voices, epic list |
+| `epic.md.tmpl` | Epic: user stories table, ACs, dependencies |
+| `story-detail.md.tmpl` | Detailed story block with metadata table |
+| `prd-index.md.tmpl` | PRD index: links to PRD section files |
+| `prd-section.md.tmpl` | PRD section: requirements, design, open questions |
+| `test-plan-index.md.tmpl` | Test plan index: golden paths, functional, adversarial |
+| `golden-path.md.tmpl` | Golden path test case template |
+| `test-case.md.tmpl` | Test case template: steps, expected, edge cases |
+| `story-map-index.md.tmpl` | Story map: activities, user steps, stories |
+| `team-topology.md.tmpl` | Team topology: interaction modes, boundaries |
 
 ## Config structure
 
@@ -288,6 +329,9 @@ Required TOML keys: `project.name`, `project.repo`, `project.language`,
 `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`,
 `ci.check_commands`, `ci.build_command`.
 
+Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`,
+`paths.epics_dir`, `paths.story_map`, `paths.team_topology`, `paths.feedback_dir`.
+
 See `validate_config.py:177` for the full list.
 
 ## Common modifications
@@ -300,5 +344,6 @@ See `validate_config.py:177` for the full list.
 | Add language to CI gen | `setup_ci.py:60` (_SETUP_REGISTRY), `:74` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:27` (KANBAN_STATES) |
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:137` (TF), `update_burndown.py:100` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:573` (ConfigGenerator.generate) |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:719` (ConfigGenerator.generate) |
 | Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |
+| Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:65 handles injection. |
