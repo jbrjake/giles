@@ -171,6 +171,28 @@ class TestHexwiseSetup(unittest.TestCase):
         assert config["paths"].get("sagas_dir") is not None
         assert config["paths"].get("epics_dir") is not None
 
+    def test_giles_persona_generated(self):
+        """sprint_init generates Giles persona as a regular file (not symlink)."""
+        giles_path = self.config_dir / "team" / "giles.md"
+        self.assertTrue(giles_path.exists(), "Giles persona file should exist")
+        self.assertFalse(giles_path.is_symlink(),
+                         "Giles should be a regular file, not a symlink")
+
+    def test_giles_persona_has_required_sections(self):
+        """Generated Giles persona contains all expected sections."""
+        giles_text = (self.config_dir / "team" / "giles.md").read_text()
+        for section in ("Vital Stats", "Origin Story", "Professional Identity",
+                        "Personality and Quirks", "Relationships",
+                        "Improvisation Notes", "Facilitation Style"):
+            self.assertIn(f"## {section}", giles_text,
+                          f"Missing section: {section}")
+
+    def test_giles_in_team_index(self):
+        """Team INDEX.md includes a Giles row."""
+        index_text = (self.config_dir / "team" / "INDEX.md").read_text()
+        self.assertIn("Giles", index_text)
+        self.assertIn("giles.md", index_text)
+
     def test_populate_issues_parses_epic_stories(self):
         """populate_issues extracts stories from epic detail blocks."""
         from validate_config import get_milestones
@@ -305,7 +327,7 @@ class TestHexwisePipeline(unittest.TestCase):
 
         # Verify persona labels exist
         persona_labels = [l for l in self.fake_gh.labels if l.startswith("persona:")]
-        self.assertEqual(len(persona_labels), 3, "Should have 3 persona labels")
+        self.assertEqual(len(persona_labels), 4, "Should have 4 persona labels (3 devs + Giles)")
 
         # Verify stories have correct IDs (all 17 across 3 milestones)
         issue_titles = [iss["title"] for iss in self.fake_gh.issues]

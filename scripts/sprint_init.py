@@ -645,9 +645,12 @@ class ConfigGenerator:
         return "Team Member"
 
     def generate_team(self) -> None:
-        personas = self.scan.persona_files
+        # Filter out any user-provided "giles" persona — Giles is plugin-managed
+        personas = [sf for sf in self.scan.persona_files
+                    if Path(sf.path).stem.lower() != "giles"]
         if not personas:
             self._copy_skeleton("team-index.md", "team/INDEX.md")
+            self._inject_giles()
             return
         # Generate symlinks
         for sf in personas:
@@ -662,8 +665,22 @@ class ConfigGenerator:
             role = self._infer_role(sf.path)
             filename = Path(sf.path).stem + ".md"
             rows.append(f"| {name} | {role} | {filename} |")
+        rows.append(f"| Giles | Scrum Master / Facilitator | giles.md |")
         rows.append("")
         self._write("team/INDEX.md", "\n".join(rows))
+        self._inject_giles()
+
+    def _inject_giles(self) -> None:
+        """Copy Giles persona skeleton into sprint-config/team/.
+
+        Giles is plugin-owned (not user-authored), so he is copied rather
+        than symlinked.  This means teardown will prompt before deleting
+        him, which is the correct behavior for plugin-injected content.
+        """
+        dest = self.config_dir / "team" / "giles.md"
+        if dest.is_symlink():
+            dest.unlink()
+        self._copy_skeleton("giles.md.tmpl", "team/giles.md")
 
     def generate_backlog(self) -> None:
         files = self.scan.backlog_files
