@@ -47,8 +47,9 @@ you need without reading entire files.
 | 397 | `detect_team_topology()` | Find team topology file |
 | 458 | `ProjectScanner.scan()` | Run full project scan |
 | 492 | `ConfigGenerator` | Generates sprint-config/ from scan results |
-| 719 | `ConfigGenerator.generate()` | Execute generation |
-| 739 | `print_scan_results()` | Human-readable scan output |
+| 673 | `_inject_giles()` | Copy Giles skeleton into sprint-config/team/ (not symlinked) |
+| 736 | `ConfigGenerator.generate()` | Execute generation |
+| 755 | `print_scan_results()` | Human-readable scan output |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
@@ -206,37 +207,47 @@ you need without reading entire files.
 | 5 | Persona assignment rules (domain keywords) |
 | 17 | Voice guidelines |
 | 23 | GitHub header format for PRs and reviews |
+| 44 | Giles rules (always facilitator, never implementer/reviewer) |
+| 56 | PM persona role clarification |
 
 ### skills/sprint-run/references/ceremony-kickoff.md
 | Line | Section |
 |------|---------|
-| 15 | Agenda: goal, story walk, risks, questions, commitment |
-| 22 | Saga context step (if sagas configured) |
-| 82 | Output template (kickoff.md) |
-| 112 | Exit criteria |
+| 10 | Facilitation: Giles/PM split |
+| 20 | Sprint theme (hardening, feature, star-vehicle, ensemble) |
+| 34 | Agenda: opening, saga context, goal, story walk, risks, questions, commitment |
+| 41 | Saga context step (if sagas configured) |
+| 99 | Confidence check (Giles reads the room) |
+| 119 | Scope negotiation (value/dependency 2x2) |
+| 156 | Output template (kickoff.md) |
+| 189 | Exit criteria |
 
 ### skills/sprint-run/references/ceremony-demo.md
 | Line | Section |
 |------|---------|
-| 16 | Per-story flow: context, live demo, AC verification, Q&A |
-| 25 | Live demonstration requirements (real artifacts) |
-| 42 | Acceptance verification procedure |
-| 53 | Test plan verification (if test plan configured) |
-| 70 | Output template (demo.md) |
-| 94 | Traceability (saga/epic/PRD cross-references) |
-| 99 | Rules (no incomplete stories, artifact links required) |
+| 11 | Facilitation: Giles/PM split |
+| 17 | Ensemble framing (star-vehicle vs ensemble time allocation) |
+| 26 | Per-story flow: context, live demo, AC verification, Q&A |
+| 35 | Live demonstration requirements (real artifacts) |
+| 52 | Acceptance verification procedure |
+| 57 | Test plan verification (if test plan configured) |
+| 67 | Team Q&A (Giles manages flow, calls on quiet personas) |
+| 77 | Output template (demo.md) |
+| 107 | Rules (no incomplete stories, artifact links required) |
 
 ### skills/sprint-run/references/ceremony-retro.md
 | Line | Section |
 |------|---------|
-| 18 | Start / Stop / Continue format |
-| 36 | Feedback distillation (identify patterns, propose doc changes) |
-| 56 | PRD feedback loop (retro can update PRD open questions) |
-| 62 | User approval gate |
-| 67 | Apply changes to project docs |
-| 73 | Examples of retro-driven doc changes |
-| 91 | Output template (retro.md) |
-| 128 | Rules (must produce at least one doc change) |
+| 14 | Facilitation: Giles facilitates, PM participates as team member |
+| 24 | Psychological safety framing |
+| 34 | Start / Stop / Continue format (Giles manages turn-taking) |
+| 52 | Feedback distillation (identify patterns, propose doc changes) |
+| 72 | PRD feedback loop (retro can update PRD open questions) |
+| 78 | User approval gate |
+| 83 | Apply changes to project docs |
+| 89 | Examples of retro-driven doc changes |
+| 107 | Output template (retro.md) |
+| 144 | Rules (must produce at least one doc change) |
 
 ### skills/sprint-run/references/story-execution.md
 | Line | Section |
@@ -289,13 +300,14 @@ Test Coverage Verification :63, Post Review :74, Commit Format :102.
 ## Skeleton templates
 
 All in `references/skeletons/`. Used by `sprint_init.py` when project files
-are missing. 17 templates: 7 core + 10 deep-doc.
+are missing. 18 templates: 8 core + 10 deep-doc.
 
 | Template | Creates |
 |----------|---------|
 | `project.toml.tmpl` | Config file with [project], [paths], [ci], [conventions] |
 | `team-index.md.tmpl` | Team INDEX.md with persona table |
 | `persona.md.tmpl` | Persona profile: Role, Domain, Voice, Review Focus, Background |
+| `giles.md.tmpl` | Built-in scrum master persona (fully written, not TODO-filled) |
 | `backlog-index.md.tmpl` | Backlog INDEX.md with saga table |
 | `milestone.md.tmpl` | Milestone file with sprint sections and story tables |
 | `rules.md.tmpl` | Project rules and conventions |
@@ -318,6 +330,7 @@ sprint-config/
   project.toml          -- [project], [paths], [ci], [conventions], [release]
   team/INDEX.md          -- Name | File | Role | Domain Keywords
   team/{name}.md         -- persona profiles (often symlinks)
+  team/giles.md          -- built-in scrum master (copied, not symlinked)
   backlog/INDEX.md       -- saga routing table
   backlog/milestones/    -- one .md per milestone with story tables
   rules.md               -- project conventions (often symlink)
@@ -343,6 +356,6 @@ See `validate_config.py:177` for the full list.
 | Add language to CI gen | `setup_ci.py:60` (_SETUP_REGISTRY), `:74` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:27` (KANBAN_STATES) |
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:137` (TF), `update_burndown.py:100` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:719` (ConfigGenerator.generate) |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:736` (ConfigGenerator.generate) |
 | Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |
 | Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:65 handles injection. |
