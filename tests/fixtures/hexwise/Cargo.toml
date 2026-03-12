@@ -2,6 +2,6 @@
 name = "hexwise"
 version = "0.1.0"
 edition = "2021"
-description = "CLI that finds the closest CSS named color for a hex code"
+description = "A color oracle for the terminal."
 
 [dependencies]
