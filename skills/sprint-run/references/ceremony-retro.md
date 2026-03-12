@@ -53,6 +53,11 @@ For each pattern, propose a concrete change:
   new checklist item, updated process step
 - **Why?** What happened during the sprint that motivates this change — cite
   specific stories or incidents
+- **PRD files?** If the sprint revealed design gaps, ambiguous requirements,
+  or missing edge cases, propose changes to PRD `## Open Questions` or
+  `## Requirements` sections in `{config [paths] prd_dir}`. Retro findings
+  that reveal design gaps get added to Open Questions; resolved questions
+  get promoted to Requirements.
 
 ### 3. Get User Approval
 
@@ -78,6 +83,10 @@ limit.
   kanban-protocol.md escalation threshold
 - Sprint revealed that kickoff missed dependency ordering — add dependency
   check step to ceremony-kickoff.md
+- Sprint revealed a PRD requirement was ambiguous — add clarification to
+  PRD requirements section and close the open question
+- Sprint revealed an untested edge case — add to test plan adversarial
+  tests and link to relevant story
 
 ## Output
 

@@ -50,6 +50,16 @@ Walk through each acceptance criterion from the story:
 If a criterion is not met, record it as a follow-up item with a clear
 description of what remains.
 
+### 3.5. Test Plan Verification (if test plan configured)
+
+For each story demonstrated:
+- Read the test cases referenced in the story's `Test Cases` field
+- Confirm each referenced test case is covered by the implementation
+- Record gaps: test cases that were planned but not implemented
+
+This is not about whether tests pass (that's CI's job) — it's about
+whether the test COVERAGE matches what the test plan specified.
+
 ### 4. Team Q&A (in-persona)
 
 - Reviewer persona comments on code quality observations from their review
@@ -80,6 +90,10 @@ Write `{sprints_dir}/sprint-{N}/demo.md` (path from project.toml `[paths]`):
 - Stories completed: X/Y
 - Story points delivered: X/Y
 - Test count: X (Y passing)
+
+## Traceability
+| Story | Epic | Test Cases Covered | Test Cases Gaps |
+|-------|------|--------------------|-----------------|
 ```
 
 ## Rules

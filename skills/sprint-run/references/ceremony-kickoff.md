@@ -19,11 +19,24 @@ open the floor.
 The PM reads the sprint goal from the milestone doc. State it clearly in one or
 two sentences. Confirm the user agrees this is the right focus.
 
+### 1.5. Saga Context (if sagas configured)
+
+For each saga active in this sprint:
+- Read the saga file from `{config [paths] sagas_dir}`
+- Present the saga goal and team voices section
+- Frame how this sprint's stories advance the saga's strategic objective
+
+If multiple sagas are active, present each briefly. This gives the team
+the "why" before diving into the "what."
+
 ### 2. Story Walk
 
 For each story in the sprint backlog:
 
-- **PM presents:** ID, title, SP, priority, acceptance criteria
+- **PM presents:** ID, title, SP, priority, acceptance criteria,
+  epic context (where in the epic, what's done/remaining),
+  PRD references (requirement IDs if PRD configured),
+  test plan references (test case IDs if test plan configured)
 - **Assigned implementer responds** (in-persona): initial thoughts, concerns,
   dependencies, estimated complexity
 - **Assigned reviewer responds** (in-persona): what they will focus on in
@@ -40,7 +53,8 @@ Each persona raises domain-specific concerns:
 - **Dependency risks:** story A needs story B's code first, external dependency
   updates, API stability
 - **Design risks:** PRD ambiguity, missing acceptance criteria, untested
-  assumptions
+  assumptions, PRD open questions (read from `## Open Questions` sections
+  in `{config [paths] prd_dir}` if configured)
 - **Capacity risks:** too many stories for available personas, overlapping
   domain needs
 
