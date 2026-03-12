@@ -1,6 +1,9 @@
 # Backlog
 
-| Milestone | File |
-|-----------|------|
-| M1: Core | milestones/milestone-1.md |
-| M2: Polish | milestones/milestone-2.md |
+| Artifact | Path |
+|----------|------|
+| Milestones | `milestones/` |
+| Sagas | `../agile/sagas/` |
+| Epics | `../agile/epics/` |
+| Story Map | `../user-stories/story-map/INDEX.md` |
+| Backlog Summary | `../agile/README.md` |
