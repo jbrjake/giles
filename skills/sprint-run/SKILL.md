@@ -18,6 +18,7 @@ All paths, commands, and persona names come from `sprint-config/project.toml`.
 | Retro | `references/ceremony-retro.md` |
 | Lost context? | `references/context-recovery.md` |
 | File formats | `references/tracking-formats.md` |
+| Context Assembly | This file (see "Context Assembly for Agent Dispatch") |
 
 ## Config & Prerequisites
 
@@ -60,6 +61,38 @@ Determine each story's current kanban state and execute the appropriate transiti
 | review | REVIEW --> INTEGRATION | CI green, squash-merge, close issue, update burndown |
 
 Stories with no dependencies can run in parallel via `superpowers:dispatching-parallel-agents`. Dependent stories wait.
+
+### Context Assembly for Agent Dispatch
+
+When dispatching implementer or reviewer subagents, assemble context from deeper docs if configured. This is the hybrid model: issues have structure, agents get depth.
+
+**Before dispatching implementer:**
+
+1. Read story metadata (epic, saga, test_cases) from the GitHub issue or tracking file
+2. If `config [paths] prd_dir` is configured:
+   - Resolve PRD path: epic number's first two digits map to PRD directory (E-01xx → prd/01-*/)
+   - If the epic's metadata table includes an explicit `PRD:` field, use that instead
+   - Read `## Requirements` and `## Design` sections from matching PRD files
+   - Inject into `{relevant_prd_excerpts}` placeholder in implementer prompt
+3. If `config [paths] test_plan_dir` is configured:
+   - Parse `test_cases` field (comma-separated IDs like `TC-PAR-001, GP-001`)
+   - Map ID prefix to file: `GP-*` → `01-golden-paths.md`, `TC-*` → `02-functional-tests.md` or `03-adversarial-tests.md`
+   - Extract section by heading (`### TC-PAR-001: ...` through next `###`)
+   - Inject into `### Test Plan Context` in implementer prompt
+4. If `config [paths] sagas_dir` is configured:
+   - Read saga file matching story's saga ID (S01 → sagas/S01-*.md)
+   - Extract saga goal and team voices
+   - Inject into `### Strategic Context` in implementer prompt
+5. Check dependency status: for each story in `blocked_by`/`blocks`, run `gh issue view` to get current state (open/closed, kanban label)
+   - Inject into `{dependencies}` in implementer prompt with current status
+
+**Before dispatching reviewer:**
+
+1. Same test case extraction as above
+2. Inject test cases into `### Test Coverage Verification` in reviewer prompt
+3. If PRD has non-functional requirements (REQ-*-NF-*), inject into review checklist
+
+**When paths aren't configured:** Omit the corresponding sections. Prompts work exactly as before.
 
 ## Phase 3: Sprint Demo (INTERACTIVE)
 
