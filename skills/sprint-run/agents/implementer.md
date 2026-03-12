@@ -34,6 +34,18 @@ Read `{team_dir}/{persona_file}` for your full character profile — voice, conc
 ### Test Plan Context
 {test_plan_context — preconditions and expected results from referenced test cases. Omitted if test plan not configured.}
 
+### Sprint History
+Read `{team_dir}/history/{persona_file_stem}.md` if it exists. This contains
+Giles's observations about your work in previous sprints — what you struggled
+with, what surprised you, what you'd be wary of. Let it color your decisions.
+
+If a previous sprint's observations are relevant to this story, reference them
+in your design notes and PR description. Continuity matters. If you got burned
+by lock contention in Sprint 2, say so when you encounter a concurrency story
+in Sprint 5. The reviewer will take your wariness seriously because it's earned.
+
+If the file doesn't exist (first sprint), skip this section.
+
 ## Your Process
 
 ### 1. Create Branch and Draft PR
