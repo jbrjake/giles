@@ -12,7 +12,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_team_personas, get_milestones
+from validate_config import load_config, get_team_personas, get_milestones, get_epics_dir
 
 
 def run_gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -197,6 +197,17 @@ def create_static_labels() -> None:
     create_label("type:chore", "ededed", "Maintenance task")
 
 
+def create_epic_labels(config: dict, epics_dir: Path) -> None:
+    """Create epic: labels from epic filenames in epics_dir."""
+    epic_re = re.compile(r"(E-\d{4})")
+    for f in sorted(epics_dir.glob("*.md")):
+        m = epic_re.search(f.stem)
+        if m:
+            epic_id = m.group(1)
+            label = f"epic:{epic_id}"
+            create_label(label, "0e8a16", f"Epic {epic_id}")
+
+
 def create_milestones_on_github(config: dict) -> None:
     """Create sprint milestones from config milestone files."""
     milestone_files = get_milestones(config)
@@ -255,6 +266,11 @@ def main() -> None:
     create_sprint_labels(config)
     create_saga_labels(config)
     create_static_labels()
+
+    epics_dir = get_epics_dir(config)
+    if epics_dir:
+        print("\nCreating epic labels...")
+        create_epic_labels(config, epics_dir)
 
     create_milestones_on_github(config)
 
