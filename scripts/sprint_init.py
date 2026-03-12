@@ -733,12 +733,26 @@ class ConfigGenerator:
         if self.scan.team_topology and self.scan.team_topology.value:
             self._symlink("team/team-topology.md", self.scan.team_topology.value)
 
+    def generate_definition_of_done(self) -> None:
+        """Copy DoD skeleton into sprint-config/."""
+        self._copy_skeleton("definition-of-done.md.tmpl",
+                            "definition-of-done.md")
+
+    def generate_history_dir(self) -> None:
+        """Create {team_dir}/history/ directory for Sprint History files."""
+        team_dir = self.config_dir / "team"
+        history_dir = team_dir / "history"
+        self._ensure_dir(history_dir)
+        self.created.append("  directory  team/history/")
+
     def generate(self) -> None:
         self._ensure_dir(self.config_dir)
         self.generate_project_toml()
         self.generate_team()
         self.generate_backlog()
         self.generate_doc_symlinks()
+        self.generate_definition_of_done()
+        self.generate_history_dir()
 
 
 # ---------------------------------------------------------------------------

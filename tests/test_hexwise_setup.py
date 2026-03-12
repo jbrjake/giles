@@ -193,6 +193,22 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertIn("Giles", index_text)
         self.assertIn("giles.md", index_text)
 
+    def test_definition_of_done_generated(self):
+        """sprint_init generates definition-of-done.md from skeleton."""
+        dod_path = self.config_dir / "definition-of-done.md"
+        self.assertTrue(dod_path.exists(),
+                        "definition-of-done.md should exist")
+        text = dod_path.read_text()
+        self.assertIn("## Mechanical", text)
+        self.assertIn("## Semantic", text)
+        self.assertIn("CI green", text)
+
+    def test_history_directory_created(self):
+        """sprint_init creates team/history/ directory."""
+        history_dir = self.config_dir / "team" / "history"
+        self.assertTrue(history_dir.is_dir(),
+                        "team/history/ directory should exist")
+
     def test_populate_issues_parses_epic_stories(self):
         """populate_issues extracts stories from epic detail blocks."""
         from validate_config import get_milestones

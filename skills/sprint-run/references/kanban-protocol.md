@@ -32,13 +32,8 @@ integration → done  CI green, merged, issue closed
   reading does not conflict.
 - The `review → dev` loop can repeat at most 3 times. After 3 rounds of
   changes-requested, escalate to the user for guidance.
-- Moving to `done` requires ALL of the following:
-  1. CI green on the PR
-  2. PR approved by reviewer persona
-  3. PR merged to target branch
-  4. GitHub issue closed
-  5. Burndown chart updated
-  6. Story tracking file updated
+- Moving to `done` requires ALL criteria in `sprint-config/definition-of-done.md`
+  to be satisfied. Read that file before marking any story complete.
 - Every transition updates three artifacts:
   1. GitHub issue label (swap old kanban label for new one)
   2. Story tracking file in `{sprints_dir}/sprint-{N}/`
