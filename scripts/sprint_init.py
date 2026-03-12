@@ -32,6 +32,9 @@ EXCLUDED_DIRS = {
 PERSONA_HEADINGS = {"## Role", "## Voice", "## Domain", "## Background",
                     "## Review Focus"}
 
+RICH_PERSONA_HEADINGS = {"## Origin Story", "## Professional Identity",
+                          "## Personality and Quirks", "## Improvisation Notes"}
+
 SKELETONS_DIR = Path(__file__).resolve().parent.parent / "references" / "skeletons"
 
 
@@ -70,6 +73,13 @@ class ScanResult:
     cheatsheet: Detection
     story_id_pattern: Detection
     binary_path: Detection
+    # Optional deep doc detections (None when not present)
+    prd_dir: Detection | None = None
+    test_plan_dir: Detection | None = None
+    sagas_dir: Detection | None = None
+    epics_dir: Detection | None = None
+    story_map: Detection | None = None
+    team_topology: Detection | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -256,13 +266,24 @@ class ProjectScanner:
         results: list[ScoredFile] = []
         for p in self._glob_md():
             head = self._read_head(p)
+            # Check original headings
             hits = [h for h in PERSONA_HEADINGS
                     if any(line.strip().startswith(h) for line in head)]
+            # Check rich headings
+            rich_hits = [h for h in RICH_PERSONA_HEADINGS
+                         if any(line.strip().startswith(h) for line in head)]
+            # Accept either set (3+ matches)
             if len(hits) >= 3:
                 conf = min(len(hits) / len(PERSONA_HEADINGS), 1.0)
                 results.append(ScoredFile(
                     self._rel(p), conf,
                     f"matched headings: {', '.join(hits)}",
+                ))
+            elif len(rich_hits) >= 3:
+                conf = min(len(rich_hits) / len(RICH_PERSONA_HEADINGS), 1.0)
+                results.append(ScoredFile(
+                    self._rel(p), conf,
+                    f"matched rich headings: {', '.join(rich_hits)}",
                 ))
         results.sort(key=lambda s: s.confidence, reverse=True)
         return results
@@ -301,6 +322,87 @@ class ProjectScanner:
                 ))
         results.sort(key=lambda s: s.confidence, reverse=True)
         return results
+
+    def _walk_dirs(self, max_depth: int = 3) -> list[Path]:
+        """Walk directories up to max_depth, skipping EXCLUDED_DIRS."""
+        result = []
+        for dirpath, dirnames, _ in os.walk(self.root):
+            depth = Path(dirpath).relative_to(self.root).parts
+            if len(depth) >= max_depth:
+                dirnames.clear()
+                continue
+            dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
+            result.append(Path(dirpath))
+        return result
+
+    def detect_prd_dir(self) -> Detection | None:
+        """Detect PRD directory."""
+        candidates = ["docs/prd", "prd", "docs/requirements"]
+        for name in candidates:
+            p = self.root / name
+            if p.is_dir() and any(p.iterdir()):
+                return Detection(name, f"found {name}/", 0.9)
+        # Content scan: directories with files containing ## Requirements + ## Design
+        for d in self._walk_dirs(max_depth=3):
+            md_files = list(d.glob("*.md"))
+            if len(md_files) >= 2:
+                sample = md_files[0].read_text(errors="replace")[:2000]
+                if "## Requirements" in sample and "## Design" in sample:
+                    rel = str(d.relative_to(self.root))
+                    return Detection(rel, f"PRD content in {d.name}/", 0.7)
+        return None
+
+    def detect_test_plan_dir(self) -> Detection | None:
+        """Detect test plan directory."""
+        candidates = ["docs/test-plan", "test-plan", "docs/testing"]
+        for name in candidates:
+            p = self.root / name
+            if p.is_dir() and any(p.iterdir()):
+                return Detection(name, f"found {name}/", 0.9)
+        return None
+
+    def detect_sagas_dir(self) -> Detection | None:
+        """Detect sagas directory."""
+        candidates = ["docs/agile/sagas", "backlog/sagas", "docs/sagas"]
+        for name in candidates:
+            p = self.root / name
+            if p.is_dir() and any(p.iterdir()):
+                return Detection(name, f"found {name}/", 0.9)
+        return None
+
+    def detect_epics_dir(self) -> Detection | None:
+        """Detect epics directory."""
+        candidates = ["docs/agile/epics", "backlog/epics", "docs/epics"]
+        for name in candidates:
+            p = self.root / name
+            if p.is_dir() and any(p.iterdir()):
+                return Detection(name, f"found {name}/", 0.9)
+        return None
+
+    def detect_story_map(self) -> Detection | None:
+        """Detect story map index."""
+        candidates = [
+            "docs/user-stories/story-map/INDEX.md",
+            "docs/agile/story-map/INDEX.md",
+            "docs/story-map/INDEX.md",
+        ]
+        for name in candidates:
+            p = self.root / name
+            if p.is_file():
+                return Detection(name, f"found {name}", 0.9)
+        return None
+
+    def detect_team_topology(self) -> Detection | None:
+        """Detect team topology file."""
+        candidates = [
+            "docs/team/team-topology.md", "docs/dev-team/team-topology.md",
+            "docs/dev-team/who-we-are.md",
+        ]
+        for name in candidates:
+            p = self.root / name
+            if p.is_file():
+                return Detection(name, f"found {name}", 0.9)
+        return None
 
     def _find_first(self, *candidates: str) -> Detection:
         """Return the first existing file from a list of candidates."""
@@ -354,7 +456,7 @@ class ProjectScanner:
     def scan(self) -> ScanResult:
         lang = self.detect_language()
         backlog = self.detect_backlog_files()
-        return ScanResult(
+        result = ScanResult(
             project_root=str(self.root),
             language=lang,
             repo=self.detect_repo(),
@@ -371,6 +473,14 @@ class ProjectScanner:
             story_id_pattern=self.detect_story_id_pattern(backlog),
             binary_path=self.detect_binary_path(lang.value),
         )
+        # Deep doc detection (optional)
+        result.prd_dir = self.detect_prd_dir()
+        result.test_plan_dir = self.detect_test_plan_dir()
+        result.sagas_dir = self.detect_sagas_dir()
+        result.epics_dir = self.detect_epics_dir()
+        result.story_map = self.detect_story_map()
+        result.team_topology = self.detect_team_topology()
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -466,6 +576,19 @@ class ConfigGenerator:
             lines.append(f'cheatsheet = "{s.cheatsheet.value}"')
         if s.architecture.value:
             lines.append(f'architecture = "{s.architecture.value}"')
+        # Optional deep doc paths (only when detected)
+        if s.prd_dir and s.prd_dir.value:
+            lines.append('prd_dir = "sprint-config/prd"')
+        if s.test_plan_dir and s.test_plan_dir.value:
+            lines.append('test_plan_dir = "sprint-config/test-plan"')
+        if s.sagas_dir and s.sagas_dir.value:
+            lines.append('sagas_dir = "sprint-config/backlog/sagas"')
+        if s.epics_dir and s.epics_dir.value:
+            lines.append('epics_dir = "sprint-config/backlog/epics"')
+        if s.story_map and s.story_map.value:
+            lines.append('story_map = "sprint-config/backlog/story-map/INDEX.md"')
+        if s.team_topology and s.team_topology.value:
+            lines.append('team_topology = "sprint-config/team/team-topology.md"')
         lines.append('')
 
         # [ci] — required keys: check_commands (array), build_command (string)
@@ -569,6 +692,27 @@ class ConfigGenerator:
                 self._symlink(dest, detection.value)
             else:
                 self._copy_skeleton(skeleton, dest)
+
+        # Deep doc symlinks (directories and files)
+        deep_symlinks = [
+            (self.scan.prd_dir, "prd"),
+            (self.scan.test_plan_dir, "test-plan"),
+            (self.scan.sagas_dir, "backlog/sagas"),
+            (self.scan.epics_dir, "backlog/epics"),
+        ]
+        for det, dest in deep_symlinks:
+            if det and det.value:
+                self._symlink(dest, det.value)
+
+        # Story map (file, not directory — symlink the parent dir)
+        if self.scan.story_map and self.scan.story_map.value:
+            story_map_path = self.scan.story_map.value
+            story_map_dir = str(Path(story_map_path).parent)
+            self._symlink("backlog/story-map", story_map_dir)
+
+        # Team topology (single file)
+        if self.scan.team_topology and self.scan.team_topology.value:
+            self._symlink("team/team-topology.md", self.scan.team_topology.value)
 
     def generate(self) -> None:
         self._ensure_dir(self.config_dir)

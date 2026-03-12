@@ -154,6 +154,16 @@ class TestHexwiseSetup(unittest.TestCase):
         assert get_epics_dir(config) is None
         assert get_story_map(config) is None
 
+    def test_scanner_deep_docs_absent(self):
+        """Scanner returns None for deep docs when not present."""
+        scanner = ProjectScanner(self.project_dir)
+        # Call each method and verify graceful None return
+        assert scanner.detect_prd_dir() is None
+        assert scanner.detect_test_plan_dir() is None
+        assert scanner.detect_sagas_dir() is None
+        assert scanner.detect_epics_dir() is None
+        assert scanner.detect_story_map() is None
+
 
 class TestHexwisePipeline(unittest.TestCase):
     """Full pipeline: init -> bootstrap -> populate against hexwise."""
