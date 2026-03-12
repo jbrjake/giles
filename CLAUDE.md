@@ -37,7 +37,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
 | `scripts/validate_config.py` | Config validation + TOML parser | `validate_project()` :191, `load_config()` :368, `parse_simple_toml()` :21, `get_team_personas()` :398, `get_milestones()` :426, `get_base_branch()` :450, `get_prd_dir()` :456, `get_test_plan_dir()` :465, `get_sagas_dir()` :474, `get_epics_dir()` :483, `get_story_map()` :492 |
-| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :458, `ConfigGenerator.generate()` :736, `_inject_giles()` :673, `detect_prd_dir()` :340, `detect_test_plan_dir()` :357, `detect_sagas_dir()` :366, `detect_epics_dir()` :375, `detect_story_map()` :384, `detect_team_topology()` :397 |
+| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :458, `ConfigGenerator.generate()` :748, `_inject_giles()` :673, `generate_definition_of_done()` :736, `generate_history_dir()` :741, `detect_prd_dir()` :340, `detect_test_plan_dir()` :357, `detect_sagas_dir()` :366, `detect_epics_dir()` :375, `detect_story_map()` :384, `detect_team_topology()` :397 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :19, `main()` :347 |
 | `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_epic_labels()` :200, `create_milestones_on_github()` :211, `main()` :253 |
 | `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :85, `parse_detail_blocks()` :150, `enrich_from_epics()` :200, `format_issue_body()` :297, `_build_milestone_title_map()` :267, `create_issue()` :337 |
@@ -45,6 +45,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :201, `create_from_issue()` :248 |
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |
 | `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
+| `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :96, `compute_review_rounds()` :133, `compute_workload()` :181, `format_report()` :204, `main()` :239 |
 | `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :62, `check_prs()` :118, `check_milestone()` :194 |
 
 ### Skill Entry Points
@@ -63,11 +64,11 @@ see `CHEATSHEET.md`. The tables below are a summary.
 |------|-------------------|
 | `skills/sprint-run/references/kanban-protocol.md` | State machine (6 states), transition rules, WIP limits |
 | `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format, Giles rules :44, PM role :56 |
-| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, saga context :41, sprint theme :20, confidence check :99, scope negotiation :119, exit criteria :189 |
+| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, saga context :41, sprint theme :20, process context (analytics) :58, confidence check :111, scope negotiation :131, exit criteria :201 |
 | `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :57, acceptance verification |
-| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :24, Start/Stop/Continue, feedback distillation, doc change rules |
-| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, strategic context :31, test plan context :34 |
-| `skills/sprint-run/agents/reviewer.md` | Subagent template: PR review, in-persona voice, test coverage verification :63 |
+| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :24, Start/Stop/Continue, feedback distillation, sprint analytics :95, write sprint history :112, DoD review :134 |
+| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, strategic context :31, test plan context :34, sprint history :37 |
+| `skills/sprint-run/agents/reviewer.md` | Subagent template: PR review, in-persona voice, sprint history callbacks :11, test coverage verification :69 |
 | `skills/sprint-setup/references/github-conventions.md` | Label taxonomy, issue template, PR template, review template |
 | `skills/sprint-setup/references/ci-workflow-template.md` | CI YAML template structure |
 | `skills/sprint-release/references/release-checklist.md` | Per-milestone gate criteria template |
@@ -79,9 +80,11 @@ All skills read from `sprint-config/project.toml` via `validate_config.load_conf
 ```
 sprint-config/
 ├── project.toml          — [project], [paths], [ci], [conventions], [release]
+├── definition-of-done.md — evolving DoD (baseline + retro-driven additions)
 ├── team/INDEX.md          — markdown table: Name | Role | File
 ├── team/{name}.md         — persona files (symlinks to project docs)
 ├── team/giles.md          — built-in scrum master (copied, not symlinked)
+├── team/history/          — Sprint History files (written by Giles during retro)
 ├── backlog/INDEX.md       — backlog routing table
 ├── backlog/milestones/    — one .md per milestone with story tables
 ├── rules.md               — project conventions (symlink)
@@ -96,8 +99,8 @@ Template: `references/skeletons/project.toml.tmpl`
 
 ### Skeleton Templates
 
-`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. 18 templates:
-- **Core** (8): `project.toml`, `team-index.md`, `persona.md`, `giles.md` (built-in scrum master), `backlog-index.md`, `milestone.md`, `rules.md`, `development.md`
+`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. 19 templates:
+- **Core** (9): `project.toml`, `team-index.md`, `persona.md`, `giles.md` (built-in scrum master), `backlog-index.md`, `milestone.md`, `rules.md`, `development.md`, `definition-of-done.md`
 - **Deep docs** (10): `saga.md`, `epic.md`, `story-detail.md`, `prd-index.md`, `prd-section.md`, `test-plan-index.md`, `golden-path.md`, `test-case.md`, `story-map-index.md`, `team-topology.md`
 
 ## Key Architectural Decisions

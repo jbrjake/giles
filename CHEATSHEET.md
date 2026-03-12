@@ -48,8 +48,10 @@ you need without reading entire files.
 | 458 | `ProjectScanner.scan()` | Run full project scan |
 | 492 | `ConfigGenerator` | Generates sprint-config/ from scan results |
 | 673 | `_inject_giles()` | Copy Giles skeleton into sprint-config/team/ (not symlinked) |
-| 736 | `ConfigGenerator.generate()` | Execute generation |
-| 755 | `print_scan_results()` | Human-readable scan output |
+| 736 | `generate_definition_of_done()` | Copy DoD skeleton into sprint-config/ |
+| 741 | `generate_history_dir()` | Create team/history/ directory for Sprint History |
+| 748 | `ConfigGenerator.generate()` | Execute generation |
+| 770 | `print_scan_results()` | Human-readable scan output |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
@@ -140,6 +142,18 @@ you need without reading entire files.
 | 138 | `do_sync()` | Lazy-imports bootstrap_github + populate_issues, runs sync |
 | 181 | `main()` | Full cycle: load config, hash, decide, sync, save state |
 
+### scripts/sprint_analytics.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 56 | `find_milestone()` | Find GitHub milestone by sprint number |
+| 70 | `extract_sp()` | Extract story points from labels or body |
+| 87 | `extract_persona()` | Extract persona name from labels |
+| 96 | `compute_velocity()` | Planned vs delivered SP for a milestone |
+| 133 | `compute_review_rounds()` | Review events per PR in a milestone |
+| 181 | `compute_workload()` | Stories per persona from issue labels |
+| 204 | `format_report()` | Markdown analytics entry for one sprint |
+| 239 | `main()` | CLI: compute + append to analytics.md |
+
 ### skills/sprint-monitor/scripts/check_status.py
 | Line | Function | Purpose |
 |------|----------|---------|
@@ -217,10 +231,11 @@ you need without reading entire files.
 | 20 | Sprint theme (hardening, feature, star-vehicle, ensemble) |
 | 34 | Agenda: opening, saga context, goal, story walk, risks, questions, commitment |
 | 41 | Saga context step (if sagas configured) |
-| 99 | Confidence check (Giles reads the room) |
-| 119 | Scope negotiation (value/dependency 2x2) |
-| 156 | Output template (kickoff.md) |
-| 189 | Exit criteria |
+| 58 | Process context (Giles reads analytics before story walk) |
+| 111 | Confidence check (Giles reads the room) |
+| 131 | Scope negotiation (value/dependency 2x2) |
+| 168 | Output template (kickoff.md) |
+| 201 | Exit criteria |
 
 ### skills/sprint-run/references/ceremony-demo.md
 | Line | Section |
@@ -245,9 +260,12 @@ you need without reading entire files.
 | 72 | PRD feedback loop (retro can update PRD open questions) |
 | 78 | User approval gate |
 | 83 | Apply changes to project docs |
-| 89 | Examples of retro-driven doc changes |
-| 107 | Output template (retro.md) |
-| 144 | Rules (must produce at least one doc change) |
+| 95 | Sprint analytics (run sprint_analytics.py, Giles adds commentary) |
+| 112 | Write Sprint History (Giles appends per-persona entries) |
+| 134 | Definition of Done review (Giles proposes retro-driven additions) |
+| 146 | Examples of retro-driven doc changes |
+| 164 | Output template (retro.md) |
+| 203 | Rules (must produce at least one doc change) |
 
 ### skills/sprint-run/references/story-execution.md
 | Line | Section |
@@ -288,19 +306,21 @@ you need without reading entire files.
 ### skills/sprint-run/agents/implementer.md
 Dispatched per story. Receives: persona context, story assignment, requirements,
 PRD context. Follows TDD, creates PR with self-contained description, stays in
-character. Sections: Strategic Context :31, Test Plan Context :34, Design :79,
-Implement with TDD :83, Progressive Disclosure Docs :94, Conventions Checklist :140.
+character. Sections: Strategic Context :31, Test Plan Context :34, Sprint History :37,
+Design :91, Implement with TDD :95, Progressive Disclosure Docs :106,
+Conventions Checklist :152.
 
 ### skills/sprint-run/agents/reviewer.md
 Dispatched after implementation. Different persona from implementer. Reviews
 from PR description + diff only (validates PR description sufficiency). Posts
-review via `gh pr review` with persona header. Sections: Read PR :18, Read Diff :28,
-Test Coverage Verification :63, Post Review :74, Commit Format :102.
+review via `gh pr review` with persona header. Reads own + implementer's
+Sprint History for callbacks. Sections: Sprint History :11, Read PR :24,
+Read Diff :34, Test Coverage Verification :69, Post Review :80, Commit Format :112.
 
 ## Skeleton templates
 
 All in `references/skeletons/`. Used by `sprint_init.py` when project files
-are missing. 18 templates: 8 core + 10 deep-doc.
+are missing. 19 templates: 9 core + 10 deep-doc.
 
 | Template | Creates |
 |----------|---------|
@@ -312,6 +332,7 @@ are missing. 18 templates: 8 core + 10 deep-doc.
 | `milestone.md.tmpl` | Milestone file with sprint sections and story tables |
 | `rules.md.tmpl` | Project rules and conventions |
 | `development.md.tmpl` | Development process guide |
+| `definition-of-done.md.tmpl` | Evolving DoD (mechanical baseline + retro-driven semantic) |
 | `saga.md.tmpl` | Saga: goal, team voices, epic list |
 | `epic.md.tmpl` | Epic: user stories table, ACs, dependencies |
 | `story-detail.md.tmpl` | Detailed story block with metadata table |
@@ -328,9 +349,11 @@ are missing. 18 templates: 8 core + 10 deep-doc.
 ```
 sprint-config/
   project.toml          -- [project], [paths], [ci], [conventions], [release]
+  definition-of-done.md -- evolving DoD (baseline + retro-driven additions)
   team/INDEX.md          -- Name | File | Role | Domain Keywords
   team/{name}.md         -- persona profiles (often symlinks)
   team/giles.md          -- built-in scrum master (copied, not symlinked)
+  team/history/          -- Sprint History files (written by Giles during retro)
   backlog/INDEX.md       -- saga routing table
   backlog/milestones/    -- one .md per milestone with story tables
   rules.md               -- project conventions (often symlink)
@@ -356,6 +379,6 @@ See `validate_config.py:177` for the full list.
 | Add language to CI gen | `setup_ci.py:60` (_SETUP_REGISTRY), `:74` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:27` (KANBAN_STATES) |
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:137` (TF), `update_burndown.py:100` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:736` (ConfigGenerator.generate) |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:748` (ConfigGenerator.generate) |
 | Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |
 | Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:65 handles injection. |
