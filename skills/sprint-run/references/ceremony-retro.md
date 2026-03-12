@@ -92,6 +92,57 @@ After approval, edit the project docs directly. Verify each change is applied
 correctly. Confirm the file stays under the 500-line target / 750-line hard
 limit.
 
+### 5. Sprint Analytics
+
+Run `scripts/sprint_analytics.py` (path relative to plugin root) to compute
+sprint metrics. The script queries GitHub for review round counts, velocity,
+and cycle times. Giles reviews the numbers and adds qualitative commentary.
+
+Append findings to `{sprints_dir}/analytics.md`. Format:
+
+    ### Sprint {N} — {theme}
+    **Velocity:** {delivered_sp}/{planned_sp} SP ({percentage}%)
+    **Review rounds:** avg {X} per story ({highest}: {story_id})
+    **Cycle time:** avg {X} hours from design to done
+    **Giles notes:** {qualitative commentary — patterns, surprises, recommendations}
+
+If the analytics script is unavailable or fails, Giles writes observations
+from memory. The script makes it precise; Giles makes it useful.
+
+### 6. Write Sprint History
+
+For each persona who worked during the sprint, Giles appends an entry to
+`{team_dir}/history/{persona_name}.md`. Create the file if it doesn't exist.
+
+Each entry follows this format:
+
+    ---
+
+    ### Sprint {N} — {sprint_theme}
+
+    {2-3 paragraphs in Giles's voice: what they worked on, how it went,
+    what surprised them, what they'd be wary of. Specific, not generic.
+    Reference actual stories, actual code, actual review feedback.}
+
+    **Worked on:** {story_ids}
+    **Surprised by:** {specific observation}
+    **Wary of next time:** {specific concern}
+
+Also append Giles's own entry to `{team_dir}/history/giles.md` — process
+observations, facilitation learnings, what he'd adjust.
+
+### 7. Definition of Done Review
+
+Read `sprint-config/definition-of-done.md`. Based on this sprint's
+experience, Giles proposes additions or modifications.
+
+Examples of retro-driven DoD additions:
+- "Error messages follow the format in rules.md" (after a sprint where they didn't)
+- "Performance-sensitive code has benchmark results" (after a performance surprise)
+- "New public APIs have usage examples" (after a reviewer noted missing docs)
+
+Present proposed changes to the user. Apply only after approval.
+
 ## Examples of Retro-Driven Doc Changes
 
 - Sprint revealed a recurring code anti-pattern — add to project rules as a
