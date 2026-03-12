@@ -20,6 +20,7 @@ target/
 
 # Worktree artifacts
 .claude/worktrees/
+.worktrees/
 
 # Test artifacts
 tests/golden_snapshots/
