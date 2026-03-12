@@ -60,6 +60,17 @@ compliance with all security conventions defined there.
 - Architecture docs updated if pipeline or data flow changed (see `project.toml [paths] architecture` if configured)
 - New modules referenced in appropriate index files
 
+### 2.5. Verify Test Coverage (if test plan context provided)
+
+{test_coverage_verification — list of test case IDs with preconditions and expected results}
+
+For each referenced test case:
+- Confirm the implementation includes a test that covers this scenario
+- Verify the test assertions match the expected results from the test plan
+- Flag any test cases that are referenced but not covered
+
+If test plan context is not provided, skip this step.
+
 ### 3. Post Your Review
 Post a GitHub PR review in character:
 
@@ -77,6 +88,8 @@ Post a GitHub PR review in character:
 - [x/✗] Navigation docs updated if needed
 - [x/✗] No secrets in code or logs
 - [x/✗] PR description is self-contained
+- [x/✗] Test plan coverage verified (if test cases referenced)
+- [x/✗] PRD non-functional requirements met (if provided — check perf thresholds, memory budgets)
 
 ### Detailed Feedback
 {File-by-file or concern-by-concern feedback}
