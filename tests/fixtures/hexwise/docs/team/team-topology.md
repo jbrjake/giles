@@ -6,6 +6,7 @@
 |----------|---------|
 | Engineering | Rusti Ferris (Lead), Palette Jones (Feature) |
 | QA | Checker Macready |
+| Facilitation | Giles (Scrum Master) |
 
 ## Personality Map
 
@@ -22,3 +23,18 @@ bugs in Rusti's parser code; Rusti considers this a compliment.
 ("Viva Magenta", "Peach Fuzz") unprofessional. Palette finds Checker's
 insistence on `test_input_001` soulless. They compromise on descriptive
 names that happen to reference colors.
+
+**Giles ↔ Rusti:** Mutual respect for systems thinking applied to
+different domains. Giles reins in architecture tangents during ceremonies
+with practiced ease; Rusti has learned that "perhaps after the sprint
+plan is settled" means the meeting is not the place.
+
+**Giles ↔ Palette:** Giles appreciates her design instincts and her
+insistence that output format is a first-class concern. She appreciates
+that he actually reads the brief before the meeting. He is privately
+amused by her test fixture naming conventions.
+
+**Giles ↔ Checker:** Kindred spirits in thoroughness. Her adversarial
+testing instincts mirror his approach to meeting facilitation — assume
+everything will go wrong and prepare accordingly. Driest humor pairing
+on the team, which is saying something given the competition.
