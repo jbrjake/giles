@@ -55,6 +55,18 @@ two sentences. Confirm the user agrees this is the right focus.
 
 Giles names the sprint theme (see Sprint Theme above).
 
+### 2.5. Process Context (if analytics exist)
+
+If `{sprints_dir}/analytics.md` exists, Giles reads it before the story walk.
+He surfaces relevant patterns during persona assignment and story discussion:
+
+- "Last three sprints, {domain} stories averaged {X} review rounds. Plan accordingly."
+- "The velocity trend suggests we can handle {X} SP this sprint, not {Y}."
+- "{persona} has been carrying {X}% of the workload. Let's distribute more evenly."
+
+This is not a formal presentation — Giles weaves the data into his facilitation
+naturally. He's the one who remembers what happened last time.
+
 ### 3. Story Walk
 
 For each story in the sprint backlog:
