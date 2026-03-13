@@ -36,21 +36,21 @@ see `CHEATSHEET.md`. The tables below are a summary.
 
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
-| `scripts/validate_config.py` | Config validation + TOML parser + shared helpers | `parse_simple_toml()` :43, `validate_project()` :213, `load_config()` :390, `gh()` :23, `gh_json()` :33, `extract_sp()` :515, `get_team_personas()` :421, `get_milestones()` :449, `get_base_branch()` :473, `get_prd_dir()` :479, `get_test_plan_dir()` :488, `get_sagas_dir()` :497, `get_epics_dir()` :506, `get_story_map()` :544 |
-| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :459, `ConfigGenerator.generate()` :793, `_inject_giles()` :674, `generate_definition_of_done()` :743, `generate_history_dir()` :748, `detect_prd_dir()` :341, `detect_test_plan_dir()` :358, `detect_sagas_dir()` :367, `detect_epics_dir()` :376, `detect_story_map()` :385, `detect_team_topology()` :398 |
+| `scripts/validate_config.py` | Config validation + TOML parser + shared helpers | `parse_simple_toml()` :48, `validate_project()` :220, `load_config()` :397, `gh()` :23, `gh_json()` :33, `extract_sp()` :522, `get_team_personas()` :428, `get_milestones()` :456, `get_base_branch()` :480, `get_prd_dir()` :486, `get_test_plan_dir()` :495, `get_sagas_dir()` :504, `get_epics_dir()` :513, `get_story_map()` :551 |
+| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner.scan()` :459, `ConfigGenerator.generate()` :793, `_inject_giles()` :669, `generate_definition_of_done()` :738, `generate_history_dir()` :743, `detect_prd_dir()` :336, `detect_test_plan_dir()` :353, `detect_sagas_dir()` :362, `detect_epics_dir()` :371, `detect_story_map()` :380, `detect_team_topology()` :393 |
 | `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :20, `main()` :370 |
-| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :78, `_collect_sprint_numbers()` :91, `create_static_labels()` :171, `create_epic_labels()` :200, `create_milestones_on_github()` :211, `main()` :252 |
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :85, `parse_detail_blocks()` :150, `enrich_from_epics()` :200, `format_issue_body()` :297, `_build_milestone_title_map()` :267, `create_issue()` :337 |
+| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :64, `_collect_sprint_numbers()` :77, `create_static_labels()` :157, `create_epic_labels()` :186, `create_milestones_on_github()` :197, `main()` :240 |
+| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :76, `parse_detail_blocks()` :141, `enrich_from_epics()` :191, `format_issue_body()` :284, `_build_milestone_title_map()` :267, `create_issue()` :324 |
 | `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :203, `_SETUP_REGISTRY` :61 (Rust/Python/Node/Go) |
-| `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :206, `create_from_issue()` :253 |
-| `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :69, `update_sprint_status()` :108 |
+| `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :181, `create_from_issue()` :228 |
+| `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :52, `update_sprint_status()` :91 |
 | `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
-| `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :61, `compute_review_rounds()` :98, `compute_workload()` :146, `format_report()` :169, `main()` :204 |
-| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` :46, `check_prs()` :102, `check_milestone()` :178, `check_branch_divergence()` :232, `check_direct_pushes()` :270 |
+| `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :38, `compute_review_rounds()` :76, `compute_workload()` :125, `format_report()` :148, `main()` :183 |
+| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` :35, `check_prs()` :91, `check_milestone()` :167, `check_branch_divergence()` :221, `check_direct_pushes()` :259 |
 | `scripts/team_voices.py` | Extract persona commentary from saga/epic files | `extract_voices()` :29, `VOICE_PATTERN` :24, `main()` :83 |
 | `scripts/traceability.py` | Bidirectional story/PRD/test mapping with gap detection | `parse_stories()` :29, `parse_test_cases()` :76, `parse_requirements()` :97, `build_traceability()` :122, `format_report()` :165 |
 | `scripts/test_coverage.py` | Compare planned test cases vs actual test files | `parse_planned_tests()` :40, `detect_test_functions()` :58, `scan_project_tests()` :66, `check_test_coverage()` :90, `_TEST_PATTERNS` :21 |
-| `scripts/manage_epics.py` | Epic CRUD: add, remove, reorder stories | `parse_epic()` :26, `add_story()` :188, `remove_story()` :203, `reorder_stories()` :233, `renumber_stories()` :276 |
+| `scripts/manage_epics.py` | Epic CRUD: add, remove, reorder stories | `parse_epic()` :26, `add_story()` :188, `remove_story()` :203, `reorder_stories()` :233, `renumber_stories()` :287 |
 | `scripts/manage_sagas.py` | Saga management: allocation, index, voices | `parse_saga()` :31, `update_sprint_allocation()` :137, `update_epic_index()` :169, `update_team_voices()` :224 |
 
 ### Skill Entry Points
@@ -123,8 +123,8 @@ Template: `references/skeletons/project.toml.tmpl`
 | Task | What to do |
 |------|-----------|
 | Add a new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) |
-| Modify config validation | Edit `scripts/validate_config.py` — `_REQUIRED_FILES` :186, `_REQUIRED_TOML_KEYS` :199 |
-| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` :171 or create new function |
+| Modify config validation | Edit `scripts/validate_config.py` — `_REQUIRED_FILES` :193, `_REQUIRED_TOML_KEYS` :206 |
+| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` :157 or create new function |
 | Add language support to CI | Edit `skills/sprint-setup/scripts/setup_ci.py` — add to `_SETUP_REGISTRY` :61 and `_ENV_BLOCKS` :75 |
 | Add a new kanban state | Update `skills/sprint-run/references/kanban-protocol.md` + `sync_tracking.py:26` `KANBAN_STATES` |
 | Change sprint tracking format | Edit `skills/sprint-run/references/tracking-formats.md` + update `sync_tracking.py` and `update_burndown.py` |

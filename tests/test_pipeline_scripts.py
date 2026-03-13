@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
 from team_voices import extract_voices
 from validate_config import parse_simple_toml
 from setup_ci import generate_ci_yaml
+from sprint_init import ProjectScanner
 
 
 class TestTeamVoices(unittest.TestCase):
@@ -692,6 +693,289 @@ class TestRenumberStories(unittest.TestCase):
                 any("US-01a, US-01b" in l for l in blocked_by_lines),
                 f"Expected 'US-01a, US-01b' in blocked-by lines: {blocked_by_lines}",
             )
+
+
+# ---------------------------------------------------------------------------
+# P2-04: Scanner Heuristic Fixtures — Python Project
+# ---------------------------------------------------------------------------
+
+
+class TestScannerPythonProject(unittest.TestCase):
+    """Scanner heuristics against a Python project layout.
+
+    Fixture: pyproject.toml at root, tests/ dir, docs/prd/ for PRDs,
+    docs/test-plan/ for test plans, no sagas or epics.
+    """
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp()
+        root = Path(self._tmpdir)
+
+        # Language marker
+        (root / "pyproject.toml").write_text(
+            '[project]\nname = "widgetlib"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+
+        # Source directory
+        (root / "src" / "widgetlib").mkdir(parents=True)
+        (root / "src" / "widgetlib" / "__init__.py").write_text(
+            '"""widgetlib — widget utilities."""\n', encoding="utf-8",
+        )
+
+        # Test directory
+        (root / "tests").mkdir()
+        (root / "tests" / "test_widget.py").write_text(
+            "def test_create_widget():\n    assert True\n", encoding="utf-8",
+        )
+
+        # PRD directory (matches candidate "docs/prd")
+        (root / "docs" / "prd").mkdir(parents=True)
+        (root / "docs" / "prd" / "widget-spec.md").write_text(
+            "# Widget PRD\n\n## Requirements\n\nREQ-W-001: Widgets must spin.\n",
+            encoding="utf-8",
+        )
+
+        # Test plan directory (matches candidate "docs/test-plan")
+        (root / "docs" / "test-plan").mkdir(parents=True)
+        (root / "docs" / "test-plan" / "functional.md").write_text(
+            "# Functional Tests\n\n### TC-W-001: Widget spins clockwise\n",
+            encoding="utf-8",
+        )
+
+        # A rules file
+        (root / "CONTRIBUTING.md").write_text(
+            "# Contributing\n\nPlease follow PEP 8.\n", encoding="utf-8",
+        )
+
+        # Team persona file with enough headings to be detected
+        (root / "docs" / "team").mkdir(parents=True)
+        (root / "docs" / "team" / "alice.md").write_text(
+            "# Alice\n\n"
+            "## Role\nSenior Backend Engineer\n\n"
+            "## Voice\nDirect, prefers data over anecdotes.\n\n"
+            "## Domain\nDistributed systems\n\n"
+            "## Background\n10 years Python.\n\n"
+            "## Review Focus\nPerformance and error handling.\n",
+            encoding="utf-8",
+        )
+
+        # Team index with Name | File | Role columns (matches regex pattern)
+        (root / "docs" / "team" / "INDEX.md").write_text(
+            "# Team\n\n| Name | File | Role |\n|------|------|------|\n"
+            "| Alice | alice.md | Senior Backend Engineer |\n",
+            encoding="utf-8",
+        )
+
+        self.scanner = ProjectScanner(root)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_detect_language_python(self):
+        """pyproject.toml triggers Python detection."""
+        det = self.scanner.detect_language()
+        self.assertEqual(det.value, "Python")
+        self.assertGreaterEqual(det.confidence, 1.0)
+
+    def test_detect_project_name(self):
+        """Project name parsed from pyproject.toml [project] section."""
+        det = self.scanner.detect_project_name("Python")
+        self.assertEqual(det.value, "widgetlib")
+        self.assertEqual(det.confidence, 1.0)
+
+    def test_detect_ci_commands_defaults(self):
+        """Without workflow files, falls back to Python CI defaults."""
+        det = self.scanner.detect_ci_commands("Python")
+        self.assertIn("pytest", det.value)
+        self.assertIn("ruff check .", det.value)
+        self.assertEqual(det.confidence, 0.5)
+
+    def test_detect_build_command(self):
+        """Python build command defaults to python -m build."""
+        det = self.scanner.detect_build_command("Python")
+        self.assertEqual(det.value, "python -m build")
+
+    def test_detect_prd_dir(self):
+        """docs/prd/ with content is detected."""
+        det = self.scanner.detect_prd_dir()
+        self.assertIsNotNone(det)
+        self.assertEqual(det.value, "docs/prd")
+        self.assertGreaterEqual(det.confidence, 0.9)
+
+    def test_detect_test_plan_dir(self):
+        """docs/test-plan/ with content is detected."""
+        det = self.scanner.detect_test_plan_dir()
+        self.assertIsNotNone(det)
+        self.assertEqual(det.value, "docs/test-plan")
+        self.assertGreaterEqual(det.confidence, 0.9)
+
+    def test_detect_sagas_dir_none(self):
+        """No sagas directory present — returns None."""
+        det = self.scanner.detect_sagas_dir()
+        self.assertIsNone(det)
+
+    def test_detect_epics_dir_none(self):
+        """No epics directory present — returns None."""
+        det = self.scanner.detect_epics_dir()
+        self.assertIsNone(det)
+
+    def test_detect_story_map_none(self):
+        """No story map index present — returns None."""
+        det = self.scanner.detect_story_map()
+        self.assertIsNone(det)
+
+    def test_detect_team_topology_none(self):
+        """No team topology file present — returns None."""
+        det = self.scanner.detect_team_topology()
+        self.assertIsNone(det)
+
+    def test_detect_persona_files(self):
+        """Persona file with 5 matching headings is detected."""
+        personas = self.scanner.detect_persona_files()
+        self.assertEqual(len(personas), 1)
+        self.assertIn("alice.md", personas[0].path)
+        self.assertGreaterEqual(personas[0].confidence, 0.6)
+
+    def test_detect_team_index(self):
+        """Team INDEX.md with Name|Role table is detected."""
+        det = self.scanner.detect_team_index()
+        self.assertIsNotNone(det.value)
+        self.assertIn("INDEX.md", det.value)
+        self.assertGreaterEqual(det.confidence, 0.9)
+
+    def test_detect_rules_file(self):
+        """CONTRIBUTING.md is picked up as rules file."""
+        det = self.scanner.detect_rules_file()
+        self.assertEqual(det.value, "CONTRIBUTING.md")
+        self.assertEqual(det.confidence, 1.0)
+
+    def test_detect_backlog_files_empty(self):
+        """No milestone files with sprint headers — returns empty list."""
+        backlog = self.scanner.detect_backlog_files()
+        self.assertEqual(backlog, [])
+
+
+# ---------------------------------------------------------------------------
+# P2-04: Scanner Heuristic Fixtures — Minimal Project
+# ---------------------------------------------------------------------------
+
+
+class TestScannerMinimalProject(unittest.TestCase):
+    """Scanner heuristics against a bare-bones project.
+
+    Fixture: Only src/ with one source file, no manifest, no docs,
+    no personas, no backlog. All deep-doc detect_* should return None.
+    """
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp()
+        root = Path(self._tmpdir)
+
+        # Bare source directory with one file — no language manifest
+        (root / "src").mkdir()
+        (root / "src" / "main.c").write_text(
+            '#include <stdio.h>\nint main() { return 0; }\n',
+            encoding="utf-8",
+        )
+
+        self.scanner = ProjectScanner(root)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_detect_language_unknown(self):
+        """No manifest file — language is Unknown with zero confidence."""
+        det = self.scanner.detect_language()
+        self.assertEqual(det.value, "Unknown")
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_project_name_fallback(self):
+        """No manifest — falls back to directory name."""
+        det = self.scanner.detect_project_name("Unknown")
+        # Value should be the temp dir name (varies), confidence low
+        self.assertEqual(det.confidence, 0.3)
+        self.assertEqual(det.evidence, "directory name fallback")
+
+    def test_detect_ci_commands_empty(self):
+        """No workflows, unknown language — no CI commands."""
+        det = self.scanner.detect_ci_commands("Unknown")
+        self.assertEqual(det.value, [])
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_build_command_none(self):
+        """Unknown language — no build command."""
+        det = self.scanner.detect_build_command("Unknown")
+        self.assertIsNone(det.value)
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_prd_dir_none(self):
+        """No PRD directory — returns None."""
+        self.assertIsNone(self.scanner.detect_prd_dir())
+
+    def test_detect_test_plan_dir_none(self):
+        """No test plan directory — returns None."""
+        self.assertIsNone(self.scanner.detect_test_plan_dir())
+
+    def test_detect_sagas_dir_none(self):
+        """No sagas directory — returns None."""
+        self.assertIsNone(self.scanner.detect_sagas_dir())
+
+    def test_detect_epics_dir_none(self):
+        """No epics directory — returns None."""
+        self.assertIsNone(self.scanner.detect_epics_dir())
+
+    def test_detect_story_map_none(self):
+        """No story map — returns None."""
+        self.assertIsNone(self.scanner.detect_story_map())
+
+    def test_detect_team_topology_none(self):
+        """No team topology file — returns None."""
+        self.assertIsNone(self.scanner.detect_team_topology())
+
+    def test_detect_persona_files_empty(self):
+        """No markdown files — no personas detected."""
+        self.assertEqual(self.scanner.detect_persona_files(), [])
+
+    def test_detect_team_index_none(self):
+        """No team index — value is None."""
+        det = self.scanner.detect_team_index()
+        self.assertIsNone(det.value)
+
+    def test_detect_backlog_files_empty(self):
+        """No backlog files — returns empty list."""
+        self.assertEqual(self.scanner.detect_backlog_files(), [])
+
+    def test_detect_rules_file_none(self):
+        """No RULES.md / CONVENTIONS.md / CONTRIBUTING.md — value is None."""
+        det = self.scanner.detect_rules_file()
+        self.assertIsNone(det.value)
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_dev_guide_none(self):
+        """No DEVELOPMENT.md / CONTRIBUTING.md / HACKING.md — value is None."""
+        det = self.scanner.detect_dev_guide()
+        self.assertIsNone(det.value)
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_architecture_none(self):
+        """No architecture doc — value is None."""
+        det = self.scanner.detect_architecture()
+        self.assertIsNone(det.value)
+
+    def test_detect_story_id_pattern_none(self):
+        """No backlog files — no story ID pattern detected."""
+        det = self.scanner.detect_story_id_pattern([])
+        self.assertIsNone(det.value)
+        self.assertEqual(det.confidence, 0.0)
+
+    def test_detect_binary_path_unknown(self):
+        """Unknown language — no binary path."""
+        det = self.scanner.detect_binary_path("Unknown")
+        self.assertIsNone(det.value)
+        self.assertEqual(det.confidence, 0.0)
 
 
 if __name__ == "__main__":

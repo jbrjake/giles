@@ -455,7 +455,7 @@ See `validate_config.py:199` for the full list.
 | Want to... | Edit |
 |-----------|------|
 | Add new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter |
-| Change config validation | `scripts/validate_config.py:186` (_REQUIRED_FILES), `:199` (_REQUIRED_TOML_KEYS) |
+| Change config validation | `scripts/validate_config.py:193` (_REQUIRED_FILES), `:206` (_REQUIRED_TOML_KEYS) |
 | Add label category | `bootstrap_github.py:171` (create_static_labels) |
 | Add language to CI gen | `setup_ci.py:61` (_SETUP_REGISTRY), `:75` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:26` (KANBAN_STATES) |

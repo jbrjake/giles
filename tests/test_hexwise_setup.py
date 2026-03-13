@@ -306,7 +306,22 @@ class TestHexwisePipeline(unittest.TestCase):
         return parse_simple_toml(toml_path.read_text())
 
     def test_full_setup_pipeline(self):
-        """Init -> labels -> milestones -> issues all succeed."""
+        """Init -> labels -> milestones -> issues all succeed.
+
+        Scope: RICH HEXWISE FIXTURE (3 personas, deep docs, 3 milestones,
+        17 stories across epics). Validates the pipeline produces precisely
+        correct counts and content against a realistic project structure.
+
+        Assertions are exact: 3 milestones, 17 issues, 4 persona labels,
+        and every story ID (US-0101 through US-0209) verified by name.
+
+        Complements (not duplicates):
+        - test_lifecycle.test_13_full_pipeline: same pipeline but runs against
+          a minimal synthetic MockProject with loose assertions.
+        - test_golden_run.test_golden_full_setup_pipeline: same hexwise fixture
+          but captures/replays golden snapshots at each phase for regression
+          detection via snapshot comparison.
+        """
         config = self._generate_config()
 
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):

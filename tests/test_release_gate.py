@@ -18,6 +18,7 @@ from unittest.mock import patch, MagicMock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
 
 from release_gate import (
     calculate_version,
@@ -27,6 +28,7 @@ from release_gate import (
     do_release,
     find_milestone_number,
 )
+from fake_github import FakeGitHub, make_patched_subprocess
 
 
 # ---------------------------------------------------------------------------
@@ -85,58 +87,100 @@ class TestCalculateVersion(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestValidateGates(unittest.TestCase):
+    """Tests validate_gates() with FakeGitHub-backed gate functions.
 
-    @patch("release_gate.gate_build")
-    @patch("release_gate.gate_tests")
-    @patch("release_gate.gate_prs")
-    @patch("release_gate.gate_ci")
-    @patch("release_gate.gate_stories")
-    def test_all_pass(self, m_stories, m_ci, m_prs, m_tests, m_build):
-        m_stories.return_value = (True, "All closed")
-        m_ci.return_value = (True, "CI: success")
-        m_prs.return_value = (True, "No open PRs")
-        m_tests.return_value = (True, "2 commands passed")
-        m_build.return_value = (True, "Build succeeded")
+    Instead of mocking each gate function, these tests set up real GitHub
+    state (issues, PRs, CI runs) and let the actual gate_stories, gate_ci,
+    gate_prs, gate_tests, and gate_build functions execute against it.
+    gate_tests and gate_build still need subprocess mocking for local commands.
+    """
 
-        passed, results = validate_gates("Sprint 1", {"ci": {}})
+    def setUp(self):
+        self.fake = FakeGitHub()
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def _add_closed_milestone(self, title="Sprint 1"):
+        """Add a milestone with all issues closed."""
+        self.fake.milestones.append({
+            "number": 1, "title": title,
+            "open_issues": 0, "closed_issues": 3,
+        })
+
+    def test_all_pass(self):
+        """All gates pass: no open issues, CI green, no open PRs."""
+        self._add_closed_milestone()
+        # CI: one successful run on main
+        self.fake.runs.append({
+            "name": "CI", "status": "completed",
+            "conclusion": "success", "headBranch": "main",
+        })
+        # No open issues for milestone (empty = all closed)
+        # No open PRs
+        config = {
+            "project": {"base_branch": "main"},
+            "ci": {"check_commands": [], "build_command": ""},
+        }
+        passed, results = validate_gates("Sprint 1", config)
         self.assertTrue(passed)
         self.assertEqual(len(results), 5)
         self.assertTrue(all(r[1] for r in results))
 
-    @patch("release_gate.gate_build")
-    @patch("release_gate.gate_tests")
-    @patch("release_gate.gate_prs")
-    @patch("release_gate.gate_ci")
-    @patch("release_gate.gate_stories")
-    def test_first_failure_stops(self, m_stories, m_ci, m_prs, m_tests, m_build):
-        m_stories.return_value = (False, "2 open issues")
-        # These shouldn't be called because stories gate fails first
-        m_ci.return_value = (True, "success")
-        m_prs.return_value = (True, "no PRs")
-        m_tests.return_value = (True, "passed")
-        m_build.return_value = (True, "passed")
-
-        passed, results = validate_gates("Sprint 1", {"ci": {}})
+    def test_first_failure_stops(self):
+        """Stories gate fails (open issues) — later gates don't run."""
+        self._add_closed_milestone()
+        # Add open issues for the milestone
+        self.fake.issues.append({
+            "number": 1, "title": "US-0001: Unfinished",
+            "state": "open", "labels": [],
+            "body": "", "milestone": {"title": "Sprint 1"},
+        })
+        self.fake.issues.append({
+            "number": 2, "title": "US-0002: Also unfinished",
+            "state": "open", "labels": [],
+            "body": "", "milestone": {"title": "Sprint 1"},
+        })
+        config = {
+            "project": {"base_branch": "main"},
+            "ci": {},
+        }
+        passed, results = validate_gates("Sprint 1", config)
         self.assertFalse(passed)
-        # Only 1 result because it stops after first failure
         self.assertEqual(len(results), 1)
         self.assertFalse(results[0][1])
+        self.assertIn("2 open", results[0][2])
 
-    @patch("release_gate.gate_build")
-    @patch("release_gate.gate_tests")
-    @patch("release_gate.gate_prs")
-    @patch("release_gate.gate_ci")
-    @patch("release_gate.gate_stories")
-    def test_middle_failure(self, m_stories, m_ci, m_prs, m_tests, m_build):
-        m_stories.return_value = (True, "All closed")
-        m_ci.return_value = (True, "success")
-        m_prs.return_value = (False, "1 open PR")
-        m_tests.return_value = (True, "passed")
-        m_build.return_value = (True, "passed")
-
-        passed, results = validate_gates("Sprint 1", {"ci": {}})
+    def test_middle_failure_pr_gate(self):
+        """Stories and CI pass, but PR gate fails (open PR for milestone)."""
+        self._add_closed_milestone()
+        # CI green
+        self.fake.runs.append({
+            "name": "CI", "status": "completed",
+            "conclusion": "success", "headBranch": "main",
+        })
+        # Open PR targeting the milestone
+        self.fake.prs.append({
+            "number": 10, "title": "WIP: feature",
+            "state": "open",
+            "milestone": {"title": "Sprint 1"},
+            "headRefName": "feat/wip",
+        })
+        config = {
+            "project": {"base_branch": "main"},
+            "ci": {"check_commands": [], "build_command": ""},
+        }
+        passed, results = validate_gates("Sprint 1", config)
         self.assertFalse(passed)
         self.assertEqual(len(results), 3)  # Stories, CI, PRs
+        # Stories and CI passed
+        self.assertTrue(results[0][1])
+        self.assertTrue(results[1][1])
+        # PRs failed
+        self.assertFalse(results[2][1])
+        self.assertIn("open PR", results[2][2])
 
 
 # ---------------------------------------------------------------------------

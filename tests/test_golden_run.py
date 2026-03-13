@@ -106,8 +106,27 @@ class TestGoldenRun(unittest.TestCase):
     def test_golden_full_setup_pipeline(self):
         """Full sequential pipeline: init -> labels -> milestones -> issues -> CI.
 
-        All phases run on the SAME FakeGitHub instance so state accumulates.
-        Snapshots capture cumulative state at each checkpoint.
+        Scope: GOLDEN SNAPSHOT REGRESSION against the hexwise fixture. Runs the
+        same init -> labels -> milestones -> issues pipeline as the other two
+        pipeline tests, but the purpose here is fundamentally different: this
+        test records or replays golden snapshots at each phase boundary to catch
+        regressions in the exact output (file contents, label sets, milestone
+        details, issue bodies) — not just "did it produce the right counts."
+
+        Key differences from the other pipeline tests:
+        - All phases run on a SINGLE FakeGitHub instance with cumulative state,
+          matching how the real setup pipeline works (labels persist when
+          milestones are created, milestones persist when issues are created).
+        - Captures/compares snapshots at 5 checkpoints (init, labels, milestones,
+          issues, CI) via GoldenRecorder/GoldenReplayer.
+        - Also tests CI workflow generation (Phase 5), which the other two
+          pipeline tests do not cover.
+
+        Complements (not duplicates):
+        - test_lifecycle.test_13_full_pipeline: minimal synthetic project,
+          loose count assertions, no snapshots.
+        - test_hexwise_setup.test_full_setup_pipeline: same hexwise fixture,
+          exact count assertions, but no snapshot regression or CI phase.
         """
         recorder = GoldenRecorder(self.project, self.fake_gh)
         replayer = GoldenReplayer()

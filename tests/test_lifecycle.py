@@ -371,7 +371,21 @@ class TestLifecycle(unittest.TestCase):
     # -- Test 13: full init -> bootstrap -> issues pipeline ------------------
 
     def test_13_full_pipeline(self):
-        """Full pipeline: init -> bootstrap labels -> create milestones -> create issues."""
+        """Full pipeline: init -> bootstrap labels -> create milestones -> create issues.
+
+        Scope: MINIMAL SYNTHETIC project (MockProject — 2 personas, 1 milestone,
+        2 stories). Exercises the pipeline with a bare-bones generated-from-scratch
+        project to catch regressions in the basic happy path.
+
+        Assertions are intentionally loose (>10 labels, >0 milestones, >0 issues)
+        because the fixture is minimal and we only care that the pipeline completes.
+
+        Complements (not duplicates):
+        - test_hexwise_setup.test_full_setup_pipeline: same pipeline but runs
+          against the rich hexwise fixture with exact count assertions.
+        - test_golden_run.test_golden_full_setup_pipeline: same hexwise fixture
+          but captures/replays golden snapshots at each phase boundary.
+        """
         config = self._generate_config()
 
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
