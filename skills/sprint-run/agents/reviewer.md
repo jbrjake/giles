@@ -31,40 +31,50 @@ The PR description contains EVERYTHING you need:
 
 You should NOT need to read any project docs (PRDs, agile docs, etc.) — the implementer has included all relevant context in the PR. If the PR description is missing critical context, that IS a review finding — request that they add it.
 
-### 2. Read the Diff
+### 2. Read the Diff (Three-Pass Review)
+
+Before starting, read the `## Confidence` section in the PR description.
+The implementer has rated their confidence per area (high/medium/low).
+Low-confidence areas get the most scrutiny in Pass 1. This is metadata
+that makes your review smarter — trust the implementer's self-assessment
+as a starting point, then verify.
+
+Review the diff in three focused passes. This is how good human reviewers
+work — they don't catch everything in one read. Neither will you.
+
 ```bash
 gh pr diff {pr_number}
 ```
-Review every changed file. Focus on:
 
-**Correctness:**
-- Do the changes actually implement the acceptance criteria?
+**Pass 1 — Correctness:**
+Focus exclusively on whether the code does what it's supposed to.
+- Do the changes implement the acceptance criteria?
 - Are there logical errors or edge cases missed?
-- Do tests cover the right scenarios?
+- Does the code handle the scenarios described in the story?
+- Spend proportionally more time on areas marked low-confidence.
 
-**Conventions:**
-Read `{rules_file}` for project-specific conventions. Verify the implementation
-follows them.
+**Pass 2 — Conventions:**
+Focus exclusively on whether the code follows the rules.
+- Read `{rules_file}` for project conventions. Verify compliance.
+- Security: read `{rules_file}` for security requirements. Verify compliance.
+- File sizes under project limits (500 target, 750 hard limit)
+- Commit messages follow conventional format
+- Progressive disclosure docs updated if new files/concepts added
+  (see `project.toml [paths] cheatsheet` and `architecture` if configured)
+- New modules referenced in appropriate index files
 
-**Security:**
-Read `{rules_file}` for project-specific security requirements. Verify
-compliance with all security conventions defined there.
-
-**File Size:**
-- Target: 500 lines per .md or .rs file
-- Hard limit: 750 lines
-- If exceeded, recommend splitting
-
-**Testing:**
+**Pass 3 — Testing:**
+Focus exclusively on whether the tests are adequate.
 - Tests exist for all acceptance criteria
 - Tests use meaningful assertions (not just "doesn't panic")
 - Both success and error paths tested
 - Property-based tests for algebraic invariants where appropriate
+- Test plan coverage verified (if test cases referenced in story)
 
-**Progressive Disclosure:**
-- Navigation docs updated if new files/concepts were added (see `project.toml [paths] cheatsheet` if configured)
-- Architecture docs updated if pipeline or data flow changed (see `project.toml [paths] architecture` if configured)
-- New modules referenced in appropriate index files
+After all three passes, synthesize your findings into a single review.
+Note which pass each finding came from — it helps the implementer
+prioritize. Correctness findings are blockers. Convention findings are
+important. Testing findings depend on coverage gap severity.
 
 ### 2.5. Verify Test Coverage (if test plan context provided)
 
