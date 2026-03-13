@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,18 +21,9 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config
+from validate_config import load_config, gh
 
 KANBAN_STATES = ("todo", "design", "dev", "review", "integration", "done")
-
-
-def gh(args: list[str]) -> str:
-    r = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, timeout=30
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout.strip()
 
 
 def find_milestone_title(sprint_num: int) -> str | None:

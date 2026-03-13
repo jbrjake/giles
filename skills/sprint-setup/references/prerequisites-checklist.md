@@ -74,21 +74,17 @@ If the toolchain is missing, follow the installation instructions for the detect
 language. The CI workflow this skill generates runs language-specific checks, so the
 toolchain needs to be present for local validation.
 
-## 6. Python venv
+## 6. Python 3.10+
 
-The sprint process scripts require Python 3.10+:
+The sprint process scripts require Python 3.10+ (stdlib only — no pip install needed):
 
 ```bash
 python3 --version   # must be 3.10+
-python3 -m venv .venv
-source .venv/bin/activate
 ```
 
 If Python 3.10+ is not available:
 - **macOS:** `brew install python@3.12`
-- **Linux:** `sudo apt install python3.12 python3.12-venv`
-
-Always activate the venv before running any sprint scripts.
+- **Linux:** `sudo apt install python3.12`
 
 ## Summary
 
@@ -100,7 +96,7 @@ Print this checklist and confirm all items pass before proceeding:
 [x] 3. superpowers plugin installed
 [x] 4. Git remote configured
 [x] 5. Language toolchain installed (per project.toml)
-[x] 6. Python venv created and activated
+[x] 6. Python 3.10+ installed
 [x] 7. sprint-config/ validated (Phase 0)
 ```
 

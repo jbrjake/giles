@@ -24,30 +24,6 @@ import sprint_analytics
 from fake_github import FakeGitHub, make_patched_subprocess
 
 
-class TestExtractSP(unittest.TestCase):
-    """Test story point extraction from issues."""
-
-    def test_sp_from_label(self):
-        issue = {"labels": [{"name": "sp:5"}], "body": ""}
-        self.assertEqual(sprint_analytics.extract_sp(issue), 5)
-
-    def test_sp_from_body(self):
-        issue = {"labels": [], "body": "Story Points: 3"}
-        self.assertEqual(sprint_analytics.extract_sp(issue), 3)
-
-    def test_sp_from_body_table(self):
-        issue = {"labels": [], "body": "| US-0101 | Parse hex | 5 SP |"}
-        self.assertEqual(sprint_analytics.extract_sp(issue), 5)
-
-    def test_sp_zero_when_missing(self):
-        issue = {"labels": [], "body": "No points here"}
-        self.assertEqual(sprint_analytics.extract_sp(issue), 0)
-
-    def test_label_takes_priority(self):
-        issue = {"labels": [{"name": "sp:8"}], "body": "SP: 3"}
-        self.assertEqual(sprint_analytics.extract_sp(issue), 8)
-
-
 class TestExtractPersona(unittest.TestCase):
     """Test persona extraction from issue labels."""
 

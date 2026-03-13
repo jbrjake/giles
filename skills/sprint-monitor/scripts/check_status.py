@@ -12,16 +12,14 @@ Exit: 0 = no action needed, 1 = action needed, 2 = usage error.
 """
 from __future__ import annotations
 
-import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp
+from validate_config import load_config, extract_sp, gh, gh_json
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -30,20 +28,6 @@ except ImportError:
     sync_backlog_main = None
 
 MAX_LOGS = 10
-
-
-def gh(args: list[str]) -> str:
-    r = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, timeout=30
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout.strip()
-
-
-def gh_json(args: list[str]) -> list | dict:
-    raw = gh(args)
-    return json.loads(raw) if raw else []
 
 
 def detect_sprint(sprints_dir: Path) -> int | None:

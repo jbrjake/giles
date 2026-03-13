@@ -8,10 +8,32 @@ the config directory is well-formed and all required files are present.
 No external dependencies -- stdlib only.
 """
 
+import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Shared GitHub CLI helpers
+# ---------------------------------------------------------------------------
+
+def gh(args: list[str]) -> str:
+    """Run a gh CLI command and return stdout. Raises RuntimeError on failure."""
+    r = subprocess.run(
+        ["gh", *args], capture_output=True, text=True, timeout=30,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def gh_json(args: list[str]) -> list | dict:
+    """Run a gh CLI command and parse JSON output."""
+    raw = gh(args)
+    return json.loads(raw) if raw else []
 
 
 # ---------------------------------------------------------------------------

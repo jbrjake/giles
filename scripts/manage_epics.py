@@ -280,7 +280,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     Only replaces in table rows and body text, not in ### headings,
     to preserve the parseable heading format.
     """
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     replacement = ", ".join(new_ids)
     new_lines = []
     for line in lines:
@@ -289,7 +289,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
             new_lines.append(line)
         else:
             new_lines.append(line.replace(old_id, replacement))
-    Path(path).write_text("\n".join(new_lines))
+    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
 def main() -> None:

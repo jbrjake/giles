@@ -13,26 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp
-
-
-def gh(args: list[str]) -> str:
-    """Run a gh CLI command and return stdout."""
-    result = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, timeout=30
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"gh {' '.join(args)} failed: {result.stderr.strip()}"
-        )
-    return result.stdout.strip()
+from validate_config import load_config, extract_sp, gh
 
 
 def find_milestone(sprint_num: int) -> dict | None:

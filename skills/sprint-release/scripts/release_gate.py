@@ -26,24 +26,8 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-from validate_config import load_config, get_base_branch
+from validate_config import load_config, get_base_branch, gh, gh_json
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
-
-
-def gh(args: list[str]) -> str:
-    """Run a gh CLI command and return stdout."""
-    r = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, timeout=30,
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
-    return r.stdout.strip()
-
-
-def gh_json(args: list[str]) -> list | dict:
-    """Run a gh CLI command and parse JSON output."""
-    raw = gh(args)
-    return json.loads(raw) if raw else []
 
 
 # -- Version calculation -----------------------------------------------------
