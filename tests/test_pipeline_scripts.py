@@ -83,5 +83,69 @@ class TestTeamVoices(unittest.TestCase):
         self.assertIn("compiler", rusti_s01[0]["quote"].lower())
 
 
+# ---------------------------------------------------------------------------
+# Task 1: Traceability
+# ---------------------------------------------------------------------------
+
+from traceability import build_traceability, parse_stories, parse_requirements
+
+
+class TestTraceability(unittest.TestCase):
+    """Bidirectional story/PRD/test mapping with gap detection."""
+
+    def test_parse_stories_finds_all(self):
+        """Parse all 17 stories from Hexwise epic files."""
+        stories = parse_stories(str(HEXWISE / "docs" / "agile" / "epics"))
+        story_ids = sorted(stories.keys())
+        self.assertEqual(len(story_ids), 17)
+        self.assertIn("US-0101", story_ids)
+        self.assertIn("US-0209", story_ids)
+
+    def test_parse_stories_extracts_test_cases(self):
+        """Each story has test case references from its metadata table."""
+        stories = parse_stories(str(HEXWISE / "docs" / "agile" / "epics"))
+        self.assertIn("TC-PAR-001", stories["US-0101"]["test_cases"])
+        self.assertIn("GP-001", stories["US-0101"]["test_cases"])
+
+    def test_traceability_no_gaps(self):
+        """Hexwise has complete story-to-test traceability."""
+        report = build_traceability(
+            epics_dir=str(HEXWISE / "docs" / "agile" / "epics"),
+            test_plan_dir=str(HEXWISE / "docs" / "test-plan"),
+        )
+        self.assertEqual(report["stories_without_tests"], [])
+
+    def test_traceability_detects_gaps(self):
+        """Detect stories that have no test case links."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic = Path(tmp) / "E-0101-test.md"
+            epic.write_text(
+                "### US-9999: Untested Story\n\n"
+                "| Field | Value |\n|---|---|\n| Story Points | 3 |\n"
+            )
+            report = build_traceability(epics_dir=tmp)
+            self.assertIn("US-9999", report["stories_without_tests"])
+
+    def test_traceability_prd_coverage(self):
+        """All REQ-* IDs in Hexwise PRDs map to stories."""
+        report = build_traceability(
+            epics_dir=str(HEXWISE / "docs" / "agile" / "epics"),
+            prd_dir=str(HEXWISE / "docs" / "prd"),
+        )
+        self.assertEqual(report["requirements_without_stories"], [])
+
+    def test_parse_requirements_finds_all(self):
+        """Parse all REQ-* IDs from Hexwise PRD reference files."""
+        reqs = parse_requirements(str(HEXWISE / "docs" / "prd"))
+        req_ids = sorted(reqs.keys())
+        self.assertIn("REQ-PAR-001", req_ids)
+        self.assertIn("REQ-CON-001", req_ids)
+        self.assertIn("REQ-PAL-001", req_ids)
+        # Each requirement maps to at least one story
+        for req_id, data in reqs.items():
+            self.assertGreater(len(data["stories"]), 0, f"{req_id} has no story links")
+
+
 if __name__ == "__main__":
     unittest.main()
