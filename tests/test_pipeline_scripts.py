@@ -214,5 +214,166 @@ class TestCoverage(unittest.TestCase):
             self.assertIn("test_parse_hex", report["implemented"])
 
 
+# ---------------------------------------------------------------------------
+# Task 3: Epic Management
+# ---------------------------------------------------------------------------
+
+from manage_epics import parse_epic, add_story, remove_story, reorder_stories
+
+
+class TestManageEpics(unittest.TestCase):
+    """CRUD operations on epic markdown files."""
+
+    def _copy_epic(self, tmp_path: Path) -> Path:
+        """Copy E-0101-parsing.md to tmp for mutation testing."""
+        src = HEXWISE / "docs" / "agile" / "epics" / "E-0101-parsing.md"
+        dst = tmp_path / "E-0101-parsing.md"
+        shutil.copy2(src, dst)
+        return dst
+
+    def test_parse_epic_metadata(self):
+        """Parse epic metadata (saga, stories count, total SP)."""
+        epic = parse_epic(
+            str(HEXWISE / "docs" / "agile" / "epics" / "E-0101-parsing.md")
+        )
+        self.assertEqual(epic["saga"], "S01")
+        self.assertEqual(epic["stories_count"], 4)
+        self.assertEqual(epic["total_sp"], 16)
+
+    def test_parse_epic_stories(self):
+        """Parse all stories from an epic file."""
+        epic = parse_epic(
+            str(HEXWISE / "docs" / "agile" / "epics" / "E-0101-parsing.md")
+        )
+        story_ids = [s["id"] for s in epic["stories"]]
+        self.assertEqual(story_ids, ["US-0101", "US-0102", "US-0103", "US-0104"])
+
+    def test_parse_epic_story_fields(self):
+        """Each story includes key metadata fields."""
+        epic = parse_epic(
+            str(HEXWISE / "docs" / "agile" / "epics" / "E-0101-parsing.md")
+        )
+        us0101 = epic["stories"][0]
+        self.assertEqual(us0101["id"], "US-0101")
+        self.assertEqual(us0101["title"], "Parse Hex Color Input")
+        self.assertEqual(us0101["story_points"], 3)
+        self.assertEqual(us0101["priority"], "P0")
+
+    def test_add_story_to_epic(self):
+        """Add a new story to an epic file."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            add_story(str(epic_path), {
+                "id": "US-0110",
+                "title": "Parse CMYK Input",
+                "story_points": 3,
+                "priority": "P2",
+                "personas": ["Rusti Ferris"],
+                "blocked_by": ["US-0101"],
+                "blocks": [],
+                "test_cases": ["TC-PAR-010"],
+                "acceptance_criteria": ["AC-01: Parse cmyk(C,M,Y,K) format"],
+                "tasks": [{"id": "T-0110-01", "description": "Implement CMYK parser", "sp": 3}],
+            })
+            result = parse_epic(str(epic_path))
+            story_ids = [s["id"] for s in result["stories"]]
+            self.assertIn("US-0110", story_ids)
+            # Verify it appears in the file content
+            content = epic_path.read_text()
+            self.assertIn("US-0110", content)
+            self.assertIn("Parse CMYK Input", content)
+
+    def test_remove_story(self):
+        """Remove a story from an epic file."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            remove_story(str(epic_path), "US-0103")
+            result = parse_epic(str(epic_path))
+            story_ids = [s["id"] for s in result["stories"]]
+            self.assertNotIn("US-0103", story_ids)
+            self.assertIn("US-0101", story_ids)
+            self.assertIn("US-0102", story_ids)
+
+    def test_reorder_stories(self):
+        """Reorder stories within an epic."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            reorder_stories(str(epic_path), ["US-0104", "US-0101", "US-0102", "US-0103"])
+            result = parse_epic(str(epic_path))
+            story_ids = [s["id"] for s in result["stories"]]
+            self.assertEqual(story_ids, ["US-0104", "US-0101", "US-0102", "US-0103"])
+
+
+# ---------------------------------------------------------------------------
+# Task 3: Saga Management
+# ---------------------------------------------------------------------------
+
+from manage_sagas import parse_saga, update_sprint_allocation, update_epic_index
+
+
+class TestManageSagas(unittest.TestCase):
+    """CRUD operations on saga markdown files."""
+
+    def _copy_saga(self, tmp_path: Path) -> Path:
+        """Copy S01-core.md to tmp for mutation testing."""
+        src = HEXWISE / "docs" / "agile" / "sagas" / "S01-core.md"
+        dst = tmp_path / "S01-core.md"
+        shutil.copy2(src, dst)
+        return dst
+
+    def test_parse_saga_metadata(self):
+        """Parse saga metadata (stories, epics, total SP)."""
+        saga = parse_saga(
+            str(HEXWISE / "docs" / "agile" / "sagas" / "S01-core.md")
+        )
+        self.assertEqual(saga["stories_count"], 8)
+        self.assertEqual(saga["epics_count"], 3)
+        self.assertEqual(saga["total_sp"], 34)
+
+    def test_parse_saga_epic_index(self):
+        """Parse epic index table from saga."""
+        saga = parse_saga(
+            str(HEXWISE / "docs" / "agile" / "sagas" / "S01-core.md")
+        )
+        epic_ids = [e["id"] for e in saga["epic_index"]]
+        self.assertEqual(epic_ids, ["E-0101", "E-0102", "E-0103"])
+
+    def test_parse_saga_sprint_allocation(self):
+        """Parse sprint allocation table from saga."""
+        saga = parse_saga(
+            str(HEXWISE / "docs" / "agile" / "sagas" / "S01-core.md")
+        )
+        self.assertEqual(len(saga["sprint_allocation"]), 2)
+        self.assertEqual(saga["sprint_allocation"][0]["sprint"], "Sprint 1")
+
+    def test_update_sprint_allocation(self):
+        """Update sprint allocation table in a saga."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._copy_saga(Path(tmp))
+            new_allocation = [
+                {"sprint": "Sprint 1", "stories": "US-0101, US-0102", "sp": "11"},
+                {"sprint": "Sprint 2", "stories": "US-0103, US-0104, US-0105, US-0106, US-0107, US-0108", "sp": "23"},
+            ]
+            update_sprint_allocation(str(saga_path), new_allocation)
+            result = parse_saga(str(saga_path))
+            self.assertEqual(result["sprint_allocation"][0]["stories"], "US-0101, US-0102")
+            self.assertEqual(result["sprint_allocation"][0]["sp"], "11")
+
+    def test_update_epic_index(self):
+        """Update epic index from epic files."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._copy_saga(Path(tmp))
+            epics_dir = str(HEXWISE / "docs" / "agile" / "epics")
+            update_epic_index(str(saga_path), epics_dir, saga_id="S01")
+            result = parse_saga(str(saga_path))
+            # Should still have 3 epics for S01
+            self.assertEqual(len(result["epic_index"]), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
