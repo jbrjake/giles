@@ -51,6 +51,16 @@ Load the milestone from `{config [paths] backlog_dir}/milestones/`. Giles facili
 
 Read `references/story-execution.md` for the full TDD workflow, kanban transitions, and commit conventions. Read `references/kanban-protocol.md` for the state machine.
 
+### Mid-Sprint Check-In
+
+Before dispatching the next story, check if
+`{sprints_dir}/sprint-{N}/mid-sprint-checkin.md` exists but has not been
+acknowledged. If so, Giles presents the check-in to the user and the PM
+persona. The PM answers any product questions. Giles adjusts the plan if
+needed (reorder stories, flag at-risk scope). Then resume story execution.
+
+### Story Dispatch
+
 Determine each story's current kanban state and execute the appropriate transition:
 
 | Current State | Transition | Key Action |

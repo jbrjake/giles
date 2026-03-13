@@ -149,6 +149,47 @@ Process each PR according to its state:
   ```
 - Check existing comments first to avoid duplicates.
 
+## Step 2.5 -- Mid-Sprint Check-In
+
+Check whether the sprint has crossed the halfway mark:
+
+```bash
+# Count done vs total stories from SPRINT-STATUS.md
+# If done >= total / 2 AND no check-in has been recorded this sprint:
+```
+
+If threshold is crossed and no check-in file exists at
+`{sprints_dir}/sprint-{N}/mid-sprint-checkin.md`:
+
+1. Compute current velocity vs plan (stories done, SP delivered so far)
+2. Identify stories taking longer than expected (in dev or review for
+   more than double the average cycle time)
+3. Output a Giles-voiced check-in:
+
+```
+Mid-Sprint Check-In — Sprint {N}
+
+Right, we're past the halfway mark. Here's where we stand.
+
+Velocity: {done}/{total} stories, {done_sp}/{total_sp} SP
+On track: {yes/no — compare actual vs expected at this point}
+{If behind:} We're behind by {X} SP. Stories {ids} are taking longer
+than expected. {If a story is stuck in review:} {story} has been in
+review for {hours} — worth checking whether the review feedback is
+actionable or if we need to escalate.
+
+{If design decisions need revisiting:} Two stories are building in
+different directions on {topic}. Worth a quick alignment before more
+code gets written.
+```
+
+4. Write the check-in to `{sprints_dir}/sprint-{N}/mid-sprint-checkin.md`
+   to prevent duplicate check-ins.
+
+This check-in is informational. It does not block story execution.
+If the user invokes sprint-run while a check-in is pending, Giles
+presents it before resuming work.
+
 ## Step 3 -- Update Burndown
 
 Run the status check script (path relative to skill install location):
