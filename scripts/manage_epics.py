@@ -35,7 +35,7 @@ def parse_epic(path: str) -> dict:
         stories: [{id, title, story_points, priority, ...}, ...]
         raw_sections: [{id, start_line, end_line, lines}, ...]
     """
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     metadata = _parse_header_table(lines)
     stories, raw_sections = _parse_stories(lines)
 
@@ -187,7 +187,7 @@ def _format_story_section(story_data: dict) -> str:
 
 def add_story(path: str, story_data: dict) -> None:
     """Append a new story section to an epic file."""
-    content = Path(path).read_text()
+    content = Path(path).read_text(encoding="utf-8")
     new_section = _format_story_section(story_data)
 
     # Ensure the file ends with proper separation
@@ -197,12 +197,12 @@ def add_story(path: str, story_data: dict) -> None:
         content += "\n"
 
     content += "---\n\n" + new_section + "\n"
-    Path(path).write_text(content)
+    Path(path).write_text(content, encoding="utf-8")
 
 
 def remove_story(path: str, story_id: str) -> None:
     """Remove a story section from an epic file."""
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     epic = parse_epic(path)
     section = next(
         (s for s in epic["raw_sections"] if s["id"] == story_id), None
@@ -227,12 +227,12 @@ def remove_story(path: str, story_id: str) -> None:
         new_lines.pop()
     new_lines.append("")
 
-    Path(path).write_text("\n".join(new_lines))
+    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
 def reorder_stories(path: str, story_ids: list[str]) -> None:
     """Reorder story sections to match the given ID list."""
-    lines = Path(path).read_text().splitlines()
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
     epic = parse_epic(path)
 
     # Find where stories begin (after the header/intro)
@@ -270,7 +270,7 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
         new_lines.pop()
     new_lines.append("")
 
-    Path(path).write_text("\n".join(new_lines))
+    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
 def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
