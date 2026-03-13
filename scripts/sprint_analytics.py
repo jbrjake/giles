@@ -242,7 +242,7 @@ def main() -> None:
     report = format_report(sprint_num, sprint_theme, velocity, review, workload)
     print(report)
 
-    # Append to analytics file if sprints_dir exists
+    # Append to analytics file if sprints_dir exists (idempotent)
     analytics_path = sprints_dir / "analytics.md"
     if sprints_dir.is_dir():
         if not analytics_path.exists():
@@ -252,9 +252,15 @@ def main() -> None:
                 "Giles adds qualitative commentary during retro.\n\n---\n\n",
                 encoding="utf-8",
             )
-        with open(analytics_path, "a", encoding="utf-8") as f:
-            f.write(report + "\n---\n\n")
-        print(f"Appended to {analytics_path}")
+        # Dedup: skip if this sprint already has an entry (BH-016)
+        existing = analytics_path.read_text(encoding="utf-8")
+        header = f"### Sprint {sprint_num}"
+        if header in existing:
+            print(f"Sprint {sprint_num} already in {analytics_path} (skipping)")
+        else:
+            with open(analytics_path, "a", encoding="utf-8") as f:
+                f.write(report + "\n---\n\n")
+            print(f"Appended to {analytics_path}")
 
 
 if __name__ == "__main__":

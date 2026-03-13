@@ -364,20 +364,24 @@ def main() -> None:
     except RuntimeError:
         pass
 
-    # Sprint start date (approximate from sprint dir timestamps)
+    # Sprint start date from milestone created_at (not filesystem mtime,
+    # which resets every time SPRINT-STATUS.md is rewritten — BH-014)
     sprint_dir = sprints_dir / f"sprint-{sprint_num}"
     since = now.strftime("%Y-%m-%dT00:00:00Z")
-    if sprint_dir.exists():
-        try:
-            status_file = sprints_dir / "SPRINT-STATUS.md"
-            if status_file.exists():
-                import os
-                mtime = os.path.getmtime(str(status_file))
-                since = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime(
-                    "%Y-%m-%dT00:00:00Z"
-                )
-        except OSError:
-            pass
+    try:
+        milestones = gh_json([
+            "api", "repos/{owner}/{repo}/milestones", "--paginate",
+        ])
+        if isinstance(milestones, list):
+            ms = next(
+                (m for m in milestones
+                 if re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))),
+                None,
+            )
+            if ms and ms.get("created_at"):
+                since = ms["created_at"]
+    except RuntimeError:
+        pass
 
     # Steps 1, 1.5, 2, 2.5, 3: CI → drift → PRs → direct pushes → milestone
     checks = [

@@ -57,7 +57,7 @@ def parse_planned_tests(test_plan_dir: str) -> dict[str, str]:
 
 def detect_test_functions(language: str, source: str) -> list[str]:
     """Find test function names in source code for a given language."""
-    pattern = _TEST_PATTERNS.get(language)
+    pattern = _TEST_PATTERNS.get(language.lower())
     if not pattern:
         return []
     return pattern.findall(source)
@@ -69,7 +69,7 @@ def scan_project_tests(project_root: str, language: str) -> list[str]:
     if not root.is_dir():
         return []
 
-    file_patterns = _TEST_FILE_PATTERNS.get(language, [])
+    file_patterns = _TEST_FILE_PATTERNS.get(language.lower(), [])
     all_functions: list[str] = []
 
     for pattern in file_patterns:

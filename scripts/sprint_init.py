@@ -344,7 +344,7 @@ class ProjectScanner:
         for d in self._walk_dirs(max_depth=3):
             md_files = list(d.glob("*.md"))
             if len(md_files) >= 2:
-                sample = md_files[0].read_text(errors="replace")[:2000]
+                sample = md_files[0].read_text(encoding="utf-8", errors="replace")[:2000]
                 if "## Requirements" in sample and "## Design" in sample:
                     rel = str(d.relative_to(self.root))
                     return Detection(rel, f"PRD content in {d.name}/", 0.7)

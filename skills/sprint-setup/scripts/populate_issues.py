@@ -202,7 +202,7 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
     new_stories = []
 
     for epic_file in sorted(epics_path.glob("*.md")):
-        content = epic_file.read_text(errors="replace")
+        content = epic_file.read_text(encoding="utf-8", errors="replace")
         # Infer sprint from stories already parsed in this epic file
         known_sprints = [
             by_id[sid].sprint
@@ -221,6 +221,13 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
                 existing.blocked_by = ps.blocked_by or existing.blocked_by
                 existing.blocks = ps.blocks or existing.blocks
                 existing.test_cases = ps.test_cases or existing.test_cases
+            elif sprint == 0:
+                # Skip stories with undeterminable sprint to avoid
+                # creating orphaned issues with no milestone (BH-011)
+                print(
+                    f"  Warning: skipping {ps.story_id} from "
+                    f"{epic_file.name} — cannot determine sprint number"
+                )
             else:
                 new_stories.append(ps)
 
