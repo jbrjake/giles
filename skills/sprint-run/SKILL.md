@@ -57,7 +57,7 @@ Determine each story's current kanban state and execute the appropriate transiti
 |---------------|------------|------------|
 | todo | TO-DO --> DESIGN | Create design notes, draft PR, apply labels |
 | design | DESIGN --> DEV | Dispatch implementer subagent, TDD, push code |
-| dev | DEV --> REVIEW | Dispatch reviewer subagent, PR review |
+| dev | DEV --> REVIEW | Dispatch reviewer (or pair reviewers for SP >= 5 + multi-domain). See story-execution.md |
 | review | REVIEW --> INTEGRATION | CI green, squash-merge, close issue, update burndown |
 
 Stories with no dependencies can run in parallel via `superpowers:dispatching-parallel-agents`. Dependent stories wait.

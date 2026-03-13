@@ -97,6 +97,24 @@ full agent protocol. The reviewer's persona file (from
    re-requests review. This loop repeats until approval.
 6. Update the GitHub issue label to `kanban:review`.
 
+### Pair Review (High-Risk Stories)
+
+When a story meets BOTH of these criteria, dispatch two reviewer subagents:
+1. Story points >= 5
+2. Story touches files owned by multiple personas (check domain keywords
+   in team INDEX.md against the files changed in the PR)
+
+Each reviewer brings their domain expertise. Dispatch as separate subagents
+so context costs are isolated.
+
+The implementer addresses both reviews. If the reviewers disagree, the
+implementer reconciles — both perspectives are valid, and the implementer
+is closest to the code. If reconciliation isn't possible, escalate to the
+user.
+
+Pair review produces two GitHub reviews on the same PR. Both must approve
+before proceeding to integration.
+
 ---
 
 ## REVIEW --> INTEGRATION
