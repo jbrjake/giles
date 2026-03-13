@@ -7,7 +7,7 @@ personas who write real code, review each other's PRs on GitHub, debate
 technical risks in character during kickoff, and hold retrospectives that
 rewrite your actual project documentation. Everything flows through GitHub
 issues, PRs, milestones, and a six-state kanban board. The scrum master is a
-former librarian named Giles.
+librarian named Giles.
 
 ## What actually happens
 
@@ -51,17 +51,35 @@ Giles is the plugin's built-in scrum master. He is generated into your project
 config as a full character with a backstory, verbal tics, and a facilitation
 style that adapts to the room.
 
-He has been a librarian for twenty-three years. That's what he says when people
-ask. There are reasons to believe the full story is longer.
+He is a librarian. Has been for twenty-three years. He ended up as scrum master
+because someone said "we need a facilitator" and everyone looked at him, and he
+said "fine, but I'm not wearing a lanyard." He read the Agile Manifesto that
+evening ("sensible but obvious, like most manifestos") and a Scrum guide ("less
+sensible but more specific, which is at least useful"). By the next morning he
+was running standups with the quiet competence of someone who has been organizing
+difficult people for decades.
+
+He does not consider himself a project manager. He considers himself a librarian
+who happens to be very good at making sure people do what they said they were
+going to do, in the order they said they were going to do it, without killing
+each other. The distinction matters to him.
 
 He facilitates with the precision of someone who catalogues things for a living.
 Meetings have time limits. Discussions have outcomes, or they are "noise with
-chairs." He reads a room the way he describes it: "years of watching people
-pretend they've read the book."
+chairs." He knows when someone is confused and won't say so. He knows when a
+sprint is in trouble before the burndown chart does, because he watches faces,
+not dashboards.
+
+He is dry. Not unkind -- just precise. He will say "how delightfully optimistic"
+about a sprint plan that is clearly over-committed, and everyone will know
+exactly what he means, and nobody will feel attacked.
 
 His verbal tics: "Right then." (meeting is starting), "Shall we?" (time to move
 on), "How perfectly alarming." (something has gone wrong), "I'm sure that will
 be fine." (it will not be fine, and he knows it, and you know he knows it).
+
+He relates to the team the way a butler relates to the household: technically in
+a service role, but everyone knows the house would fall apart without him.
 
 ### Facilitation, not decoration
 
@@ -389,7 +407,7 @@ get depth.
 
 ## Requirements
 
-- Claude Code
+- Claude Code with the [superpowers](https://github.com/obra/superpowers) plugin
 - GitHub CLI (`gh`) installed and authenticated
 - Python 3.10+ (for sprint scripts, stdlib only, no pip packages)
 - A GitHub repository with a configured remote
