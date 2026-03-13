@@ -235,6 +235,7 @@ class FakeGitHub:
         state_filter = "open"
         milestone_filter = ""
         json_fields: str | None = None
+        limit: int | None = None
         i = 1
         while i < len(args):
             if args[i] == "--state" and i + 1 < len(args):
@@ -247,6 +248,7 @@ class FakeGitHub:
                 json_fields = args[i + 1]
                 i += 2
             elif args[i] == "--limit" and i + 1 < len(args):
+                limit = int(args[i + 1])
                 i += 2
             else:
                 i += 1
@@ -261,6 +263,8 @@ class FakeGitHub:
                 iss for iss in filtered
                 if (iss.get("milestone") or {}).get("title") == milestone_filter
             ]
+        if limit is not None:
+            filtered = filtered[:limit]
         filtered = self._filter_json_fields(filtered, json_fields)
         return self._ok(json.dumps(filtered))
 
@@ -331,9 +335,10 @@ class FakeGitHub:
         return self._fail(f"run {sub} not supported")
 
     def _run_list(self, args: list[str]) -> subprocess.CompletedProcess:
-        """Handle: gh run list [--branch <branch>] [--json ...]."""
+        """Handle: gh run list [--branch <branch>] [--json ...] [--limit ...]."""
         branch_filter = ""
         json_fields: str | None = None
+        limit: int | None = None
         i = 1
         while i < len(args):
             if args[i] == "--branch" and i + 1 < len(args):
@@ -342,7 +347,10 @@ class FakeGitHub:
             elif args[i] == "--json" and i + 1 < len(args):
                 json_fields = args[i + 1]
                 i += 2
-            elif args[i] in ("--limit", "--status") and i + 1 < len(args):
+            elif args[i] == "--limit" and i + 1 < len(args):
+                limit = int(args[i + 1])
+                i += 2
+            elif args[i] == "--status" and i + 1 < len(args):
                 i += 2
             else:
                 i += 1
@@ -353,6 +361,8 @@ class FakeGitHub:
                 r for r in filtered
                 if r.get("headBranch") == branch_filter
             ]
+        if limit is not None:
+            filtered = filtered[:limit]
         filtered = self._filter_json_fields(filtered, json_fields)
         return self._ok(json.dumps(filtered))
 
@@ -373,18 +383,32 @@ class FakeGitHub:
         return self._fail(f"pr {sub} not supported")
 
     def _pr_list(self, args: list[str]) -> subprocess.CompletedProcess:
-        """Handle: gh pr list [--json ...]."""
+        """Handle: gh pr list [--json ...] [--state ...] [--limit ...]."""
         json_fields: str | None = None
+        state_filter = "open"
+        limit: int | None = None
         i = 1
         while i < len(args):
             if args[i] == "--json" and i + 1 < len(args):
                 json_fields = args[i + 1]
                 i += 2
-            elif args[i] in ("--limit", "--state") and i + 1 < len(args):
+            elif args[i] == "--state" and i + 1 < len(args):
+                state_filter = args[i + 1]
+                i += 2
+            elif args[i] == "--limit" and i + 1 < len(args):
+                limit = int(args[i + 1])
                 i += 2
             else:
                 i += 1
-        filtered = self._filter_json_fields(list(self.prs), json_fields)
+        filtered = list(self.prs)
+        if state_filter != "all":
+            filtered = [
+                pr for pr in filtered
+                if pr.get("state") == state_filter
+            ]
+        if limit is not None:
+            filtered = filtered[:limit]
+        filtered = self._filter_json_fields(filtered, json_fields)
         return self._ok(json.dumps(filtered))
 
     def _pr_create(self, args: list[str]) -> subprocess.CompletedProcess:
