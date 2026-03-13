@@ -436,70 +436,58 @@ class TestCheckPRs(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# bootstrap_github.py tests -- create_label with mocked run_gh
+# bootstrap_github.py tests -- create_label with mocked gh
 # ---------------------------------------------------------------------------
 
 class TestCreateLabel(unittest.TestCase):
-    """Test bootstrap_github.create_label() with mocked run_gh."""
+    """Test bootstrap_github.create_label() with mocked gh."""
 
-    @patch("bootstrap_github.run_gh")
-    def test_creates_label(self, mock_run_gh):
-        mock_run_gh.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="",
-        )
+    @patch("bootstrap_github.gh")
+    def test_creates_label(self, mock_gh):
+        mock_gh.return_value = ""
         # Should not raise
         bootstrap_github.create_label("test-label", "ff0000", "A test label")
-        mock_run_gh.assert_called_once()
-        call_args = mock_run_gh.call_args[0][0]
+        mock_gh.assert_called_once()
+        call_args = mock_gh.call_args[0][0]
         self.assertIn("label", call_args)
         self.assertIn("create", call_args)
         self.assertIn("test-label", call_args)
 
-    @patch("bootstrap_github.run_gh")
-    def test_label_error_handled(self, mock_run_gh):
-        mock_run_gh.return_value = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="already exists",
-        )
+    @patch("bootstrap_github.gh")
+    def test_label_error_handled(self, mock_gh):
+        mock_gh.side_effect = RuntimeError("already exists")
         # Should not raise (create_label handles errors gracefully)
         bootstrap_github.create_label("existing-label", "ff0000")
 
 
 # ---------------------------------------------------------------------------
-# populate_issues.py tests -- get_existing_issues with mocked run_gh
+# populate_issues.py tests -- get_existing_issues with mocked gh
 # ---------------------------------------------------------------------------
 
 class TestGetExistingIssues(unittest.TestCase):
-    """Test populate_issues.get_existing_issues() with mocked run_gh."""
+    """Test populate_issues.get_existing_issues() with mocked gh."""
 
-    @patch("populate_issues.run_gh")
-    def test_returns_story_ids(self, mock_run_gh):
-        mock_run_gh.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0,
-            stdout=json.dumps([
-                {"title": "US-0101: Setup project"},
-                {"title": "US-0102: Add auth"},
-                {"title": "Not a story"},
-            ]),
-            stderr="",
-        )
+    @patch("populate_issues.gh")
+    def test_returns_story_ids(self, mock_gh):
+        mock_gh.return_value = json.dumps([
+            {"title": "US-0101: Setup project"},
+            {"title": "US-0102: Add auth"},
+            {"title": "Not a story"},
+        ])
         existing = populate_issues.get_existing_issues()
         self.assertIn("US-0101", existing)
         self.assertIn("US-0102", existing)
         self.assertEqual(len(existing), 2)
 
-    @patch("populate_issues.run_gh")
-    def test_handles_empty_response(self, mock_run_gh):
-        mock_run_gh.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="[]", stderr="",
-        )
+    @patch("populate_issues.gh")
+    def test_handles_empty_response(self, mock_gh):
+        mock_gh.return_value = "[]"
         existing = populate_issues.get_existing_issues()
         self.assertEqual(len(existing), 0)
 
-    @patch("populate_issues.run_gh")
-    def test_handles_gh_failure(self, mock_run_gh):
-        mock_run_gh.return_value = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="auth failed",
-        )
+    @patch("populate_issues.gh")
+    def test_handles_gh_failure(self, mock_gh):
+        mock_gh.side_effect = RuntimeError("auth failed")
         existing = populate_issues.get_existing_issues()
         self.assertEqual(len(existing), 0)
 
@@ -509,47 +497,37 @@ class TestGetExistingIssues(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestFindMilestoneTitle(unittest.TestCase):
-    """Test sync_tracking.find_milestone_title() with mocked gh."""
+    """Test sync_tracking.find_milestone_title() with mocked find_milestone."""
 
-    @patch("sync_tracking.gh")
-    def test_finds_sprint(self, mock_gh):
-        mock_gh.return_value = json.dumps([
-            {"title": "Sprint 1: Walking Skeleton", "number": 1},
-            {"title": "Sprint 2: Features", "number": 2},
-        ])
+    @patch("sync_tracking.find_milestone")
+    def test_finds_sprint(self, mock_find):
+        mock_find.return_value = {"title": "Sprint 1: Walking Skeleton", "number": 1}
         result = sync_tracking.find_milestone_title(1)
         self.assertEqual(result, "Sprint 1: Walking Skeleton")
 
-    @patch("sync_tracking.gh")
-    def test_no_match(self, mock_gh):
-        mock_gh.return_value = json.dumps([
-            {"title": "Sprint 2: Features", "number": 2},
-        ])
+    @patch("sync_tracking.find_milestone")
+    def test_no_match(self, mock_find):
+        mock_find.return_value = None
         result = sync_tracking.find_milestone_title(1)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.gh")
-    def test_empty_response(self, mock_gh):
-        mock_gh.return_value = ""
+    @patch("sync_tracking.find_milestone")
+    def test_empty_response(self, mock_find):
+        mock_find.return_value = None
         result = sync_tracking.find_milestone_title(1)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.gh")
-    def test_sprint_1_does_not_match_sprint_10(self, mock_gh):
+    @patch("sync_tracking.find_milestone")
+    def test_sprint_1_does_not_match_sprint_10(self, mock_find):
         """P1-01: Sprint prefix matching must use word boundary."""
-        mock_gh.return_value = json.dumps([
-            {"title": "Sprint 10: Polish", "number": 10},
-        ])
+        mock_find.return_value = None  # find_milestone handles boundary matching
         result = sync_tracking.find_milestone_title(1)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.gh")
-    def test_sprint_10_matches_correctly(self, mock_gh):
+    @patch("sync_tracking.find_milestone")
+    def test_sprint_10_matches_correctly(self, mock_find):
         """P1-01: Sprint 10 should match Sprint 10."""
-        mock_gh.return_value = json.dumps([
-            {"title": "Sprint 1: Skeleton", "number": 1},
-            {"title": "Sprint 10: Polish", "number": 10},
-        ])
+        mock_find.return_value = {"title": "Sprint 10: Polish", "number": 10}
         result = sync_tracking.find_milestone_title(10)
         self.assertEqual(result, "Sprint 10: Polish")
 

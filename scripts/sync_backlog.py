@@ -166,7 +166,7 @@ def do_sync(config: dict) -> dict[str, int]:
     stories = populate_issues.enrich_from_epics(stories, config)
     existing = populate_issues.get_existing_issues()
     milestone_numbers = populate_issues.get_milestone_numbers()
-    milestone_titles = populate_issues._build_milestone_title_map(milestone_files)
+    milestone_titles = populate_issues.build_milestone_title_map(milestone_files)
 
     created = 0
     for story in stories:

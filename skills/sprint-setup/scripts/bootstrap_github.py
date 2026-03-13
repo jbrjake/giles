@@ -12,18 +12,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_team_personas, get_milestones, get_epics_dir
-
-
-def run_gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Run a gh CLI command."""
-    result = subprocess.run(["gh", *args], capture_output=True, text=True)
-    if check and result.returncode != 0:
-        print(f"Error: gh {' '.join(args)}")
-        print(result.stderr)
-        if check:
-            sys.exit(1)
-    return result
+from validate_config import load_config, get_team_personas, get_milestones, get_epics_dir, gh
 
 
 def check_prerequisites() -> None:
@@ -54,15 +43,12 @@ def check_prerequisites() -> None:
 
 def create_label(name: str, color: str, description: str = "") -> None:
     """Create a label, skip if it already exists."""
-    result = run_gh(
-        ["label", "create", name, "--color", color,
-         "--description", description, "--force"],
-        check=False,
-    )
-    if result.returncode == 0:
+    try:
+        gh(["label", "create", name, "--color", color,
+            "--description", description, "--force"])
         print(f"  + {name}")
-    else:
-        print(f"  ! {name}: {result.stderr.strip()}")
+    except RuntimeError as exc:
+        print(f"  ! {name}: {exc}")
 
 
 # -- Distinct color palette for personas (up to 20) -------------------------
@@ -240,13 +226,15 @@ def create_milestones_on_github(config: dict) -> None:
             "-f", f"description={description}",
             "-f", "state=open",
         ]
-        result = run_gh(api_args, check=False)
-        if result.returncode == 0:
+        try:
+            gh(api_args)
             print(f"  + {title}")
-        elif "already_exists" in result.stderr:
-            print(f"  = {title} (already exists)")
-        else:
-            print(f"  ! {title}: {result.stderr.strip()}")
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "already_exists" in msg:
+                print(f"  = {title} (already exists)")
+            else:
+                print(f"  ! {title}: {msg}")
 
 
 def main() -> None:

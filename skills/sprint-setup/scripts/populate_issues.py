@@ -14,7 +14,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_milestones
+from validate_config import load_config, get_milestones, gh
 
 
 @dataclass
@@ -32,15 +32,6 @@ class Story:
     blocks: str = ""
     test_cases: str = ""
     source_file: str = ""
-
-
-def run_gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Run a gh CLI command."""
-    result = subprocess.run(["gh", *args], capture_output=True, text=True)
-    if check and result.returncode != 0:
-        print(f"Error: gh {' '.join(args)}\n{result.stderr}")
-        sys.exit(1)
-    return result
 
 
 def check_prerequisites() -> None:
@@ -238,15 +229,10 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 
 def get_existing_issues() -> set[str]:
     """Fetch existing issue title prefixes (story IDs) for idempotency."""
-    result = run_gh(
-        ["issue", "list", "--limit", "200", "--json", "title", "--state", "all"],
-        check=False,
-    )
-    if result.returncode != 0:
-        return set()
     try:
-        issues = json.loads(result.stdout)
-    except json.JSONDecodeError:
+        raw = gh(["issue", "list", "--limit", "200", "--json", "title", "--state", "all"])
+        issues = json.loads(raw) if raw else []
+    except (RuntimeError, json.JSONDecodeError):
         return set()
     existing: set[str] = set()
     for issue in issues:
@@ -258,18 +244,14 @@ def get_existing_issues() -> set[str]:
 
 def get_milestone_numbers() -> dict[str, int]:
     """Fetch milestone title -> number mapping from GitHub."""
-    result = run_gh(
-        ["api", "repos/{owner}/{repo}/milestones", "--jq", "."], check=False
-    )
-    if result.returncode != 0:
-        return {}
     try:
-        return {m["title"]: m["number"] for m in json.loads(result.stdout)}
-    except (json.JSONDecodeError, KeyError):
+        raw = gh(["api", "repos/{owner}/{repo}/milestones", "--jq", "."])
+        return {m["title"]: m["number"] for m in json.loads(raw)} if raw else {}
+    except (RuntimeError, json.JSONDecodeError, KeyError):
         return {}
 
 
-def _build_milestone_title_map(
+def build_milestone_title_map(
     milestone_files: list[str],
 ) -> dict[int, str]:
     """Map sprint number -> milestone title by reading milestone file headings.
@@ -355,12 +337,13 @@ def create_issue(
     ms_title = milestone_titles.get(story.sprint, "")
     if ms_title in milestone_numbers:
         args.extend(["--milestone", ms_title])
-    result = run_gh(args, check=False)
-    if result.returncode == 0:
-        print(f"  + {story.story_id}: {story.title}  ->  {result.stdout.strip()}")
+    try:
+        output = gh(args)
+        print(f"  + {story.story_id}: {story.title}  ->  {output}")
         return True
-    print(f"  ! {story.story_id}: {result.stderr.strip()}")
-    return False
+    except RuntimeError as exc:
+        print(f"  ! {story.story_id}: {exc}")
+        return False
 
 
 def main() -> None:
@@ -395,7 +378,7 @@ def main() -> None:
     if existing:
         print(f"  Found {len(existing)} existing story issues.")
     milestone_numbers = get_milestone_numbers()
-    milestone_titles = _build_milestone_title_map(milestone_files)
+    milestone_titles = build_milestone_title_map(milestone_files)
 
     print("\n=== Creating Issues ===\n")
     created = skipped = 0

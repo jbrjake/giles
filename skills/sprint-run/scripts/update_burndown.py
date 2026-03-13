@@ -19,15 +19,10 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh
-
-
-def find_milestone(sprint_num: int) -> dict | None:
-    raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate"])
-    for ms in (json.loads(raw) if raw else []):
-        if re.match(rf"^Sprint {sprint_num}\b", ms.get("title", "")):
-            return ms
-    return None
+from validate_config import (
+    load_config, extract_sp, gh,
+    find_milestone, extract_story_id, kanban_from_labels, warn_if_at_limit,
+)
 
 
 def list_milestone_issues(milestone_title: str) -> list[dict]:
@@ -35,21 +30,9 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
         "issue", "list", "--milestone", milestone_title, "--state", "all",
         "--json", "number,title,state,labels,closedAt,body", "--limit", "200",
     ])
-    return json.loads(raw) if raw else []
-
-
-def extract_story_id(title: str) -> str:
-    m = re.match(r"([A-Z]+-\d+)", title)
-    return m.group(1) if m else title.split(":")[0].strip()
-
-
-def kanban_status(issue: dict) -> str:
-    """Derive kanban status from labels."""
-    for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
-        if name.startswith("kanban:"):
-            return name.split(":", 1)[1]
-    return "done" if issue.get("state") == "closed" else "todo"
+    issues = json.loads(raw) if raw else []
+    warn_if_at_limit(issues)
+    return issues
 
 
 def closed_date(issue: dict) -> str:
@@ -221,7 +204,7 @@ def main() -> None:
             else issue["title"]
         )
         sp = extract_sp(issue)
-        status = kanban_status(issue)
+        status = kanban_from_labels(issue)
         t = tracking.get(sid, {})
         rows.append({
             "story_id": sid,

@@ -17,36 +17,13 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_config import load_config, extract_sp, gh, gh_json
-
-
-# -- Sprint detection --------------------------------------------------------
-
-def detect_sprint(sprints_dir: Path) -> int | None:
-    status_file = sprints_dir / "SPRINT-STATUS.md"
-    if not status_file.exists():
-        return None
-    m = re.search(
-        r"Current Sprint:\s*(\d+)",
-        status_file.read_text(encoding="utf-8"),
-    )
-    return int(m.group(1)) if m else None
+from validate_config import (
+    load_config, extract_sp, gh, gh_json,
+    detect_sprint, find_milestone, warn_if_at_limit,
+)
 
 
 # -- Metric computation -----------------------------------------------------
-
-def find_milestone(repo: str, sprint_num: int) -> dict | None:
-    """Find the GitHub milestone matching this sprint number."""
-    milestones = gh_json([
-        "api", f"repos/{repo}/milestones", "--paginate",
-    ])
-    if not isinstance(milestones, list):
-        return None
-    for ms in milestones:
-        title = ms.get("title", "")
-        if re.search(rf"Sprint\s+{sprint_num}\b", title, re.I):
-            return ms
-    return None
 
 
 def extract_persona(issue: dict) -> str | None:
@@ -70,6 +47,7 @@ def compute_velocity(
     ])
     if not isinstance(issues, list):
         issues = []
+    warn_if_at_limit(issues)
 
     planned_sp = 0
     delivered_sp = 0
@@ -106,6 +84,7 @@ def compute_review_rounds(
     ])
     if not isinstance(prs, list):
         prs = []
+    warn_if_at_limit(prs)
 
     # Filter to PRs for this milestone
     sprint_prs = []

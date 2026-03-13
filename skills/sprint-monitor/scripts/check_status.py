@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch
+from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, detect_sprint
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -28,17 +28,6 @@ except ImportError:
     sync_backlog_main = None
 
 MAX_LOGS = 10
-
-
-def detect_sprint(sprints_dir: Path) -> int | None:
-    status_file = sprints_dir / "SPRINT-STATUS.md"
-    if not status_file.exists():
-        return None
-    m = re.search(
-        r"Current Sprint:\s*(\d+)",
-        status_file.read_text(encoding="utf-8"),
-    )
-    return int(m.group(1)) if m else None
 
 
 # -- CI check ----------------------------------------------------------------
