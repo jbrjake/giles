@@ -236,10 +236,10 @@ class TestMain(unittest.TestCase):
         (team_dir / "alice.md").write_text("# Alice\nDeveloper persona.\n")
         (team_dir / "bob.md").write_text("# Bob\nReviewer persona.\n")
         (config_dir / "project.toml").write_text(
-            f'[project]\nname = "test"\nrepo = "o/r"\nlanguage = "python"\n\n'
+            '[project]\nname = "test"\nrepo = "o/r"\nlanguage = "python"\n\n'
             f'[paths]\nteam_dir = "{team_dir}"\nbacklog_dir = "{backlog}"\n'
             f'sprints_dir = "{root / "sprints"}"\n\n'
-            f'[ci]\ncheck_commands = ["pytest"]\nbuild_command = "echo ok"\n'
+            '[ci]\ncheck_commands = ["pytest"]\nbuild_command = "echo ok"\n'
         )
         return config_dir
 

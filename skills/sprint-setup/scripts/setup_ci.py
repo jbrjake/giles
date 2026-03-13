@@ -8,6 +8,7 @@ Node.js, and Go out of the box. No hardcoded project-specific values.
 
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
@@ -57,7 +58,7 @@ def _go_setup_steps(version: str = "1.22") -> str:
     )
 
 
-_SETUP_REGISTRY: dict[str, callable] = {
+_SETUP_REGISTRY: dict[str, Callable] = {
     "rust": _rust_setup_steps,
     "python": _python_setup_steps,
     "node": _node_setup_steps,

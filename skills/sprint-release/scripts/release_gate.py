@@ -443,7 +443,7 @@ def do_release(
     notes_path = Path("release-notes.md")
 
     if dry_run:
-        print(f"\n[DRY-RUN] Release notes:\n")
+        print("\n[DRY-RUN] Release notes:\n")
         print(notes)
         print(f"\n[DRY-RUN] Would create GitHub Release v{new_ver}")
     else:

@@ -10,6 +10,7 @@ No external dependencies — stdlib only.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -40,7 +41,18 @@ def classify_entries(config_dir: Path) -> tuple[list[Path], list[Path], list[Pat
         "cheatsheet.md",
         "definition-of-done.md",
         ".sync-state.json",
+        ".sprint-init-manifest.json",
     }
+
+    # If a manifest exists, use it for more precise classification
+    manifest_path = config_dir / ".sprint-init-manifest.json"
+    manifest_files: set[str] = set()
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_files = set(manifest.get("generated_files", []))
+        except (json.JSONDecodeError, OSError):
+            pass
 
     # First pass: catch directory symlinks before os.walk follows them.
     # os.walk follows symlinked dirs by default, so we need to find them
@@ -55,9 +67,11 @@ def classify_entries(config_dir: Path) -> tuple[list[Path], list[Path], list[Pat
                 dirs.remove(d)  # Don't descend into symlinked dirs
         for name in files:
             entry = root_path / name
+            # Compute path relative to config_dir for manifest lookup
+            rel = str(entry.relative_to(config_dir))
             if entry.is_symlink():
                 symlinks.append(entry)
-            elif name in generated_names:
+            elif rel in manifest_files or name in generated_names:
                 generated.append(entry)
             else:
                 unknown.append(entry)
@@ -261,7 +275,7 @@ def verify_targets(symlinks: list[Path], project_root: Path) -> None:
     print("\nVerifying symlink targets are intact:")
     all_ok = True
     for s in symlinks:
-        target = resolve_symlink_target(s)
+        _target = resolve_symlink_target(s)
         # Symlink is gone now, so we need to reconstruct the target path
         # from the raw link value we can no longer read. We stored nothing.
         # Instead, skip verification for removed symlinks — the remove step
@@ -424,12 +438,12 @@ def main() -> None:
 
     # Phase 3: unknown files
     if unknown:
-        print(f"\nUnknown files (skipped — remove manually if desired):")
+        print("\nUnknown files (skipped — remove manually if desired):")
         for u in unknown:
             print(f"  {u.relative_to(project_root)}")
 
     # Phase 4: empty directories
-    print(f"\nCleaning up empty directories:")
+    print("\nCleaning up empty directories:")
     dir_count = remove_empty_dirs(directories, project_root)
 
     # Phase 5: verify targets
@@ -438,7 +452,7 @@ def main() -> None:
     for symlink_path, target in symlink_targets:
         if target and target.exists():
             try:
-                rel = target.relative_to(project_root)
+                target.relative_to(project_root)
                 # Only show a few to avoid noise
             except ValueError:
                 pass
@@ -462,13 +476,13 @@ def main() -> None:
 
     sprints_dir = project_root / "docs" / "dev-team" / "sprints"
     if sprints_dir.exists():
-        print(f"  docs/dev-team/sprints/  ✓ exists (tracking data preserved)")
+        print("  docs/dev-team/sprints/  ✓ exists (tracking data preserved)")
 
     if all_ok:
         print("  All project files intact.")
 
     # Summary
-    print(f"\nSprint teardown complete.")
+    print("\nSprint teardown complete.")
     print(f"  {sym_count} symlinks removed")
     print(f"  {gen_count} generated files removed")
     print(f"  {dir_count} empty directories removed")

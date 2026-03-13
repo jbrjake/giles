@@ -11,6 +11,7 @@ No external dependencies — stdlib only.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -665,7 +666,7 @@ class ConfigGenerator:
             role = self._infer_role(sf.path)
             filename = Path(sf.path).stem + ".md"
             rows.append(f"| {name} | {role} | {filename} |")
-        rows.append(f"| Giles | Scrum Master / Facilitator | giles.md |")
+        rows.append("| Giles | Scrum Master / Facilitator | giles.md |")
         rows.append("")
         self._write("team/INDEX.md", "\n".join(rows))
         self._inject_giles()
@@ -676,10 +677,16 @@ class ConfigGenerator:
         Giles is plugin-owned (not user-authored), so he is copied rather
         than symlinked.  This means teardown will prompt before deleting
         him, which is the correct behavior for plugin-injected content.
+
+        On re-run, a user-customized giles.md (regular file, not symlink)
+        is preserved to avoid overwriting manual edits.
         """
         dest = self.config_dir / "team" / "giles.md"
         if dest.is_symlink():
             dest.unlink()
+        elif dest.exists():
+            self.skipped.append("  preserved  team/giles.md (user-customized)")
+            return
         self._copy_skeleton("giles.md.tmpl", "team/giles.md")
 
     def generate_backlog(self) -> None:
@@ -745,6 +752,44 @@ class ConfigGenerator:
         self._ensure_dir(history_dir)
         self.created.append("  directory  team/history/")
 
+    def _write_manifest(self) -> None:
+        """Write .sprint-init-manifest.json listing all created files.
+
+        Teardown reads this to know exactly which files init created,
+        instead of guessing from a hardcoded list.
+        """
+        # Parse the created list to extract relative paths
+        files: list[str] = []
+        symlinks: list[str] = []
+        directories: list[str] = []
+        for entry in self.created:
+            entry = entry.strip()
+            if entry.startswith("generated"):
+                files.append(entry.split(None, 1)[1])
+            elif entry.startswith("skeleton"):
+                # "skeleton   dest_rel (from skeleton_name)"
+                rel = entry.split(None, 1)[1].split(" (")[0]
+                files.append(rel)
+            elif entry.startswith("stub"):
+                rel = entry.split(None, 1)[1].split(" (")[0]
+                files.append(rel)
+            elif entry.startswith("symlinked"):
+                # "symlinked  link_rel -> target_rel"
+                rel = entry.split(None, 1)[1].split(" -> ")[0]
+                symlinks.append(rel)
+            elif entry.startswith("directory"):
+                directories.append(entry.split(None, 1)[1])
+
+        manifest = {
+            "generated_files": sorted(files),
+            "symlinks": sorted(symlinks),
+            "directories": sorted(directories),
+        }
+        manifest_path = self.config_dir / ".sprint-init-manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8",
+        )
+
     def generate(self) -> None:
         self._ensure_dir(self.config_dir)
         self.generate_project_toml()
@@ -753,6 +798,7 @@ class ConfigGenerator:
         self.generate_doc_symlinks()
         self.generate_definition_of_done()
         self.generate_history_dir()
+        self._write_manifest()
 
 
 # ---------------------------------------------------------------------------

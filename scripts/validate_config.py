@@ -381,8 +381,9 @@ def load_config(config_dir: str = "sprint-config") -> dict:
     toml_path = Path(config_dir) / "project.toml"
     config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
 
-    # Resolve paths relative to project root (cwd), not config_dir
-    project_root = Path.cwd()
+    # Resolve paths relative to the project root, which is the parent
+    # of config_dir. This ensures scripts work regardless of cwd.
+    project_root = Path(config_dir).resolve().parent
     if "paths" in config and isinstance(config["paths"], dict):
         for key, val in config["paths"].items():
             if isinstance(val, str):
