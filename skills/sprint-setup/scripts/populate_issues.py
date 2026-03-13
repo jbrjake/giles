@@ -212,8 +212,13 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 
     for epic_file in sorted(epics_path.glob("*.md")):
         content = epic_file.read_text(errors="replace")
-        # Infer sprint from stories already parsed from milestones
-        sprint = 1  # default
+        # Infer sprint from stories already parsed in this epic file
+        known_sprints = [
+            by_id[sid].sprint
+            for sid in re.findall(r"US-\d{4}", content)
+            if sid in by_id
+        ]
+        sprint = max(set(known_sprints), key=known_sprints.count) if known_sprints else 0
         parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file))
         for ps in parsed:
             if ps.story_id in by_id:

@@ -192,7 +192,6 @@ def update_epic_index(
         # Filter by saga if specified
         if saga_id and epic.get("saga") != saga_id:
             continue
-        epic_id = md_file.stem.split("-")[0] + "-" + md_file.stem.split("-")[1]
         # The filename is like E-0101-parsing.md
         parts = md_file.stem.split("-")
         if len(parts) >= 2:

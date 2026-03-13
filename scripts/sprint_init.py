@@ -650,7 +650,7 @@ class ConfigGenerator:
         personas = [sf for sf in self.scan.persona_files
                     if Path(sf.path).stem.lower() != "giles"]
         if not personas:
-            self._copy_skeleton("team-index.md", "team/INDEX.md")
+            self._copy_skeleton("team-index.md.tmpl", "team/INDEX.md")
             self._inject_giles()
             return
         # Generate symlinks
@@ -692,7 +692,7 @@ class ConfigGenerator:
     def generate_backlog(self) -> None:
         files = self.scan.backlog_files
         if not files:
-            self._copy_skeleton("backlog-index.md", "backlog/INDEX.md")
+            self._copy_skeleton("backlog-index.md.tmpl", "backlog/INDEX.md")
             return
         for sf in files:
             name = Path(sf.path).stem
@@ -708,8 +708,8 @@ class ConfigGenerator:
 
     def generate_doc_symlinks(self) -> None:
         mapping = [
-            (self.scan.rules_file, "rules.md", "rules.md"),
-            (self.scan.dev_guide, "development.md", "development.md"),
+            (self.scan.rules_file, "rules.md", "rules.md.tmpl"),
+            (self.scan.dev_guide, "development.md", "development.md.tmpl"),
             (self.scan.architecture, "architecture.md", "architecture.md"),
             (self.scan.cheatsheet, "cheatsheet.md", "cheatsheet.md"),
         ]

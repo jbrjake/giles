@@ -102,15 +102,28 @@ def check_test_coverage(
     planned = parse_planned_tests(test_plan_dir)
     implemented = scan_project_tests(project_root, language)
 
-    # All planned test IDs are considered missing since we don't do
-    # fuzzy matching between TC-PAR-001 and test_parse_hex — that
-    # requires human judgment. The report surfaces both lists.
-    missing = sorted(planned.keys())
+    # Fuzzy match: a planned test case is "covered" if any implemented
+    # test function name contains the test case ID (normalized to
+    # lowercase with hyphens converted to underscores) as a substring.
+    impl_lower = [f.lower() for f in implemented]
+    matched: set[str] = set()
+    for tc_id in planned:
+        # TC-PAR-001 → tc_par_001; GP-GOLDEN-01 → gp_golden_01
+        normalized = tc_id.lower().replace("-", "_")
+        # Also try just the slug portion (e.g., "par_001" from "tc_par_001")
+        parts = normalized.split("_", 1)
+        slug = parts[1] if len(parts) > 1 else normalized
+        for impl_name in impl_lower:
+            if normalized in impl_name or slug in impl_name:
+                matched.add(tc_id)
+                break
+    missing = sorted(set(planned.keys()) - matched)
 
     return {
-        "planned": missing,
+        "planned": sorted(planned.keys()),
         "implemented": implemented,
         "missing": missing,
+        "matched": sorted(matched),
         "planned_details": planned,
     }
 

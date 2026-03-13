@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh, gh_json
+from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -187,7 +187,7 @@ def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
         (
             m
             for m in (milestones if isinstance(milestones, list) else [])
-            if m.get("title", "").startswith(f"Sprint {sprint_num}")
+            if re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))
         ),
         None,
     )
@@ -363,7 +363,41 @@ def main() -> None:
         except Exception as exc:
             report_lines.append(f"Sync: error — {exc}")
 
-    for fn in [check_ci, check_prs, lambda: check_milestone(sprint_num)]:
+    repo = config.get("project", {}).get("repo", "")
+    base_branch = get_base_branch(config)
+
+    # Collect open PR branches for drift detection
+    sprint_branches: list[str] = []
+    try:
+        prs = gh_json(["pr", "list", "--json", "headRefName"])
+        sprint_branches = [p["headRefName"] for p in (prs or []) if p.get("headRefName")]
+    except RuntimeError:
+        pass
+
+    # Sprint start date (approximate from sprint dir timestamps)
+    sprint_dir = sprints_dir / f"sprint-{sprint_num}"
+    since = now.strftime("%Y-%m-%dT00:00:00Z")
+    if sprint_dir.exists():
+        try:
+            status_file = sprints_dir / "SPRINT-STATUS.md"
+            if status_file.exists():
+                import os
+                mtime = os.path.getmtime(str(status_file))
+                since = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime(
+                    "%Y-%m-%dT00:00:00Z"
+                )
+        except OSError:
+            pass
+
+    # Steps 1, 1.5, 2, 2.5, 3: CI → drift → PRs → direct pushes → milestone
+    checks = [
+        check_ci,
+        lambda: check_branch_divergence(repo, base_branch, sprint_branches),
+        check_prs,
+        lambda: check_direct_pushes(repo, base_branch, since),
+        lambda: check_milestone(sprint_num),
+    ]
+    for fn in checks:
         try:
             r, a = fn()
             report_lines.extend(r)

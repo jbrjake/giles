@@ -254,6 +254,17 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
     for sec in epic["raw_sections"]:
         section_map[sec["id"]] = sec["lines"]
 
+    # Validate: all existing stories must be in the provided ID list
+    existing_ids = set(section_map.keys())
+    provided_ids = set(story_ids)
+    missing_from_list = existing_ids - provided_ids
+    if missing_from_list:
+        raise ValueError(
+            f"reorder_stories: story IDs missing from provided list: "
+            f"{sorted(missing_from_list)}. All stories must be included "
+            f"to prevent data loss."
+        )
+
     # Reassemble in new order
     new_lines = list(header)
     for i, sid in enumerate(story_ids):
