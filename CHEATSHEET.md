@@ -161,7 +161,9 @@ you need without reading entire files.
 | 62 | `check_ci()` | Check recent workflow runs for failures |
 | 118 | `check_prs()` | Check open PRs: stale, needs review, approved |
 | 194 | `check_milestone()` | Milestone progress: SP done vs total |
-| 258 | `write_log()` | Append timestamped entry to monitor log |
+| 258 | `check_branch_divergence()` | Detect branches far behind base (>10/20 commits) |
+| 296 | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
+| 335 | `write_log()` | Append timestamped entry to monitor log |
 
 ## Skill entry points -- section index
 
@@ -179,19 +181,23 @@ you need without reading entire files.
 | 29 | Phase detection (reads SPRINT-STATUS.md) |
 | 44 | Phase 1: Sprint kickoff (INTERACTIVE) |
 | 50 | Phase 2: Story execution (AUTONOMOUS per-story) |
-| 65 | Context Assembly for Agent Dispatch |
-| 97 | Phase 3: Sprint demo (INTERACTIVE) |
-| 103 | Phase 4: Sprint retro (INTERACTIVE) |
+| 54 | Mid-sprint check-in (Giles presents if check-in file exists) |
+| 62 | Story Dispatch (kanban state table) |
+| 75 | Context Assembly for Agent Dispatch |
+| 107 | Phase 3: Sprint demo (INTERACTIVE) |
+| 113 | Phase 4: Sprint retro (INTERACTIVE) |
 
 ### skills/sprint-monitor/SKILL.md
 | Line | Section |
 |------|---------|
 | 46 | Step 0: Sync backlog (debounce + throttle) |
 | 69 | Step 1: Check CI status |
-| 103 | Step 2: Check open PRs |
-| 152 | Step 3: Update burndown |
-| 175 | Step 4: Report |
-| 195 | Rate limiting and deduplication |
+| 103 | Step 1.5: Drift detection (branch divergence + direct pushes) |
+| 133 | Step 2: Check open PRs |
+| 182 | Step 2.5: Mid-sprint check-in (threshold-triggered Giles ceremony) |
+| 223 | Step 3: Update burndown |
+| 246 | Step 4: Report |
+| 266 | Rate limiting and deduplication |
 
 ### skills/sprint-release/SKILL.md
 | Line | Section |
@@ -242,13 +248,13 @@ you need without reading entire files.
 |------|---------|
 | 11 | Facilitation: Giles/PM split |
 | 17 | Ensemble framing (star-vehicle vs ensemble time allocation) |
-| 26 | Per-story flow: context, live demo, AC verification, Q&A |
-| 35 | Live demonstration requirements (real artifacts) |
-| 52 | Acceptance verification procedure |
-| 57 | Test plan verification (if test plan configured) |
-| 67 | Team Q&A (Giles manages flow, calls on quiet personas) |
-| 77 | Output template (demo.md) |
-| 107 | Rules (no incomplete stories, artifact links required) |
+| 28 | Per-story flow: context, live demo, AC verification, Q&A |
+| 37 | Live demonstration requirements (real artifacts) |
+| 54 | Acceptance verification procedure |
+| 65 | Test plan verification (if test plan configured) |
+| 75 | Team Q&A (Giles manages flow, confidence probing, calls on quiet personas) |
+| 97 | Output template (demo.md) |
+| 128 | Rules (no incomplete stories, artifact links required) |
 
 ### skills/sprint-run/references/ceremony-retro.md
 | Line | Section |
@@ -274,8 +280,9 @@ you need without reading entire files.
 | 46 | Commit convention |
 | 59 | DESIGN --> DEVELOPMENT (TDD via superpowers) |
 | 81 | DEVELOPMENT --> REVIEW (PR ready, dispatch reviewer) |
-| 102 | REVIEW --> INTEGRATION (CI green, squash-merge) |
-| 128 | Parallel dispatch for independent stories |
+| 100 | Pair Review (SP >= 5 + multi-domain, dual reviewer dispatch) |
+| 120 | REVIEW --> INTEGRATION (CI green, squash-merge) |
+| 146 | Parallel dispatch for independent stories |
 
 ### skills/sprint-run/references/tracking-formats.md
 | Line | Section |
@@ -307,15 +314,19 @@ you need without reading entire files.
 Dispatched per story. Receives: persona context, story assignment, requirements,
 PRD context. Follows TDD, creates PR with self-contained description, stays in
 character. Sections: Strategic Context :31, Test Plan Context :34, Sprint History :37,
-Design :91, Implement with TDD :95, Progressive Disclosure Docs :106,
-Conventions Checklist :152.
+Context Management :49 (budget guidance for large stories), Design :116,
+Implement with TDD :120, Progressive Disclosure Docs :131, Confidence :98
+(self-rated per area in PR template), Conventions Checklist :177.
 
 ### skills/sprint-run/agents/reviewer.md
-Dispatched after implementation. Different persona from implementer. Reviews
-from PR description + diff only (validates PR description sufficiency). Posts
-review via `gh pr review` with persona header. Reads own + implementer's
-Sprint History for callbacks. Sections: Sprint History :11, Read PR :24,
-Read Diff :34, Test Coverage Verification :69, Post Review :80, Commit Format :112.
+Dispatched after implementation. Different persona from implementer. Three-pass
+review: correctness, conventions, testing (each pass focused, not all-at-once).
+Reads confidence section from PR to prioritize scrutiny. Posts review via
+`gh pr review` with persona header. Reads own + implementer's Sprint History
+for callbacks. Sections: Sprint History :11, Read PR :24, Three-Pass Review :34
+(confidence reading :36, Pass 1 correctness :44, Pass 2 conventions :50,
+Pass 3 testing :57), Test Coverage Verification :79, Post Review :90,
+Commit Format :122.
 
 ## Skeleton templates
 

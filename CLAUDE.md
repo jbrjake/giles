@@ -46,15 +46,15 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :100, `update_sprint_status()` :139 |
 | `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
 | `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :96, `compute_review_rounds()` :133, `compute_workload()` :181, `format_report()` :204, `main()` :239 |
-| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone status check | `check_ci()` :62, `check_prs()` :118, `check_milestone()` :194 |
+| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` :62, `check_prs()` :118, `check_milestone()` :194, `check_branch_divergence()` :258, `check_direct_pushes()` :296 |
 
 ### Skill Entry Points
 
 | Skill | SKILL.md | Key sections |
 |-------|----------|-------------|
 | sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
-| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Context Assembly :65, Phase 3: Demo :97, Phase 4: Retro :103 (Giles facilitates all ceremonies) |
-| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, Backlog sync :46, CI check :69, PR check :103, Burndown :152, Rate limiting :195 |
+| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Mid-sprint check-in :54, Context Assembly :75, Phase 3: Demo :107, Phase 4: Retro :113 (Giles facilitates all ceremonies) |
+| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, Backlog sync :46, CI check :69, Drift detection :103, PR check :133, Mid-sprint check-in :182, Burndown :223, Rate limiting :265 |
 | sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
 
@@ -65,10 +65,10 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `skills/sprint-run/references/kanban-protocol.md` | State machine (6 states), transition rules, WIP limits |
 | `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format, Giles rules :44, PM role :56 |
 | `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, saga context :41, sprint theme :20, process context (analytics) :58, confidence check :111, scope negotiation :131, exit criteria :201 |
-| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :57, acceptance verification |
+| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :65, confidence probing :75, acceptance verification |
 | `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :24, Start/Stop/Continue, feedback distillation, sprint analytics :95, write sprint history :112, DoD review :134 |
-| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, strategic context :31, test plan context :34, sprint history :37 |
-| `skills/sprint-run/agents/reviewer.md` | Subagent template: PR review, in-persona voice, sprint history callbacks :11, test coverage verification :69 |
+| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, context management :49, strategic context :31, test plan context :34, sprint history :37, confidence signals :98 |
+| `skills/sprint-run/agents/reviewer.md` | Subagent template: three-pass review (correctness/conventions/testing), confidence reading :36, sprint history callbacks :11, test coverage verification :79 |
 | `skills/sprint-setup/references/github-conventions.md` | Label taxonomy, issue template, PR template, review template |
 | `skills/sprint-setup/references/ci-workflow-template.md` | CI YAML template structure |
 | `skills/sprint-release/references/release-checklist.md` | Per-milestone gate criteria template |
