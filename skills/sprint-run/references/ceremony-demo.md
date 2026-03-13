@@ -78,6 +78,17 @@ Giles manages the Q&A flow. He ensures each persona gets a chance to comment
 from their domain. If a persona hasn't spoken, Giles calls on them:
 "{persona_name}, you've been quiet. Anything from the {domain} perspective?"
 
+Giles reads the Confidence section from each story's PR description before
+the demo. During Q&A, he probes low-confidence areas harder:
+
+- "Your PR noted low confidence on the edge case handling. Walk us through
+  what you tested and what you didn't."
+- "Medium confidence on the serialization logic — did the reviewer's
+  second pass catch anything there?"
+
+This ensures the demo doesn't just celebrate what worked — it examines
+what might not have.
+
 - Reviewer persona comments on code quality observations from their review
 - Other team members ask questions from their domain perspective (e.g.,
   memory implications, security implications, adversarial test scenarios,
