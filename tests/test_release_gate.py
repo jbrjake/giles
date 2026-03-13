@@ -240,5 +240,250 @@ class TestFindMilestoneNumber(unittest.TestCase):
         self.assertIsNone(find_milestone_number("Sprint 3: Polish"))
 
 
+# ---------------------------------------------------------------------------
+# do_release tests
+# ---------------------------------------------------------------------------
+
+import os
+
+# Minimal project.toml content sufficient for write_version_to_toml
+_MINIMAL_TOML = """\
+[project]
+name = "TestProject"
+repo = "owner/repo"
+language = "python"
+
+[paths]
+team_dir = "sprint-config/team"
+backlog_dir = "sprint-config/backlog"
+sprints_dir = "sprints"
+
+[ci]
+check_commands = ["python -m pytest"]
+build_command = "make build"
+"""
+
+
+def _make_subprocess_side_effect(*, tag_fails=False):
+    """Build a side_effect function for subprocess.run.
+
+    Returns CompletedProcess(returncode=0) for all commands except when
+    tag_fails=True and the command is 'git tag'.
+    """
+    def _side_effect(cmd, **kwargs):
+        # Detect 'git tag' invocations
+        if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "tag":
+            if tag_fails:
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=1, stdout="", stderr="tag already exists",
+                )
+        return subprocess.CompletedProcess(
+            args=cmd if isinstance(cmd, list) else [cmd],
+            returncode=0, stdout="", stderr="",
+        )
+    return _side_effect
+
+
+class TestDoRelease(unittest.TestCase):
+    """Tests for do_release() — the full release orchestration flow."""
+
+    def setUp(self):
+        """Create a temp dir with sprint-config/project.toml and sprints/SPRINT-STATUS.md."""
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+        # Create sprint-config/project.toml
+        sc_dir = Path(self.tmpdir) / "sprint-config"
+        sc_dir.mkdir()
+        (sc_dir / "project.toml").write_text(_MINIMAL_TOML, encoding="utf-8")
+
+        # Create sprints/SPRINT-STATUS.md
+        sprints_dir = Path(self.tmpdir) / "sprints"
+        sprints_dir.mkdir()
+        (sprints_dir / "SPRINT-STATUS.md").write_text(
+            "| Sprint | Status | Date | Notes | Version |\n"
+            "|--------|--------|------|-------|---------|\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    # -- Test 1: happy path ----------------------------------------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_happy_path(self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh):
+        """All steps succeed: version written, tag pushed, release created, milestone closed."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: add dashboard", "body": ""},
+            {"subject": "fix: login bug", "body": ""},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect()
+        mock_ms.return_value = 7
+        mock_gh.return_value = "https://github.com/owner/repo/releases/tag/v1.1.0"
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+        result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertTrue(result)
+
+        # calculate_version called exactly once
+        mock_calc.assert_called_once()
+
+        # write_version_to_toml called with correct version
+        mock_write_toml.assert_called_once()
+        args = mock_write_toml.call_args
+        self.assertEqual(args[0][0], "1.1.0")
+
+        # subprocess.run called for: git add, commit, git tag, git push
+        self.assertEqual(mock_run.call_count, 4)
+        run_cmds = [call[0][0] for call in mock_run.call_args_list]
+        # git add
+        self.assertEqual(run_cmds[0][0], "git")
+        self.assertEqual(run_cmds[0][1], "add")
+        # git tag
+        self.assertEqual(run_cmds[2][0], "git")
+        self.assertEqual(run_cmds[2][1], "tag")
+        # git push
+        self.assertEqual(run_cmds[3][0], "git")
+        self.assertEqual(run_cmds[3][1], "push")
+
+        # gh() called for: release create, milestone close, release view
+        self.assertGreaterEqual(mock_gh.call_count, 2)
+        gh_calls = [call[0][0] for call in mock_gh.call_args_list]
+        # First gh call is release create
+        self.assertEqual(gh_calls[0][0], "release")
+        self.assertEqual(gh_calls[0][1], "create")
+        # Second gh call is milestone close
+        self.assertIn("milestones/7", gh_calls[1][1])
+
+        # SPRINT-STATUS.md updated
+        status = (Path(self.tmpdir) / "sprints" / "SPRINT-STATUS.md").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn("v1.1.0", status)
+        self.assertIn("Released", status)
+
+    # -- Test 2: no commits returns False --------------------------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_no_commits_returns_false(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """When bump_type is 'none', do_release returns False immediately."""
+        mock_calc.return_value = ("0.5.0", "0.5.0", "none", [])
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+        result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertFalse(result)
+        mock_write_toml.assert_not_called()
+        mock_run.assert_not_called()
+        mock_gh.assert_not_called()
+        mock_ms.assert_not_called()
+
+    # -- Test 3: tag failure returns False -------------------------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_tag_failure_returns_false(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """When git tag fails, do_release returns False and no GH release is created."""
+        mock_calc.return_value = ("2.0.0", "1.0.0", "major", [
+            {"subject": "feat!: new API", "body": "BREAKING CHANGE: old removed"},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect(tag_fails=True)
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+        result = do_release("Sprint 2: New API", config)
+
+        self.assertFalse(result)
+
+        # gh() should never be called — no release create, no milestone close
+        mock_gh.assert_not_called()
+        mock_ms.assert_not_called()
+
+        # subprocess.run should have been called for git add, commit, and git tag (which failed)
+        # but NOT for git push
+        run_cmds = [call[0][0] for call in mock_run.call_args_list]
+        push_calls = [c for c in run_cmds if isinstance(c, list) and "push" in c]
+        self.assertEqual(len(push_calls), 0)
+
+    # -- Test 4: dry run makes no mutations ------------------------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_dry_run_no_mutations(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """With dry_run=True, no subprocess calls, no gh calls, no file mutations."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: add dashboard", "body": ""},
+        ])
+        mock_ms.return_value = 7
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        # Capture original SPRINT-STATUS.md content
+        status_before = (
+            Path(self.tmpdir) / "sprints" / "SPRINT-STATUS.md"
+        ).read_text(encoding="utf-8")
+
+        result = do_release("Sprint 1: Walking Skeleton", config, dry_run=True)
+
+        self.assertTrue(result)
+
+        # No subprocess calls (no git tag, git push, git add, etc.)
+        mock_run.assert_not_called()
+
+        # No write_version_to_toml call
+        mock_write_toml.assert_not_called()
+
+        # No gh() calls (no release create, no milestone close)
+        mock_gh.assert_not_called()
+
+        # SPRINT-STATUS.md unchanged
+        status_after = (
+            Path(self.tmpdir) / "sprints" / "SPRINT-STATUS.md"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(status_before, status_after)
+
+
 if __name__ == "__main__":
     unittest.main()
