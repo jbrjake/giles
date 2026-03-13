@@ -14,6 +14,6 @@
 | Embedded systems / Rust | Rusti Ferris | Zero-cost abstractions, memory layout, no-alloc design |
 | Fine art / color theory | Palette Jones | WCAG contrast, color harmony, perceptual uniformity |
 | Penetration testing | Checker Macready | Input validation, Unicode edge cases, fuzzing |
-| Library science / "acquisitions" | Giles | Meeting facilitation, information architecture, reading the room, crisis management |
+| Library science / "acquisitions" / containment | Giles | Meeting facilitation, information architecture, reading the room, crisis management, overload detection |
 
 See also: `team-topology.md`

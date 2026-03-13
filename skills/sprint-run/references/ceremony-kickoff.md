@@ -38,7 +38,27 @@ names it. This frames the team's expectations:
 Giles opens the meeting. One sentence to set the tone: "Right then. Sprint {N}.
 Let's see what we're working with."
 
-### 1.5. Saga Context (if sagas configured)
+### 1.5. Team Read (Write Insights)
+
+Giles reads all persona files from `{config [paths] team_dir}` and any history
+files from `{team_dir}/history/`. From these, he distills a compact insight for
+each persona and writes `{team_dir}/insights.md`:
+
+    # Team Insights
+    > Giles's observations on what drives each member of this team.
+    > Written at the start of each sprint. Not shown to the team.
+
+    ### {Persona Name}
+    **What drives them:** {1-2 sentences from Origin Story + Professional Identity}
+    **What they protect:** {1 sentence — what triggers defensiveness}
+    **What earns their trust:** {1 sentence from Improvisation Notes}
+    **Current emotional state:** {1-2 sentences from sprint history, or "First sprint" if none}
+
+Regenerate this file each sprint — it is a current snapshot, not an append-only
+log. History files are the append-only record; insights are the distillation.
+This should be compact — roughly 400 tokens for a team of 5.
+
+### 1.7. Saga Context (if sagas configured)
 
 For each saga active in this sprint:
 - Read the saga file from `{config [paths] sagas_dir}`
@@ -85,6 +105,12 @@ but after a heavy discussion, follow with a lighter story or a quick win. After 
 stretch of easy consensus, Giles probes: "Really? No concerns? {reviewer_name},
 what happens when we get 10 million of those?"
 
+**Motivation awareness:** If `{team_dir}/insights.md` exists, Giles uses it to
+read the room. If a story touches what someone protects — correctness for a
+programmer who once shipped a catastrophic bug, being heard for a QA lead who
+was once ignored — probe harder on that story. The insights don't change the
+agenda. They change how Giles facilitates it.
+
 **Star-vehicle sprints:** If one story dominates the sprint (5+ SP, critical
 path), Giles gives it 60% of the story walk time and presents it first. He
 acknowledges the supporting cast: "The remaining stories orbit this one. Let's
@@ -107,6 +133,10 @@ Giles synthesizes after all personas speak: identifies patterns, groups related
 risks, and summarizes the risk landscape. "So we have two stories that share a
 parser dependency and a PRD question that nobody has answered yet. Those are
 related. Let's resolve the PRD question before either story starts."
+
+If `{team_dir}/insights.md` exists, name which personas will feel which risks
+most urgently. A risk that touches someone's core motivation is not just a
+technical concern — it will shape how they work the entire sprint.
 
 ### 4.5. Confidence Check
 

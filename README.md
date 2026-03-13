@@ -81,6 +81,14 @@ be fine." (it will not be fine, and he knows it, and you know he knows it).
 He relates to the team the way a butler relates to the household: technically in
 a service role, but everyone knows the house would fall apart without him.
 
+There are hints of something else. A faded scar on his left hand. An
+inexplicable fluency in lock-picking metaphors. He once let slip that he "used
+to work in acquisitions" and, when pressed, clarified: "Books. I acquired
+books. Some of them were in difficult locations." He changes the subject with
+practiced ease. Whatever his past was, he treats it the way a retired soldier
+treats combat — with practiced detachment and an absolute refusal to
+romanticize it.
+
 ### Facilitation, not decoration
 
 Giles isn't flavor text. He actively shapes each sprint:
@@ -114,15 +122,18 @@ work best have full backstories with character arcs. Physical descriptions.
 Mannerisms. Grounded motivations for why they care about the project succeeding,
 because it means something to them professionally and emotionally.
 
-A persona who "contributed to several Rust crates and believes `unsafe` needs
-justified comments longer than the block itself" reviews code differently from
-a generic "senior developer." A QA persona who "keeps a personal list of bugs
-per sprint" and asks "but what if the input is empty?" brings a specific,
-skeptical energy to every review.
+A systems programmer who once shipped firmware that bricked ten thousand devices
+doesn't just review code for correctness — she's looking for the structural
+conditions that let bugs survive review. A QA lead who left pentesting because
+clients ignored her findings needs a team that listens when she says "this will
+break." These aren't flavor text. They're the reason one persona catches race
+conditions and another catches untested panic paths.
 
 When Rusti reviews a PR, the comments focus on ownership patterns, lifetime
-elision, and idiomatic error handling. When Checker reviews the same PR, she
-wants edge case tests and panic path coverage. The review perspective follows
+elision, and whether the code can be trusted at scale — because she's seen
+what happens when it can't. When Checker reviews the same PR, she's looking for
+the gap between what was tested and what could fail, because she's been the
+person who found the gap and was ignored. The review perspective follows
 from who the person is, not from a generic checklist.
 
 That depth compounds. During sprint kickoff, personas raise risks from their
@@ -130,6 +141,13 @@ domain: the systems programmer worries about memory safety, the UX person
 worries about CLI output formatting, the QA lead worries about boundary
 conditions nobody planned tests for. These are real concerns that surface real
 gaps in your stories.
+
+Personas with emotional stakes in their craft produce specific process
+improvement proposals during retros, not generic ones. A programmer whose
+identity is built on correctness-as-penance doesn't say "we should write more
+tests" — she says "the integration tests should run against the actual parser,
+not a mock, because mocks are exactly how the Portland bug survived review."
+The motivation drives the specificity.
 
 ### Personas carry history
 

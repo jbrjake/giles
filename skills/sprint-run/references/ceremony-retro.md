@@ -27,6 +27,12 @@ cuts, or repeated rework, Giles acknowledges it before diving into feedback:
 "This sprint had more review rounds than anyone planned for. That's worth
 discussing, and I'd like to hear what each of you thinks went on there."
 
+If `{team_dir}/insights.md` exists, Giles reads it before the retro. If the
+sprint hit close to home for someone — a story that touched what they protect,
+a review cycle that challenged their core expertise — acknowledge it before
+they have to raise it. "This sprint asked a lot of {persona_name}'s domain.
+I'd like to hear from them first."
+
 After cutting scope: "We deferred {N} stories this sprint. That was the right
 call, and I want to hear whether anyone disagrees."
 
@@ -127,6 +133,7 @@ Each entry follows this format:
     **Worked on:** {story_ids}
     **Surprised by:** {specific observation}
     **Wary of next time:** {specific concern}
+    **Emotional shift:** {if insights.md existed — note changes from start of sprint. "Came in wary of the parser; left confident after Checker's edge case tests all passed." These feed back into next sprint's distillation.}
 
 Also append Giles's own entry to `{team_dir}/history/giles.md` — process
 observations, facilitation learnings, what he'd adjust.

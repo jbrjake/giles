@@ -242,9 +242,11 @@ you need without reading entire files.
 | 50 | Phase 2: Story execution (AUTONOMOUS per-story) |
 | 54 | Mid-sprint check-in (Giles presents if check-in file exists) |
 | 62 | Story Dispatch (kanban state table) |
-| 75 | Context Assembly for Agent Dispatch |
-| 107 | Phase 3: Sprint demo (INTERACTIVE) |
-| 113 | Phase 4: Sprint retro (INTERACTIVE) |
+| 75 | Context Assembly for Agent Dispatch (includes insights.md) |
+| 98 | Insights injection for implementer dispatch |
+| 105 | Insights injection for reviewer dispatch |
+| 109 | Phase 3: Sprint demo (INTERACTIVE) |
+| 115 | Phase 4: Sprint retro (INTERACTIVE) |
 
 ### skills/sprint-monitor/SKILL.md
 | Line | Section |
@@ -294,13 +296,15 @@ you need without reading entire files.
 |------|---------|
 | 10 | Facilitation: Giles/PM split |
 | 20 | Sprint theme (hardening, feature, star-vehicle, ensemble) |
-| 34 | Agenda: opening, saga context, goal, story walk, risks, questions, commitment |
-| 41 | Saga context step (if sagas configured) |
-| 58 | Process context (Giles reads analytics before story walk) |
-| 111 | Confidence check (Giles reads the room) |
-| 131 | Scope negotiation (value/dependency 2x2) |
-| 168 | Output template (kickoff.md) |
-| 201 | Exit criteria |
+| 34 | Agenda: opening, team read, saga context, goal, story walk, risks, questions, commitment |
+| 41 | Team Read: distill personas into insights.md |
+| 61 | Saga context step (renumbered 1.7) |
+| 78 | Process context (Giles reads analytics before story walk) |
+| 108 | Motivation awareness in story walk |
+| 141 | Confidence check (Giles reads the room) |
+| 161 | Scope negotiation (value/dependency 2x2) |
+| 198 | Output template (kickoff.md) |
+| 231 | Exit criteria |
 
 ### skills/sprint-run/references/ceremony-demo.md
 | Line | Section |
@@ -311,26 +315,29 @@ you need without reading entire files.
 | 37 | Live demonstration requirements (real artifacts) |
 | 54 | Acceptance verification procedure |
 | 65 | Test plan verification (if test plan configured) |
-| 75 | Team Q&A (Giles manages flow, confidence probing, calls on quiet personas) |
-| 97 | Output template (demo.md) |
-| 128 | Rules (no incomplete stories, artifact links required) |
+| 75 | Team Q&A (Giles manages flow, insights awareness, confidence probing) |
+| 81 | Insights in Q&A: call on personas about protected domains |
+| 102 | Output template (demo.md) |
+| 133 | Rules (no incomplete stories, artifact links required) |
 
 ### skills/sprint-run/references/ceremony-retro.md
 | Line | Section |
 |------|---------|
 | 14 | Facilitation: Giles facilitates, PM participates as team member |
-| 24 | Psychological safety framing |
-| 34 | Start / Stop / Continue format (Giles manages turn-taking) |
-| 52 | Feedback distillation (identify patterns, propose doc changes) |
-| 72 | PRD feedback loop (retro can update PRD open questions) |
-| 78 | User approval gate |
-| 83 | Apply changes to project docs |
-| 95 | Sprint analytics (run sprint_analytics.py, Giles adds commentary) |
-| 112 | Write Sprint History (Giles appends per-persona entries) |
-| 134 | Definition of Done review (Giles proposes retro-driven additions) |
-| 146 | Examples of retro-driven doc changes |
-| 164 | Output template (retro.md) |
-| 203 | Rules (must produce at least one doc change) |
+| 25 | Psychological safety framing |
+| 30 | Insights in psychological safety: acknowledge emotional impact |
+| 39 | Start / Stop / Continue format (Giles manages turn-taking) |
+| 60 | Feedback distillation (identify patterns, propose doc changes) |
+| 84 | PRD feedback loop (retro can update PRD open questions) |
+| 90 | User approval gate |
+| 95 | Apply changes to project docs |
+| 101 | Sprint analytics (run sprint_analytics.py, Giles adds commentary) |
+| 118 | Write Sprint History (Giles appends per-persona entries) |
+| 136 | Emotional shift tracking in history entries |
+| 141 | Definition of Done review (Giles proposes retro-driven additions) |
+| 153 | Examples of retro-driven doc changes |
+| 171 | Output template (retro.md) |
+| 210 | Rules (must produce at least one doc change) |
 
 ### skills/sprint-run/references/story-execution.md
 | Line | Section |
@@ -373,19 +380,20 @@ you need without reading entire files.
 Dispatched per story. Receives: persona context, story assignment, requirements,
 PRD context. Follows TDD, creates PR with self-contained description, stays in
 character. Sections: Strategic Context :31, Test Plan Context :34, Sprint History :37,
-Context Management :49 (budget guidance for large stories), Design :116,
-Implement with TDD :120, Progressive Disclosure Docs :131, Confidence :98
-(self-rated per area in PR template), Conventions Checklist :177.
+Motivation Context :49 (insights.md distillation), Context Management :57
+(budget guidance for large stories), Design :124, Implement with TDD :128,
+Progressive Disclosure Docs :139, Confidence :106 (self-rated per area in PR
+template), Conventions Checklist :185.
 
 ### skills/sprint-run/agents/reviewer.md
 Dispatched after implementation. Different persona from implementer. Three-pass
 review: correctness, conventions, testing (each pass focused, not all-at-once).
 Reads confidence section from PR to prioritize scrutiny. Posts review via
 `gh pr review` with persona header. Reads own + implementer's Sprint History
-for callbacks. Sections: Sprint History :11, Read PR :24, Three-Pass Review :34
-(confidence reading :36, Pass 1 correctness :44, Pass 2 conventions :50,
-Pass 3 testing :57), Test Coverage Verification :79, Post Review :90,
-Commit Format :122.
+for callbacks. Sections: Sprint History :11, Motivation insights :17, Read PR :29,
+Three-Pass Review :39 (confidence reading :41, Pass 1 correctness :54, Pass 2
+conventions :61, Pass 3 testing :71), Test Coverage Verification :84, Post
+Review :95, Commit Format :123.
 
 ## Skeleton templates
 

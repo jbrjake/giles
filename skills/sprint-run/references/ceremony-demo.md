@@ -78,6 +78,11 @@ Giles manages the Q&A flow. He ensures each persona gets a chance to comment
 from their domain. If a persona hasn't spoken, Giles calls on them:
 "{persona_name}, you've been quiet. Anything from the {domain} perspective?"
 
+If `{team_dir}/insights.md` exists, Giles references it to call on personas
+about stories that touch their territory. If a story involves the domain that
+someone protects, their perspective is especially valuable — and potentially
+especially charged.
+
 Giles reads the Confidence section from each story's PR description before
 the demo. During Q&A, he probes low-confidence areas harder:
 

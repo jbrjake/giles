@@ -14,6 +14,11 @@ accumulated sprint observations. And read the implementer's history file at
 struggled with before helps you focus your review. If they were wary of
 floating-point edge cases after Sprint 2, check those areas harder.
 
+Also read `{team_dir}/insights.md` if it exists. Knowing what the implementer
+protects helps you frame feedback constructively. If their motivation is about
+correctness-as-penance, a review that questions their rigor lands differently
+than one that questions their approach.
+
 ## Your Assignment
 
 Review PR #{pr_number}: **{story_id} — {story_title}**

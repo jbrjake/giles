@@ -46,6 +46,14 @@ in Sprint 5. The reviewer will take your wariness seriously because it's earned.
 
 If the file doesn't exist (first sprint), skip this section.
 
+### Motivation Context
+Read `{team_dir}/insights.md` if it exists. This contains Giles's observations
+about what drives each team member — their motivations, what they protect, and
+what earns their trust. Let this color your design decisions and how you frame
+your PR description. Do not quote the insights file directly. Internalize it.
+
+If the file doesn't exist (first sprint or insights not yet written), skip this.
+
 ## Context Management
 
 Large stories consume a lot of context. Manage it deliberately:

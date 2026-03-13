@@ -58,7 +58,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | Skill | SKILL.md | Key sections |
 |-------|----------|-------------|
 | sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
-| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Mid-sprint check-in :54, Context Assembly :75, Phase 3: Demo :107, Phase 4: Retro :113 (Giles facilitates all ceremonies) |
+| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Mid-sprint check-in :54, Context Assembly :75, Phase 3: Demo :109, Phase 4: Retro :115 (Giles facilitates all ceremonies) |
 | sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :27, Backlog sync :46, CI check :69, Drift detection :103, PR check :133, Mid-sprint check-in :182, Burndown :223, Rate limiting :265 |
 | sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
@@ -69,11 +69,11 @@ see `CHEATSHEET.md`. The tables below are a summary.
 |------|-------------------|
 | `skills/sprint-run/references/kanban-protocol.md` | State machine (6 states), transition rules, WIP limits |
 | `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format, Giles rules :44, PM role :56 |
-| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, saga context :41, sprint theme :20, process context (analytics) :58, confidence check :111, scope negotiation :131, exit criteria :201 |
-| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :65, confidence probing :75, acceptance verification |
-| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :24, Start/Stop/Continue, feedback distillation, sprint analytics :95, write sprint history :112, DoD review :134 |
-| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, context management :49, strategic context :31, test plan context :34, sprint history :37, confidence signals :98 |
-| `skills/sprint-run/agents/reviewer.md` | Subagent template: three-pass review (correctness/conventions/testing), confidence reading :36, sprint history callbacks :11, test coverage verification :79 |
+| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, team read :41, saga context :61, sprint theme :20, process context (analytics) :78, confidence check :141, scope negotiation :161, exit criteria :231 |
+| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :65, insights in Q&A :81, confidence probing :86, acceptance verification |
+| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :25, insights in retro :30, Start/Stop/Continue, feedback distillation, sprint analytics :101, write sprint history :118, emotional shift :136, DoD review :141 |
+| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, motivation context :49, context management :57, strategic context :31, test plan context :34, sprint history :37, confidence signals :106 |
+| `skills/sprint-run/agents/reviewer.md` | Subagent template: three-pass review (correctness/conventions/testing), confidence reading :41, sprint history callbacks :11, motivation insights :17, test coverage verification :84 |
 | `skills/sprint-setup/references/github-conventions.md` | Label taxonomy, issue template, PR template, review template |
 | `skills/sprint-setup/references/ci-workflow-template.md` | CI YAML template structure |
 | `skills/sprint-release/references/release-checklist.md` | Per-milestone gate criteria template |
@@ -90,6 +90,7 @@ sprint-config/
 ├── team/{name}.md         — persona files (symlinks to project docs)
 ├── team/giles.md          — built-in scrum master (copied, not symlinked)
 ├── team/history/          — Sprint History files (written by Giles during retro)
+├── team/insights.md       — motivation distillation (LLM-generated at kickoff, regenerated per sprint)
 ├── backlog/INDEX.md       — backlog routing table
 ├── backlog/milestones/    — one .md per milestone with story tables
 ├── rules.md               — project conventions (symlink)

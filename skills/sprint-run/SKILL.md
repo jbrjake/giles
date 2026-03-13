@@ -74,7 +74,7 @@ Stories with no dependencies can run in parallel via `superpowers:dispatching-pa
 
 ### Context Assembly for Agent Dispatch
 
-When dispatching implementer or reviewer subagents, assemble context from deeper docs if configured. This is the hybrid model: issues have structure, agents get depth.
+When dispatching implementer or reviewer subagents, assemble context from deeper docs if configured. This includes `{team_dir}/insights.md` (written by Giles during kickoff) for motivation context. The hybrid model: issues have structure, agents get depth.
 
 **Before dispatching implementer:**
 
@@ -95,12 +95,14 @@ When dispatching implementer or reviewer subagents, assemble context from deeper
    - Inject into `### Strategic Context` in implementer prompt
 5. Check dependency status: for each story in `blocked_by`/`blocks`, run `gh issue view` to get current state (open/closed, kanban label)
    - Inject into `{dependencies}` in implementer prompt with current status
+6. Read `{team_dir}/insights.md` if it exists — inject into `### Motivation Context` in implementer prompt
 
 **Before dispatching reviewer:**
 
 1. Same test case extraction as above
 2. Inject test cases into `### Test Coverage Verification` in reviewer prompt
 3. If PRD has non-functional requirements (REQ-*-NF-*), inject into review checklist
+4. Read `{team_dir}/insights.md` if it exists — inject after history reading in reviewer prompt
 
 **When paths aren't configured:** Omit the corresponding sections. Prompts work exactly as before.
 
