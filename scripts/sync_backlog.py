@@ -163,7 +163,7 @@ def do_sync(config: dict) -> dict[str, int]:
     if not stories:
         return result
 
-    populate_issues.enrich_from_epics(stories, config)
+    stories = populate_issues.enrich_from_epics(stories, config)
     existing = populate_issues.get_existing_issues()
     milestone_numbers = populate_issues.get_milestone_numbers()
     milestone_titles = populate_issues._build_milestone_title_map(milestone_files)

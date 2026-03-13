@@ -238,7 +238,7 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
     entries = []
     for name, quote in voices.items():
         entries.append(f'> **{name}:** "{quote}"')
-    new_section.append(">\n> ".join(entries) if entries else "")
+    new_section.append("\n>\n".join(entries) if entries else "")
 
     new_lines = lines[:start] + new_section + [""] + lines[end:]
     Path(path).write_text("\n".join(new_lines))

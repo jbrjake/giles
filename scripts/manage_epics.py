@@ -274,14 +274,22 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
 
 
 def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
-    """Replace references to old_id with new_ids throughout the file.
+    """Replace references to old_id with new_ids in metadata fields.
 
     Useful for story splits (e.g., US-0102 → US-0102a, US-0102b).
+    Only replaces in table rows and body text, not in ### headings,
+    to preserve the parseable heading format.
     """
-    content = Path(path).read_text()
+    lines = Path(path).read_text().splitlines()
     replacement = ", ".join(new_ids)
-    content = content.replace(old_id, replacement)
-    Path(path).write_text(content)
+    new_lines = []
+    for line in lines:
+        if line.startswith("### "):
+            # Preserve headings — don't corrupt ### US-XXXX: Title
+            new_lines.append(line)
+        else:
+            new_lines.append(line.replace(old_id, replacement))
+    Path(path).write_text("\n".join(new_lines))
 
 
 def main() -> None:

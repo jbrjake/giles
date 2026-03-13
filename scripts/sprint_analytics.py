@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_config import load_config
+from validate_config import load_config, extract_sp
 
 
 # -- GitHub helpers ----------------------------------------------------------
@@ -65,23 +65,6 @@ def find_milestone(repo: str, sprint_num: int) -> dict | None:
         if re.search(rf"Sprint\s+{sprint_num}\b", title, re.I):
             return ms
     return None
-
-
-def extract_sp(issue: dict) -> int:
-    """Extract story points from labels or body text."""
-    for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
-        if m := re.match(r"sp:(\d+)", name):
-            return int(m.group(1))
-    body = issue.get("body", "") or ""
-    if m := re.search(
-        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.I,
-    ):
-        return int(m.group(1))
-    # Check for SP in story table format: | ... | N SP | ...
-    if m := re.search(r"\|\s*(\d+)\s*SP\s*\|", body):
-        return int(m.group(1))
-    return 0
 
 
 def extract_persona(issue: dict) -> str | None:

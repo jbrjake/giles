@@ -536,13 +536,62 @@ class TestFindMilestoneTitle(unittest.TestCase):
         result = sync_tracking.find_milestone_title(1)
         self.assertIsNone(result)
 
+    @patch("sync_tracking.gh")
+    def test_sprint_1_does_not_match_sprint_10(self, mock_gh):
+        """P1-01: Sprint prefix matching must use word boundary."""
+        mock_gh.return_value = json.dumps([
+            {"title": "Sprint 10: Polish", "number": 10},
+        ])
+        result = sync_tracking.find_milestone_title(1)
+        self.assertIsNone(result)
+
+    @patch("sync_tracking.gh")
+    def test_sprint_10_matches_correctly(self, mock_gh):
+        """P1-01: Sprint 10 should match Sprint 10."""
+        mock_gh.return_value = json.dumps([
+            {"title": "Sprint 1: Skeleton", "number": 1},
+            {"title": "Sprint 10: Polish", "number": 10},
+        ])
+        result = sync_tracking.find_milestone_title(10)
+        self.assertEqual(result, "Sprint 10: Polish")
+
+
+class TestGetLinkedPR(unittest.TestCase):
+    """P1-02: Test get_linked_pr matches correct story ID."""
+
+    @patch("sync_tracking.gh")
+    def test_matches_correct_story_id(self, mock_gh):
+        """Fallback search should match only the requested story ID."""
+        mock_gh.side_effect = [
+            RuntimeError("timeline API unavailable"),  # force fallback
+            json.dumps([
+                {"number": 10, "state": "MERGED", "headRefName": "sprint-1/us-0099-other", "mergedAt": "2026-03-01"},
+                {"number": 20, "state": "OPEN", "headRefName": "sprint-1/us-0001-setup", "mergedAt": None},
+            ]),
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-0001")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 20)
+
+    @patch("sync_tracking.gh")
+    def test_does_not_match_wrong_story(self, mock_gh):
+        """Should return None if no PR matches the requested story ID."""
+        mock_gh.side_effect = [
+            RuntimeError("timeline API unavailable"),
+            json.dumps([
+                {"number": 10, "state": "OPEN", "headRefName": "sprint-1/us-0099-other", "mergedAt": None},
+            ]),
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-0001")
+        self.assertIsNone(result)
+
 
 # ---------------------------------------------------------------------------
 # update_burndown.py tests -- extract_sp
 # ---------------------------------------------------------------------------
 
 class TestExtractSP(unittest.TestCase):
-    """Test update_burndown.extract_sp() label/body parsing."""
+    """Test shared extract_sp() via update_burndown (which imports from validate_config)."""
 
     def test_sp_from_label_dict(self):
         issue = {"labels": [{"name": "sp:3"}], "body": ""}
@@ -571,6 +620,15 @@ class TestExtractSP(unittest.TestCase):
     def test_label_takes_priority(self):
         issue = {"labels": [{"name": "sp:3"}], "body": "SP: 8"}
         self.assertEqual(update_burndown.extract_sp(issue), 3)
+
+    def test_sp_from_analytics_table_format(self):
+        """P1-05: Ensure | N SP | format (used by analytics) also works."""
+        issue = {"labels": [], "body": "| 5 SP |"}
+        self.assertEqual(update_burndown.extract_sp(issue), 5)
+
+    def test_sp_from_story_points_table(self):
+        issue = {"labels": [], "body": "| Story Points | 13 |"}
+        self.assertEqual(update_burndown.extract_sp(issue), 13)
 
 
 class TestGetBaseBranch(unittest.TestCase):

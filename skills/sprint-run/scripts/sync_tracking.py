@@ -39,7 +39,7 @@ def gh(args: list[str]) -> str:
 def find_milestone_title(sprint_num: int) -> str | None:
     raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate"])
     for ms in (json.loads(raw) if raw else []):
-        if ms.get("title", "").startswith(f"Sprint {sprint_num}"):
+        if re.match(rf"^Sprint {sprint_num}\b", ms.get("title", "")):
             return ms["title"]
     return None
 
@@ -53,8 +53,12 @@ def list_issues(title: str) -> list[dict]:
     return json.loads(raw) if raw else []
 
 
-def get_linked_pr(issue_num: int) -> dict | None:
-    """Find PR linked to issue via timeline API, fallback to branch name."""
+def get_linked_pr(issue_num: int, story_id: str = "") -> dict | None:
+    """Find PR linked to issue via timeline API, fallback to branch name.
+
+    If story_id is provided, the fallback search matches only PRs whose
+    branch contains that specific story ID (case-insensitive).
+    """
     try:
         raw = gh([
             "api",
@@ -82,10 +86,21 @@ def get_linked_pr(issue_num: int) -> dict | None:
         ])
         for pr in (json.loads(raw) if raw else []):
             branch = pr.get("headRefName", "")
-            # Match any story-ID-like pattern in branch name
-            if re.search(r"[A-Z]+-\d+", branch):
-                story_match = re.search(r"([A-Z]+-\d+)", branch)
-                if story_match:
+            if story_id:
+                # Match only the specific story ID in the branch name
+                if re.search(re.escape(story_id), branch, re.IGNORECASE):
+                    return {
+                        "number": pr["number"],
+                        "state": (
+                            "merged"
+                            if pr.get("mergedAt")
+                            else pr["state"]
+                        ),
+                        "merged": pr.get("mergedAt") is not None,
+                    }
+            else:
+                # Legacy fallback: match any story-ID-like pattern
+                if re.search(r"[A-Z]+-\d+", branch, re.IGNORECASE):
                     return {
                         "number": pr["number"],
                         "state": (
@@ -313,7 +328,7 @@ def main() -> None:
     all_changes: list[str] = []
     for issue in issues:
         sid = extract_story_id(issue["title"])
-        pr = get_linked_pr(issue["number"])
+        pr = get_linked_pr(issue["number"], story_id=sid)
         if sid in existing:
             changes = sync_one(existing[sid], issue, pr, sprint)
             if changes:

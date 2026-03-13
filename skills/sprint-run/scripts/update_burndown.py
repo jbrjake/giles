@@ -20,7 +20,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config
+from validate_config import load_config, extract_sp
 
 
 def gh(args: list[str]) -> str:
@@ -38,7 +38,7 @@ def gh(args: list[str]) -> str:
 def find_milestone(sprint_num: int) -> dict | None:
     raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate"])
     for ms in (json.loads(raw) if raw else []):
-        if ms.get("title", "").startswith(f"Sprint {sprint_num}"):
+        if re.match(rf"^Sprint {sprint_num}\b", ms.get("title", "")):
             return ms
     return None
 
@@ -54,24 +54,6 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
 def extract_story_id(title: str) -> str:
     m = re.match(r"([A-Z]+-\d+)", title)
     return m.group(1) if m else title.split(":")[0].strip()
-
-
-def extract_sp(issue: dict) -> int:
-    """Extract story points from labels (sp:N) or issue body."""
-    for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
-        if m := re.match(r"sp:(\d+)", name):
-            return int(m.group(1))
-    body = issue.get("body", "") or ""
-    if m := re.search(
-        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
-    ):
-        return int(m.group(1))
-    if m := re.search(r"\|\s*SP\s*\|\s*(\d+)\s*\|", body):
-        return int(m.group(1))
-    if m := re.search(r"\|\s*Story Points?\s*\|\s*(\d+)\s*\|", body):
-        return int(m.group(1))
-    return 0
 
 
 def kanban_status(issue: dict) -> str:

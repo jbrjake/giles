@@ -489,6 +489,35 @@ def get_epics_dir(config: dict) -> Path | None:
     return p if p.is_dir() else None
 
 
+def extract_sp(issue: dict) -> int:
+    """Extract story points from an issue's labels or body text.
+
+    Checks (in order):
+      1. Labels matching sp:N
+      2. Body text with "story points: N" or "sp = N" (case-insensitive)
+      3. Body table format | SP | N | or | Story Points | N |
+      4. Body table format | N SP | (analytics-style)
+    Returns 0 if no story points found.
+    """
+    import re
+    for label in issue.get("labels", []):
+        name = label if isinstance(label, str) else label.get("name", "")
+        if m := re.match(r"sp:(\d+)", name):
+            return int(m.group(1))
+    body = issue.get("body", "") or ""
+    if m := re.search(
+        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
+    ):
+        return int(m.group(1))
+    if m := re.search(r"\|\s*SP\s*\|\s*(\d+)\s*\|", body):
+        return int(m.group(1))
+    if m := re.search(r"\|\s*Story Points?\s*\|\s*(\d+)\s*\|", body):
+        return int(m.group(1))
+    if m := re.search(r"\|\s*(\d+)\s*SP\s*\|", body):
+        return int(m.group(1))
+    return 0
+
+
 def get_story_map(config: dict) -> Path | None:
     """Return story map index file path, or None if not configured."""
     val = config.get("paths", {}).get("story_map")

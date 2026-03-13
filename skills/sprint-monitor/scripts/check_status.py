@@ -21,7 +21,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config
+from validate_config import load_config, extract_sp
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -240,17 +240,7 @@ def _count_sp(issues: list[dict]) -> tuple[int, int]:
     return t, d
 
 
-def _extract_sp(issue: dict) -> int:
-    for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
-        if m := re.match(r"sp:(\d+)", name):
-            return int(m.group(1))
-    body = issue.get("body", "") or ""
-    if m := re.search(
-        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
-    ):
-        return int(m.group(1))
-    return 0
+_extract_sp = extract_sp
 
 
 # -- Drift detection ---------------------------------------------------------
