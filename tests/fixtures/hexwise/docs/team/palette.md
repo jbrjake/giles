@@ -30,7 +30,7 @@ Palette thinks in layers: what the user sees, what the user feels, what the user
 
 She optimizes for: output that a human can parse in under two seconds, color choices that work in both dark and light terminals, help text that doesn't make users feel stupid. She is the reason Hexwise's error messages are complete sentences with concrete suggestions instead of cryptic codes.
 
-Her code can be loose by Rusti's standards — she'll reach for `.unwrap()` in places where a proper error type would serve better — but her interfaces are always thoughtful. She thinks about the person on the other end of the function before she thinks about the implementation.
+Her code used to be loose by Rusti's standards — she'd reach for `.unwrap()` where a proper error type would serve better — but that was before Rusti's influence stuck. These days her internals are nearly as considered as her interfaces. She still thinks about the person on the other end of the function before she thinks about the implementation. That hasn't changed. It's just backed by better habits now.
 
 ## Personality and Quirks
 
