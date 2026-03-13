@@ -100,6 +100,36 @@ For each failing run:
 5. Update the story tracking file with the CI status (`CI: failing`,
    `CI: fix pushed`, or `CI: needs manual attention`).
 
+## Step 1.5 -- Drift Detection
+
+Check for two types of drift that can silently derail a sprint:
+
+### Branch divergence
+
+For each open PR's head branch, check how far behind the base branch it is:
+
+```bash
+gh api repos/{owner}/{repo}/compare/{base_branch}...{head_branch} --jq '.behind_by'
+```
+
+- If behind by > 20 commits: HIGH risk. Post a Giles-voiced comment:
+  "{branch} is {N} commits behind {base_branch}. A rebase before the
+  next review round would be prudent. I say this from experience."
+- If behind by > 10 commits: MEDIUM risk. Note in status report.
+- Check existing comments before posting to avoid duplicates.
+
+### Direct pushes to base branch
+
+Check for non-merge commits on the base branch since the sprint started:
+
+```bash
+gh api repos/{owner}/{repo}/commits -f sha={base_branch} -f since={sprint_start_date} --jq '...'
+```
+
+If any direct pushes found, flag in Giles's voice:
+"Someone appears to have pushed directly to {base_branch}. I won't say
+who, but I will say it's making the merge queue nervous."
+
 ## Step 2 -- Check Open PRs
 
 Query all open pull requests:

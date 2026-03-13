@@ -590,5 +590,125 @@ class TestGetBaseBranch(unittest.TestCase):
         self.assertEqual(get_base_branch(config), "main")
 
 
+# ---------------------------------------------------------------------------
+# check_status.py tests -- drift detection
+# ---------------------------------------------------------------------------
+
+class TestCheckBranchDivergence(unittest.TestCase):
+    """Test check_status.check_branch_divergence() with mocked gh_json."""
+
+    @patch("check_status.gh_json")
+    def test_no_branches(self, mock_gh):
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", [],
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+        mock_gh.assert_not_called()
+
+    @patch("check_status.gh_json")
+    def test_low_divergence_ignored(self, mock_gh):
+        mock_gh.return_value = {"behind_by": 3, "ahead_by": 5}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/small"],
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+    @patch("check_status.gh_json")
+    def test_medium_divergence(self, mock_gh):
+        mock_gh.return_value = {"behind_by": 15, "ahead_by": 8}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/medium"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("MEDIUM", report[0])
+        self.assertIn("15", report[0])
+        self.assertEqual(actions, [])
+
+    @patch("check_status.gh_json")
+    def test_high_divergence(self, mock_gh):
+        mock_gh.return_value = {"behind_by": 25, "ahead_by": 10}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/big"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("HIGH", report[0])
+        self.assertEqual(len(actions), 1)
+        self.assertIn("25 behind", actions[0])
+
+    @patch("check_status.gh_json")
+    def test_multiple_branches(self, mock_gh):
+        mock_gh.side_effect = [
+            {"behind_by": 5, "ahead_by": 2},   # low — skipped
+            {"behind_by": 25, "ahead_by": 10},  # high
+        ]
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/ok", "feat/stale"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("feat/stale", report[0])
+
+    @patch("check_status.gh_json")
+    def test_api_error_handled(self, mock_gh):
+        mock_gh.side_effect = RuntimeError("API error")
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/broken"],
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+
+class TestCheckDirectPushes(unittest.TestCase):
+    """Test check_status.check_direct_pushes() with mocked gh_json."""
+
+    @patch("check_status.gh_json")
+    def test_no_direct_pushes(self, mock_gh):
+        mock_gh.return_value = []
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+    @patch("check_status.gh_json")
+    def test_direct_pushes_found(self, mock_gh):
+        mock_gh.return_value = [
+            {"sha": "abc12345", "message": "quick fix",
+             "author": "someone", "date": "2026-03-10T12:00:00Z"},
+        ]
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertTrue(len(report) >= 1)
+        self.assertIn("1 direct push", report[0])
+        self.assertEqual(len(actions), 1)
+        self.assertIn("pushed directly", actions[0])
+
+    @patch("check_status.gh_json")
+    def test_multiple_pushes_capped(self, mock_gh):
+        mock_gh.return_value = [
+            {"sha": f"sha{i}", "message": f"fix {i}",
+             "author": "dev", "date": "2026-03-10"}
+            for i in range(5)
+        ]
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertIn("5 direct push", report[0])
+        # Shows at most 3 individual commits
+        commit_lines = [r for r in report if r.startswith("    ")]
+        self.assertEqual(len(commit_lines), 3)
+
+    @patch("check_status.gh_json")
+    def test_api_error_handled(self, mock_gh):
+        mock_gh.side_effect = RuntimeError("API error")
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+
 if __name__ == "__main__":
     unittest.main()

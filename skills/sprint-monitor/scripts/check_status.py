@@ -253,6 +253,83 @@ def _extract_sp(issue: dict) -> int:
     return 0
 
 
+# -- Drift detection ---------------------------------------------------------
+
+def check_branch_divergence(
+    repo: str, base_branch: str, sprint_branches: list[str],
+) -> tuple[list[str], list[str]]:
+    """Check if any sprint branch has diverged significantly from base.
+
+    Returns (report_lines, action_lines).
+    Risk is 'high' if behind_count > 20 commits, 'medium' if > 10.
+    """
+    report: list[str] = []
+    actions: list[str] = []
+    for branch in sprint_branches:
+        try:
+            data = gh_json([
+                "api", f"repos/{repo}/compare/{base_branch}...{branch}",
+                "--jq", "{behind_by: .behind_by, ahead_by: .ahead_by}",
+            ])
+            if isinstance(data, list):
+                continue
+            behind = data.get("behind_by", 0)
+            ahead = data.get("ahead_by", 0)
+            if behind > 20:
+                msg = (
+                    f"{branch} is {behind} commits behind {base_branch}. "
+                    "A rebase before the next review round would be prudent. "
+                    "I say this from experience."
+                )
+                report.append(f"  Drift: HIGH — {msg}")
+                actions.append(f"Branch drift: {branch} ({behind} behind)")
+            elif behind > 10:
+                report.append(
+                    f"  Drift: MEDIUM — {branch} is {behind} commits "
+                    f"behind {base_branch} ({ahead} ahead)"
+                )
+        except RuntimeError:
+            pass
+    return report, actions
+
+
+def check_direct_pushes(
+    repo: str, base_branch: str, since: str,
+) -> tuple[list[str], list[str]]:
+    """Check for commits pushed directly to base branch since a date.
+
+    Returns (report_lines, action_lines) for non-merge commits found.
+    """
+    report: list[str] = []
+    actions: list[str] = []
+    try:
+        commits = gh_json([
+            "api", f"repos/{repo}/commits",
+            "-f", f"sha={base_branch}", "-f", f"since={since}",
+            "--jq",
+            '[.[] | select(.parents | length == 1) | '
+            '{sha: .sha[:8], message: .commit.message, '
+            'author: .commit.author.name, date: .commit.author.date}]',
+        ])
+        if isinstance(commits, list) and commits:
+            report.append(
+                f"  Drift: {len(commits)} direct push(es) to {base_branch} "
+                f"since {since}"
+            )
+            for c in commits[:3]:
+                sha = c.get("sha", "?")
+                msg = (c.get("message", "") or "").split("\n")[0][:60]
+                report.append(f"    {sha}: {msg}")
+            actions.append(
+                f"Someone appears to have pushed directly to {base_branch}. "
+                "I won't say who, but I will say it's making the merge "
+                "queue nervous."
+            )
+    except RuntimeError:
+        pass
+    return report, actions
+
+
 # -- Log management ----------------------------------------------------------
 
 def write_log(
