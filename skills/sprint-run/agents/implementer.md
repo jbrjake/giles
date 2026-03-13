@@ -46,6 +46,22 @@ in Sprint 5. The reviewer will take your wariness seriously because it's earned.
 
 If the file doesn't exist (first sprint), skip this section.
 
+## Context Management
+
+Large stories consume a lot of context. Manage it deliberately:
+
+- Load your persona file and `{rules_file}` at the start — these are
+  always relevant and relatively small.
+- Load PRD excerpts during design phase. After you've made design
+  decisions, summarize the relevant PRD content into your design notes
+  and stop carrying the full PRD text. You've internalized it.
+- For stories 5 SP or above, write a brief design summary after the
+  design phase and before starting implementation. This summary replaces
+  the raw story requirements in your working context.
+- If you notice your responses becoming less precise or you're losing
+  track of earlier decisions, that's a context signal. Stop, summarize
+  your progress in the story tracking file, and continue from the summary.
+
 ## Your Process
 
 ### 1. Create Branch and Draft PR
@@ -78,6 +94,15 @@ gh pr create --draft --base {base_branch} --head {branch_name} \
 
 ## Design Decisions
 (to be filled during design phase)
+
+## Confidence
+(Rate your confidence per area of the implementation.)
+- **{area 1}:** High / Medium / Low — {brief rationale}
+- **{area 2}:** High / Medium / Low — {brief rationale}
+
+Focus on areas where you're less certain. "High on the API layer, medium
+on the serialization logic, low on the edge case handling in parse_header."
+The reviewer will spend proportionally more time on low-confidence areas.
 EOF
 )"
 ```
