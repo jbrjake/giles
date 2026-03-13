@@ -172,7 +172,7 @@ def print_dry_run(
     toml_path = config_dir / "project.toml"
     if toml_path.exists():
         try:
-            text = toml_path.read_text()
+            text = toml_path.read_text(encoding="utf-8")
             for line in text.splitlines():
                 if "sprints_dir" in line and "=" in line:
                     val = line.split("=", 1)[1].strip().strip('"').strip("'")

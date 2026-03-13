@@ -21,17 +21,17 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, gh
+from validate_config import (
+    load_config, gh, extract_story_id, kanban_from_labels, find_milestone,
+    warn_if_at_limit,
+)
 
 KANBAN_STATES = ("todo", "design", "dev", "review", "integration", "done")
 
 
 def find_milestone_title(sprint_num: int) -> str | None:
-    raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate"])
-    for ms in (json.loads(raw) if raw else []):
-        if re.match(rf"^Sprint {sprint_num}\b", ms.get("title", "")):
-            return ms["title"]
-    return None
+    ms = find_milestone(sprint_num)
+    return ms["title"] if ms else None
 
 
 def list_issues(title: str) -> list[dict]:
@@ -40,14 +40,16 @@ def list_issues(title: str) -> list[dict]:
         "--json", "number,title,state,labels,closedAt,body",
         "--limit", "200",
     ])
-    return json.loads(raw) if raw else []
+    issues = json.loads(raw) if raw else []
+    warn_if_at_limit(issues)
+    return issues
 
 
-def get_linked_pr(issue_num: int, story_id: str = "") -> dict | None:
+def get_linked_pr(issue_num: int, story_id: str) -> dict | None:
     """Find PR linked to issue via timeline API, fallback to branch name.
 
-    If story_id is provided, the fallback search matches only PRs whose
-    branch contains that specific story ID (case-insensitive).
+    The fallback search matches only PRs whose branch contains the
+    specific story ID (case-insensitive).
     """
     try:
         raw = gh([
@@ -76,46 +78,19 @@ def get_linked_pr(issue_num: int, story_id: str = "") -> dict | None:
         ])
         for pr in (json.loads(raw) if raw else []):
             branch = pr.get("headRefName", "")
-            if story_id:
-                # Match only the specific story ID in the branch name
-                if re.search(re.escape(story_id), branch, re.IGNORECASE):
-                    return {
-                        "number": pr["number"],
-                        "state": (
-                            "merged"
-                            if pr.get("mergedAt")
-                            else pr["state"]
-                        ),
-                        "merged": pr.get("mergedAt") is not None,
-                    }
-            else:
-                # Legacy fallback: match any story-ID-like pattern
-                if re.search(r"[A-Z]+-\d+", branch, re.IGNORECASE):
-                    return {
-                        "number": pr["number"],
-                        "state": (
-                            "merged"
-                            if pr.get("mergedAt")
-                            else pr["state"]
-                        ),
-                        "merged": pr.get("mergedAt") is not None,
-                    }
+            if re.search(re.escape(story_id), branch, re.IGNORECASE):
+                return {
+                    "number": pr["number"],
+                    "state": (
+                        "merged"
+                        if pr.get("mergedAt")
+                        else pr["state"]
+                    ),
+                    "merged": pr.get("mergedAt") is not None,
+                }
     except (RuntimeError, json.JSONDecodeError):
         pass
     return None
-
-
-def extract_story_id(title: str) -> str:
-    m = re.match(r"([A-Z]+-\d+)", title)
-    return m.group(1) if m else title.split(":")[0].strip()
-
-
-def kanban_from_labels(issue: dict) -> str:
-    for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
-        if name.startswith("kanban:"):
-            return name.split(":", 1)[1]
-    return "done" if issue.get("state") == "closed" else "todo"
 
 
 def slug_from_title(title: str) -> str:

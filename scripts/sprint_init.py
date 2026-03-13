@@ -140,11 +140,6 @@ class ProjectScanner:
         """Read first N lines of a file, silently returning [] on error."""
         try:
             with open(p, encoding="utf-8", errors="replace") as f:
-                return [next(f) for _ in range(lines)]
-        except (StopIteration, OSError):
-            pass
-        try:
-            with open(p, encoding="utf-8", errors="replace") as f:
                 return f.readlines()[:lines]
         except OSError:
             return []

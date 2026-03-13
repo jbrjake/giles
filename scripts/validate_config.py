@@ -31,7 +31,12 @@ def gh(args: list[str]) -> str:
 
 
 def gh_json(args: list[str]) -> list | dict:
-    """Run a gh CLI command and parse JSON output."""
+    """Run a gh CLI command and parse JSON output.
+
+    Returns [] (empty list) when the command produces no output, rather
+    than attempting json.loads("") which would raise JSONDecodeError.
+    Callers should handle both list and dict return types.
+    """
     raw = gh(args)
     return json.loads(raw) if raw else []
 
@@ -88,6 +93,8 @@ def parse_simple_toml(text: str) -> dict:
             continue
 
         # Key = value
+        # Note: dotted keys (a.b = "value") are not supported. This project uses
+        # section headers ([project], [paths]) rather than dotted keys.
         kv_match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$", line)
         if kv_match:
             key = kv_match.group(1)
@@ -548,6 +555,73 @@ def get_story_map(config: dict) -> Path | None:
         return None
     p = Path(val)
     return p if p.is_file() else None
+
+
+# ---------------------------------------------------------------------------
+# Sprint / story / kanban helpers (shared across skills)
+# ---------------------------------------------------------------------------
+
+def detect_sprint(sprints_dir: Path) -> int | None:
+    """Detect the current sprint number from SPRINT-STATUS.md."""
+    status_file = sprints_dir / "SPRINT-STATUS.md"
+    if not status_file.exists():
+        return None
+    m = re.search(
+        r"Current Sprint:\s*(\d+)",
+        status_file.read_text(encoding="utf-8"),
+    )
+    return int(m.group(1)) if m else None
+
+
+def extract_story_id(title: str) -> str:
+    """Extract story ID (e.g. US-0001) from an issue title."""
+    m = re.match(r"([A-Z]+-\d+)", title)
+    return m.group(1) if m else title.split(":")[0].strip()
+
+
+def kanban_from_labels(issue: dict) -> str:
+    """Derive kanban status from an issue's labels."""
+    for label in issue.get("labels", []):
+        name = label if isinstance(label, str) else label.get("name", "")
+        if name.startswith("kanban:"):
+            return name.split(":", 1)[1]
+    return "done" if issue.get("state") == "closed" else "todo"
+
+
+def find_milestone(repo_or_sprint: str | int, sprint_num: int | None = None) -> dict | None:
+    """Find the GitHub milestone matching a sprint number.
+
+    Usage:
+        find_milestone(sprint_num)          -- uses {owner}/{repo} template
+        find_milestone(repo, sprint_num)    -- explicit repo string (ignored,
+                                               kept for backward compat)
+
+    Returns the milestone dict or None.
+    """
+    if sprint_num is None:
+        # Called as find_milestone(sprint_num)
+        num = int(repo_or_sprint)
+    else:
+        num = int(sprint_num)
+    milestones = gh_json([
+        "api", "repos/{owner}/{repo}/milestones", "--paginate",
+    ])
+    if not isinstance(milestones, list):
+        return None
+    for ms in milestones:
+        title = ms.get("title", "")
+        if re.match(rf"^Sprint {num}\b", title):
+            return ms
+    return None
+
+
+def warn_if_at_limit(results: list, limit: int = 200) -> list:
+    """Warn if API results hit the limit, suggesting data may be incomplete."""
+    if len(results) >= limit:
+        print(f"Warning: query returned {limit} results (the limit). "
+              f"Data may be incomplete for projects with more items.",
+              file=sys.stderr)
+    return results
 
 
 # ---------------------------------------------------------------------------

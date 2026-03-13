@@ -48,7 +48,7 @@ def parse_planned_tests(test_plan_dir: str) -> dict[str, str]:
         return planned
 
     for md_file in sorted(plan_path.glob("*.md")):
-        for line in md_file.read_text().splitlines():
+        for line in md_file.read_text(encoding="utf-8").splitlines():
             m = _PLAN_TC_HEADING.match(line)
             if m:
                 planned[m.group(1)] = m.group(2).strip()
@@ -81,7 +81,7 @@ def scan_project_tests(project_root: str, language: str) -> list[str]:
                 "__pycache__", "vendor",
             )):
                 continue
-            source = test_file.read_text(errors="replace")
+            source = test_file.read_text(encoding="utf-8", errors="replace")
             all_functions.extend(detect_test_functions(language, source))
 
     return sorted(set(all_functions))

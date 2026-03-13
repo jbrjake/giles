@@ -299,7 +299,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
             # Preserve headings — don't corrupt ### US-XXXX: Title
             new_lines.append(line)
         else:
-            new_lines.append(line.replace(old_id, replacement))
+            new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', replacement, line))
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 

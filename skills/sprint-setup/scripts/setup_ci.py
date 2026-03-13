@@ -346,7 +346,7 @@ def main() -> None:
     # Generate and write
     ci_yaml = generate_ci_yaml(config)
     workflow_path.parent.mkdir(parents=True, exist_ok=True)
-    workflow_path.write_text(ci_yaml)
+    workflow_path.write_text(ci_yaml, encoding="utf-8")
 
     print(f"Created: {workflow_path}")
     print()
