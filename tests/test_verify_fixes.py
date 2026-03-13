@@ -3,6 +3,8 @@
 
 Creates a mock Rust project in a temp directory, runs sprint_init.py,
 and validates the generated config matches what validate_config.py expects.
+
+Run: python -m unittest tests.test_verify_fixes -v
 """
 
 import os
@@ -13,8 +15,8 @@ import unittest
 from pathlib import Path
 
 # Ensure scripts/ is on the path
-SCRIPTS_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(SCRIPTS_DIR))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from validate_config import parse_simple_toml, validate_project, _parse_team_index
 from sprint_init import ProjectScanner, ConfigGenerator
@@ -204,7 +206,7 @@ class TestCIGeneration(unittest.TestCase):
     def test_doc_lint_uses_language_extensions(self):
         """Bug 4: Doc lint should use language-appropriate extensions."""
         sys.path.insert(0, str(
-            SCRIPTS_DIR.parent / "skills" / "sprint-setup" / "scripts"))
+            ROOT / "skills" / "sprint-setup" / "scripts"))
         from setup_ci import _docs_lint_job
         # Rust should include .rs
         rust_job = _docs_lint_job("rust")
@@ -218,7 +220,7 @@ class TestCIGeneration(unittest.TestCase):
         """Bug 5: Test command should not appear in both check jobs
         and the test matrix job."""
         sys.path.insert(0, str(
-            SCRIPTS_DIR.parent / "skills" / "sprint-setup" / "scripts"))
+            ROOT / "skills" / "sprint-setup" / "scripts"))
         from setup_ci import generate_ci_yaml
         config = {
             "project": {"language": "rust", "name": "test"},
@@ -258,11 +260,11 @@ class TestAgentFrontmatter(unittest.TestCase):
                       f"{path.name} frontmatter missing 'description'")
 
     def test_implementer_has_frontmatter(self):
-        agents = SCRIPTS_DIR.parent / "skills" / "sprint-run" / "agents"
+        agents = ROOT / "skills" / "sprint-run" / "agents"
         self._check_frontmatter(agents / "implementer.md")
 
     def test_reviewer_has_frontmatter(self):
-        agents = SCRIPTS_DIR.parent / "skills" / "sprint-run" / "agents"
+        agents = ROOT / "skills" / "sprint-run" / "agents"
         self._check_frontmatter(agents / "reviewer.md")
 
 
@@ -270,19 +272,19 @@ class TestEvalsGeneric(unittest.TestCase):
     """Verify evals don't contain project-specific references."""
 
     def test_no_hardcoded_project_names(self):
-        evals_path = SCRIPTS_DIR.parent / "evals" / "evals.json"
+        evals_path = ROOT / "evals" / "evals.json"
         text = evals_path.read_text()
         self.assertNotIn("Dreamcatcher", text,
                           "Evals still reference 'Dreamcatcher'")
 
     def test_no_hardcoded_persona_names(self):
-        evals_path = SCRIPTS_DIR.parent / "evals" / "evals.json"
+        evals_path = ROOT / "evals" / "evals.json"
         text = evals_path.read_text()
         self.assertNotIn("Rachel", text,
                           "Evals still reference 'Rachel'")
 
     def test_no_hardcoded_cargo_commands(self):
-        evals_path = SCRIPTS_DIR.parent / "evals" / "evals.json"
+        evals_path = ROOT / "evals" / "evals.json"
         text = evals_path.read_text()
         self.assertNotIn("cargo build", text,
                           "Evals still reference 'cargo build'")

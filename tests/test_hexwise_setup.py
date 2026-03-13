@@ -148,28 +148,28 @@ class TestHexwiseSetup(unittest.TestCase):
         )
         config = load_config("sprint-config")
         # Hexwise now has deep docs — these should be detected and configured
-        assert get_prd_dir(config) is not None
-        assert get_test_plan_dir(config) is not None
-        assert get_sagas_dir(config) is not None
-        assert get_epics_dir(config) is not None
-        assert get_story_map(config) is not None
+        self.assertIsNotNone(get_prd_dir(config))
+        self.assertIsNotNone(get_test_plan_dir(config))
+        self.assertIsNotNone(get_sagas_dir(config))
+        self.assertIsNotNone(get_epics_dir(config))
+        self.assertIsNotNone(get_story_map(config))
 
     def test_scanner_detects_hexwise_deep_docs(self):
         """Scanner detects PRDs, test plan, sagas, epics in extended Hexwise."""
         scanner = ProjectScanner(self.project_dir)
         result = scanner.scan()
-        assert result.prd_dir is not None
-        assert result.test_plan_dir is not None
-        assert result.sagas_dir is not None
-        assert result.epics_dir is not None
-        assert result.story_map is not None
+        self.assertIsNotNone(result.prd_dir)
+        self.assertIsNotNone(result.test_plan_dir)
+        self.assertIsNotNone(result.sagas_dir)
+        self.assertIsNotNone(result.epics_dir)
+        self.assertIsNotNone(result.story_map)
 
     def test_config_generator_includes_optional_paths(self):
         """Generated project.toml includes optional paths when deep docs detected."""
         config = load_config("sprint-config")
-        assert config["paths"].get("prd_dir") is not None
-        assert config["paths"].get("sagas_dir") is not None
-        assert config["paths"].get("epics_dir") is not None
+        self.assertIsNotNone(config["paths"].get("prd_dir"))
+        self.assertIsNotNone(config["paths"].get("sagas_dir"))
+        self.assertIsNotNone(config["paths"].get("epics_dir"))
 
     def test_giles_persona_generated(self):
         """sprint_init generates Giles persona as a regular file (not symlink)."""
@@ -218,11 +218,11 @@ class TestHexwiseSetup(unittest.TestCase):
         stories = populate_issues.enrich_from_epics(stories, config)
         # Find a known story
         story_ids = {s.story_id for s in stories}
-        assert "US-0101" in story_ids
+        self.assertIn("US-0101", story_ids)
         # Check enrichment worked
         us0101 = next(s for s in stories if s.story_id == "US-0101")
-        assert us0101.epic != ""
-        assert len(us0101.acceptance_criteria) >= 2
+        self.assertNotEqual(us0101.epic, "")
+        self.assertGreaterEqual(len(us0101.acceptance_criteria), 2)
 
     def test_parse_detail_block_story(self):
         """Parser extracts stories from detail block format in epics."""
@@ -250,17 +250,17 @@ class TestHexwiseSetup(unittest.TestCase):
 - [ ] `T-0101-02`: Convert to RGB (2 SP)
 '''
         stories = populate_issues.parse_detail_blocks(epic_content, sprint=1, source_file="test.md")
-        assert len(stories) == 1
+        self.assertEqual(len(stories), 1)
         s = stories[0]
-        assert s.story_id == "US-0101"
-        assert s.title == "Parse hex string"
-        assert s.sp == 3
-        assert s.priority == "P0"
-        assert s.epic == "E-0101"
-        assert s.blocks == "US-0102"
-        assert s.test_cases == "TC-PAR-001, GP-001"
-        assert "CLI user" in s.user_story
-        assert len(s.acceptance_criteria) == 2
+        self.assertEqual(s.story_id, "US-0101")
+        self.assertEqual(s.title, "Parse hex string")
+        self.assertEqual(s.sp, 3)
+        self.assertEqual(s.priority, "P0")
+        self.assertEqual(s.epic, "E-0101")
+        self.assertEqual(s.blocks, "US-0102")
+        self.assertEqual(s.test_cases, "TC-PAR-001, GP-001")
+        self.assertIn("CLI user", s.user_story)
+        self.assertEqual(len(s.acceptance_criteria), 2)
 
 
 class TestHexwisePipeline(unittest.TestCase):

@@ -72,6 +72,20 @@ class FakeGitHub:
         )
 
     @staticmethod
+    def _filter_json_fields(items: list[dict], fields: str | None) -> list[dict]:
+        """Filter each dict to only the requested --json fields.
+
+        If *fields* is None or empty, return items unchanged.
+        *fields* is a comma-separated string like ``"number,title"``.
+        """
+        if not fields:
+            return items
+        keys = [f.strip() for f in fields.split(",") if f.strip()]
+        if not keys:
+            return items
+        return [{k: item.get(k) for k in keys} for item in items]
+
+    @staticmethod
     def _parse_flags(args: list[str], start: int = 1) -> dict[str, list[str]]:
         """Parse --flag value pairs into a dict.
 
@@ -220,6 +234,7 @@ class FakeGitHub:
     def _issue_list(self, args: list[str]) -> subprocess.CompletedProcess:
         state_filter = "open"
         milestone_filter = ""
+        json_fields: str | None = None
         i = 1
         while i < len(args):
             if args[i] == "--state" and i + 1 < len(args):
@@ -229,6 +244,7 @@ class FakeGitHub:
                 milestone_filter = args[i + 1]
                 i += 2
             elif args[i] == "--json" and i + 1 < len(args):
+                json_fields = args[i + 1]
                 i += 2
             elif args[i] == "--limit" and i + 1 < len(args):
                 i += 2
@@ -245,6 +261,7 @@ class FakeGitHub:
                 iss for iss in filtered
                 if (iss.get("milestone") or {}).get("title") == milestone_filter
             ]
+        filtered = self._filter_json_fields(filtered, json_fields)
         return self._ok(json.dumps(filtered))
 
     def _issue_edit(self, args: list[str]) -> subprocess.CompletedProcess:
@@ -316,12 +333,16 @@ class FakeGitHub:
     def _run_list(self, args: list[str]) -> subprocess.CompletedProcess:
         """Handle: gh run list [--branch <branch>] [--json ...]."""
         branch_filter = ""
+        json_fields: str | None = None
         i = 1
         while i < len(args):
             if args[i] == "--branch" and i + 1 < len(args):
                 branch_filter = args[i + 1]
                 i += 2
-            elif args[i] in ("--json", "--limit", "--status") and i + 1 < len(args):
+            elif args[i] == "--json" and i + 1 < len(args):
+                json_fields = args[i + 1]
+                i += 2
+            elif args[i] in ("--limit", "--status") and i + 1 < len(args):
                 i += 2
             else:
                 i += 1
@@ -332,6 +353,7 @@ class FakeGitHub:
                 r for r in filtered
                 if r.get("headBranch") == branch_filter
             ]
+        filtered = self._filter_json_fields(filtered, json_fields)
         return self._ok(json.dumps(filtered))
 
     # -- Handler: pr ----------------------------------------------------------
@@ -341,7 +363,7 @@ class FakeGitHub:
             return self._fail("no pr subcommand")
         sub = args[0]
         if sub == "list":
-            return self._ok(json.dumps(self.prs))
+            return self._pr_list(args)
         elif sub == "create":
             return self._pr_create(args)
         elif sub == "review":
@@ -349,6 +371,21 @@ class FakeGitHub:
         elif sub == "merge":
             return self._pr_merge(args)
         return self._fail(f"pr {sub} not supported")
+
+    def _pr_list(self, args: list[str]) -> subprocess.CompletedProcess:
+        """Handle: gh pr list [--json ...]."""
+        json_fields: str | None = None
+        i = 1
+        while i < len(args):
+            if args[i] == "--json" and i + 1 < len(args):
+                json_fields = args[i + 1]
+                i += 2
+            elif args[i] in ("--limit", "--state") and i + 1 < len(args):
+                i += 2
+            else:
+                i += 1
+        filtered = self._filter_json_fields(list(self.prs), json_fields)
+        return self._ok(json.dumps(filtered))
 
     def _pr_create(self, args: list[str]) -> subprocess.CompletedProcess:
         """Handle: gh pr create --title T --body B --base main --head feat --label L --milestone M."""

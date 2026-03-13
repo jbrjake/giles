@@ -98,6 +98,10 @@ class TestGoldenRun(unittest.TestCase):
             snapshot = replayer.load_snapshot(phase_name)
             diffs = check_fn(snapshot)
             self.assertEqual(diffs, [], f"{phase_name} mismatch: {diffs}")
+        else:
+            self.skipTest(
+                "no golden recordings found — run with GOLDEN_RECORD=1 to create them"
+            )
 
     def test_golden_full_setup_pipeline(self):
         """Full sequential pipeline: init -> labels -> milestones -> issues -> CI.

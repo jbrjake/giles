@@ -18,7 +18,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -27,11 +27,9 @@ from commit import validate_message, check_atomicity
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
-    determine_bump, bump_version, calculate_version,
-    find_latest_semver_tag, parse_commits_since,
+    determine_bump, bump_version,
     write_version_to_toml, generate_release_notes,
     gate_stories, gate_ci, gate_prs,
-    validate_gates, print_gate_summary,
 )
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
@@ -766,6 +764,196 @@ class TestCheckDirectPushes(unittest.TestCase):
         )
         self.assertEqual(report, [])
         self.assertEqual(actions, [])
+
+
+# ---------------------------------------------------------------------------
+# P2-04: sync_tracking.py tests -- sync_one, create_from_issue
+# ---------------------------------------------------------------------------
+
+class TestSyncOne(unittest.TestCase):
+    """Test sync_tracking.sync_one() status reconciliation."""
+
+    def test_closed_issue_updates_status(self):
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0001",
+            status="dev", sprint=1,
+        )
+        issue = {"state": "closed", "labels": [], "closedAt": "2026-03-10T12:00:00Z", "number": 1}
+        changes = sync_tracking.sync_one(tf, issue, None, 1)
+        self.assertEqual(tf.status, "done")
+        self.assertTrue(any("done" in c for c in changes))
+
+    def test_label_sync_updates_status(self):
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0001",
+            status="todo", sprint=1,
+        )
+        issue = {"state": "open", "labels": [{"name": "kanban:review"}], "number": 1}
+        changes = sync_tracking.sync_one(tf, issue, None, 1)
+        self.assertEqual(tf.status, "review")
+        self.assertTrue(len(changes) > 0)
+
+    def test_pr_number_updated(self):
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0001",
+            status="dev", pr_number="", sprint=1, issue_number="1",
+        )
+        issue = {"state": "open", "labels": [{"name": "kanban:dev"}], "number": 1}
+        pr = {"number": 42, "state": "open", "merged": False}
+        changes = sync_tracking.sync_one(tf, issue, pr, 1)
+        self.assertEqual(tf.pr_number, "42")
+
+    def test_no_changes_when_in_sync(self):
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0001",
+            status="todo", sprint=1, issue_number="5",
+        )
+        issue = {"state": "open", "labels": [], "number": 5}
+        changes = sync_tracking.sync_one(tf, issue, None, 1)
+        self.assertEqual(changes, [])
+
+
+class TestCreateFromIssue(unittest.TestCase):
+    """Test sync_tracking.create_from_issue() creates valid tracking file."""
+
+    def test_basic_creation(self):
+        issue = {
+            "title": "US-0001: Setup CI",
+            "number": 1,
+            "state": "open",
+            "labels": [],
+            "closedAt": None,
+        }
+        tf, changes = sync_tracking.create_from_issue(
+            issue, sprint=1, d=Path("/tmp"), pr=None,
+        )
+        self.assertEqual(tf.story, "US-0001")
+        self.assertEqual(tf.title, "Setup CI")
+        self.assertEqual(tf.sprint, 1)
+        self.assertEqual(tf.status, "todo")
+        self.assertEqual(tf.issue_number, "1")
+        self.assertTrue(len(changes) > 0)
+
+    def test_creation_with_pr(self):
+        issue = {
+            "title": "US-0002: Add auth",
+            "number": 2,
+            "state": "open",
+            "labels": [{"name": "kanban:dev"}],
+            "closedAt": None,
+        }
+        pr = {"number": 10, "state": "open", "merged": False}
+        tf, changes = sync_tracking.create_from_issue(
+            issue, sprint=1, d=Path("/tmp"), pr=pr,
+        )
+        self.assertEqual(tf.pr_number, "10")
+        self.assertEqual(tf.status, "dev")
+
+    def test_creation_for_closed_issue(self):
+        issue = {
+            "title": "US-0003: Fix bug",
+            "number": 3,
+            "state": "closed",
+            "labels": [],
+            "closedAt": "2026-03-09T10:00:00Z",
+        }
+        tf, changes = sync_tracking.create_from_issue(
+            issue, sprint=2, d=Path("/tmp"), pr=None,
+        )
+        self.assertEqual(tf.status, "done")
+        self.assertEqual(tf.completed, "2026-03-09")
+
+
+# ---------------------------------------------------------------------------
+# P2-05: update_burndown.py tests -- write_burndown, update_sprint_status
+# ---------------------------------------------------------------------------
+
+class TestWriteBurndown(unittest.TestCase):
+    """Test update_burndown.write_burndown() output format."""
+
+    def test_creates_burndown_file(self):
+        import tempfile
+        from datetime import datetime, timezone
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sprints_dir = Path(tmpdir)
+            rows = [
+                {"story_id": "US-0001", "short_title": "Setup", "sp": 3,
+                 "status": "done", "closed": "2026-03-09"},
+                {"story_id": "US-0002", "short_title": "Auth", "sp": 5,
+                 "status": "dev", "closed": "\u2014"},
+            ]
+            now = datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)
+            path = update_burndown.write_burndown(1, rows, now, sprints_dir)
+            self.assertTrue(path.exists())
+            content = path.read_text()
+            self.assertIn("Sprint 1 Burndown", content)
+            self.assertIn("Planned: 8 SP", content)
+            self.assertIn("Completed: 3 SP", content)
+            self.assertIn("US-0001", content)
+            self.assertIn("US-0002", content)
+
+    def test_zero_sp_handled(self):
+        import tempfile
+        from datetime import datetime, timezone
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rows = [
+                {"story_id": "US-0001", "short_title": "Spike", "sp": 0,
+                 "status": "done", "closed": "2026-03-09"},
+            ]
+            now = datetime(2026, 3, 10, 12, 0, tzinfo=timezone.utc)
+            path = update_burndown.write_burndown(1, rows, now, Path(tmpdir))
+            content = path.read_text()
+            self.assertIn("Progress: 0%", content)
+
+
+class TestUpdateSprintStatus(unittest.TestCase):
+    """Test update_burndown.update_sprint_status() patches SPRINT-STATUS.md."""
+
+    def test_patches_active_stories_section(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_file = Path(tmpdir) / "SPRINT-STATUS.md"
+            status_file.write_text(
+                "# Sprint Status\n\n## Active Stories\n\n"
+                "| Story | Status | Assignee | PR |\n"
+                "|-------|--------|----------|----|"
+                "\n| old | old | old | old |\n\n## Other\n",
+                encoding="utf-8",
+            )
+            rows = [
+                {"story_id": "US-0001", "short_title": "Setup", "sp": 3,
+                 "status": "done", "closed": "2026-03-09",
+                 "assignee": "Ren", "pr": "#1"},
+            ]
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            content = status_file.read_text()
+            self.assertIn("US-0001", content)
+            self.assertIn("Ren", content)
+            self.assertNotIn("old", content)
+            # Other section preserved
+            self.assertIn("## Other", content)
+
+    def test_appends_when_section_missing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_file = Path(tmpdir) / "SPRINT-STATUS.md"
+            status_file.write_text("# Sprint Status\n", encoding="utf-8")
+            rows = [
+                {"story_id": "US-0001", "short_title": "Setup", "sp": 3,
+                 "status": "todo", "closed": "\u2014"},
+            ]
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            content = status_file.read_text()
+            self.assertIn("## Active Stories", content)
+            self.assertIn("US-0001", content)
+
+    def test_skips_missing_file(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rows = [{"story_id": "X", "short_title": "X", "sp": 0,
+                      "status": "todo", "closed": ""}]
+            # Should not raise
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
 
 
 if __name__ == "__main__":

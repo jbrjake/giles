@@ -1,11 +1,11 @@
 ---
 name: sprint-setup
-description: One-time project bootstrap for sprint process. Use when starting a project for the first time, setting up GitHub integration, creating labels/milestones/issues, or when someone asks how to initialize the sprint workflow. Also triggers on "setup sprints", "bootstrap project", "initialize GitHub", "create sprint board".
+description: One-time project bootstrap for sprint process. Use when starting a project for the first time, setting up GitHub integration, creating labels/milestones/issues, or when someone asks how to initialize the sprint workflow. Also triggers on "setup sprints", "bootstrap project", "initialize GitHub", "create sprint labels".
 ---
 
 # Sprint Setup Skill
 
-Bootstrap a project on GitHub: labels, milestones, issues, project board, CI, and
+Bootstrap a project on GitHub: labels, milestones, issues, CI, and
 tracking files. Run once at project start; subsequent sprints use `sprint-run`.
 
 ## Quick Reference
@@ -58,10 +58,10 @@ source .venv/bin/activate
 python skills/sprint-setup/scripts/bootstrap_github.py
 ```
 
-#### 2.2 Create Milestones & Project Board
+#### 2.2 Create Milestones
 
 Also handled by `bootstrap_github.py` — creates one milestone per sprint (due dates
-from current date) and a GitHub Projects (v2) board with 6 kanban columns.
+from current date).
 
 #### 2.3 Populate Issues
 
@@ -86,7 +86,7 @@ before committing.
 #### 2.5 Initialize Tracking & Verify
 
 Create sprint directories and `docs/dev-team/sprints/SPRINT-STATUS.md` (one row per
-sprint). Verify label/milestone/issue counts and project board existence. If any count
+sprint). Verify label/milestone/issue counts. If any count
 is off, re-run the corresponding script — they are idempotent.
 
 ---

@@ -148,6 +148,6 @@ Review as {persona_name} would:
 - Use their communication style
 - Raise concerns specific to their expertise
 - Be as thorough or concise as their personality dictates
-- Conor says "that's not ideal" when something is catastrophic
-- Sable asks about cache lines and allocation patterns
-- Zara asks "what happens if I send 10 million of these?"
+- Use understatement when something is catastrophic
+- Ask about performance implications and allocation patterns
+- Stress-test assumptions: "what happens at 10x scale?"

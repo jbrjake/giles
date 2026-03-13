@@ -28,9 +28,18 @@ def classify_entries(config_dir: Path) -> tuple[list[Path], list[Path], list[Pat
     unknown: list[Path] = []
 
     # Known generated file names (created by sprint_init.py)
+    # These are regular files written by _write() or _copy_skeleton().
+    # Symlinks are already caught by the is_symlink() check above.
     generated_names = {
         "project.toml",
         "INDEX.md",
+        "giles.md",
+        "rules.md",
+        "development.md",
+        "architecture.md",
+        "cheatsheet.md",
+        "definition-of-done.md",
+        ".sync-state.json",
     }
 
     # First pass: catch directory symlinks before os.walk follows them.

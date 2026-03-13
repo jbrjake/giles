@@ -1,42 +1,42 @@
 # Release Checklist
 
-Gate criteria that must pass before each milestone release ships. Gate criteria
-are defined per milestone in project.toml `[release]` milestones gate_file.
-Each project defines its own gates.
+Gate criteria that must pass before each milestone release ships.
+These gates map to `release_gate.py validate_gates()`. Each gate
+runs in order; first failure stops the pipeline.
 
 ## Per-Milestone Checklist Template
 
-### Stories Gate
+### Stories Gate (`gate_stories`)
 
-- [ ] All stories for this milestone complete
+- [ ] All GitHub issues in the milestone are closed
 - [ ] All story tracking files show status: done
-- [ ] All GitHub issues in relevant sprint milestones are closed
 
-### Test Gate
+### CI Gate (`gate_ci`)
 
+- [ ] Most recent CI run on base branch passes (status: success)
+
+### PRs Gate (`gate_prs`)
+
+- [ ] No open PRs target this milestone
+
+### Tests Gate (`gate_tests`)
+
+- [ ] All `check_commands` from project.toml `[ci]` pass
 - [ ] Golden path tests pass end-to-end
-- [ ] All P0 test cases pass
-- [ ] Full test suite passes with zero failures (use command from project.toml `[ci]`)
 - [ ] No P0 bugs remain open
 
-### Performance Gate
+### Build Gate (`gate_build`)
 
-- [ ] Performance criteria defined in milestone gate file are met
-- [ ] Platform-specific build targets pass (as defined in project.toml `[release]`)
+- [ ] `build_command` from project.toml `[ci]` succeeds
+- [ ] Binary exists at `binary_path` (if configured)
 
-### Platform Gate
+## Post-Gate Release Steps
 
-- [ ] All target platform builds pass CI
-- [ ] Graceful shutdown completes within configured timeout
+After all gates pass, `do_release()` handles:
 
-### Milestone Acceptance
-
-Acceptance criteria are defined in the milestone gate file. Walk through each
-criterion and verify with evidence (test output, logs, measurements).
-
-### Release Artifacts
-
-- [ ] Release artifacts built for all target platforms
-- [ ] Release notes generated from sprint demos
-- [ ] Git tag created and pushed
-- [ ] GitHub Release published with artifacts attached
+1. Calculate next semantic version from conventional commits
+2. Write version to project.toml `[release]`
+3. Commit, tag, and push
+4. Generate release notes
+5. Create GitHub Release with artifacts
+6. Close the milestone

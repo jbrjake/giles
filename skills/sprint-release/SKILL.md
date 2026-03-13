@@ -8,7 +8,7 @@ description: Release management for project milestones — tagging, building, CI
 | Phase | Read These First |
 |-------|-----------------|
 | Gate Validation | `references/release-checklist.md` |
-| Scripts | `scripts/release_gate.py --help` |
+| Scripts | `skills/sprint-release/scripts/release_gate.py --help` |
 
 # Sprint Release Skill
 
