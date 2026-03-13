@@ -8,8 +8,9 @@ Assign stories by domain ownership. The reviewer is ALWAYS a different persona
 from the implementer.
 
 Read team/INDEX.md (path from project.toml `[paths] team_dir`). Match story
-content against each persona's Domain Keywords column. Assign the persona whose
-keywords best match the story.
+content against each persona's domain and review focus (read each persona's file
+under team_dir for their Domain and Review Focus sections). Assign the persona
+whose domain best matches the story.
 
 For cross-cutting stories, assign by primary domain. If ambiguous, choose the
 domain that owns the most changed lines of code.

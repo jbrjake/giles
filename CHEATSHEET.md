@@ -462,4 +462,4 @@ See `validate_config.py:199` for the full list.
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:142` (TF), `update_burndown.py:69` |
 | Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:793` (ConfigGenerator.generate) |
 | Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |
-| Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:65 handles injection. |
+| Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:75 handles injection. |

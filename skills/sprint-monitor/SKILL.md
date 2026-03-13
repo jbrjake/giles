@@ -18,10 +18,12 @@ This skill is designed for use with `/loop 5m sprint-monitor`. Run it
 autonomously on each invocation: check GitHub state, take action where needed,
 and report. Invoke manually for a one-time status check.
 
-Each invocation performs five steps in order:
+Each invocation performs seven steps in order:
 0. Sync backlog to GitHub (milestones + issues)
 1. Check CI status
+1.5. Drift detection (branch divergence + direct pushes)
 2. Check open PRs
+2.5. Mid-sprint check-in
 3. Update burndown
 4. Report a one-line summary
 
@@ -230,9 +232,12 @@ python3 skills/sprint-monitor/scripts/check_status.py
 
 This script:
 - Queries GitHub milestones for open/closed issue counts.
-- Updates the sprint burndown file with current numbers.
-- Updates `SPRINT-STATUS.md` with current story states.
-- Posts a brief status summary to stdout.
+- Checks CI status for the base branch.
+- Outputs a status summary to stdout.
+
+Note: `check_status.py` is read-only — it queries and reports but does not write
+burndown or tracking files. For actual burndown file updates, use
+`skills/sprint-run/scripts/update_burndown.py`.
 
 If the script is missing or fails, reconstruct status manually:
 
@@ -240,8 +245,6 @@ If the script is missing or fails, reconstruct status manually:
 # Read repo from project.toml [project] repo
 gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title | startswith("Sprint")) | {title, open_issues, closed_issues}'
 ```
-
-Update `SPRINT-STATUS.md` directly with the counts.
 
 ## Step 4 -- Report
 
@@ -303,7 +306,7 @@ and fixes are not re-applied to passing CI.
 
 ## Manual Invocation
 
-When invoked outside of `/loop`, run all five steps once and output the full
+When invoked outside of `/loop`, run all seven steps once and output the full
 report. Accept optional flags:
 
 - `--ci-only` -- run only Step 1.

@@ -132,7 +132,7 @@ Collect release content from these sources:
 1. **Sprint demo artifacts.** Read demo notes from each sprint directory under
    `project.toml [paths] sprints_dir`:
    ```bash
-   ls ${sprints_dir}/sprint-*/demo-notes.md 2>/dev/null
+   ls ${sprints_dir}/sprint-*/demo.md 2>/dev/null
    ```
 
 2. **Closed issues in the milestone.** Pull the list from GitHub:

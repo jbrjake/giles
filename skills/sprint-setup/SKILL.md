@@ -36,7 +36,7 @@ Read `references/prerequisites-checklist.md` and verify each item:
 2. Superpowers plugin installed
 3. Git remote configured
 4. Language toolchain available (detected from `project.toml`)
-5. Python 3.10+ venv created and activated
+5. Python 3.10+ available
 
 If any prerequisite fails, follow the install/fix instructions in the checklist.
 Proceed to Step 2 only when all checks pass.
@@ -54,7 +54,6 @@ Read `references/github-conventions.md` for the full label taxonomy (persona, sp
 saga, priority, kanban, type categories).
 
 ```bash
-source .venv/bin/activate
 python skills/sprint-setup/scripts/bootstrap_github.py
 ```
 

@@ -129,4 +129,4 @@ Template: `references/skeletons/project.toml.tmpl`
 | Add a new kanban state | Update `skills/sprint-run/references/kanban-protocol.md` + `sync_tracking.py:26` `KANBAN_STATES` |
 | Change sprint tracking format | Edit `skills/sprint-run/references/tracking-formats.md` + update `sync_tracking.py` and `update_burndown.py` |
 | Add a skeleton template | Create `references/skeletons/<name>.tmpl`, wire it in `sprint_init.py:793` (ConfigGenerator.generate) |
-| Add deep documentation support | Set optional TOML keys (`paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`). Sprint-run Context Assembly (:65 in SKILL.md) handles injection into agent prompts. |
+| Add deep documentation support | Set optional TOML keys (`paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`). Sprint-run Context Assembly (:75 in SKILL.md) handles injection into agent prompts. |
