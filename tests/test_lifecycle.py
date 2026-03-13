@@ -416,13 +416,13 @@ class TestLifecycle(unittest.TestCase):
                 if story.story_id not in populate_issues.get_existing_issues():
                     populate_issues.create_issue(story, ms_numbers, ms_titles)
 
-        # Verify the pipeline produced results
-        self.assertGreater(len(self.fake_gh.labels), 10,
-                           "Should have many labels")
-        self.assertGreater(len(self.fake_gh.milestones), 0,
-                           "Should have milestones")
-        self.assertGreater(len(self.fake_gh.issues), 0,
-                           "Should have issues")
+        # Verify the pipeline produced expected counts
+        self.assertGreaterEqual(len(self.fake_gh.labels), 15,
+                                "Labels: static + persona + sprint + saga + kanban")
+        self.assertGreaterEqual(len(self.fake_gh.milestones), 1,
+                                "At least one milestone from sprint sections")
+        self.assertGreaterEqual(len(self.fake_gh.issues), 1,
+                                "At least one story issue created")
 
 
 if __name__ == "__main__":

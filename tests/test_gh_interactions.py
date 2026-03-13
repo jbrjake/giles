@@ -497,7 +497,7 @@ class TestGetExistingIssues(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestFindMilestoneTitle(unittest.TestCase):
-    """Test sync_tracking.find_milestone_title() with mocked find_milestone."""
+    """Test sync_tracking.find_milestone_title() pass-through."""
 
     @patch("sync_tracking.find_milestone")
     def test_finds_sprint(self, mock_find):
@@ -506,30 +506,75 @@ class TestFindMilestoneTitle(unittest.TestCase):
         self.assertEqual(result, "Sprint 1: Walking Skeleton")
 
     @patch("sync_tracking.find_milestone")
-    def test_no_match(self, mock_find):
+    def test_no_match_returns_none(self, mock_find):
         mock_find.return_value = None
         result = sync_tracking.find_milestone_title(1)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.find_milestone")
-    def test_empty_response(self, mock_find):
-        mock_find.return_value = None
-        result = sync_tracking.find_milestone_title(1)
+
+# Import validate_config for direct tests
+import validate_config
+
+
+class TestFindMilestoneBoundary(unittest.TestCase):
+    """BH-004/BH-007: Direct tests for find_milestone word-boundary regex.
+
+    These test the actual regex in find_milestone() by mocking only at the
+    system boundary (gh_json), not the function under test.
+    """
+
+    @patch("validate_config.gh_json")
+    def test_sprint_1_does_not_match_sprint_10(self, mock_gh):
+        """Sprint 1 search must not return 'Sprint 10: Polish'."""
+        mock_gh.return_value = [
+            {"title": "Sprint 10: Polish", "number": 10},
+            {"title": "Sprint 1: Walking Skeleton", "number": 1},
+        ]
+        result = validate_config.find_milestone(1)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 1)
+        self.assertEqual(result["title"], "Sprint 1: Walking Skeleton")
+
+    @patch("validate_config.gh_json")
+    def test_sprint_10_does_not_match_sprint_1(self, mock_gh):
+        """Sprint 10 search must not return 'Sprint 1: Walking Skeleton'."""
+        mock_gh.return_value = [
+            {"title": "Sprint 1: Walking Skeleton", "number": 1},
+            {"title": "Sprint 10: Polish", "number": 10},
+        ]
+        result = validate_config.find_milestone(10)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 10)
+
+    @patch("validate_config.gh_json")
+    def test_sprint_1_does_not_match_sprint_1a(self, mock_gh):
+        """Sprint 1 must not match 'Sprint 1a' or 'Sprint 11'."""
+        mock_gh.return_value = [
+            {"title": "Sprint 1a: Special", "number": 2},
+            {"title": "Sprint 11: Endgame", "number": 11},
+        ]
+        result = validate_config.find_milestone(1)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.find_milestone")
-    def test_sprint_1_does_not_match_sprint_10(self, mock_find):
-        """P1-01: Sprint prefix matching must use word boundary."""
-        mock_find.return_value = None  # find_milestone handles boundary matching
-        result = sync_tracking.find_milestone_title(1)
+    @patch("validate_config.gh_json")
+    def test_sprint_100_does_not_match_sprint_10(self, mock_gh):
+        mock_gh.return_value = [
+            {"title": "Sprint 10: Polish", "number": 10},
+        ]
+        result = validate_config.find_milestone(100)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.find_milestone")
-    def test_sprint_10_matches_correctly(self, mock_find):
-        """P1-01: Sprint 10 should match Sprint 10."""
-        mock_find.return_value = {"title": "Sprint 10: Polish", "number": 10}
-        result = sync_tracking.find_milestone_title(10)
-        self.assertEqual(result, "Sprint 10: Polish")
+    @patch("validate_config.gh_json")
+    def test_no_milestones_returns_none(self, mock_gh):
+        mock_gh.return_value = []
+        result = validate_config.find_milestone(1)
+        self.assertIsNone(result)
+
+    @patch("validate_config.gh_json")
+    def test_non_list_response_returns_none(self, mock_gh):
+        mock_gh.return_value = {"error": "not found"}
+        result = validate_config.find_milestone(1)
+        self.assertIsNone(result)
 
 
 class TestGetLinkedPR(unittest.TestCase):

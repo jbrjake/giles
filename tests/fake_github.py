@@ -177,7 +177,9 @@ class FakeGitHub:
         if "milestones" in path and "-X" in args:
             return self._ok("{}")
 
-        return self._ok("[]")
+        # Fail loudly on unhandled API paths instead of silently returning []
+        # so new API calls in production don't get free "green bar" (BH-008)
+        return self._fail(f"FakeGitHub: unhandled API path: {path}")
 
     # -- Handler: issue -------------------------------------------------------
 

@@ -400,12 +400,12 @@ class TestParseSimpleToml(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_malformed_quotes(self):
-        """Unmatched quotes don't crash — value is returned as-is."""
+        """Unmatched quotes don't crash — value is returned as raw string."""
         # Single unmatched opening quote: falls through to raw string fallback
         result = parse_simple_toml('key = "unterminated')
         self.assertIn("key", result)
-        # The parser shouldn't raise; the value may be the raw string
-        self.assertIsNotNone(result["key"])
+        # No closing quote → not parsed as string → returned as raw fallback
+        self.assertEqual(result["key"], '"unterminated')
 
     def test_multiline_arrays(self):
         """Arrays split across multiple lines parse correctly."""
@@ -976,6 +976,205 @@ class TestScannerMinimalProject(unittest.TestCase):
         det = self.scanner.detect_binary_path("Unknown")
         self.assertIsNone(det.value)
         self.assertEqual(det.confidence, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# BH-005: validate_project negative tests
+# ---------------------------------------------------------------------------
+
+import tempfile
+import os
+from validate_config import validate_project, detect_sprint, extract_story_id, kanban_from_labels
+
+
+class TestValidateProjectNegative(unittest.TestCase):
+    """BH-005: Negative tests for validate_project error paths."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp()
+        self.config_dir = Path(self._tmpdir) / "sprint-config"
+        self.config_dir.mkdir()
+
+    def tearDown(self):
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _write_minimal_config(self):
+        """Create a minimal valid config for selective invalidation."""
+        (self.config_dir / "project.toml").write_text(
+            '[project]\nname = "Test"\nrepo = "o/r"\nlanguage = "Python"\n'
+            '[paths]\nteam_dir = "sprint-config/team"\n'
+            'backlog_dir = "sprint-config/backlog"\n'
+            'sprints_dir = "sprints"\n'
+            '[ci]\ncheck_commands = ["pytest"]\nbuild_command = "pip install ."\n',
+            encoding="utf-8",
+        )
+        (self.config_dir / "rules.md").write_text("# Rules\n", encoding="utf-8")
+        (self.config_dir / "development.md").write_text("# Dev\n", encoding="utf-8")
+        team = self.config_dir / "team"
+        team.mkdir()
+        (team / "INDEX.md").write_text(
+            "| Name | Role | File |\n|---|---|---|\n"
+            "| Alice | Dev | alice.md |\n| Bob | Rev | bob.md |\n",
+            encoding="utf-8",
+        )
+        (team / "alice.md").write_text("# Alice\n", encoding="utf-8")
+        (team / "bob.md").write_text("# Bob\n", encoding="utf-8")
+        backlog = self.config_dir / "backlog"
+        backlog.mkdir()
+        (backlog / "INDEX.md").write_text("# Backlog\n", encoding="utf-8")
+        ms_dir = backlog / "milestones"
+        ms_dir.mkdir()
+        (ms_dir / "m1.md").write_text("# Sprint 1\n", encoding="utf-8")
+
+    def test_missing_required_file(self):
+        """Missing project.toml causes validation failure."""
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("project.toml" in e for e in errors))
+
+    def test_invalid_toml(self):
+        """Unparseable project.toml causes validation failure."""
+        self._write_minimal_config()
+        (self.config_dir / "project.toml").write_text(
+            "not valid toml content [[[\n", encoding="utf-8"
+        )
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        # Should report missing required sections/keys
+        self.assertTrue(any("missing required" in e.lower() for e in errors))
+
+    def test_too_few_personas(self):
+        """Fewer than 2 personas triggers validation error."""
+        self._write_minimal_config()
+        (self.config_dir / "team" / "INDEX.md").write_text(
+            "| Name | Role | File |\n|---|---|---|\n| Solo | Dev | solo.md |\n",
+            encoding="utf-8",
+        )
+        (self.config_dir / "team" / "solo.md").write_text("# Solo\n", encoding="utf-8")
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("at least 2 personas" in e for e in errors))
+
+    def test_missing_persona_file(self):
+        """Referenced persona file not on disk triggers error."""
+        self._write_minimal_config()
+        # Remove alice.md but keep her in INDEX
+        (self.config_dir / "team" / "alice.md").unlink()
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("alice" in e.lower() for e in errors))
+
+    def test_missing_required_toml_key(self):
+        """Missing [ci] section triggers error."""
+        self._write_minimal_config()
+        (self.config_dir / "project.toml").write_text(
+            '[project]\nname = "Test"\nrepo = "o/r"\nlanguage = "Py"\n'
+            '[paths]\nteam_dir = "t"\nbacklog_dir = "b"\nsprints_dir = "s"\n',
+            encoding="utf-8",
+        )
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("ci" in e.lower() for e in errors))
+
+    def test_empty_rules_file(self):
+        """Empty rules.md triggers validation error."""
+        self._write_minimal_config()
+        (self.config_dir / "rules.md").write_text("", encoding="utf-8")
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("empty" in e.lower() for e in errors))
+
+    def test_no_milestone_files(self):
+        """Empty milestones directory triggers error."""
+        self._write_minimal_config()
+        for f in (self.config_dir / "backlog" / "milestones").iterdir():
+            f.unlink()
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid)
+        self.assertTrue(any("milestone" in e.lower() for e in errors))
+
+    def test_valid_config_passes(self):
+        """Sanity check: a well-formed config passes validation."""
+        self._write_minimal_config()
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertTrue(valid, f"Expected valid config, got errors: {errors}")
+
+
+# ---------------------------------------------------------------------------
+# BH-010: Tests for previously uncovered utility functions
+# ---------------------------------------------------------------------------
+
+
+class TestDetectSprint(unittest.TestCase):
+    """Direct tests for detect_sprint()."""
+
+    def test_reads_sprint_number_from_status(self):
+        with tempfile.TemporaryDirectory() as d:
+            sd = Path(d)
+            (sd / "SPRINT-STATUS.md").write_text(
+                "# Status\nCurrent Sprint: 3\n", encoding="utf-8"
+            )
+            self.assertEqual(detect_sprint(sd), 3)
+
+    def test_returns_none_when_no_status_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(detect_sprint(Path(d)))
+
+    def test_returns_none_when_no_sprint_number(self):
+        with tempfile.TemporaryDirectory() as d:
+            sd = Path(d)
+            (sd / "SPRINT-STATUS.md").write_text(
+                "# Status\nNo sprint info here\n", encoding="utf-8"
+            )
+            self.assertIsNone(detect_sprint(sd))
+
+
+class TestExtractStoryId(unittest.TestCase):
+    """Direct tests for extract_story_id()."""
+
+    def test_standard_format(self):
+        self.assertEqual(extract_story_id("US-0001: Setup project"), "US-0001")
+
+    def test_non_standard_prefix(self):
+        self.assertEqual(extract_story_id("PROJ-42: Widget"), "PROJ-42")
+
+    def test_no_match_falls_back_to_prefix(self):
+        self.assertEqual(extract_story_id("setup: init project"), "setup")
+
+    def test_no_colon_returns_full_title(self):
+        self.assertEqual(extract_story_id("no colon here"), "no colon here")
+
+
+class TestKanbanFromLabels(unittest.TestCase):
+    """Direct tests for kanban_from_labels()."""
+
+    def test_kanban_label_dict(self):
+        issue = {"labels": [{"name": "kanban:in-progress"}], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "in-progress")
+
+    def test_kanban_label_string(self):
+        issue = {"labels": ["kanban:review"], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "review")
+
+    def test_no_kanban_label_open(self):
+        issue = {"labels": [{"name": "type:story"}], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "todo")
+
+    def test_no_kanban_label_closed(self):
+        issue = {"labels": [], "state": "closed"}
+        self.assertEqual(kanban_from_labels(issue), "done")
+
+    def test_empty_labels(self):
+        issue = {"labels": [], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "todo")
+
+    def test_multiple_labels_first_kanban_wins(self):
+        issue = {"labels": [
+            {"name": "type:story"},
+            {"name": "kanban:blocked"},
+            {"name": "sp:3"},
+        ], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "blocked")
 
 
 if __name__ == "__main__":
