@@ -68,8 +68,11 @@ def parse_simple_toml(text: str) -> dict:
 
         # Continue collecting a multiline array
         if multiline_key is not None:
-            multiline_buf += " " + line
-            if "]" in line:
+            # Strip inline comments per continuation line (BH-001),
+            # and use quote-aware bracket detection (BH-002).
+            stripped_line = _strip_inline_comment(line)
+            multiline_buf += " " + stripped_line
+            if _has_closing_bracket(stripped_line):
                 _set_nested(
                     root, section_path, multiline_key,
                     _parse_value(multiline_buf.strip()),
@@ -82,8 +85,8 @@ def parse_simple_toml(text: str) -> dict:
         if not line or line.startswith("#"):
             continue
 
-        # Section header: [section] or [section.subsection]
-        header_match = re.match(r"^\[([a-zA-Z0-9_][a-zA-Z0-9_.]*)\]\s*(?:#.*)?$", line)
+        # Section header: [section] or [section.subsection] (hyphens allowed)
+        header_match = re.match(r"^\[([a-zA-Z0-9_][a-zA-Z0-9_.-]*)\]\s*(?:#.*)?$", line)
         if header_match:
             section_path = header_match.group(1).split(".")
             # Ensure the nested dicts exist
@@ -100,9 +103,9 @@ def parse_simple_toml(text: str) -> dict:
             key = kv_match.group(1)
             raw_val = kv_match.group(2).strip()
 
-            # Detect multiline array: line ends with [ but no closing ]
+            # Detect multiline array: starts with [ but no unquoted closing ]
             stripped_no_comment = _strip_inline_comment(raw_val)
-            if stripped_no_comment.startswith("[") and "]" not in stripped_no_comment:
+            if stripped_no_comment.startswith("[") and not _has_closing_bracket(stripped_no_comment[1:]):
                 multiline_key = key
                 multiline_buf = stripped_no_comment
                 continue
@@ -123,6 +126,41 @@ def _strip_inline_comment(val: str) -> str:
     return val
 
 
+def _has_closing_bracket(s: str) -> bool:
+    """Check if s contains ] outside of quoted strings."""
+    in_str = False
+    for i, ch in enumerate(s):
+        if ch == '"' and (i == 0 or s[i - 1] != "\\"):
+            in_str = not in_str
+        elif ch == ']' and not in_str:
+            return True
+    return False
+
+
+def _unescape_toml_string(s: str) -> str:
+    """Process basic TOML escape sequences: \\n, \\t, \\\\, \\"."""
+    result: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i] == '\\' and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == 'n':
+                result.append('\n')
+            elif nxt == 't':
+                result.append('\t')
+            elif nxt == '\\':
+                result.append('\\')
+            elif nxt == '"':
+                result.append('"')
+            else:
+                result.append(s[i:i + 2])  # Unknown escape, keep as-is
+            i += 2
+        else:
+            result.append(s[i])
+            i += 1
+    return ''.join(result)
+
+
 def _parse_value(raw: str):
     """Parse a single TOML value (string, int, bool, or array)."""
     raw = _strip_inline_comment(raw).strip()
@@ -133,9 +171,9 @@ def _parse_value(raw: str):
     if raw == "false":
         return False
 
-    # String
-    if raw.startswith('"') and raw.endswith('"'):
-        return raw[1:-1].replace('\\"', '"')
+    # String (must be at least 2 chars: opening + closing quote)
+    if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
+        return _unescape_toml_string(raw[1:-1])
 
     # Array
     if raw.startswith("[") and raw.endswith("]"):
