@@ -188,14 +188,15 @@ def update_epic_index(
     epics_path = Path(epics_dir)
     epics_data: list[dict] = []
     for md_file in sorted(epics_path.glob("*.md")):
+        # The filename must be like E-0101-parsing.md — skip non-standard names
+        parts = md_file.stem.split("-")
+        if len(parts) < 2:
+            continue
+        epic_id = f"{parts[0]}-{parts[1]}"
         epic = parse_epic(str(md_file))
         # Filter by saga if specified
         if saga_id and epic.get("saga") != saga_id:
             continue
-        # The filename is like E-0101-parsing.md
-        parts = md_file.stem.split("-")
-        if len(parts) >= 2:
-            epic_id = f"{parts[0]}-{parts[1]}"
         epics_data.append({
             "id": epic_id,
             "name": epic.get("title", "").split(" — ", 1)[-1] if " — " in epic.get("title", "") else epic.get("title", ""),
