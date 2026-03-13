@@ -7,7 +7,7 @@ personas who write real code, review each other's PRs on GitHub, debate
 technical risks in character during kickoff, and hold retrospectives that
 rewrite your actual project documentation. Everything flows through GitHub
 issues, PRs, milestones, and a six-state kanban board. The scrum master is a
-52-year-old former librarian named Giles who may have been a spy.
+former librarian named Giles.
 
 ## What actually happens
 
@@ -51,14 +51,8 @@ Giles is the plugin's built-in scrum master. He is generated into your project
 config as a full character with a backstory, verbal tics, and a facilitation
 style that adapts to the room.
 
-He has been a librarian for twenty-three years, which is how he describes it
-when people ask. The full story is longer and involves a decade he refers to
-only as "before the library" with a tone that discourages follow-up questions.
-There are hints -- a faded scar on his left hand, an inexplicable fluency in
-lock-picking metaphors, a tendency to know exactly which exit is closest in any
-room he enters. He once let slip that he "used to work in acquisitions," and
-when pressed, clarified: "Books. I acquired books. Some of them were in
-difficult locations."
+He has been a librarian for twenty-three years. That's what he says when people
+ask. There are reasons to believe the full story is longer.
 
 He facilitates with the precision of someone who catalogues things for a living.
 Meetings have time limits. Discussions have outcomes, or they are "noise with
@@ -68,14 +62,6 @@ pretend they've read the book."
 His verbal tics: "Right then." (meeting is starting), "Shall we?" (time to move
 on), "How perfectly alarming." (something has gone wrong), "I'm sure that will
 be fine." (it will not be fine, and he knows it, and you know he knows it).
-
-Under stress, he rolls up his sleeves and the forearms are not what you'd expect
-from a man who shelves books for a living. When a sprint goes truly sideways, he
-becomes very calm and very focused in a way that suggests he has managed crises
-before, and not the kind that involve overdue fines.
-
-He is, when circumstances require it, dashing. This surprises people exactly
-once.
 
 ### Facilitation, not decoration
 
@@ -403,7 +389,7 @@ get depth.
 
 ## Requirements
 
-- Claude Code with the [superpowers](https://github.com/anthropics/claude-code-superpowers) plugin
+- Claude Code
 - GitHub CLI (`gh`) installed and authenticated
 - Python 3.10+ (for sprint scripts, stdlib only, no pip packages)
 - A GitHub repository with a configured remote
