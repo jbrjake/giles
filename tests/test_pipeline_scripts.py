@@ -147,5 +147,72 @@ class TestTraceability(unittest.TestCase):
             self.assertGreater(len(data["stories"]), 0, f"{req_id} has no story links")
 
 
+# ---------------------------------------------------------------------------
+# Task 2: Test Coverage
+# ---------------------------------------------------------------------------
+
+from test_coverage import check_test_coverage, detect_test_functions
+
+
+class TestCoverage(unittest.TestCase):
+    """Compare planned test cases against actual test files."""
+
+    def test_coverage_no_actual_tests(self):
+        """Hexwise fixture has no actual test files (it's a fixture)."""
+        report = check_test_coverage(
+            test_plan_dir=str(HEXWISE / "docs" / "test-plan"),
+            project_root=str(HEXWISE),
+            language="rust",
+        )
+        self.assertGreater(len(report["planned"]), 0)
+        self.assertEqual(len(report["implemented"]), 0)
+        self.assertEqual(report["planned"], report["missing"])
+
+    def test_coverage_language_detection_rust(self):
+        """Detect #[test] fn patterns in Rust."""
+        funcs = detect_test_functions("rust", '#[test]\nfn test_parsing() {')
+        self.assertEqual(funcs, ["test_parsing"])
+
+    def test_coverage_language_detection_python(self):
+        """Detect def test_* patterns in Python."""
+        funcs = detect_test_functions("python", 'def test_parsing(self):')
+        self.assertEqual(funcs, ["test_parsing"])
+
+    def test_coverage_language_detection_js(self):
+        """Detect it/test patterns in JavaScript."""
+        funcs = detect_test_functions("javascript", "it('should parse colors', () => {")
+        self.assertEqual(funcs, ["should parse colors"])
+
+    def test_coverage_language_detection_go(self):
+        """Detect func Test* patterns in Go."""
+        funcs = detect_test_functions("go", 'func TestParsing(t *testing.T) {')
+        self.assertEqual(funcs, ["TestParsing"])
+
+    def test_coverage_with_actual_tests(self):
+        """Detect test functions when actual test files exist."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create a minimal test plan
+            plan_dir = Path(tmp) / "plan"
+            plan_dir.mkdir()
+            (plan_dir / "tests.md").write_text(
+                "### TC-001: Parse hex\n### TC-002: Parse RGB\n"
+            )
+            # Create actual test file with one matching function
+            test_dir = Path(tmp) / "project" / "tests"
+            test_dir.mkdir(parents=True)
+            (test_dir / "test_parse.py").write_text(
+                "def test_parse_hex():\n    pass\n"
+            )
+            report = check_test_coverage(
+                test_plan_dir=str(plan_dir),
+                project_root=str(Path(tmp) / "project"),
+                language="python",
+            )
+            self.assertEqual(len(report["planned"]), 2)
+            self.assertEqual(len(report["implemented"]), 1)
+            self.assertIn("test_parse_hex", report["implemented"])
+
+
 if __name__ == "__main__":
     unittest.main()
