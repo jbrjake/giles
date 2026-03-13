@@ -28,7 +28,7 @@ from validate_config import (
 def list_milestone_issues(milestone_title: str) -> list[dict]:
     raw = gh([
         "issue", "list", "--milestone", milestone_title, "--state", "all",
-        "--json", "number,title,state,labels,closedAt,body", "--limit", "200",
+        "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
     ])
     issues = json.loads(raw) if raw else []
     warn_if_at_limit(issues)

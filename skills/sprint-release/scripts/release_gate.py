@@ -26,7 +26,7 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-from validate_config import load_config, get_base_branch, gh, gh_json
+from validate_config import load_config, get_base_branch, gh, gh_json, warn_if_at_limit
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 
 
@@ -127,8 +127,9 @@ def gate_stories(milestone_title: str) -> tuple[bool, str]:
     """Gate: all issues in the milestone must be closed."""
     issues = gh_json([
         "issue", "list", "--milestone", milestone_title,
-        "--state", "open", "--json", "number,title", "--limit", "200",
+        "--state", "open", "--json", "number,title", "--limit", "500",
     ])
+    warn_if_at_limit(issues, 500)
     if not issues:
         return True, "All issues closed"
     titles = [f"#{i['number']}: {i['title']}" for i in issues[:5]]
@@ -157,8 +158,9 @@ def gate_prs(milestone_title: str) -> tuple[bool, str]:
     """Gate: no open PRs should target this milestone."""
     prs = gh_json([
         "pr", "list",
-        "--json", "number,title,milestone", "--limit", "200",
+        "--json", "number,title,milestone", "--limit", "500",
     ])
+    warn_if_at_limit(prs, 500)
     matching = [
         p for p in prs
         if (p.get("milestone") or {}).get("title") == milestone_title

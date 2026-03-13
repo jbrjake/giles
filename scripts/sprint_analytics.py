@@ -43,7 +43,7 @@ def compute_velocity(
         "issue", "list", "--milestone", milestone_title,
         "--state", "all",
         "--json", "state,labels,body,title",
-        "--limit", "200",
+        "--limit", "500",
     ])
     if not isinstance(issues, list):
         issues = []
@@ -80,7 +80,7 @@ def compute_review_rounds(
     prs = gh_json([
         "pr", "list", "--state", "all",
         "--json", "number,title,labels,milestone,reviews",
-        "--limit", "200",
+        "--limit", "500",
     ])
     if not isinstance(prs, list):
         prs = []
@@ -130,10 +130,11 @@ def compute_workload(
         "issue", "list", "--milestone", milestone_title,
         "--state", "all",
         "--json", "labels",
-        "--limit", "200",
+        "--limit", "500",
     ])
     if not isinstance(issues, list):
         issues = []
+    warn_if_at_limit(issues, 500)
 
     persona_counts: dict[str, int] = {}
     for iss in issues:

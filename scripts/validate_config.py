@@ -615,7 +615,7 @@ def find_milestone(repo_or_sprint: str | int, sprint_num: int | None = None) -> 
     return None
 
 
-def warn_if_at_limit(results: list, limit: int = 200) -> list:
+def warn_if_at_limit(results: list, limit: int = 500) -> list:
     """Warn if API results hit the limit, suggesting data may be incomplete."""
     if len(results) >= limit:
         print(f"Warning: query returned {limit} results (the limit). "

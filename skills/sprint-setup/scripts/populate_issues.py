@@ -14,7 +14,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_milestones, gh
+from validate_config import load_config, get_milestones, gh, warn_if_at_limit
 
 
 @dataclass
@@ -230,8 +230,9 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 def get_existing_issues() -> set[str]:
     """Fetch existing issue title prefixes (story IDs) for idempotency."""
     try:
-        raw = gh(["issue", "list", "--limit", "200", "--json", "title", "--state", "all"])
+        raw = gh(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
         issues = json.loads(raw) if raw else []
+        warn_if_at_limit(issues, 500)
     except (RuntimeError, json.JSONDecodeError):
         return set()
     existing: set[str] = set()

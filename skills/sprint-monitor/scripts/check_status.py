@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, detect_sprint
+from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, detect_sprint, warn_if_at_limit
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -193,8 +193,9 @@ def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
         issues = gh_json([
             "issue", "list", "--milestone", ms["title"],
             "--state", "all",
-            "--json", "state,labels,body", "--limit", "200",
+            "--json", "state,labels,body", "--limit", "500",
         ])
+        warn_if_at_limit(issues, 500)
         t_sp, d_sp = _count_sp(issues)
         if t_sp:
             sp_part = f", {d_sp}/{t_sp} SP"

@@ -355,7 +355,7 @@ def print_github_cleanup_hints() -> None:
     """Print manual GitHub cleanup commands."""
     print("\nGitHub cleanup (manual — not executed):")
     print("  Remove sprint labels:")
-    print('    gh label list --limit 200 --json name --jq \'')
+    print('    gh label list --limit 500 --json name --jq \'')
     print('      .[] | select(.name | test("^(kanban:|priority:|type:|persona:|sprint:|saga:)")) | .name\'')
     print("    | while read label; do gh label delete \"$label\" --yes; done")
     print()

@@ -38,7 +38,7 @@ def list_issues(title: str) -> list[dict]:
     raw = gh([
         "issue", "list", "--milestone", title, "--state", "all",
         "--json", "number,title,state,labels,closedAt,body",
-        "--limit", "200",
+        "--limit", "500",
     ])
     issues = json.loads(raw) if raw else []
     warn_if_at_limit(issues)
