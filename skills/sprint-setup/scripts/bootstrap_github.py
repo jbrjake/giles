@@ -216,7 +216,6 @@ def create_milestones_on_github(config: dict) -> None:
         return
 
     print("\n=== Creating Milestones ===\n")
-    repo = config.get("project", {}).get("repo", "")
 
     for i, mf_path in enumerate(milestone_files, 1):
         mf = Path(mf_path)

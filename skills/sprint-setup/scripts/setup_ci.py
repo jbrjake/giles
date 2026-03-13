@@ -243,13 +243,19 @@ def generate_ci_yaml(config: dict) -> str:
     # Check jobs (linting, formatting, etc.) — skip test commands
     # since they get a dedicated cross-OS matrix job below
     job_names: list[str] = []
+    seen_slugs: set[str] = set()
     for i, cmd in enumerate(check_commands):
         if test_cmd and cmd == test_cmd:
             continue
         name = _job_name_from_command(cmd, i)
+        slug = name.lower().replace(" ", "-").replace("/", "-")
+        # Deduplicate: append index if slug already used
+        if slug in seen_slugs:
+            name = f"{name} {i + 1}"
+            slug = f"{slug}-{i + 1}"
+        seen_slugs.add(slug)
         job = _generate_check_job(name, cmd, setup)
         lines.append(job)
-        slug = name.lower().replace(" ", "-").replace("/", "-")
         job_names.append(slug)
 
     # Test job -- cross-OS matrix is more valuable than a single-OS check
@@ -273,7 +279,13 @@ def _job_name_from_command(cmd: str, index: int) -> str:
     cmd_lower = cmd.lower()
     if "fmt" in cmd_lower or "format" in cmd_lower or "black" in cmd_lower:
         return "Format"
-    if "lint" in cmd_lower or "clippy" in cmd_lower or "pylint" in cmd_lower:
+    if "clippy" in cmd_lower:
+        return "Clippy"
+    if "pylint" in cmd_lower:
+        return "Pylint"
+    if "eslint" in cmd_lower:
+        return "ESLint"
+    if "lint" in cmd_lower:
         return "Lint"
     if "type" in cmd_lower or "mypy" in cmd_lower:
         return "Type Check"
@@ -281,8 +293,6 @@ def _job_name_from_command(cmd: str, index: int) -> str:
         return "Test"
     if "audit" in cmd_lower:
         return "Audit"
-    if "eslint" in cmd_lower:
-        return "Lint"
     if "vet" in cmd_lower:
         return "Vet"
     return f"Check {index + 1}"
