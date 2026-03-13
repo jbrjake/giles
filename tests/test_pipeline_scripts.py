@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HEXWISE = ROOT / "tests" / "fixtures" / "hexwise"
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +24,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 # ---------------------------------------------------------------------------
 
 from team_voices import extract_voices
+from validate_config import parse_simple_toml
+from setup_ci import generate_ci_yaml
 
 
 class TestTeamVoices(unittest.TestCase):
@@ -41,12 +44,13 @@ class TestTeamVoices(unittest.TestCase):
         self.assertGreaterEqual(len(rusti_quotes), 1)
         self.assertIn("type system", rusti_quotes[0]["quote"].lower())
 
-    def test_extract_voices_from_epics(self):
-        """Epic files don't have team voice blocks in Hexwise."""
+    def test_extract_voices_from_epics_returns_empty(self):
+        """Hexwise epic files have no team voice blocks — returns empty dict."""
         voices = extract_voices(
             epics_dir=str(HEXWISE / "docs" / "agile" / "epics"),
         )
         self.assertIsInstance(voices, dict)
+        self.assertEqual(len(voices), 0, "Expected no voices in Hexwise epics")
 
     def test_extract_voices_empty_dir(self):
         """Gracefully handle directories with no persona commentary."""
@@ -158,7 +162,7 @@ class TestCoverage(unittest.TestCase):
     """Compare planned test cases against actual test files."""
 
     def test_coverage_no_actual_tests(self):
-        """Hexwise fixture has no actual test files (it's a fixture)."""
+        """With no test implementations, all planned tests are missing."""
         report = check_test_coverage(
             test_plan_dir=str(HEXWISE / "docs" / "test-plan"),
             project_root=str(HEXWISE),
@@ -166,7 +170,9 @@ class TestCoverage(unittest.TestCase):
         )
         self.assertGreater(len(report["planned"]), 0)
         self.assertEqual(len(report["implemented"]), 0)
-        self.assertEqual(report["planned"], report["missing"])
+        # With no implementations, nothing can match — all planned are missing
+        self.assertEqual(report["missing"], report["planned"])
+        self.assertEqual(len(report.get("matched", [])), 0)
 
     def test_coverage_language_detection_rust(self):
         """Detect #[test] fn patterns in Rust."""
@@ -189,7 +195,7 @@ class TestCoverage(unittest.TestCase):
         self.assertEqual(funcs, ["TestParsing"])
 
     def test_coverage_with_actual_tests(self):
-        """Detect test functions when actual test files exist."""
+        """Fuzzy matching connects planned TC-001 to test_001_parse_hex."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             # Create a minimal test plan
@@ -198,11 +204,11 @@ class TestCoverage(unittest.TestCase):
             (plan_dir / "tests.md").write_text(
                 "### TC-001: Parse hex\n### TC-002: Parse RGB\n"
             )
-            # Create actual test file with one matching function
+            # Create actual test file — matches TC-001 via "001" slug
             test_dir = Path(tmp) / "project" / "tests"
             test_dir.mkdir(parents=True)
             (test_dir / "test_parse.py").write_text(
-                "def test_parse_hex():\n    pass\n"
+                "def test_tc_001_parse_hex():\n    pass\n"
             )
             report = check_test_coverage(
                 test_plan_dir=str(plan_dir),
@@ -211,14 +217,18 @@ class TestCoverage(unittest.TestCase):
             )
             self.assertEqual(len(report["planned"]), 2)
             self.assertEqual(len(report["implemented"]), 1)
-            self.assertIn("test_parse_hex", report["implemented"])
+            self.assertIn("test_tc_001_parse_hex", report["implemented"])
+            # TC-001 matched, TC-002 still missing
+            self.assertIn("TC-001", report["matched"])
+            self.assertNotIn("TC-001", report["missing"])
+            self.assertIn("TC-002", report["missing"])
 
 
 # ---------------------------------------------------------------------------
 # Task 3: Epic Management
 # ---------------------------------------------------------------------------
 
-from manage_epics import parse_epic, add_story, remove_story, reorder_stories
+from manage_epics import parse_epic, add_story, remove_story, reorder_stories, renumber_stories
 
 
 class TestManageEpics(unittest.TestCase):
@@ -311,7 +321,7 @@ class TestManageEpics(unittest.TestCase):
 # Task 3: Saga Management
 # ---------------------------------------------------------------------------
 
-from manage_sagas import parse_saga, update_sprint_allocation, update_epic_index
+from manage_sagas import parse_saga, update_sprint_allocation, update_epic_index, update_team_voices
 
 
 class TestManageSagas(unittest.TestCase):
@@ -373,6 +383,315 @@ class TestManageSagas(unittest.TestCase):
             result = parse_saga(str(saga_path))
             # Should still have 3 epics for S01
             self.assertEqual(len(result["epic_index"]), 3)
+
+
+# ---------------------------------------------------------------------------
+# Task 5: parse_simple_toml Edge Cases
+# ---------------------------------------------------------------------------
+
+
+class TestParseSimpleToml(unittest.TestCase):
+    """Edge-case tests for the minimal TOML parser in validate_config.py."""
+
+    def test_empty_input(self):
+        """Empty string returns empty dict."""
+        result = parse_simple_toml("")
+        self.assertEqual(result, {})
+
+    def test_malformed_quotes(self):
+        """Unmatched quotes don't crash — value is returned as-is."""
+        # Single unmatched opening quote: falls through to raw string fallback
+        result = parse_simple_toml('key = "unterminated')
+        self.assertIn("key", result)
+        # The parser shouldn't raise; the value may be the raw string
+        self.assertIsNotNone(result["key"])
+
+    def test_multiline_arrays(self):
+        """Arrays split across multiple lines parse correctly."""
+        toml_text = (
+            'items = [\n'
+            '  "a",\n'
+            '  "b",\n'
+            ']'
+        )
+        result = parse_simple_toml(toml_text)
+        self.assertEqual(result["items"], ["a", "b"])
+
+    def test_inline_comments(self):
+        """Trailing # comment after a value is stripped."""
+        result = parse_simple_toml('key = "value" # this is a comment')
+        self.assertEqual(result["key"], "value")
+
+    def test_boolean_parsing(self):
+        """Bare true/false parse to Python bools."""
+        result = parse_simple_toml("enabled = true\ndisabled = false")
+        self.assertIs(result["enabled"], True)
+        self.assertIs(result["disabled"], False)
+
+    def test_integer_parsing(self):
+        """Bare integers parse to Python int."""
+        result = parse_simple_toml("port = 42")
+        self.assertEqual(result["port"], 42)
+        self.assertIsInstance(result["port"], int)
+
+    def test_nested_sections(self):
+        """Dotted section header [a.b] creates nested dicts."""
+        toml_text = "[a.b]\nkey = 1"
+        result = parse_simple_toml(toml_text)
+        self.assertEqual(result["a"]["b"]["key"], 1)
+
+    def test_duplicate_sections(self):
+        """A repeated [section] header merges keys, doesn't overwrite."""
+        toml_text = (
+            "[section]\n"
+            "first = 1\n"
+            "\n"
+            "[section]\n"
+            "second = 2\n"
+        )
+        result = parse_simple_toml(toml_text)
+        self.assertEqual(result["section"]["first"], 1)
+        self.assertEqual(result["section"]["second"], 2)
+
+    def test_comments_only(self):
+        """A file containing only comments returns empty dict."""
+        toml_text = "# just a comment\n# another comment\n  # indented comment"
+        result = parse_simple_toml(toml_text)
+        self.assertEqual(result, {})
+
+
+# ---------------------------------------------------------------------------
+# P2-05: Non-Rust CI Generation
+# ---------------------------------------------------------------------------
+
+
+class TestCIGeneration(unittest.TestCase):
+    """Verify CI YAML generation for Python, Node.js, and Go."""
+
+    def test_python_ci_yaml(self):
+        """Python config produces YAML with pip install, pytest, python."""
+        config = {
+            "project": {"name": "test", "language": "Python", "repo": "o/r"},
+            "ci": {
+                "check_commands": ["ruff check .", "pytest"],
+                "build_command": "python -m build",
+            },
+        }
+        yaml = generate_ci_yaml(config)
+        self.assertIn("pip install", yaml)
+        self.assertIn("pytest", yaml)
+        self.assertIn("python", yaml)
+
+    def test_node_ci_yaml(self):
+        """Node config produces YAML with npm and node references."""
+        config = {
+            "project": {"name": "test", "language": "Node.js", "repo": "o/r"},
+            "ci": {
+                "check_commands": ["eslint .", "npm test"],
+                "build_command": "npm run build",
+            },
+        }
+        yaml = generate_ci_yaml(config)
+        self.assertIn("npm", yaml)
+        self.assertIn("node", yaml)
+
+    def test_go_ci_yaml(self):
+        """Go config produces YAML with go test and go vet."""
+        config = {
+            "project": {"name": "test", "language": "Go", "repo": "o/r"},
+            "ci": {
+                "check_commands": ["go vet ./...", "go test ./..."],
+                "build_command": "go build ./...",
+            },
+        }
+        yaml = generate_ci_yaml(config)
+        self.assertIn("go test", yaml)
+        self.assertIn("go vet", yaml)
+
+
+# ---------------------------------------------------------------------------
+# P2-08: Update Team Voices
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateTeamVoices(unittest.TestCase):
+    """Test update_team_voices in manage_sagas."""
+
+    def _make_saga(self, tmp_path: Path) -> Path:
+        """Create a minimal saga file with a Team Voices section."""
+        saga = tmp_path / "S99-test.md"
+        saga.write_text(
+            "# S99 — Test Saga\n"
+            "\n"
+            "Introductory paragraph.\n"
+            "\n"
+            "## Team Voices\n"
+            "\n"
+            "> **Old Voice:** \"Placeholder.\"\n"
+            "\n"
+            "## Epic Index\n"
+            "\n"
+            "| Epic | Name | Stories | SP |\n"
+            "|------|------|---------|-----|\n"
+            "| E-9901 | Testing | 2 | 5 |\n",
+            encoding="utf-8",
+        )
+        return saga
+
+    def test_single_voice(self):
+        """Single voice appears in blockquote; surrounding content preserved."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            update_team_voices(str(saga_path), {"Ada": "I love types"})
+            content = saga_path.read_text(encoding="utf-8")
+            # Voice appears in blockquote format
+            self.assertIn('> **Ada:** "I love types"', content)
+            # Surrounding content preserved
+            self.assertIn("# S99", content)
+            self.assertIn("Introductory paragraph.", content)
+            self.assertIn("## Epic Index", content)
+            self.assertIn("E-9901", content)
+
+    def test_multiple_voices(self):
+        """Multiple voices all appear in the Team Voices section."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            voices = {
+                "Ada": "Types are everything",
+                "Bob": "Ship it fast",
+                "Cara": "Test it twice",
+            }
+            update_team_voices(str(saga_path), voices)
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn('> **Ada:** "Types are everything"', content)
+            self.assertIn('> **Bob:** "Ship it fast"', content)
+            self.assertIn('> **Cara:** "Test it twice"', content)
+            # Surrounding content still intact
+            self.assertIn("## Epic Index", content)
+            self.assertIn("E-9901", content)
+
+
+# ---------------------------------------------------------------------------
+# P2-09: Renumber Stories
+# ---------------------------------------------------------------------------
+
+
+class TestRenumberStories(unittest.TestCase):
+    """Test renumber_stories in manage_epics."""
+
+    def _make_epic(self, tmp_path: Path) -> Path:
+        """Create a minimal epic with stories for renumber testing."""
+        epic = tmp_path / "E-0101-test.md"
+        epic.write_text(
+            "# E-0101 — Test Epic\n"
+            "\n"
+            "| Field | Value |\n"
+            "|-------|-------|\n"
+            "| Saga | S01 |\n"
+            "| Stories | 2 |\n"
+            "| Total SP | 6 |\n"
+            "\n"
+            "---\n"
+            "\n"
+            "### US-0102: Parse RGB Input\n"
+            "\n"
+            "| Field | Value |\n"
+            "|-------|-------|\n"
+            "| Story Points | 3 |\n"
+            "| Priority | P1 |\n"
+            "| Blocked By | US-0101 |\n"
+            "| Blocks | US-0102, US-0104 |\n"
+            "| Test Cases | TC-PAR-002 |\n"
+            "\n"
+            "---\n"
+            "\n"
+            "### US-0100: Detect Format\n"
+            "\n"
+            "| Field | Value |\n"
+            "|-------|-------|\n"
+            "| Story Points | 3 |\n"
+            "| Priority | P0 |\n"
+            "| Blocked By | US-0102 |\n"
+            "| Test Cases | TC-DET-001 |\n",
+            encoding="utf-8",
+        )
+        return epic
+
+    def test_renumber_preserves_headings(self):
+        """Headings (### lines) are NOT modified; table rows ARE updated."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._make_epic(Path(tmp))
+            renumber_stories(
+                str(epic_path), "US-0102", ["US-0102a", "US-0102b"]
+            )
+            content = epic_path.read_text(encoding="utf-8")
+            # Heading for US-0102 is preserved unchanged
+            self.assertIn("### US-0102: Parse RGB Input", content)
+            # Table row referencing US-0102 in Blocks is renumbered
+            self.assertIn("US-0102a, US-0102b", content)
+            # Blocked By in the second story that references US-0102 is updated
+            lines = content.splitlines()
+            second_story_blocked = [
+                l for l in lines
+                if "Blocked By" in l and "US-0102" in l
+                and not l.startswith("### ")
+            ]
+            # The second story's "Blocked By | US-0102" should be renumbered
+            for bl in second_story_blocked:
+                self.assertIn("US-0102a, US-0102b", bl)
+
+    def test_renumber_word_boundary(self):
+        """Renaming US-01 does NOT corrupt US-0100 or US-0102."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create an epic that has US-01 and US-0100 references
+            epic = tmp + "/E-test.md"
+            Path(epic).write_text(
+                "# E-test\n"
+                "\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Stories | 2 |\n"
+                "\n"
+                "---\n"
+                "\n"
+                "### US-01: First Story\n"
+                "\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Blocks | US-01, US-0100 |\n"
+                "\n"
+                "---\n"
+                "\n"
+                "### US-0100: Hundredth Story\n"
+                "\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Blocked By | US-01 |\n",
+                encoding="utf-8",
+            )
+            renumber_stories(epic, "US-01", ["US-01a", "US-01b"])
+            content = Path(epic).read_text(encoding="utf-8")
+            # US-0100 in headings and table rows must be untouched
+            self.assertIn("### US-0100: Hundredth Story", content)
+            # US-0100 in table rows must NOT be corrupted
+            # (word boundary ensures US-01 doesn't match US-0100)
+            self.assertIn("US-0100", content)
+            # Check that US-0100 was not turned into US-01a, US-01b00
+            self.assertNotIn("US-01a, US-01b00", content)
+            # The Blocked By for US-0100 that references US-01 IS updated
+            lines = content.splitlines()
+            blocked_by_lines = [
+                l for l in lines if "Blocked By" in l and not l.startswith("### ")
+            ]
+            # Should have US-01a, US-01b in the blocked-by reference
+            self.assertTrue(
+                any("US-01a, US-01b" in l for l in blocked_by_lines),
+                f"Expected 'US-01a, US-01b' in blocked-by lines: {blocked_by_lines}",
+            )
 
 
 if __name__ == "__main__":
