@@ -47,6 +47,11 @@ see `CHEATSHEET.md`. The tables below are a summary.
 | `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
 | `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :96, `compute_review_rounds()` :133, `compute_workload()` :181, `format_report()` :204, `main()` :239 |
 | `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` :62, `check_prs()` :118, `check_milestone()` :194, `check_branch_divergence()` :258, `check_direct_pushes()` :296 |
+| `scripts/team_voices.py` | Extract persona commentary from saga/epic files | `extract_voices()` :29, `VOICE_PATTERN` :24, `main()` :83 |
+| `scripts/traceability.py` | Bidirectional story/PRD/test mapping with gap detection | `parse_stories()` :29, `parse_test_cases()` :76, `parse_requirements()` :97, `build_traceability()` :122, `format_report()` :165 |
+| `scripts/test_coverage.py` | Compare planned test cases vs actual test files | `parse_planned_tests()` :40, `detect_test_functions()` :58, `scan_project_tests()` :66, `check_test_coverage()` :90, `_TEST_PATTERNS` :21 |
+| `scripts/manage_epics.py` | Epic CRUD: add, remove, reorder stories | `parse_epic()` :26, `add_story()` :188, `remove_story()` :203, `reorder_stories()` :233, `renumber_stories()` :276 |
+| `scripts/manage_sagas.py` | Saga management: allocation, index, voices | `parse_saga()` :31, `update_sprint_allocation()` :137, `update_epic_index()` :169, `update_team_voices()` :224 |
 
 ### Skill Entry Points
 

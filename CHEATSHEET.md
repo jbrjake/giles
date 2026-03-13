@@ -165,6 +165,65 @@ you need without reading entire files.
 | 296 | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
 | 335 | `write_log()` | Append timestamped entry to monitor log |
 
+### scripts/team_voices.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 24 | `VOICE_PATTERN` | Regex: `> **Name:** "text"` (colon inside bold markers) |
+| 29 | `extract_voices()` | Scan saga/epic dirs, return `{persona: [{file, section, quote}]}` |
+| 49 | `_extract_from_file()` | Extract voice blocks from a single markdown file |
+| 83 | `main()` | CLI: load config, extract, print voice index |
+
+### scripts/traceability.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 22 | `STORY_HEADING` | Regex: `### US-XXXX: title` |
+| 24 | `TEST_CASE_HEADING` | Regex: `### TC-*/GP-*: title` |
+| 25 | `REQ_TABLE_ROW` | Regex: `\| REQ-* \| US-* \|` table rows |
+| 29 | `parse_stories()` | Extract story IDs + test case links from epic files |
+| 76 | `parse_test_cases()` | Extract TC/GP IDs from test plan files |
+| 97 | `parse_requirements()` | Extract REQ-* IDs from PRD reference files |
+| 122 | `build_traceability()` | Build bidirectional maps, find gaps |
+| 165 | `format_report()` | Markdown traceability report |
+| 198 | `main()` | CLI: load config, build report, print |
+
+### scripts/test_coverage.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 21 | `_TEST_PATTERNS` | Language-specific test function regexes (Rust/Python/JS/Go) |
+| 29 | `_TEST_FILE_PATTERNS` | Language-specific test file globs |
+| 40 | `parse_planned_tests()` | Extract TC/GP IDs from test plan files |
+| 58 | `detect_test_functions()` | Find test function names in source code by language |
+| 66 | `scan_project_tests()` | Walk project tree, find all test files and functions |
+| 90 | `check_test_coverage()` | Compare planned vs actual, return coverage report |
+| 118 | `format_report()` | Markdown coverage report |
+| 146 | `main()` | CLI: load config, check coverage, print |
+
+### scripts/manage_epics.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 26 | `parse_epic()` | Parse epic file: metadata + stories list + raw sections |
+| 53 | `_parse_header_table()` | Epic-level metadata table (Saga, Stories, Total SP) |
+| 72 | `_parse_stories()` | All `### US-XXXX` sections with metadata, ACs, tasks |
+| 136 | `_format_story_section()` | Format story data dict as markdown section |
+| 188 | `add_story()` | Append new story section to epic file |
+| 203 | `remove_story()` | Remove story section by ID |
+| 233 | `reorder_stories()` | Reorder story sections to match given ID list |
+| 276 | `renumber_stories()` | Replace story ID references (for splits) |
+| 287 | `main()` | CLI: add, remove, reorder, renumber subcommands |
+
+### scripts/manage_sagas.py
+| Line | Function | Purpose |
+|------|----------|---------|
+| 31 | `parse_saga()` | Parse saga file: metadata + epic index + sprint allocation |
+| 60 | `_parse_header_table()` | Saga-level metadata table |
+| 75 | `_parse_epic_index()` | Epic Index table (ID, name, stories, SP) |
+| 97 | `_parse_sprint_allocation()` | Sprint Allocation table |
+| 118 | `_find_section_ranges()` | Line ranges for each ## section |
+| 137 | `update_sprint_allocation()` | Rewrite Sprint Allocation table |
+| 169 | `update_epic_index()` | Recalculate Epic Index from epic files |
+| 224 | `update_team_voices()` | Update Team Voices blockquote section |
+| 247 | `main()` | CLI: update-allocation, update-index, update-voices |
+
 ## Skill entry points -- section index
 
 ### skills/sprint-setup/SKILL.md
