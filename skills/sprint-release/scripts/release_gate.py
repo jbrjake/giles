@@ -417,7 +417,11 @@ def do_release(
     r = subprocess.run(
         ["git", "status", "--porcelain"], capture_output=True, text=True,
     )
-    if r.returncode != 0 or r.stdout.strip():
+    if r.returncode != 0:
+        print("Error: not a git repository or git is not available",
+              file=sys.stderr)
+        return False
+    if r.stdout.strip():
         print("Error: working tree is not clean (commit or stash changes first)",
               file=sys.stderr)
         return False

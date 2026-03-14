@@ -880,6 +880,94 @@ class TestDoRelease(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# P6-20: do_release pre-flight distinguishes git errors from dirty tree
+# ---------------------------------------------------------------------------
+
+
+class TestDoReleasePreFlight(unittest.TestCase):
+    """P6-20: Pre-flight checks distinguish 'not a git repo' from 'dirty tree'."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+        self.addCleanup(os.chdir, self._orig_cwd)
+
+        sc_dir = Path(self.tmpdir) / "sprint-config"
+        sc_dir.mkdir()
+        (sc_dir / "project.toml").write_text(_MINIMAL_TOML, encoding="utf-8")
+
+        sprints_dir = Path(self.tmpdir) / "sprints"
+        sprints_dir.mkdir()
+        (sprints_dir / "SPRINT-STATUS.md").write_text(
+            "| Sprint | Status | Date | Notes | Version |\n"
+            "|--------|--------|------|-------|---------|\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    @patch("release_gate.calculate_version")
+    @patch("release_gate.subprocess.run")
+    def test_not_a_git_repo_error(self, mock_run, mock_calc):
+        """Non-zero returncode from git status produces 'not a git repository' error."""
+        import io
+        from contextlib import redirect_stderr
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "status", "--porcelain"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: not a git repository",
+        )
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = do_release("Sprint 1", config)
+
+        self.assertFalse(result)
+        self.assertIn("not a git repository", buf.getvalue())
+        mock_calc.assert_not_called()
+
+    @patch("release_gate.calculate_version")
+    @patch("release_gate.subprocess.run")
+    def test_dirty_tree_error(self, mock_run, mock_calc):
+        """Zero returncode but non-empty stdout produces 'not clean' error."""
+        import io
+        from contextlib import redirect_stderr
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "status", "--porcelain"],
+            returncode=0,
+            stdout=" M file.txt\n",
+            stderr="",
+        )
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = do_release("Sprint 1", config)
+
+        self.assertFalse(result)
+        self.assertIn("not clean", buf.getvalue())
+        mock_calc.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # P5-12: do_release integration test (dry-run path)
 # ---------------------------------------------------------------------------
 
