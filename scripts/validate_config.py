@@ -435,6 +435,9 @@ def _parse_team_index(index_path: Path) -> list[dict[str, str]]:
         if all(re.match(r"^[-:]+$", c) for c in cells):
             continue
 
+        if len(cells) != len(headers):
+            print(f"Warning: team/INDEX.md row has {len(cells)} cells, expected {len(headers)}",
+                  file=sys.stderr)
         row = {}
         for i, cell in enumerate(cells):
             if i < len(headers):

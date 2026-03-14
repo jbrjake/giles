@@ -331,5 +331,64 @@ class TestLoadConfigRaisesConfigError(unittest.TestCase):
         self.assertIn("validation failed", str(ctx.exception).lower())
 
 
+class TestParseTeamIndexCellCountWarning(unittest.TestCase):
+    """P6-22: _parse_team_index warns on mismatched cell count."""
+
+    def test_fewer_cells_prints_warning(self):
+        """Row with fewer cells than header triggers a warning on stderr."""
+        import io
+        from contextlib import redirect_stderr
+
+        tmpdir = tempfile.mkdtemp(prefix="giles-p622-")
+        index_path = Path(tmpdir) / "INDEX.md"
+        index_path.write_text(
+            "| Name | Role | File |\n"
+            "|------|------|------|\n"
+            "| Alice | Engineer | alice.md |\n"
+            "| Bob | Architect |\n",  # only 2 cells, expected 3
+            encoding="utf-8",
+        )
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            rows = _parse_team_index(index_path)
+
+        warning_output = buf.getvalue()
+        self.assertIn("Warning", warning_output)
+        self.assertIn("2 cells", warning_output)
+        self.assertIn("expected 3", warning_output)
+
+        # Row should still be parsed (graceful handling)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[1].get("name"), "Bob")
+
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_correct_cells_no_warning(self):
+        """Row with correct cell count does not produce a warning."""
+        import io
+        from contextlib import redirect_stderr
+
+        tmpdir = tempfile.mkdtemp(prefix="giles-p622-")
+        index_path = Path(tmpdir) / "INDEX.md"
+        index_path.write_text(
+            "| Name | Role | File |\n"
+            "|------|------|------|\n"
+            "| Alice | Engineer | alice.md |\n",
+            encoding="utf-8",
+        )
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            rows = _parse_team_index(index_path)
+
+        self.assertEqual(buf.getvalue(), "")
+        self.assertEqual(len(rows), 1)
+
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
