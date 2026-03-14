@@ -60,7 +60,7 @@ see `CHEATSHEET.md`. The tables below are a summary.
 |-------|----------|-------------|
 | sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
 | sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Mid-sprint check-in :54, Context Assembly :75, Phase 3: Demo :109, Phase 4: Retro :115 (Giles facilitates all ceremonies) |
-| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :30, Backlog sync :48, CI check :71, Drift detection :105, PR check :135, Mid-sprint check-in :181, Burndown :222, Rate limiting :266 |
+| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :30, Backlog sync :48, CI check :71, Drift detection :105, PR check :135, Mid-sprint check-in :181, Check Sprint Status :222, Rate limiting :266 |
 | sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
 | sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
 

@@ -65,6 +65,8 @@ class TestHexwiseSetup(unittest.TestCase):
         # chdir so ConfigGenerator's relative symlinks work properly
         cls._orig_cwd = os.getcwd()
         os.chdir(cls.project_dir)
+        # Ensure cwd is restored even if a test raises an exception
+        cls.addClassCleanup(os.chdir, cls._orig_cwd)
 
         # Scan once — all scanner tests share this result
         scanner = ProjectScanner(cls.project_dir)

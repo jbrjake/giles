@@ -433,7 +433,7 @@ are missing. 19 templates: 9 core + 10 deep-doc.
 sprint-config/
   project.toml          -- [project], [paths], [ci], [conventions], [release]
   definition-of-done.md -- evolving DoD (baseline + retro-driven additions)
-  team/INDEX.md          -- Name | File | Role | Domain Keywords
+  team/INDEX.md          -- Name | Role | File
   team/{name}.md         -- persona profiles (often symlinks)
   team/giles.md          -- built-in scrum master (copied, not symlinked)
   team/history/          -- Sprint History files (written by Giles during retro)

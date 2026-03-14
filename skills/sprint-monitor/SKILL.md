@@ -137,7 +137,7 @@ who, but I will say it's making the merge queue nervous."
 Query all open pull requests:
 
 ```bash
-gh pr list --json number,title,reviewDecision,labels,mergeable,statusCheckRollup,createdAt,url
+gh pr list --json number,title,reviewDecision,labels,statusCheckRollup,createdAt
 ```
 
 Process each PR according to its state:
@@ -145,10 +145,10 @@ Process each PR according to its state:
 ### PRs awaiting review
 
 - Check whether a reviewer persona has been assigned.
-- If the PR has been waiting longer than 1 hour with no review activity, post a
+- If the PR has been waiting longer than 2 hours with no review activity, post a
   reminder comment:
   ```
-  This PR has been open for >1h with no review. Flagging for attention.
+  This PR has been open for >2h with no review. Flagging for attention.
   ```
 - Do not post duplicate reminders -- check existing comments first:
   ```bash
@@ -232,8 +232,8 @@ This script:
 - Checks CI status for the base branch.
 - Outputs a status summary to stdout.
 
-Note: `check_status.py` is read-only — it queries and reports but does not write
-burndown or tracking files. For actual burndown file updates, use
+Note: `check_status.py` does not modify tracking or burndown files — it queries
+GitHub and reports to stdout. For actual burndown file updates, use
 `skills/sprint-run/scripts/update_burndown.py`.
 
 If the script is missing or fails, reconstruct status manually:

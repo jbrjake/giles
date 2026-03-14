@@ -125,7 +125,8 @@ before proceeding to integration.
    ```
 2. Invoke `superpowers:verification-before-completion` to run the
    project's verification suite.
-3. Squash-merge the PR to the base branch:
+3. Merge the PR using the configured strategy from `[conventions] merge_strategy`
+   (defaults to squash):
    ```bash
    gh pr merge {pr_number} --squash --delete-branch
    ```

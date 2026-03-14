@@ -709,13 +709,12 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
     return issues
 
 
-def warn_if_at_limit(results: list, limit: int = 500) -> list:
+def warn_if_at_limit(results: list, limit: int = 500) -> None:
     """Warn if API results hit the limit, suggesting data may be incomplete."""
     if len(results) >= limit:
         print(f"Warning: query returned {limit} results (the limit). "
               f"Data may be incomplete for projects with more items.",
               file=sys.stderr)
-    return results
 
 
 # ---------------------------------------------------------------------------

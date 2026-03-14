@@ -280,9 +280,17 @@ def main() -> None:
         return
 
     existing: dict[str, TF] = {}
+    seen_ids: dict[str, Path] = {}
     for p in stories_dir.glob("*.md"):
         tf = read_tf(p)
         if tf.story:
+            if tf.story in seen_ids:
+                print(
+                    f"Warning: duplicate story ID '{tf.story}' in "
+                    f"{seen_ids[tf.story]} and {p}",
+                    file=sys.stderr,
+                )
+            seen_ids[tf.story] = p
             existing[tf.story] = tf
 
     all_prs = _fetch_all_prs()
