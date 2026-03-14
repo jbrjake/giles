@@ -156,6 +156,7 @@ class TestLifecycle(unittest.TestCase):
         self.fake_gh = FakeGitHub()
         self._saved_cwd = os.getcwd()
         os.chdir(self.root)
+        self.addCleanup(os.chdir, self._saved_cwd)
 
     def tearDown(self):
         os.chdir(self._saved_cwd)

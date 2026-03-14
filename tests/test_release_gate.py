@@ -393,6 +393,7 @@ class TestDoRelease(unittest.TestCase):
         self.tmpdir = self._tmpdir.name
         self._orig_cwd = os.getcwd()
         os.chdir(self.tmpdir)
+        self.addCleanup(os.chdir, self._orig_cwd)
 
         # Create sprint-config/project.toml
         sc_dir = Path(self.tmpdir) / "sprint-config"
