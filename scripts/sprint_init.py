@@ -644,7 +644,6 @@ class ConfigGenerator:
         lines.append('[conventions]')
         lines.append('branch_pattern = "sprint-{N}/US-{ID}-{slug}"')
         lines.append('commit_style = "conventional"')
-        lines.append('merge_strategy = "squash"')
         lines.append('')
 
         self._write("project.toml", "\n".join(lines))

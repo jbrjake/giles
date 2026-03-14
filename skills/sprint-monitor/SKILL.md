@@ -164,7 +164,7 @@ Process each PR according to its state:
 ### PRs approved + CI green
 
 - Report that the PR is ready to merge (sprint-run handles the actual merge
-  during story execution using the strategy from `project.toml [conventions] merge_strategy`).
+  during story execution).
 - Note any linked issues that will close on merge:
   ```bash
   gh pr view {number} --json closingIssuesReferences --jq '.closingIssuesReferences[].number'
