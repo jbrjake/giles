@@ -79,7 +79,7 @@ at the start of the range, targeting whatever symbol/section begins there.
 | Shared scripts | `validate_config.py`, `sprint_init.py`, `sprint_teardown.py`, `sync_backlog.py`, `sprint_analytics.py`, `team_voices.py`, `traceability.py`, `test_coverage.py`, `manage_epics.py`, `manage_sagas.py` | ~80 |
 | Skill scripts | `bootstrap_github.py`, `populate_issues.py`, `setup_ci.py`, `sync_tracking.py`, `update_burndown.py`, `check_status.py`, `release_gate.py` | ~40 |
 | SKILL.md files | All 5 skills | ~25 |
-| Reference/agent .md | `persona-guide.md`, `ceremony-kickoff.md`, `ceremony-demo.md`, `ceremony-retro.md`, `implementer.md`, `reviewer.md` | ~20 |
+| Reference/agent .md | `persona-guide.md`, `ceremony-kickoff.md`, `ceremony-demo.md`, `ceremony-retro.md`, `implementer.md`, `reviewer.md`, `github-conventions.md`, `ci-workflow-template.md`, `release-checklist.md` | ~25 |
 
 ### Doc files updated
 
@@ -89,8 +89,7 @@ at the start of the range, targeting whatever symbol/section begins there.
 ### Out of scope
 
 - Bug-hunter / adversarial-review files (ephemeral artifacts)
-- Reference files not currently referenced by `:NN` anywhere (e.g.,
-  `github-conventions.md`, `ci-workflow-template.md`, `release-checklist.md`)
+- Reference files not referenced by `:NN` in either CLAUDE.md or CHEATSHEET.md
 - Python test files
 - `scripts/commit.py` (not referenced from docs)
 
@@ -103,15 +102,21 @@ at the start of the range, targeting whatever symbol/section begins there.
 | Python | `^# §([\w]+\.[\w]+)$` | `# §validate_config.parse_simple_toml` |
 | Markdown | `^<!-- §([\w-]+\.[\w_]+) -->$` | `<!-- §sprint-run.phase_detection -->` |
 
-Anchor names: `§<namespace>.<symbol>` where namespace is `[\w-]+` (allows
-hyphens for skill names) and symbol is `[\w]+` (letters, digits, underscore).
+Anchor names: `§<namespace>.<symbol>` where symbol is `[\w]+` (letters, digits,
+underscore). Namespace rules differ by file type:
+- **Python**: `[\w]+` only (underscored, matching file stems like `validate_config`)
+- **Markdown**: `[\w-]+` (allows hyphens for skill names like `sprint-run`)
 
 ### Anchor references in docs
 
 Pattern: `§[\w][\w.-]*\.[\w]+` preceded by whitespace, pipe, or start-of-cell,
 followed by whitespace, comma, pipe, or end-of-line.
 
-Concrete regex for extraction: `(?:^|[\s|,])§([\w-]+\.[\w_]+)(?=[\s,|]|$)`
+Concrete regex for extraction:
+`(?:(?<=\s)|(?<=\|)|(?<=,)|(?:^))§([\w-]+\.[\w_]+)(?=[\s,|]|$)`
+
+Uses lookbehind to avoid consuming the delimiter character, which would prevent
+matching consecutive references separated by a single comma or space.
 
 Unknown namespaces (not in the lookup table) are treated as errors, not silently
 skipped. This catches typos like `§validate_confg.gh`.
