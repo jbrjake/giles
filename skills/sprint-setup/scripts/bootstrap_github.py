@@ -203,10 +203,10 @@ def create_milestones_on_github(config: dict) -> None:
 
     print("\n=== Creating Milestones ===\n")
 
-    for i, mf_path in enumerate(milestone_files, 1):
+    for mf_path in milestone_files:
         mf = Path(mf_path)
         # Parse title from the milestone file's first heading
-        title = f"Sprint {i}"
+        title = None
         description = ""
         if mf.is_file():
             text = mf.read_text(encoding="utf-8")
@@ -219,6 +219,15 @@ def create_milestones_on_github(config: dict) -> None:
                 if line and not line.startswith("#") and not line.startswith("|"):
                     description = line
                     break
+
+        # Fallback title: infer sprint number from content or filename
+        if title is None:
+            sprint_m = re.search(r"Sprint\s+(\d+)", text if mf.is_file() else "")
+            if sprint_m:
+                title = f"Sprint {sprint_m.group(1)}"
+            else:
+                num_m = re.search(r"(\d+)", mf.stem)
+                title = f"Sprint {num_m.group(1)}" if num_m else f"Sprint {mf.stem}"
 
         api_args = [
             "api", "repos/{owner}/{repo}/milestones",

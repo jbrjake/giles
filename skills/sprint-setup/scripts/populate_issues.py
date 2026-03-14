@@ -114,7 +114,7 @@ def parse_milestone_stories(
 
         # If no sprint sections, scan the whole file for story rows
         if not found_sections:
-            sprint_num = _infer_sprint_number(mf)
+            sprint_num = _infer_sprint_number(mf, content)
             for row in row_re.finditer(content):
                 stories.append(Story(
                     story_id=row.group(1), title=row.group(2).strip(),
@@ -126,13 +126,14 @@ def parse_milestone_stories(
     return stories
 
 
-def _infer_sprint_number(mf: Path) -> int:
+def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
     """Infer sprint number from content headings first, then filename.
 
     Priority matches bootstrap_github._collect_sprint_numbers: content-first.
+    Pass *content* to avoid re-reading the file (caller often has it already).
     """
     # Content-first: look for Sprint N headings
-    text = mf.read_text(encoding="utf-8")
+    text = content if content is not None else mf.read_text(encoding="utf-8")
     m = re.search(r"Sprint\s+(\d+)", text)
     if m:
         return int(m.group(1))

@@ -1027,6 +1027,241 @@ class TestKanbanFromLabels(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# P5-17: check_status helper tests (_first_error, _hours, _age)
+# ---------------------------------------------------------------------------
+
+
+class TestFirstError(unittest.TestCase):
+    """P5-17: _first_error extracts first error line from CI logs."""
+
+    def test_finds_error_keyword(self):
+        log = "step 1: ok\nstep 2: ERROR: foo failed\nstep 3: ok"
+        result = check_status._first_error(log)
+        self.assertIn("foo failed", result)
+
+    def test_strips_ansi_codes(self):
+        log = "\x1b[31mERROR: something broke\x1b[0m"
+        result = check_status._first_error(log)
+        self.assertNotIn("\x1b", result)
+        self.assertIn("something broke", result)
+
+    def test_truncates_long_lines(self):
+        log = "ERROR: " + "x" * 200
+        result = check_status._first_error(log)
+        self.assertTrue(result.endswith("..."))
+        self.assertLessEqual(len(result), 120)
+
+    def test_returns_empty_on_no_match(self):
+        log = "all good\nno problems here"
+        self.assertEqual(check_status._first_error(log), "")
+
+    def test_matches_failed_keyword(self):
+        log = "test_foo FAILED"
+        self.assertIn("FAILED", check_status._first_error(log))
+
+    def test_matches_panicked(self):
+        log = "thread 'main' panicked at 'assertion failed'"
+        self.assertIn("panicked", check_status._first_error(log))
+
+
+class TestHours(unittest.TestCase):
+    """P5-17: _hours parses ISO 8601 timestamps."""
+
+    def test_empty_string_returns_zero(self):
+        self.assertEqual(check_status._hours(""), 0.0)
+
+    def test_recent_iso_returns_small_hours(self):
+        from datetime import datetime, timezone, timedelta
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+        h = check_status._hours(recent)
+        self.assertAlmostEqual(h, 0.5, delta=0.1)
+
+    def test_zulu_suffix_parsed(self):
+        from datetime import datetime, timezone, timedelta
+        ts = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        self.assertAlmostEqual(check_status._hours(ts), 3.0, delta=0.1)
+
+    def test_invalid_format_returns_zero(self):
+        self.assertEqual(check_status._hours("not-a-date"), 0.0)
+
+
+class TestAge(unittest.TestCase):
+    """P5-17: _age formats time deltas as human-readable strings."""
+
+    def test_minutes(self):
+        from datetime import datetime, timezone, timedelta
+        ts = (datetime.now(timezone.utc) - timedelta(minutes=45)).isoformat()
+        self.assertTrue(check_status._age(ts).endswith("m"))
+
+    def test_hours(self):
+        from datetime import datetime, timezone, timedelta
+        ts = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
+        self.assertIn("h", check_status._age(ts))
+
+    def test_days(self):
+        from datetime import datetime, timezone, timedelta
+        ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        self.assertIn("d", check_status._age(ts))
+
+
+# ---------------------------------------------------------------------------
+# P5-10: check_milestone tests
+# ---------------------------------------------------------------------------
+
+
+class TestCheckMilestone(unittest.TestCase):
+    """P5-10: check_milestone with mocked gh_json."""
+
+    def _mock_gh_json(self, milestones=None, issues=None):
+        """Return a side_effect function for gh_json calls."""
+        call_count = [0]
+        def _side_effect(args):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return milestones if milestones is not None else []
+            return issues if issues is not None else []
+        return _side_effect
+
+    def test_happy_path_with_sp(self):
+        milestones = [
+            {"title": "Sprint 1", "open_issues": 2, "closed_issues": 3},
+        ]
+        issues = [
+            {"state": "closed", "labels": [{"name": "sp:3"}], "body": ""},
+            {"state": "closed", "labels": [{"name": "sp:5"}], "body": ""},
+            {"state": "closed", "labels": [{"name": "sp:2"}], "body": ""},
+            {"state": "open", "labels": [{"name": "sp:8"}], "body": ""},
+            {"state": "open", "labels": [{"name": "sp:5"}], "body": ""},
+        ]
+        with patch.object(
+            check_status, "gh_json",
+            side_effect=self._mock_gh_json(milestones, issues),
+        ):
+            report, actions = check_status.check_milestone(1)
+        self.assertTrue(any("3/5" in line for line in report))
+        self.assertTrue(any("SP" in line for line in report))
+
+    def test_no_milestone_found(self):
+        with patch.object(
+            check_status, "gh_json", return_value=[],
+        ):
+            report, actions = check_status.check_milestone(99)
+        self.assertTrue(any("no milestone" in line for line in report))
+
+    def test_zero_total_stories(self):
+        milestones = [
+            {"title": "Sprint 1", "open_issues": 0, "closed_issues": 0},
+        ]
+        with patch.object(
+            check_status, "gh_json",
+            side_effect=self._mock_gh_json(milestones, []),
+        ):
+            report, actions = check_status.check_milestone(1)
+        self.assertTrue(any("0/0" in line for line in report))
+        self.assertTrue(any("0%" in line for line in report))
+
+    def test_api_error_graceful(self):
+        with patch.object(
+            check_status, "gh_json", side_effect=RuntimeError("oops"),
+        ):
+            report, actions = check_status.check_milestone(1)
+        self.assertTrue(any("could not query" in line for line in report))
+
+
+# ---------------------------------------------------------------------------
+# P5-11: sync_tracking read_tf / write_tf / slug tests
+# ---------------------------------------------------------------------------
+
+
+class TestSyncTrackingIO(unittest.TestCase):
+    """P5-11: round-trip and edge case tests for tracking file I/O."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="sync-tf-")
+        self.tmp = Path(self.tmpdir)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_roundtrip(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "test.md",
+            story="US-101", title="Test story",
+            sprint=2, implementer="alice", reviewer="bob",
+            status="dev", branch="sprint-2/test",
+            pr_number="42", issue_number="7",
+            started="2026-01-01", completed="",
+            body_text="Some body text here.",
+        )
+        sync_tracking.write_tf(tf)
+        recovered = sync_tracking.read_tf(self.tmp / "test.md")
+        self.assertEqual(recovered.story, "US-101")
+        self.assertEqual(recovered.title, "Test story")
+        self.assertEqual(recovered.sprint, 2)
+        self.assertEqual(recovered.implementer, "alice")
+        self.assertEqual(recovered.reviewer, "bob")
+        self.assertEqual(recovered.status, "dev")
+        self.assertEqual(recovered.pr_number, "42")
+        self.assertEqual(recovered.issue_number, "7")
+        self.assertIn("Some body text", recovered.body_text)
+
+    def test_missing_fields_default(self):
+        p = self.tmp / "empty.md"
+        p.write_text("---\nstory: US-999\n---\n", encoding="utf-8")
+        tf = sync_tracking.read_tf(p)
+        self.assertEqual(tf.story, "US-999")
+        self.assertEqual(tf.sprint, 0)
+        self.assertEqual(tf.status, "todo")
+        self.assertEqual(tf.implementer, "")
+
+    def test_no_frontmatter(self):
+        p = self.tmp / "plain.md"
+        p.write_text("Just plain text\n", encoding="utf-8")
+        tf = sync_tracking.read_tf(p)
+        self.assertEqual(tf.story, "")
+        self.assertIn("plain text", tf.body_text)
+
+    def test_colon_in_title(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "colon.md",
+            story="US-50", title="Fix: colon edge case",
+        )
+        sync_tracking.write_tf(tf)
+        recovered = sync_tracking.read_tf(self.tmp / "colon.md")
+        self.assertEqual(recovered.title, "Fix: colon edge case")
+
+
+class TestSlugFromTitle(unittest.TestCase):
+    """P5-11: slug generation edge cases."""
+
+    def test_basic_slug(self):
+        self.assertEqual(
+            sync_tracking.slug_from_title("Add User Auth"),
+            "add-user-auth",
+        )
+
+    def test_special_chars_removed(self):
+        slug = sync_tracking.slug_from_title("Fix: bug #42 (urgent!)")
+        self.assertNotIn("#", slug)
+        self.assertNotIn("!", slug)
+        self.assertNotIn("(", slug)
+
+    def test_empty_title(self):
+        self.assertEqual(sync_tracking.slug_from_title(""), "untitled")
+
+    def test_all_special_chars(self):
+        self.assertEqual(sync_tracking.slug_from_title("!!!"), "untitled")
+
+    def test_similar_titles_produce_different_slugs(self):
+        s1 = sync_tracking.slug_from_title("Add auth")
+        s2 = sync_tracking.slug_from_title("Add auth module")
+        self.assertNotEqual(s1, s2)
+
+
+# ---------------------------------------------------------------------------
 # P5-09: FakeGitHub flag enforcement
 # ---------------------------------------------------------------------------
 
