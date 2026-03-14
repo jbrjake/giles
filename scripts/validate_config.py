@@ -111,6 +111,12 @@ def parse_simple_toml(text: str) -> dict:
 
             _set_nested(root, section_path, key, _parse_value(raw_val))
 
+    if multiline_key is not None:
+        raise ValueError(
+            f"Unterminated multiline array for key {multiline_key!r} "
+            f"(missing closing ']')"
+        )
+
     return root
 
 

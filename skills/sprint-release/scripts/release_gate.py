@@ -99,6 +99,10 @@ def determine_bump(commits: list[dict]) -> str:
 def bump_version(base: str, bump_type: str) -> str:
     """Apply bump to a version string. E.g., ('0.1.0', 'minor') -> '0.2.0'."""
     parts = base.lstrip("v").split(".")
+    if len(parts) != 3:
+        raise ValueError(
+            f"Expected 3-part semver (X.Y.Z), got: {base!r}"
+        )
     major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
     if bump_type == "major":
         return f"{major + 1}.0.0"
@@ -437,6 +441,20 @@ def do_release(
         print(f"[DRY-RUN] Would create tag: v{new_ver}")
         print(f"[DRY-RUN] Would push tag: git push origin v{new_ver}")
     else:
+        # Save pre-release HEAD so we can undo the version commit on failure
+        r = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+        )
+        pre_release_sha = r.stdout.strip() if r.returncode == 0 else None
+
+        def _rollback_commit() -> None:
+            """Undo the version bump commit by resetting to pre-release HEAD."""
+            if pre_release_sha:
+                subprocess.run(
+                    ["git", "reset", "--hard", pre_release_sha],
+                    capture_output=True, text=True,
+                )
+
         # 2-3. Write version and commit
         write_version_to_toml(new_ver, toml_path)
         completed_steps.append("write-version")
@@ -476,6 +494,7 @@ def do_release(
             capture_output=True, text=True,
         )
         if r.returncode != 0:
+            _rollback_commit()
             return _fail("create-tag", f"Tag creation failed: {r.stderr.strip()}")
         completed_steps.append("create-tag")
         r = subprocess.run(
@@ -483,6 +502,7 @@ def do_release(
             capture_output=True, text=True,
         )
         if r.returncode != 0:
+            _rollback_commit()
             return _fail("push-tag", f"Tag push failed: {r.stderr.strip()}")
         completed_steps.append("push-tag")
 
@@ -523,6 +543,7 @@ def do_release(
             gh(release_args)
         except RuntimeError as exc:
             _rollback_tag()
+            _rollback_commit()
             return _fail("github-release",
                          f"GitHub Release failed (tag rolled back): {exc}")
         completed_steps.append("github-release")

@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from release_gate import (
+    bump_version,
     calculate_version,
     validate_gates,
     gate_tests,
@@ -80,6 +81,38 @@ class TestCalculateVersion(unittest.TestCase):
         new_ver, _, bump, _ = calculate_version()
         self.assertEqual(bump, "major")
         self.assertEqual(new_ver, "2.0.0")
+
+
+# ---------------------------------------------------------------------------
+# bump_version tests
+# ---------------------------------------------------------------------------
+
+class TestBumpVersion(unittest.TestCase):
+    """P5-02: bump_version must reject non-3-part version strings."""
+
+    def test_valid_three_part(self):
+        self.assertEqual(bump_version("1.2.3", "patch"), "1.2.4")
+        self.assertEqual(bump_version("1.2.3", "minor"), "1.3.0")
+        self.assertEqual(bump_version("1.2.3", "major"), "2.0.0")
+
+    def test_v_prefix_stripped(self):
+        self.assertEqual(bump_version("v1.0.0", "minor"), "1.1.0")
+
+    def test_two_part_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            bump_version("1.0", "minor")
+
+    def test_one_part_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            bump_version("1", "patch")
+
+    def test_four_part_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            bump_version("1.2.3.4", "minor")
+
+    def test_empty_raises_valueerror(self):
+        with self.assertRaises(ValueError):
+            bump_version("", "patch")
 
 
 # ---------------------------------------------------------------------------
@@ -308,20 +341,36 @@ build_command = "make build"
 """
 
 
-def _make_subprocess_side_effect(*, tag_fails=False, commit_fails=False):
+def _make_subprocess_side_effect(
+    *, tag_fails=False, commit_fails=False,
+    push_tag_fails=False, pre_release_sha="abc123",
+):
     """Build a side_effect function for subprocess.run.
 
     Returns CompletedProcess(returncode=0) for all commands except when
     tag_fails=True and the command is 'git tag', or commit_fails=True and
-    the command invokes commit.py.
+    the command invokes commit.py, or push_tag_fails=True and the command
+    is 'git push'.
     """
     def _side_effect(cmd, **kwargs):
+        # Detect 'git rev-parse HEAD' — return the pre-release sha
+        if (isinstance(cmd, list) and len(cmd) >= 3
+                and cmd[0] == "git" and cmd[1] == "rev-parse" and cmd[2] == "HEAD"):
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout=pre_release_sha, stderr="",
+            )
         # Detect 'git tag' invocations
         if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "tag":
             if tag_fails:
                 return subprocess.CompletedProcess(
                     args=cmd, returncode=1, stdout="", stderr="tag already exists",
                 )
+        # Detect 'git push' invocations for tag push
+        if (push_tag_fails and isinstance(cmd, list) and len(cmd) >= 3
+                and cmd[0] == "git" and cmd[1] == "push"):
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=1, stdout="", stderr="push rejected",
+            )
         # Detect commit.py invocations
         if commit_fails and isinstance(cmd, list) and len(cmd) >= 2:
             if any("commit.py" in str(arg) for arg in cmd):
@@ -398,21 +447,25 @@ class TestDoRelease(unittest.TestCase):
         args = mock_write_toml.call_args
         self.assertEqual(args[0][0], "1.1.0")
 
-        # subprocess.run called for: git status, git add, commit, git tag, git push, tag-verify
-        self.assertGreaterEqual(mock_run.call_count, 5)
+        # subprocess.run called for: git status, rev-parse, git add, commit,
+        # git tag, git push, tag-verify
+        self.assertGreaterEqual(mock_run.call_count, 6)
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
         # git status (pre-flight)
         self.assertEqual(run_cmds[0][0], "git")
         self.assertEqual(run_cmds[0][1], "status")
-        # git add
+        # git rev-parse HEAD (save pre-release sha)
         self.assertEqual(run_cmds[1][0], "git")
-        self.assertEqual(run_cmds[1][1], "add")
+        self.assertEqual(run_cmds[1][1], "rev-parse")
+        # git add
+        self.assertEqual(run_cmds[2][0], "git")
+        self.assertEqual(run_cmds[2][1], "add")
         # git tag
-        self.assertEqual(run_cmds[3][0], "git")
-        self.assertEqual(run_cmds[3][1], "tag")
-        # git push
         self.assertEqual(run_cmds[4][0], "git")
-        self.assertEqual(run_cmds[4][1], "push")
+        self.assertEqual(run_cmds[4][1], "tag")
+        # git push
+        self.assertEqual(run_cmds[5][0], "git")
+        self.assertEqual(run_cmds[5][1], "push")
 
         # gh() called for: release create, milestone close, release view
         self.assertGreaterEqual(mock_gh.call_count, 2)
@@ -613,6 +666,99 @@ class TestDoRelease(unittest.TestCase):
             Path(self.tmpdir) / "sprints" / "SPRINT-STATUS.md"
         ).read_text(encoding="utf-8")
         self.assertEqual(status_before, status_after)
+
+    # -- Test 6: P5-01 — rollback undoes version commit -----------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_push_tag_failure_resets_commit(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """P5-01: When tag push fails, version bump commit must be undone.
+
+        After rollback, git reset --hard <pre-release-sha> should be called
+        so the branch HEAD matches the state before do_release().
+        """
+        mock_calc.return_value = ("2.0.0", "1.0.0", "major", [
+            {"subject": "feat!: new API", "body": "BREAKING CHANGE: v2"},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect(
+            push_tag_fails=True, pre_release_sha="deadbeef",
+        )
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+        result = do_release("Sprint 2: API", config)
+
+        self.assertFalse(result)
+
+        # Verify git reset --hard <sha> was called to undo the commit
+        run_cmds = [call[0][0] for call in mock_run.call_args_list]
+        reset_hard_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 4
+            and c[0] == "git" and c[1] == "reset" and c[2] == "--hard"
+        ]
+        self.assertGreaterEqual(
+            len(reset_hard_calls), 1,
+            f"Expected 'git reset --hard <sha>' after push failure, got: {run_cmds}",
+        )
+        # The sha should be the pre-release sha
+        self.assertEqual(reset_hard_calls[0][3], "deadbeef")
+
+    # -- Test 7: P5-01 — gh release failure also resets commit -----------------
+
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_gh_release_failure_resets_commit(
+        self, mock_calc, mock_write_toml, mock_run,
+    ):
+        """P5-01: When GitHub release creation fails, commit is also undone."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: dashboard", "body": ""},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect(
+            pre_release_sha="cafe0000",
+        )
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        # Patch gh() to fail on release create
+        def _gh_side_effect(args):
+            if args[0] == "release" and args[1] == "create":
+                raise RuntimeError("GitHub API error")
+            return ""
+
+        with patch("release_gate.gh", side_effect=_gh_side_effect):
+            with patch("release_gate.find_milestone_number", return_value=None):
+                result = do_release("Sprint 1", config)
+
+        self.assertFalse(result)
+
+        # Verify git reset --hard was called
+        run_cmds = [call[0][0] for call in mock_run.call_args_list]
+        reset_hard_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 4
+            and c[0] == "git" and c[1] == "reset" and c[2] == "--hard"
+        ]
+        self.assertGreaterEqual(
+            len(reset_hard_calls), 1,
+            f"Expected 'git reset --hard' after release failure, got: {run_cmds}",
+        )
 
 
 if __name__ == "__main__":

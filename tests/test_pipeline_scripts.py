@@ -524,6 +524,30 @@ class TestParseSimpleToml(unittest.TestCase):
         self.assertEqual(len(result["items"]), 2)
         self.assertEqual(result["items"][1], "ok")
 
+    def test_unterminated_multiline_array_raises(self):
+        """P5-03: EOF with open multiline array raises ValueError."""
+        toml_text = (
+            '[section]\n'
+            'items = [\n'
+            '  "a",\n'
+            '  "b"\n'
+            # missing closing ]
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_simple_toml(toml_text)
+        self.assertIn("items", str(ctx.exception))
+
+    def test_unterminated_array_at_end_of_file(self):
+        """P5-03: Multiline array at end of file with no closing bracket."""
+        toml_text = (
+            'name = "test"\n'
+            'items = [\n'
+            '  "a",\n'
+            '  "b"\n'
+        )
+        with self.assertRaises(ValueError):
+            parse_simple_toml(toml_text)
+
 
 # ---------------------------------------------------------------------------
 # P2-05: Non-Rust CI Generation
