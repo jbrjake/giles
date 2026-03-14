@@ -17,7 +17,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-from validate_config import load_config
+from validate_config import load_config, ConfigError
 
 # Pattern: > **Name:** "text" or > **Name:** text
 # Note: colon is inside the bold markers: **Name:**
@@ -84,7 +84,10 @@ def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
 
 def main() -> None:
     """CLI entry point: extract and print voice index."""
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     sagas_dir = config.get("paths", {}).get("sagas_dir")
     epics_dir = config.get("paths", {}).get("epics_dir")
     voices = extract_voices(sagas_dir=sagas_dir, epics_dir=epics_dir)

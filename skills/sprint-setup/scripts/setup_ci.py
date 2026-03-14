@@ -13,7 +13,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_ci_commands
+from validate_config import load_config, ConfigError, get_ci_commands
 
 
 # -- Language-specific CI templates ------------------------------------------
@@ -322,7 +322,10 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())
         sys.exit(0)
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     project_name = config.get("project", {}).get("name", "Project")
     language = config.get("project", {}).get("language", "unknown")
 

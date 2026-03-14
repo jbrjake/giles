@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit
+from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -315,7 +315,10 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())
         sys.exit(0)
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     sprints_dir = get_sprints_dir(config)
 
     sprint_num: int | None = None

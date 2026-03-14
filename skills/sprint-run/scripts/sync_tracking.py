@@ -22,9 +22,9 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, gh, extract_story_id, get_sprints_dir, kanban_from_labels,
-    find_milestone, warn_if_at_limit, list_milestone_issues,
-    KANBAN_STATES,
+    load_config, ConfigError, gh, extract_story_id, get_sprints_dir,
+    kanban_from_labels, find_milestone, warn_if_at_limit,
+    list_milestone_issues, KANBAN_STATES,
 )
 
 
@@ -138,7 +138,13 @@ def read_tf(path: Path) -> TF:
 
     def v(k: str) -> str:
         m = re.search(rf"^{k}:\s*(.+)", raw, re.MULTILINE)
-        return m.group(1).strip() if m else ""
+        if not m:
+            return ""
+        val = m.group(1).strip()
+        # Strip surrounding quotes added by _yaml_safe
+        if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
+            val = val[1:-1].replace('\\"', '"')
+        return val
 
     tf.story, tf.title = v("story"), v("title")
     tf.sprint = int(v("sprint") or "0")
@@ -150,16 +156,33 @@ def read_tf(path: Path) -> TF:
     return tf
 
 
+def _yaml_safe(value: str) -> str:
+    """Quote a value if it contains YAML-sensitive characters."""
+    if not value:
+        return value
+    needs_quoting = (
+        ': ' in value
+        or value[0] in '[{>|*&!%@`'
+        or '#' in value
+        or value.startswith('- ')
+        or value.startswith('? ')
+    )
+    if needs_quoting:
+        escaped = value.replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
 def write_tf(tf: TF) -> None:
     lines = [
         "---",
         f"story: {tf.story}",
-        f"title: {tf.title}",
+        f"title: {_yaml_safe(tf.title)}",
         f"sprint: {tf.sprint}",
         f"implementer: {tf.implementer}",
         f"reviewer: {tf.reviewer}",
         f"status: {tf.status}",
-        f"branch: {tf.branch}",
+        f"branch: {_yaml_safe(tf.branch)}",
         f"pr_number: {tf.pr_number}",
         f"issue_number: {tf.issue_number}",
         f"started: {tf.started}",
@@ -263,7 +286,10 @@ def main() -> None:
 
     sprint = int(sys.argv[1])
 
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     sprints_dir = get_sprints_dir(config)
 
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"

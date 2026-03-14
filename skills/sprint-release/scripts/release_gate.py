@@ -27,7 +27,7 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-from validate_config import load_config, get_base_branch, get_sprints_dir, gh, gh_json, warn_if_at_limit
+from validate_config import load_config, ConfigError, get_base_branch, get_sprints_dir, gh, gh_json, warn_if_at_limit
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 
 
@@ -623,7 +623,10 @@ def main() -> None:
     rel_parser.add_argument("milestone", help="Milestone title")
 
     args = parser.parse_args()
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
 
     if args.command == "validate":
         print(f"=== Gate Validation: {args.milestone} ===")

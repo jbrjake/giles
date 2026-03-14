@@ -15,7 +15,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-from validate_config import load_config
+from validate_config import load_config, ConfigError
 
 # Language-specific test function patterns
 _TEST_PATTERNS: dict[str, re.Pattern] = {
@@ -163,7 +163,10 @@ def format_report(coverage: dict) -> str:
 
 def main() -> None:
     """CLI entry point: check test coverage and print report."""
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     test_plan_dir = config.get("paths", {}).get("test_plan_dir")
     language = config.get("project", {}).get("language", "python").lower()
 

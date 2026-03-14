@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_config import parse_simple_toml, validate_project, _parse_team_index
+from validate_config import parse_simple_toml, validate_project, _parse_team_index, ConfigError, load_config
 from sprint_init import ProjectScanner, ConfigGenerator
 
 
@@ -290,6 +290,45 @@ class TestEvalsGeneric(unittest.TestCase):
                           "Evals still reference 'cargo build'")
         self.assertNotIn("cargo test", text,
                           "Evals still reference 'cargo test'")
+
+
+class TestLoadConfigRaisesConfigError(unittest.TestCase):
+    """P6-16: load_config raises ConfigError, not SystemExit, on bad config."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="giles-p616-")
+        self.orig_dir = os.getcwd()
+        os.chdir(self.tmpdir)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_missing_config_dir_raises_config_error(self):
+        """load_config with nonexistent config dir raises ConfigError."""
+        with self.assertRaises(ConfigError):
+            load_config("nonexistent-dir")
+
+    def test_config_error_is_value_error(self):
+        """ConfigError is a subclass of ValueError for broad catches."""
+        with self.assertRaises(ValueError):
+            load_config("nonexistent-dir")
+
+    def test_config_error_does_not_raise_system_exit(self):
+        """load_config must not call sys.exit."""
+        try:
+            load_config("nonexistent-dir")
+        except SystemExit:
+            self.fail("load_config raised SystemExit instead of ConfigError")
+        except ConfigError:
+            pass  # expected
+
+    def test_config_error_message_includes_details(self):
+        """ConfigError message includes the validation error details."""
+        with self.assertRaises(ConfigError) as ctx:
+            load_config("nonexistent-dir")
+        self.assertIn("validation failed", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":

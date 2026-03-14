@@ -16,7 +16,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-from validate_config import load_config
+from validate_config import load_config, ConfigError
 
 # Patterns
 STORY_HEADING = re.compile(r'^###\s+(US-\d+):\s*(.+)')
@@ -197,7 +197,10 @@ def format_report(report: dict) -> str:
 
 def main() -> None:
     """CLI entry point: build and print traceability report."""
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     report = build_traceability(
         epics_dir=config.get("paths", {}).get("epics_dir"),
         test_plan_dir=config.get("paths", {}).get("test_plan_dir"),

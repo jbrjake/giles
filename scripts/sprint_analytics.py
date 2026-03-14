@@ -18,7 +18,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import (
-    load_config, extract_sp, gh, gh_json,
+    load_config, ConfigError, extract_sp, gh, gh_json,
     detect_sprint, find_milestone, get_sprints_dir, warn_if_at_limit,
 )
 
@@ -186,7 +186,10 @@ def main() -> None:
         print(__doc__.strip())
         sys.exit(0)
 
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     repo = config.get("project", {}).get("repo", "")
     sprints_dir = get_sprints_dir(config)
 

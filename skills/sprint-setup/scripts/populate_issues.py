@@ -14,7 +14,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, get_milestones, gh, warn_if_at_limit
+from validate_config import load_config, ConfigError, get_milestones, gh, warn_if_at_limit
 
 
 @dataclass
@@ -374,7 +374,10 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())
         sys.exit(0)
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
     project_name = config.get("project", {}).get("name", "Project")
     print(f"=== {project_name} Issue Population ===\n")
     check_prerequisites()
