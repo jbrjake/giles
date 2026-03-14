@@ -24,7 +24,7 @@ Each invocation performs seven steps in order:
 1.5. Drift detection (branch divergence + direct pushes)
 2. Check open PRs
 2.5. Mid-sprint check-in
-3. Update burndown
+3. Check sprint status
 4. Report a one-line summary
 
 ## Prerequisites
@@ -222,7 +222,7 @@ This check-in is informational. It does not block story execution.
 If the user invokes sprint-run while a check-in is pending, Giles
 presents it before resuming work.
 
-## Step 3 -- Update Burndown
+## Step 3 -- Check Sprint Status
 
 Run the status check script (path relative to skill install location):
 
