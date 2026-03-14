@@ -14,25 +14,32 @@ you need without reading entire files.
 ### scripts/validate_config.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 23 | `gh()` | Shared GitHub CLI wrapper (raises RuntimeError on failure) |
-| 33 | `gh_json()` | Run gh CLI and parse JSON output |
-| 48 | `parse_simple_toml()` | Custom TOML parser (no tomllib dep) |
-| 231 | `_REQUIRED_FILES` | List of files config dir must contain |
-| 244 | `_REQUIRED_TOML_KEYS` | Required keys: project.name, project.repo, etc. |
-| 255 | `_REQUIRED_TOML_SECTIONS` | project, paths, ci |
-| 258 | `validate_project()` | Full config validation, returns error list |
-| 367 | `_parse_team_index()` | Parse team/INDEX.md table |
-| 435 | `load_config()` | Load + validate, returns dict |
-| 466 | `get_team_personas()` | Personas from team/INDEX.md |
-| 494 | `get_milestones()` | Milestone file paths from config |
-| 509 | `get_ci_commands()` | CI check commands from [ci] section |
-| 518 | `get_base_branch()` | Base branch from config, defaults to 'main' |
-| 524 | `get_prd_dir()` | PRD directory path from config (optional) |
-| 533 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
-| 542 | `get_sagas_dir()` | Sagas directory path from config (optional) |
-| 551 | `get_epics_dir()` | Epics directory path from config (optional) |
-| 560 | `extract_sp()` | Shared story point extraction from labels/body |
-| 589 | `get_story_map()` | Story map file path from config (optional) |
+| 22 | `gh()` | Shared GitHub CLI wrapper (raises RuntimeError on failure) |
+| 32 | `gh_json()` | Run gh CLI and parse JSON output |
+| 47 | `parse_simple_toml()` | Custom TOML parser (no tomllib dep) |
+| 247 | `_REQUIRED_FILES` | List of files config dir must contain |
+| 260 | `_REQUIRED_TOML_KEYS` | Required keys: project.name, project.repo, etc. |
+| 271 | `_REQUIRED_TOML_SECTIONS` | project, paths, ci |
+| 274 | `validate_project()` | Full config validation, returns error list |
+| 383 | `_parse_team_index()` | Parse team/INDEX.md table |
+| 451 | `load_config()` | Load + validate, returns dict |
+| 482 | `get_team_personas()` | Personas from team/INDEX.md |
+| 510 | `get_milestones()` | Milestone file paths from config |
+| 525 | `get_ci_commands()` | CI check commands from [ci] section |
+| 534 | `get_base_branch()` | Base branch from config, defaults to 'main' |
+| 540 | `get_prd_dir()` | PRD directory path from config (optional) |
+| 549 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
+| 558 | `get_sagas_dir()` | Sagas directory path from config (optional) |
+| 567 | `get_epics_dir()` | Epics directory path from config (optional) |
+| 576 | `extract_sp()` | Shared story point extraction from labels/body |
+| 609 | `get_story_map()` | Story map file path from config (optional) |
+| 622 | `detect_sprint()` | Detect current sprint number from sprints directory |
+| 634 | `extract_story_id()` | Parse US-XXXX from issue title |
+| 640 | `_KANBAN_STATES` | Frozenset of 6 kanban states |
+| 643 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
+| 658 | `find_milestone()` | Look up GitHub milestone by sprint number |
+| 677 | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
+| 688 | `warn_if_at_limit()` | Warn if API response is at pagination limit |
 
 ### scripts/sprint_init.py
 | Line | Function | Purpose |
@@ -40,61 +47,52 @@ you need without reading entire files.
 | 36 | `RICH_PERSONA_HEADINGS` | Headings that signal a rich persona file |
 | 61 | `ScanResult` | Dataclass with all detected fields |
 | 90 | `ProjectScanner` | Auto-detects language, personas, milestones, rules, deep docs |
-| 266 | `detect_persona_files()` | Persona files with rich-heading confidence scoring |
-| 329 | `_walk_dirs()` | Walk directories up to max_depth for deep doc detection |
-| 341 | `detect_prd_dir()` | Find PRD directory |
-| 358 | `detect_test_plan_dir()` | Find test plan directory |
-| 367 | `detect_sagas_dir()` | Find sagas directory |
-| 376 | `detect_epics_dir()` | Find epics directory |
-| 385 | `detect_story_map()` | Find story map file |
-| 398 | `detect_team_topology()` | Find team topology file |
-| 459 | `ProjectScanner.scan()` | Run full project scan |
-| 493 | `ConfigGenerator` | Generates sprint-config/ from scan results |
-| 674 | `_inject_giles()` | Copy Giles skeleton into sprint-config/team/ (not symlinked) |
-| 743 | `generate_definition_of_done()` | Copy DoD skeleton into sprint-config/ |
-| 748 | `generate_history_dir()` | Create team/history/ directory for Sprint History |
-| 793 | `ConfigGenerator.generate()` | Execute generation |
-| 816 | `print_scan_results()` | Human-readable scan output |
+| 497 | `ConfigGenerator` | Generates sprint-config/ from scan results |
+| 818 | `_indicator()` | Confidence indicator character |
+| 826 | `print_scan_results()` | Human-readable scan output |
+| 862 | `print_generation_summary()` | Summary of generated config files |
+| 902 | `main()` | CLI entry point |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
 |------|----------|---------|
 | 20 | `classify_entries()` | Sort config entries: symlinks, generated, unknown |
+| 85 | `collect_directories()` | Collect directories for empty-dir cleanup |
 | 213 | `remove_symlinks()` | Delete symlinks, leave originals intact |
 | 226 | `remove_generated()` | Delete generated files (with --force flag) |
-| 308 | `check_active_loops()` | Warn about running /loop instances |
-| 354 | `print_github_cleanup_hints()` | Show manual GitHub cleanup steps |
+| 259 | `remove_empty_dirs()` | Remove empty directories deepest-first |
+| 273 | `check_active_loops()` | Warn about running /loop instances |
+| 319 | `print_github_cleanup_hints()` | Show manual GitHub cleanup steps |
+| 335 | `main()` | CLI entry point |
 
 ### skills/sprint-setup/scripts/bootstrap_github.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 55 | `create_label()` | Create single label (idempotent, --force) |
-| 78 | `create_persona_labels()` | Labels from team/INDEX.md |
-| 91 | `_collect_sprint_numbers()` | Scan milestone files for ### Sprint N: sections |
-| 113 | `create_sprint_labels()` | One label per sprint found across all milestones |
-| 125 | `_parse_saga_labels_from_backlog()` | Parse saga IDs from backlog/INDEX.md |
-| 160 | `create_saga_labels()` | Create saga labels from backlog INDEX.md |
-| 171 | `create_static_labels()` | Priority, kanban, type labels |
-| 200 | `create_epic_labels()` | Create labels for epics from epics directory |
-| 211 | `create_milestones_on_github()` | One GitHub milestone per milestone file |
-| 252 | `main()` | Entry point: labels, milestones, epic labels |
+| 44 | `create_label()` | Create single label (idempotent, --force) |
+| 64 | `create_persona_labels()` | Labels from team/INDEX.md |
+| 77 | `_collect_sprint_numbers()` | Scan milestone files for ### Sprint N: sections |
+| 99 | `create_sprint_labels()` | One label per sprint found across all milestones |
+| 111 | `_parse_saga_labels_from_backlog()` | Parse saga IDs from backlog/INDEX.md |
+| 146 | `create_saga_labels()` | Create saga labels from backlog INDEX.md |
+| 157 | `create_static_labels()` | Priority, kanban, type labels |
+| 186 | `create_epic_labels()` | Create labels for epics from epics directory |
+| 197 | `create_milestones_on_github()` | One GitHub milestone per milestone file |
+| 240 | `main()` | Entry point: labels, milestones, epic labels |
 
 ### skills/sprint-setup/scripts/populate_issues.py
 | Line | Function | Purpose |
 |------|----------|---------|
 | 21 | `Story` | Dataclass: story_id, title, saga, sp, priority, sprint, ACs |
-| 50 | `_DEFAULT_ROW_RE` | Default regex for story table rows (optional Epic column) |
-| 76 | `parse_milestone_stories()` | Extract stories from all milestone files |
-| 118 | `_infer_sprint_number()` | Guess sprint number from filename |
-| 137 | `_DETAIL_BLOCK_RE` | Regex for `### US-XXXX: title` detail block headers |
-| 138 | `_META_ROW_RE` | Regex for `| key | value |` metadata rows in detail blocks |
-| 141 | `parse_detail_blocks()` | Parse `### US-XXXX` detail sections into Story objects |
-| 191 | `enrich_from_epics()` | Enrich stories with ACs, deps, test cases from epic files |
-| 237 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
-| 253 | `get_milestone_numbers()` | Fetch milestone name-to-number mapping from GitHub |
-| 262 | `build_milestone_title_map()` | Map sprint num to milestone title (by content) |
-| 292 | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
-| 332 | `create_issue()` | Create single GitHub issue with labels + milestone |
+| 60 | `_build_row_regex()` | Build/validate story table row regex from config |
+| 86 | `parse_milestone_stories()` | Extract stories from all milestone files |
+| 128 | `_infer_sprint_number()` | Guess sprint number from filename (content-first) |
+| 152 | `parse_detail_blocks()` | Parse `### US-XXXX` detail sections into Story objects |
+| 202 | `enrich_from_epics()` | Enrich stories with ACs, deps, test cases from epic files |
+| 248 | `get_existing_issues()` | Fetch existing story IDs for idempotency |
+| 265 | `get_milestone_numbers()` | Fetch milestone name-to-number mapping from GitHub |
+| 276 | `build_milestone_title_map()` | Map sprint num to milestone title (by content) |
+| 306 | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
+| 346 | `create_issue()` | Create single GitHub issue with labels + milestone |
 
 ### skills/sprint-setup/scripts/setup_ci.py
 | Line | Function | Purpose |
@@ -111,23 +109,25 @@ you need without reading entire files.
 ### skills/sprint-run/scripts/sync_tracking.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 26 | `KANBAN_STATES` | Tuple of 6 states: todo..done |
-| 29 | `find_milestone_title()` | Look up milestone title by sprint number |
-| 108 | `extract_story_id()` | Parse US-XXXX from issue title |
-| 113 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
-| 142 | `TF` | Tracking file dataclass (story metadata) |
-| 158 | `read_tf()` | Parse YAML frontmatter from story file |
-| 181 | `write_tf()` | Write story file with frontmatter |
-| 206 | `sync_one()` | Reconcile one story: GitHub vs local |
-| 253 | `create_from_issue()` | Create local tracking file from GitHub issue |
+| 29 | `KANBAN_STATES` | Tuple of 6 states: todo..done |
+| 32 | `find_milestone_title()` | Look up milestone title by sprint number |
+| 37 | `_fetch_all_prs()` | Batch-fetch all PRs (one API call for entire sync) |
+| 50 | `get_linked_pr()` | Find PR linked to issue via timeline, fallback to branch |
+| 93 | `slug_from_title()` | Slugify issue title for tracking filename |
+| 115 | `TF` | Tracking file dataclass (story metadata) |
+| 131 | `read_tf()` | Parse YAML frontmatter from story file |
+| 154 | `write_tf()` | Write story file with frontmatter |
+| 179 | `sync_one()` | Reconcile one story: GitHub vs local |
+| 226 | `create_from_issue()` | Create local tracking file from GitHub issue |
 
 ### skills/sprint-run/scripts/update_burndown.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 28 | `list_milestone_issues()` | Fetch all issues for a milestone |
-| 38 | `closed_date()` | Extract close date from issue data |
-| 52 | `write_burndown()` | Generate burndown.md from milestone data |
-| 91 | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
+| 29 | `closed_date()` | Extract close date from issue data |
+| 43 | `write_burndown()` | Generate burndown.md from milestone data |
+| 82 | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
+| 121 | `load_tracking_metadata()` | Read story tracking files for assignee/PR data |
+| 151 | `main()` | CLI entry point |
 
 ### scripts/sync_backlog.py
 | Line | Function | Purpose |
@@ -160,9 +160,10 @@ you need without reading entire files.
 | 35 | `check_ci()` | Check recent workflow runs for failures |
 | 91 | `check_prs()` | Check open PRs: stale, needs review, approved |
 | 167 | `check_milestone()` | Milestone progress: SP done vs total |
-| 222 | `check_branch_divergence()` | Detect branches far behind base (>10/20 commits) |
-| 260 | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
-| 299 | `write_log()` | Append timestamped entry to monitor log |
+| 221 | `check_branch_divergence()` | Detect branches far behind base (>10/20 commits) |
+| 259 | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
+| 298 | `write_log()` | Append timestamped entry to monitor log |
+| 313 | `main()` | CLI entry point |
 
 ### scripts/team_voices.py
 | Line | Function | Purpose |
@@ -194,34 +195,37 @@ you need without reading entire files.
 | 58 | `detect_test_functions()` | Find test function names in source code by language |
 | 66 | `scan_project_tests()` | Walk project tree, find all test files and functions |
 | 90 | `check_test_coverage()` | Compare planned vs actual, return coverage report |
-| 118 | `format_report()` | Markdown coverage report |
-| 146 | `main()` | CLI: load config, check coverage, print |
+| 131 | `format_report()` | Markdown coverage report |
+| 159 | `main()` | CLI: load config, check coverage, print |
 
 ### scripts/manage_epics.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 26 | `parse_epic()` | Parse epic file: metadata + stories list + raw sections |
-| 53 | `_parse_header_table()` | Epic-level metadata table (Saga, Stories, Total SP) |
-| 72 | `_parse_stories()` | All `### US-XXXX` sections with metadata, ACs, tasks |
-| 136 | `_format_story_section()` | Format story data dict as markdown section |
-| 188 | `add_story()` | Append new story section to epic file |
-| 203 | `remove_story()` | Remove story section by ID |
-| 233 | `reorder_stories()` | Reorder story sections to match given ID list |
-| 276 | `renumber_stories()` | Replace story ID references (for splits) |
-| 295 | `main()` | CLI: add, remove, reorder, renumber subcommands |
+| 26 | `_safe_int()` | Extract leading digits from string, 0 on failure |
+| 32 | `_parse_epic_from_lines()` | Parse epic from pre-read lines (avoids TOCTOU) |
+| 54 | `parse_epic()` | Parse epic file: metadata + stories list + raw sections |
+| 70 | `_parse_header_table()` | Epic-level metadata table (Saga, Stories, Total SP) |
+| 89 | `_parse_stories()` | All `### US-XXXX` sections with metadata, ACs, tasks |
+| 165 | `_format_story_section()` | Format story data dict as markdown section |
+| 217 | `add_story()` | Append new story section to epic file |
+| 232 | `remove_story()` | Remove story section by ID |
+| 263 | `reorder_stories()` | Reorder story sections to match given ID list |
+| 318 | `renumber_stories()` | Replace story ID references (for splits) |
+| 337 | `main()` | CLI: add, remove, reorder, renumber subcommands |
 
 ### scripts/manage_sagas.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 31 | `parse_saga()` | Parse saga file: metadata + epic index + sprint allocation |
-| 60 | `_parse_header_table()` | Saga-level metadata table |
-| 75 | `_parse_epic_index()` | Epic Index table (ID, name, stories, SP) |
-| 97 | `_parse_sprint_allocation()` | Sprint Allocation table |
-| 118 | `_find_section_ranges()` | Line ranges for each ## section |
-| 137 | `update_sprint_allocation()` | Rewrite Sprint Allocation table |
-| 169 | `update_epic_index()` | Recalculate Epic Index from epic files |
-| 224 | `update_team_voices()` | Update Team Voices blockquote section |
-| 247 | `main()` | CLI: update-allocation, update-index, update-voices |
+| 25 | `_safe_int()` | Extract leading digits from string, 0 on failure |
+| 37 | `parse_saga()` | Parse saga file: metadata + epic index + sprint allocation |
+| 66 | `_parse_header_table()` | Saga-level metadata table |
+| 81 | `_parse_epic_index()` | Epic Index table (ID, name, stories, SP) |
+| 103 | `_parse_sprint_allocation()` | Sprint Allocation table |
+| 124 | `_find_section_ranges()` | Line ranges for each ## section |
+| 143 | `update_sprint_allocation()` | Rewrite Sprint Allocation table |
+| 175 | `update_epic_index()` | Recalculate Epic Index from epic files |
+| 230 | `update_team_voices()` | Update Team Voices blockquote section |
+| 253 | `main()` | CLI: update-allocation, update-index, update-voices |
 
 ## Skill entry points -- section index
 
@@ -250,12 +254,12 @@ you need without reading entire files.
 ### skills/sprint-monitor/SKILL.md
 | Line | Section |
 |------|---------|
-| 46 | Step 0: Sync backlog (debounce + throttle) |
-| 69 | Step 1: Check CI status |
-| 103 | Step 1.5: Drift detection (branch divergence + direct pushes) |
-| 133 | Step 2: Check open PRs |
-| 182 | Step 2.5: Mid-sprint check-in (threshold-triggered Giles ceremony) |
-| 225 | Step 3: Check sprint status |
+| 48 | Step 0: Sync backlog (debounce + throttle) |
+| 71 | Step 1: Check CI status |
+| 105 | Step 1.5: Drift detection (branch divergence + direct pushes) |
+| 135 | Step 2: Check open PRs |
+| 181 | Step 2.5: Mid-sprint check-in (threshold-triggered Giles ceremony) |
+| 222 | Step 3: Check sprint status |
 | 246 | Step 4: Report |
 | 266 | Rate limiting and deduplication |
 
@@ -277,18 +281,18 @@ you need without reading entire files.
 | 6 | States (6: todo, design, dev, review, integration, done) |
 | 17 | Transitions (allowed state changes) |
 | 28 | Rules (one story per persona in dev, 3-round review limit) |
-| 47 | GitHub label sync procedure |
-| 56 | WIP limits (1 dev/persona, 2 review/reviewer, 3 integration) |
-| 68 | Blocked story handling |
+| 42 | GitHub label sync procedure |
+| 51 | WIP limits (1 dev/persona, 2 review/reviewer, 3 integration) |
+| 63 | Blocked story handling |
 
 ### skills/sprint-run/references/persona-guide.md
 | Line | Section |
 |------|---------|
 | 5 | Persona assignment rules (domain keywords) |
-| 17 | Voice guidelines |
-| 23 | GitHub header format for PRs and reviews |
-| 47 | Giles rules (always facilitator, never implementer/reviewer) |
-| 59 | PM persona role clarification |
+| 18 | Voice guidelines |
+| 24 | GitHub header format for PRs and reviews |
+| 48 | Giles rules (always facilitator, never implementer/reviewer) |
+| 60 | PM persona role clarification |
 
 ### skills/sprint-run/references/ceremony-kickoff.md
 | Line | Section |
@@ -443,20 +447,20 @@ Required TOML keys: `project.name`, `project.repo`, `project.language`,
 `ci.check_commands`, `ci.build_command`.
 
 Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`,
-`paths.epics_dir`, `paths.story_map`, `paths.team_topology`, `paths.feedback_dir`.
+`paths.epics_dir`, `paths.story_map`, `paths.team_topology`.
 
-See `validate_config.py:244` for the full list.
+See `validate_config.py:260` for the full list.
 
 ## Common modifications
 
 | Want to... | Edit |
 |-----------|------|
 | Add new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter |
-| Change config validation | `scripts/validate_config.py:231` (_REQUIRED_FILES), `:244` (_REQUIRED_TOML_KEYS) |
-| Add label category | `bootstrap_github.py:171` (create_static_labels) |
+| Change config validation | `scripts/validate_config.py:247` (_REQUIRED_FILES), `:260` (_REQUIRED_TOML_KEYS) |
+| Add label category | `bootstrap_github.py:157` (create_static_labels) |
 | Add language to CI gen | `setup_ci.py:61` (_SETUP_REGISTRY), `:75` (_ENV_BLOCKS) |
-| Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:26` (KANBAN_STATES) |
-| Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:142` (TF), `update_burndown.py:69` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:793` (ConfigGenerator.generate) |
-| Change story ID pattern | `populate_issues.py:58` (_DEFAULT_ROW_RE), or set [backlog] story_id_pattern in TOML |
+| Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:29` (KANBAN_STATES) |
+| Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:115` (TF), `update_burndown.py:43` |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:497` (ConfigGenerator) |
+| Change story ID pattern | `populate_issues.py:60` (_build_row_regex), or set [backlog] story_id_pattern in TOML |
 | Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:75 handles injection. |
