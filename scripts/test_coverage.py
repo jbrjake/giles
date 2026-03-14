@@ -160,7 +160,7 @@ def main() -> None:
     """CLI entry point: check test coverage and print report."""
     config = load_config()
     test_plan_dir = config.get("paths", {}).get("test_plan_dir")
-    language = config.get("project", {}).get("language", "python")
+    language = config.get("project", {}).get("language", "python").lower()
 
     if not test_plan_dir:
         print("No test_plan_dir configured in project.toml")
