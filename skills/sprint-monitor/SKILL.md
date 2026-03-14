@@ -163,15 +163,12 @@ Process each PR according to its state:
 
 ### PRs approved + CI green
 
-- Merge using the strategy from `project.toml [conventions] merge_strategy`:
-  ```bash
-  gh pr merge {number} --{merge_strategy} --delete-branch
-  ```
-- Close the linked issue if one exists:
+- Report that the PR is ready to merge (sprint-run handles the actual merge
+  during story execution using the strategy from `project.toml [conventions] merge_strategy`).
+- Note any linked issues that will close on merge:
   ```bash
   gh pr view {number} --json closingIssuesReferences --jq '.closingIssuesReferences[].number'
   ```
-- Update the story tracking file to mark the story as done.
 
 ### PRs with merge conflicts
 

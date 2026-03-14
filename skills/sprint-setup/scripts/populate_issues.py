@@ -240,8 +240,9 @@ def get_existing_issues() -> set[str]:
         raw = gh(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
         issues = json.loads(raw) if raw else []
         warn_if_at_limit(issues, 500)
-    except (RuntimeError, json.JSONDecodeError):
-        return set()
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        print(f"Error: could not fetch existing issues: {exc}", file=sys.stderr)
+        raise
     existing: set[str] = set()
     for issue in issues:
         m = re.match(r"([A-Z]+-\d+):", issue.get("title", ""))
@@ -382,7 +383,12 @@ def main() -> None:
     print(f"  Enriched {enriched}/{len(stories)} stories with epic details.")
 
     print("\nChecking for existing issues...")
-    existing = get_existing_issues()
+    try:
+        existing = get_existing_issues()
+    except (RuntimeError, json.JSONDecodeError):
+        print("Cannot proceed without checking existing issues (would create duplicates).",
+              file=sys.stderr)
+        sys.exit(1)
     if existing:
         print(f"  Found {len(existing)} existing story issues.")
     milestone_numbers = get_milestone_numbers()

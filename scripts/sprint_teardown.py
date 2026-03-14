@@ -270,41 +270,6 @@ def remove_empty_dirs(directories: list[Path], project_root: Path) -> int:
     return removed
 
 
-def verify_targets(symlinks: list[Path], project_root: Path) -> None:
-    """Spot-check that files the symlinks pointed to still exist."""
-    print("\nVerifying symlink targets are intact:")
-    all_ok = True
-    for s in symlinks:
-        _target = resolve_symlink_target(s)
-        # Symlink is gone now, so we need to reconstruct the target path
-        # from the raw link value we can no longer read. We stored nothing.
-        # Instead, skip verification for removed symlinks — the remove step
-        # already confirmed the target was intact before unlinking.
-    # We'll verify by checking known project files instead
-    key_files = [
-        "RULES.md",
-        "DEVELOPMENT.md",
-    ]
-    # Check docs/dev-team/ persona files
-    dev_team = project_root / "docs" / "dev-team"
-    if dev_team.exists():
-        persona_files = sorted(dev_team.glob("*.md"))
-        key_files.extend([str(f.relative_to(project_root)) for f in persona_files[:3]])
-
-    for name in key_files:
-        path = project_root / name
-        if path.exists():
-            print(f"  {name}  ✓ exists")
-        else:
-            print(f"  {name}  ✗ MISSING")
-            all_ok = False
-
-    if all_ok:
-        print("  All checked files intact.")
-    else:
-        print("  WARNING: Some files are missing. This may indicate a problem.")
-
-
 def check_active_loops() -> list[str]:
     """Detect active /loop commands related to sprint-monitor.
 

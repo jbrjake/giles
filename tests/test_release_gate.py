@@ -308,11 +308,12 @@ build_command = "make build"
 """
 
 
-def _make_subprocess_side_effect(*, tag_fails=False):
+def _make_subprocess_side_effect(*, tag_fails=False, commit_fails=False):
     """Build a side_effect function for subprocess.run.
 
     Returns CompletedProcess(returncode=0) for all commands except when
-    tag_fails=True and the command is 'git tag'.
+    tag_fails=True and the command is 'git tag', or commit_fails=True and
+    the command invokes commit.py.
     """
     def _side_effect(cmd, **kwargs):
         # Detect 'git tag' invocations
@@ -320,6 +321,12 @@ def _make_subprocess_side_effect(*, tag_fails=False):
             if tag_fails:
                 return subprocess.CompletedProcess(
                     args=cmd, returncode=1, stdout="", stderr="tag already exists",
+                )
+        # Detect commit.py invocations
+        if commit_fails and isinstance(cmd, list) and len(cmd) >= 2:
+            if any("commit.py" in str(arg) for arg in cmd):
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=1, stdout="", stderr="commit hook failed",
                 )
         return subprocess.CompletedProcess(
             args=cmd if isinstance(cmd, list) else [cmd],
@@ -487,7 +494,79 @@ class TestDoRelease(unittest.TestCase):
         push_calls = [c for c in run_cmds if isinstance(c, list) and "push" in c]
         self.assertEqual(len(push_calls), 0)
 
-    # -- Test 4: dry run makes no mutations ------------------------------------
+    # -- Test 4: commit failure triggers proper git rollback -------------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_commit_failure_rollback_unstages_and_restores(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """When commit fails, rollback calls git reset HEAD to unstage, then git checkout to restore."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: add dashboard", "body": ""},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect(commit_fails=True)
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+        result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertFalse(result)
+
+        # No gh() calls — release was never created
+        mock_gh.assert_not_called()
+        mock_ms.assert_not_called()
+
+        # Inspect subprocess.run calls for the rollback sequence
+        run_cmds = [call[0][0] for call in mock_run.call_args_list]
+
+        # Find git reset HEAD calls
+        reset_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 4
+            and c[0] == "git" and c[1] == "reset" and c[2] == "HEAD"
+            and c[3] == "--"
+        ]
+        self.assertGreaterEqual(
+            len(reset_calls), 1,
+            f"Expected at least one 'git reset HEAD --' call, got: {run_cmds}",
+        )
+
+        # Find git checkout -- calls (restore working tree)
+        checkout_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "checkout" and c[2] == "--"
+        ]
+        self.assertGreaterEqual(
+            len(checkout_calls), 1,
+            f"Expected at least one 'git checkout --' call, got: {run_cmds}",
+        )
+
+        # Verify reset comes before checkout in the call list
+        reset_idx = next(
+            i for i, c in enumerate(run_cmds)
+            if isinstance(c, list) and len(c) >= 4
+            and c[0] == "git" and c[1] == "reset" and c[2] == "HEAD"
+        )
+        checkout_idx = next(
+            i for i, c in enumerate(run_cmds)
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "checkout" and c[2] == "--"
+        )
+        self.assertLess(
+            reset_idx, checkout_idx,
+            "git reset HEAD should be called before git checkout --",
+        )
+
+    # -- Test 5: dry run makes no mutations ------------------------------------
 
     @patch("release_gate.gh")
     @patch("release_gate.find_milestone_number")

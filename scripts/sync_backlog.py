@@ -204,6 +204,11 @@ def main() -> str:
     print(f"sync: {result.message}")
 
     if result.should_sync:
+        # Note: there is a narrow TOCTOU window between hashing above and
+        # reading files inside do_sync().  The debounce mechanism mitigates
+        # this — hashes must be stable across multiple invocations before
+        # syncing, so a file edited during the ~100 ms gap would simply
+        # cause the next check to detect a change and re-sync.
         counts = do_sync(config)
         state["file_hashes"] = current_hashes
         state["pending_hashes"] = None

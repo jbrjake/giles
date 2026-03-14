@@ -460,6 +460,22 @@ class TestParseSimpleToml(unittest.TestCase):
         result = parse_simple_toml(toml_text)
         self.assertEqual(result, {})
 
+    def test_escaped_backslash_before_quote(self):
+        """BH3-05: Even backslashes before quote end the string correctly.
+
+        TOML ``"hello\\\\\\\\"`` has two escaped backslashes (``\\\\`` each),
+        yielding the Python string ``hello\\\\`` after unescape.
+        """
+        result = parse_simple_toml(r'items = ["hello\\"]')
+        self.assertIn("items", result)
+        self.assertEqual(result["items"], ["hello\\"])
+
+    def test_escaped_quote_in_array(self):
+        """Odd backslashes before quote → escaped quote, not end of string."""
+        result = parse_simple_toml(r'items = ["say \"hi\"", "ok"]')
+        self.assertEqual(len(result["items"]), 2)
+        self.assertEqual(result["items"][1], "ok")
+
 
 # ---------------------------------------------------------------------------
 # P2-05: Non-Rust CI Generation
@@ -1149,8 +1165,8 @@ class TestKanbanFromLabels(unittest.TestCase):
     """Direct tests for kanban_from_labels()."""
 
     def test_kanban_label_dict(self):
-        issue = {"labels": [{"name": "kanban:in-progress"}], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "in-progress")
+        issue = {"labels": [{"name": "kanban:dev"}], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "dev")
 
     def test_kanban_label_string(self):
         issue = {"labels": ["kanban:review"], "state": "open"}
@@ -1171,10 +1187,15 @@ class TestKanbanFromLabels(unittest.TestCase):
     def test_multiple_labels_first_kanban_wins(self):
         issue = {"labels": [
             {"name": "type:story"},
-            {"name": "kanban:blocked"},
+            {"name": "kanban:review"},
             {"name": "sp:3"},
         ], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "blocked")
+        self.assertEqual(kanban_from_labels(issue), "review")
+
+    def test_invalid_kanban_label_falls_back(self):
+        """BH3-03: Invalid kanban label values fall back to todo/done."""
+        issue = {"labels": [{"name": "kanban:blocked"}], "state": "open"}
+        self.assertEqual(kanban_from_labels(issue), "todo")
 
 
 if __name__ == "__main__":

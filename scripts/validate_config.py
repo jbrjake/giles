@@ -115,11 +115,19 @@ def parse_simple_toml(text: str) -> dict:
     return root
 
 
+def _count_trailing_backslashes(s: str, pos: int) -> int:
+    """Count consecutive backslashes immediately before position *pos*."""
+    n = 0
+    while pos - 1 - n >= 0 and s[pos - 1 - n] == "\\":
+        n += 1
+    return n
+
+
 def _strip_inline_comment(val: str) -> str:
     """Remove trailing # comments that are outside of quotes."""
     in_str = False
     for i, ch in enumerate(val):
-        if ch == '"' and (i == 0 or val[i - 1] != "\\"):
+        if ch == '"' and _count_trailing_backslashes(val, i) % 2 == 0:
             in_str = not in_str
         elif ch == "#" and not in_str:
             return val[:i].rstrip()
@@ -130,7 +138,7 @@ def _has_closing_bracket(s: str) -> bool:
     """Check if s contains ] outside of quoted strings."""
     in_str = False
     for i, ch in enumerate(s):
-        if ch == '"' and (i == 0 or s[i - 1] != "\\"):
+        if ch == '"' and _count_trailing_backslashes(s, i) % 2 == 0:
             in_str = not in_str
         elif ch == ']' and not in_str:
             return True
@@ -198,13 +206,22 @@ def _parse_value(raw: str):
 
 
 def _split_array(inner: str) -> list[str]:
-    """Split array contents by commas, respecting quoted strings."""
+    """Split array contents by commas, respecting quoted strings.
+
+    Handles escaped quotes (``\\"``) and escaped backslashes (``\\\\``).
+    An even number of consecutive backslashes before a quote means the
+    quote is real (ends/starts the string); an odd number means it's escaped.
+    """
     parts: list[str] = []
     current = ""
     in_str = False
     for ch in inner:
-        if ch == '"' and (not current or current[-1] != "\\"):
-            in_str = not in_str
+        if ch == '"':
+            # Count consecutive trailing backslashes
+            n_bs = len(current) - len(current.rstrip("\\"))
+            if n_bs % 2 == 0:
+                # Even backslashes (0, 2, …) → quote is real
+                in_str = not in_str
             current += ch
         elif ch == "," and not in_str:
             parts.append(current)
@@ -617,13 +634,22 @@ def extract_story_id(title: str) -> str:
     return m.group(1) if m else title.split(":")[0].strip()
 
 
+_KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
+
+
 def kanban_from_labels(issue: dict) -> str:
-    """Derive kanban status from an issue's labels."""
+    """Derive kanban status from an issue's labels.
+
+    Returns a valid kanban state. Invalid label values are ignored.
+    """
+    fallback = "done" if issue.get("state") == "closed" else "todo"
     for label in issue.get("labels", []):
         name = label if isinstance(label, str) else label.get("name", "")
         if name.startswith("kanban:"):
-            return name.split(":", 1)[1]
-    return "done" if issue.get("state") == "closed" else "todo"
+            state = name.split(":", 1)[1]
+            if state in _KANBAN_STATES:
+                return state
+    return fallback
 
 
 def find_milestone(sprint_num: int) -> dict | None:

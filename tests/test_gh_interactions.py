@@ -488,8 +488,8 @@ class TestGetExistingIssues(unittest.TestCase):
     @patch("populate_issues.gh")
     def test_handles_gh_failure(self, mock_gh):
         mock_gh.side_effect = RuntimeError("auth failed")
-        existing = populate_issues.get_existing_issues()
-        self.assertEqual(len(existing), 0)
+        with self.assertRaises(RuntimeError):
+            populate_issues.get_existing_issues()
 
 
 # ---------------------------------------------------------------------------
@@ -977,6 +977,30 @@ class TestUpdateSprintStatus(unittest.TestCase):
                       "status": "todo", "closed": ""}]
             # Should not raise
             update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+
+
+class TestKanbanFromLabels(unittest.TestCase):
+    """BH3-03: kanban_from_labels validates against allowed states."""
+
+    def test_valid_state_returned(self):
+        issue = {"labels": [{"name": "kanban:review"}], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "review")
+
+    def test_invalid_state_falls_back_to_todo(self):
+        issue = {"labels": [{"name": "kanban:garbage"}], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "todo")
+
+    def test_invalid_state_closed_falls_back_to_done(self):
+        issue = {"labels": [{"name": "kanban:garbage"}], "state": "closed"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "done")
+
+    def test_no_kanban_label_open(self):
+        issue = {"labels": [], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "todo")
+
+    def test_no_kanban_label_closed(self):
+        issue = {"labels": [], "state": "closed"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "done")
 
 
 if __name__ == "__main__":

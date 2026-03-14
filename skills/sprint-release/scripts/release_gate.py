@@ -177,6 +177,8 @@ def gate_tests(config: dict) -> tuple[bool, str]:
     if not commands:
         return True, "No check_commands configured"
     for cmd in commands:
+        # shell=True is intentional — commands are user-configured shell
+        # expressions (e.g. "cargo test", "npm run lint") from project.toml.
         r = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=300,
         )
@@ -190,6 +192,8 @@ def gate_build(config: dict) -> tuple[bool, str]:
     build_cmd = config.get("ci", {}).get("build_command", "")
     if not build_cmd:
         return True, "No build_command configured"
+    # shell=True is intentional — build_command is a user-configured shell
+    # expression (e.g. "make build", "cargo build --release") from project.toml.
     r = subprocess.run(
         build_cmd, shell=True, capture_output=True, text=True, timeout=300,
     )
@@ -414,9 +418,6 @@ def do_release(
         print(f"[DRY-RUN] Would create tag: v{new_ver}")
         print(f"[DRY-RUN] Would push tag: git push origin v{new_ver}")
     else:
-        # Save original TOML for rollback
-        original_toml = toml_path.read_text(encoding="utf-8")
-
         # 2-3. Write version and commit
         write_version_to_toml(new_ver, toml_path)
         completed_steps.append("write-version")
@@ -424,14 +425,24 @@ def do_release(
             ["git", "add", str(toml_path)], capture_output=True, text=True,
         )
         if r.returncode != 0:
-            toml_path.write_text(original_toml, encoding="utf-8")
+            subprocess.run(
+                ["git", "reset", "HEAD", "--", str(toml_path)],
+                capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "checkout", "--", str(toml_path)],
+                capture_output=True, text=True,
+            )
             return _fail("git-add", f"git add failed: {r.stderr.strip()}")
         r = subprocess.run(
             [sys.executable, str(COMMIT_PY), f"chore: bump version to {new_ver}"],
             capture_output=True, text=True,
         )
         if r.returncode != 0:
-            toml_path.write_text(original_toml, encoding="utf-8")
+            subprocess.run(
+                ["git", "reset", "HEAD", "--", str(toml_path)],
+                capture_output=True, text=True,
+            )
             subprocess.run(
                 ["git", "checkout", "--", str(toml_path)],
                 capture_output=True, text=True,
