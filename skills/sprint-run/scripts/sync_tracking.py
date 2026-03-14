@@ -24,9 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, gh, extract_story_id, get_sprints_dir, kanban_from_labels,
     find_milestone, warn_if_at_limit, list_milestone_issues,
+    KANBAN_STATES,
 )
-
-KANBAN_STATES = ("todo", "design", "dev", "review", "integration", "done")
 
 
 def find_milestone_title(sprint_num: int) -> str | None:

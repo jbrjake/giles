@@ -222,8 +222,8 @@ def _split_array(inner: str) -> list[str]:
     in_str = False
     for ch in inner:
         if ch == '"':
-            # Count consecutive trailing backslashes
-            n_bs = len(current) - len(current.rstrip("\\"))
+            # Count consecutive trailing backslashes using the shared helper
+            n_bs = _count_trailing_backslashes(current, len(current))
             if n_bs % 2 == 0:
                 # Even backslashes (0, 2, …) → quote is real
                 in_str = not in_str
@@ -470,6 +470,9 @@ def load_config(config_dir: str = "sprint-config") -> dict:
     toml_path = Path(config_dir) / "project.toml"
     config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
 
+    # Store config_dir so downstream code can derive file paths
+    config["_config_dir"] = config_dir
+
     # Resolve paths relative to the project root, which is the parent
     # of config_dir. This ensures scripts work regardless of cwd.
     project_root = Path(config_dir).resolve().parent
@@ -601,7 +604,7 @@ def extract_sp(issue: dict) -> int:
             name = label.get("name", "")
         else:
             continue
-        if m := re.match(r"sp:(\d+)", name):
+        if m := re.search(r"sp:\s*(\d+)", name, re.IGNORECASE):
             return int(m.group(1))
     body = issue.get("body", "") or ""
     if m := re.search(
@@ -643,12 +646,22 @@ def detect_sprint(sprints_dir: Path) -> int | None:
 
 
 def extract_story_id(title: str) -> str:
-    """Extract story ID (e.g. US-0001) from an issue title."""
+    """Extract story ID (e.g. US-0001) from an issue title.
+
+    Falls back to a sanitized slug from the title prefix when no
+    standard ID pattern is found.
+    """
     m = re.match(r"([A-Z]+-\d+)", title)
-    return m.group(1) if m else title.split(":")[0].strip()
+    if m:
+        return m.group(1)
+    # Fallback: sanitize the prefix before any colon into a safe slug
+    prefix = title.split(":")[0].strip()
+    slug = re.sub(r"[^a-zA-Z0-9_-]", "-", prefix).strip("-").lower()
+    return slug[:40] if slug else "unknown"
 
 
-_KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
+KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
+_KANBAN_STATES = KANBAN_STATES  # Backward compat alias
 
 
 def kanban_from_labels(issue: dict) -> str:

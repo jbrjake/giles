@@ -195,16 +195,31 @@ class ProjectScanner:
         runs: list[str] = []
         try:
             with open(yml_path, encoding="utf-8") as f:
-                for line in f:
-                    stripped = line.strip()
-                    # Match both "run: cmd" and "- run: cmd" formats
-                    run_line = stripped
-                    if run_line.startswith("- "):
-                        run_line = run_line[2:].strip()
-                    if run_line.startswith("run:"):
-                        cmd = run_line[4:].strip().strip("|").strip()
-                        if cmd:
-                            runs.append(cmd)
+                lines = f.readlines()
+            i = 0
+            while i < len(lines):
+                stripped = lines[i].strip()
+                # Match both "run: cmd" and "- run: cmd" formats
+                run_line = stripped
+                if run_line.startswith("- "):
+                    run_line = run_line[2:].strip()
+                if run_line.startswith("run:"):
+                    cmd = run_line[4:].strip()
+                    if cmd == "|" or cmd == "":
+                        # Multiline run block: collect subsequent indented lines
+                        multiline_cmds: list[str] = []
+                        i += 1
+                        while i < len(lines) and (lines[i].startswith("  ") or lines[i].strip() == ""):
+                            line_content = lines[i].strip()
+                            if line_content:
+                                multiline_cmds.append(line_content)
+                            i += 1
+                        if multiline_cmds:
+                            runs.append(" && ".join(multiline_cmds))
+                        continue
+                    else:
+                        runs.append(cmd)
+                i += 1
         except OSError:
             pass
         return runs
@@ -545,8 +560,12 @@ class ConfigGenerator:
 
     @staticmethod
     def _esc(val: str) -> str:
-        """Escape double quotes and backslashes for TOML string values."""
-        return str(val).replace('\\', '\\\\').replace('"', '\\"')
+        """Escape special characters for TOML basic string values."""
+        return (str(val)
+                .replace('\\', '\\\\')
+                .replace('"', '\\"')
+                .replace('\n', '\\n')
+                .replace('\t', '\\t'))
 
     def generate_project_toml(self) -> None:
         s = self.scan
@@ -563,7 +582,8 @@ class ConfigGenerator:
         try:
             _result = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True, text=True, check=True)
+                capture_output=True, text=True, check=True,
+                cwd=str(self.root))
             _current_branch = _result.stdout.strip()
         except (subprocess.CalledProcessError, FileNotFoundError):
             _current_branch = "main"

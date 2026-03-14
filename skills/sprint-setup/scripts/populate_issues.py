@@ -51,9 +51,10 @@ _DEFAULT_ROW_RE = re.compile(
     r"\|\s*(US-\d{4})\s*\|\s*(.+?)\s*\|\s*(?:(E-\d{4})\s*\|\s*)?(S\d{2})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
 )
 
-# Sprint section header pattern
+# Sprint section header pattern — only stops at next sprint header or
+# higher-level heading, not arbitrary ### headings like ### Notes.
 _SPRINT_HEADER_RE = re.compile(
-    r"### Sprint (\d+):.*?\n(.*?)(?=\n### |\n## |\Z)", re.DOTALL
+    r"### Sprint (\d+):.*?\n(.*?)(?=\n### Sprint |\n## |\Z)", re.DOTALL
 )
 
 
@@ -265,7 +266,7 @@ def get_existing_issues() -> set[str]:
 def get_milestone_numbers() -> dict[str, int]:
     """Fetch milestone title -> number mapping from GitHub."""
     try:
-        raw = gh(["api", "repos/{owner}/{repo}/milestones", "--jq", "."])
+        raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate", "--jq", "."])
         return {m["title"]: m["number"] for m in json.loads(raw)} if raw else {}
     except (RuntimeError, json.JSONDecodeError, KeyError) as exc:
         print(f"Error: could not fetch milestones: {exc}", file=sys.stderr)
@@ -403,7 +404,11 @@ def main() -> None:
         sys.exit(1)
     if existing:
         print(f"  Found {len(existing)} existing story issues.")
-    milestone_numbers = get_milestone_numbers()
+    try:
+        milestone_numbers = get_milestone_numbers()
+    except (RuntimeError, json.JSONDecodeError, KeyError):
+        print("Cannot proceed without milestone data.", file=sys.stderr)
+        sys.exit(1)
     milestone_titles = build_milestone_title_map(milestone_files)
 
     print("\n=== Creating Issues ===\n")

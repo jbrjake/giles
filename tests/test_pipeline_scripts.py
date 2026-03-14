@@ -1245,11 +1245,31 @@ class TestExtractStoryId(unittest.TestCase):
     def test_non_standard_prefix(self):
         self.assertEqual(extract_story_id("PROJ-42: Widget"), "PROJ-42")
 
-    def test_no_match_falls_back_to_prefix(self):
+    def test_no_match_falls_back_to_slug(self):
+        """P5-19: Fallback produces a sanitized slug, not raw text."""
         self.assertEqual(extract_story_id("setup: init project"), "setup")
 
-    def test_no_colon_returns_full_title(self):
-        self.assertEqual(extract_story_id("no colon here"), "no colon here")
+    def test_no_colon_returns_sanitized_slug(self):
+        """P5-19: Full title without colon becomes a lowercase slug."""
+        result = extract_story_id("no colon here")
+        self.assertEqual(result, "no-colon-here")
+        # Slug should be filesystem-safe
+        self.assertRegex(result, r'^[a-z0-9_-]+$')
+
+    def test_special_chars_sanitized(self):
+        """P5-19: Special characters become dashes in the slug."""
+        result = extract_story_id("Add authentication: security module")
+        self.assertEqual(result, "add-authentication")
+
+    def test_empty_title_returns_unknown(self):
+        """P5-19: Empty title returns 'unknown' as fallback."""
+        self.assertEqual(extract_story_id(""), "unknown")
+
+    def test_slug_truncated_at_40(self):
+        """P5-19: Long slugs are truncated to prevent filesystem issues."""
+        long_title = "a" * 60
+        result = extract_story_id(long_title)
+        self.assertLessEqual(len(result), 40)
 
 
 class TestKanbanFromLabels(unittest.TestCase):

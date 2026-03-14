@@ -243,10 +243,13 @@ def remove_story(path: str, story_id: str) -> None:
     start = section["start_line"]
     end = section["end_line"]
 
-    # Also remove the --- separator before this story (if present)
+    # Also remove the --- separator before this story (if present).
+    # Cap walk-back to max 3 lines to avoid eating unrelated content.
     sep_start = start
-    while sep_start > 0 and lines[sep_start - 1].strip() in ("", "---"):
+    walked = 0
+    while sep_start > 0 and walked < 3 and lines[sep_start - 1].strip() in ("", "---"):
         sep_start -= 1
+        walked += 1
     # Keep at least one blank line
     if sep_start < start:
         sep_start += 1
@@ -295,6 +298,12 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
             f"{sorted(missing_from_list)}. All stories must be included "
             f"to prevent data loss."
         )
+
+    # Warn about requested IDs not found in the file
+    not_in_file = provided_ids - existing_ids
+    if not_in_file:
+        print(f"Warning: IDs not found in {path}: {sorted(not_in_file)}",
+              file=sys.stderr)
 
     # Reassemble in new order
     new_lines = list(header)
@@ -351,16 +360,25 @@ def main() -> None:
         print(f"Added story {story_data.get('id', '?')} to {epic_file}")
 
     elif command == "remove":
+        if len(sys.argv) < 4:
+            print("Usage: manage_epics.py remove <epic_file> <story_id>", file=sys.stderr)
+            sys.exit(1)
         story_id = sys.argv[3]
         remove_story(epic_file, story_id)
         print(f"Removed {story_id} from {epic_file}")
 
     elif command == "reorder":
+        if len(sys.argv) < 4:
+            print("Usage: manage_epics.py reorder <epic_file> <id1,id2,...>", file=sys.stderr)
+            sys.exit(1)
         ids = sys.argv[3].split(",")
         reorder_stories(epic_file, ids)
         print(f"Reordered stories in {epic_file}")
 
     elif command == "renumber":
+        if len(sys.argv) < 5:
+            print("Usage: manage_epics.py renumber <epic_file> <old_id> <new_id1,new_id2,...>", file=sys.stderr)
+            sys.exit(1)
         old_id = sys.argv[3]
         new_ids = sys.argv[4].split(",")
         renumber_stories(epic_file, old_id, new_ids)

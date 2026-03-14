@@ -404,7 +404,9 @@ def do_release(
     if it was modified but not committed.
     """
     project_name = config.get("project", {}).get("name", "Project")
-    toml_path = Path("sprint-config/project.toml")
+    # Derive toml_path from the config_dir used by load_config(),
+    # not from a hardcoded relative path that breaks from subdirectories.
+    toml_path = Path(config.get("_config_dir", "sprint-config")) / "project.toml"
     completed_steps: list[str] = []
 
     # Pre-flight checks

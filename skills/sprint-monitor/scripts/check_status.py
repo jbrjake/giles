@@ -24,7 +24,8 @@ from validate_config import load_config, extract_sp, gh, gh_json, get_base_branc
 # -- Import sync engine ------------------------------------------------------
 try:
     from sync_backlog import main as sync_backlog_main
-except ImportError:
+except Exception as _import_err:
+    print(f"Warning: sync_backlog unavailable: {_import_err}", file=sys.stderr)
     sync_backlog_main = None
 
 MAX_LOGS = 10
@@ -82,7 +83,7 @@ def _first_error(log: str) -> str:
             for kw in ("error", "failed", "panicked", "assert")
         ):
             cleaned = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
-            return cleaned[:117] + "..." if len(cleaned) > 120 else cleaned
+            return cleaned[:117] + "..." if len(cleaned) > 117 else cleaned
     return ""
 
 

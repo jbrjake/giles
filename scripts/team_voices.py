@@ -21,8 +21,9 @@ from validate_config import load_config
 
 # Pattern: > **Name:** "text" or > **Name:** text
 # Note: colon is inside the bold markers: **Name:**
+# Uses explicit alternatives for quoted and unquoted text.
 VOICE_PATTERN = re.compile(
-    r'^>\s*\*\*([^*]+?):\*\*\s*"?(.+?)"?\s*$'
+    r'^>\s*\*\*([^*]+?):\*\*\s*(?:"(.+?)"|(.+?))\s*$'
 )
 
 
@@ -60,7 +61,8 @@ def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
         match = VOICE_PATTERN.match(line)
         if match:
             name = match.group(1).strip()
-            quote = match.group(2).strip()
+            # group(2) is quoted text, group(3) is unquoted text
+            quote = (match.group(2) or match.group(3) or "").strip()
             # Consume continuation lines (blockquote lines without a new name)
             while (
                 i + 1 < len(lines)

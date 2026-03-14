@@ -655,6 +655,16 @@ class TestExtractSP(unittest.TestCase):
         issue = {"labels": [], "body": "| 5 SP |"}
         self.assertEqual(update_burndown.extract_sp(issue), 5)
 
+    def test_sp_label_with_space(self):
+        """P5-24: 'sp: 3' (with space) should extract 3."""
+        issue = {"labels": [{"name": "sp: 3"}], "body": ""}
+        self.assertEqual(update_burndown.extract_sp(issue), 3)
+
+    def test_sp_label_uppercase(self):
+        """P5-24: 'SP:3' (uppercase) should extract 3."""
+        issue = {"labels": [{"name": "SP:3"}], "body": ""}
+        self.assertEqual(update_burndown.extract_sp(issue), 3)
+
     def test_sp_from_story_points_table(self):
         issue = {"labels": [], "body": "| Story Points | 13 |"}
         self.assertEqual(update_burndown.extract_sp(issue), 13)

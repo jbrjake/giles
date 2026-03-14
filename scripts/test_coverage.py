@@ -75,7 +75,12 @@ def scan_project_tests(project_root: str, language: str) -> list[str]:
     for pattern in file_patterns:
         for test_file in root.glob(pattern):
             # Skip sprint-config, node_modules, target, etc.
-            parts = test_file.parts
+            # Use relative_to(root) to avoid matching absolute path
+            # components (e.g., /Users/jonr/target/myproject).
+            try:
+                parts = test_file.relative_to(root).parts
+            except ValueError:
+                parts = test_file.parts
             if any(skip in parts for skip in (
                 "node_modules", "target", ".git", "sprint-config",
                 "__pycache__", "vendor",
