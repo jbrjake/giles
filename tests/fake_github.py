@@ -26,6 +26,9 @@ class FakeGitHub:
         self.runs: list[dict] = []
         self.prs: list[dict] = []
         self.reviews: list[dict] = []
+        self.timeline_events: dict[int, list[dict]] = {}  # issue# -> events
+        self.comparisons: dict[str, dict] = {}  # branch -> {behind_by, ahead_by}
+        self.commits_data: list[dict] = []       # commit objects for /commits endpoint
         self._next_issue = 1
         self._next_ms = 1
         self._next_pr = 1
@@ -237,6 +240,48 @@ class FakeGitHub:
         # PATCH milestone (close)
         if "milestones" in path and "-X" in args:
             return self._ok("{}")
+
+        # Compare endpoint: repos/{owner}/{repo}/compare/{base}...{branch}
+        if "/compare/" in path:
+            # Extract branch from path like repos/o/r/compare/main...feat-branch
+            compare_part = path.split("/compare/")[-1]
+            if "..." in compare_part:
+                _base, branch = compare_part.split("...", 1)
+                data = self.comparisons.get(
+                    branch, {"behind_by": 0, "ahead_by": 0},
+                )
+                return self._ok(json.dumps(data))
+            return self._fail(f"FakeGitHub: malformed compare path: {path}")
+
+        # Commits endpoint: repos/{owner}/{repo}/commits
+        if path.endswith("/commits"):
+            # Parse -f flags for sha= and since= (accepted but not used for filtering)
+            # Return all stored commits; production --jq filtering is a no-op here
+            return self._ok(json.dumps(self.commits_data))
+
+        # Timeline endpoint: repos/{owner}/{repo}/issues/{N}/timeline
+        # Production code uses --jq to filter to first linked PR.
+        # FakeGitHub returns the pre-filtered single object (what jq | first
+        # would produce) so callers can json.loads() directly.
+        if "/timeline" in path:
+            import re as _re
+            m = _re.search(r"/issues/(\d+)/timeline", path)
+            if m:
+                issue_num = int(m.group(1))
+                events = self.timeline_events.get(issue_num)
+                if events:
+                    # Mimic --jq '[... | first]': find first event with
+                    # source.issue.pull_request and return that issue object
+                    for ev in events:
+                        src = ev.get("source", {}).get("issue", {})
+                        if src.get("pull_request"):
+                            return self._ok(json.dumps(src))
+                    # Events exist but none have pull_request
+                    return self._ok("null")
+                # No timeline events registered for this issue
+                return self._fail(
+                    f"FakeGitHub: no timeline events for issue {issue_num}"
+                )
 
         # Fail loudly on unhandled API paths instead of silently returning []
         # so new API calls in production don't get free "green bar" (BH-008)
@@ -646,6 +691,8 @@ class FakeGitHub:
             "reviews": list(self.reviews),
             "releases": list(self.releases),
             "runs": list(self.runs),
+            "comparisons": dict(self.comparisons),
+            "commits_data": list(self.commits_data),
         }
 
 

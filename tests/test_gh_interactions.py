@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from fake_github import FakeGitHub
+from fake_github import FakeGitHub, make_patched_subprocess
 
 import commit
 from commit import validate_message, check_atomicity
@@ -618,6 +618,139 @@ class TestGetLinkedPR(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# P6-05: get_linked_pr timeline API + P6-06: word-boundary matching
+# ---------------------------------------------------------------------------
+
+
+class TestGetLinkedPrTimeline(unittest.TestCase):
+    """P6-05: Test get_linked_pr primary path via timeline API."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+
+    def test_timeline_returns_linked_pr(self):
+        """Timeline API returns a linked PR -- should use it, not fallback."""
+        self.fake.timeline_events[5] = [
+            {
+                "source": {
+                    "issue": {
+                        "number": 42,
+                        "state": "open",
+                        "pull_request": {"merged_at": None},
+                    }
+                }
+            }
+        ]
+        patched = make_patched_subprocess(self.fake)
+        with patch("subprocess.run", patched):
+            result = sync_tracking.get_linked_pr(
+                5, story_id="US-01", all_prs=[]
+            )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 42)
+        self.assertFalse(result["merged"])
+
+    def test_timeline_returns_merged_pr(self):
+        """Timeline API returns a merged PR -- merged flag should be True."""
+        self.fake.timeline_events[7] = [
+            {
+                "source": {
+                    "issue": {
+                        "number": 99,
+                        "state": "closed",
+                        "pull_request": {"merged_at": "2026-03-10T12:00:00Z"},
+                    }
+                }
+            }
+        ]
+        patched = make_patched_subprocess(self.fake)
+        with patch("subprocess.run", patched):
+            result = sync_tracking.get_linked_pr(
+                7, story_id="US-02", all_prs=[]
+            )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 99)
+        self.assertTrue(result["merged"])
+
+    def test_timeline_no_match_falls_back(self):
+        """Timeline has events but no PR link -- should fall back to branch search."""
+        # Events with no pull_request field -> timeline returns "null"
+        self.fake.timeline_events[3] = [
+            {"source": {"issue": {"number": 10, "state": "open"}}}
+        ]
+        patched = make_patched_subprocess(self.fake)
+        all_prs = [
+            {"number": 50, "state": "OPEN", "headRefName": "sprint-1/US-03-feat", "mergedAt": None},
+        ]
+        with patch("subprocess.run", patched):
+            result = sync_tracking.get_linked_pr(
+                3, story_id="US-03", all_prs=all_prs
+            )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 50)
+
+    def test_timeline_api_error_falls_back(self):
+        """No timeline events registered -- FakeGitHub errors, fallback fires."""
+        # Don't register any timeline events for issue 8
+        patched = make_patched_subprocess(self.fake)
+        all_prs = [
+            {"number": 60, "state": "OPEN", "headRefName": "sprint-1/US-04-work", "mergedAt": None},
+        ]
+        with patch("subprocess.run", patched):
+            result = sync_tracking.get_linked_pr(
+                8, story_id="US-04", all_prs=all_prs
+            )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 60)
+
+
+class TestGetLinkedPrWordBoundary(unittest.TestCase):
+    """P6-06: Fallback branch matching must use word boundaries."""
+
+    @patch("sync_tracking.gh")
+    def test_pr_link_no_substring_match(self, mock_gh):
+        """US-01 must NOT match branch containing US-010."""
+        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        all_prs = [
+            {"number": 30, "state": "OPEN", "headRefName": "sprint-1/US-010-feature", "mergedAt": None},
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-01", all_prs=all_prs)
+        self.assertIsNone(result)
+
+    @patch("sync_tracking.gh")
+    def test_pr_link_exact_match(self, mock_gh):
+        """US-01 should match branch sprint-1/US-01-setup."""
+        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        all_prs = [
+            {"number": 31, "state": "OPEN", "headRefName": "sprint-1/US-01-setup", "mergedAt": None},
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-01", all_prs=all_prs)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 31)
+
+    @patch("sync_tracking.gh")
+    def test_pr_link_exact_match_end_of_branch(self, mock_gh):
+        """US-01 should match branch ending with US-01 (no trailing slug)."""
+        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        all_prs = [
+            {"number": 32, "state": "OPEN", "headRefName": "sprint-1/US-01", "mergedAt": None},
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-01", all_prs=all_prs)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 32)
+
+    @patch("sync_tracking.gh")
+    def test_pr_link_longer_id_no_false_positive(self, mock_gh):
+        """US-0001 must NOT match US-00010 branch."""
+        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        all_prs = [
+            {"number": 33, "state": "OPEN", "headRefName": "sprint-1/US-00010-big", "mergedAt": None},
+        ]
+        result = sync_tracking.get_linked_pr(1, story_id="US-0001", all_prs=all_prs)
+        self.assertIsNone(result)
+
+
+# ---------------------------------------------------------------------------
 # update_burndown.py tests -- extract_sp
 # ---------------------------------------------------------------------------
 
@@ -809,6 +942,129 @@ class TestCheckDirectPushes(unittest.TestCase):
             "owner/repo", "main", "2026-03-01T00:00:00Z",
         )
         # Error is now reported (not silently swallowed)
+        self.assertEqual(len(report), 1)
+        self.assertIn("skipped", report[0])
+        self.assertEqual(actions, [])
+
+
+# ---------------------------------------------------------------------------
+# P6-02: FakeGitHub-backed tests for check_branch_divergence / check_direct_pushes
+# ---------------------------------------------------------------------------
+
+
+class TestCheckBranchDivergenceFakeGH(unittest.TestCase):
+    """P6-02: check_branch_divergence through FakeGitHub endpoints."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_high_drift(self):
+        """behind_by=25 triggers HIGH drift report and action."""
+        self.fake.comparisons["feat/stale"] = {"behind_by": 25, "ahead_by": 10}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/stale"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("HIGH", report[0])
+        self.assertEqual(len(actions), 1)
+        self.assertIn("25 behind", actions[0])
+
+    def test_medium_drift(self):
+        """behind_by=15 triggers MEDIUM drift report, no action."""
+        self.fake.comparisons["feat/medium"] = {"behind_by": 15, "ahead_by": 8}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/medium"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("MEDIUM", report[0])
+        self.assertIn("15", report[0])
+        self.assertEqual(actions, [])
+
+    def test_no_drift(self):
+        """behind_by=2 produces no drift report."""
+        self.fake.comparisons["feat/clean"] = {"behind_by": 2, "ahead_by": 1}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/clean"],
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+    def test_api_error_handled(self):
+        """Branch not in comparisons still returns default {behind_by: 0}."""
+        # Default is behind_by=0, ahead_by=0 — no drift
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/unknown"],
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+
+class TestCheckDirectPushesFakeGH(unittest.TestCase):
+    """P6-02: check_direct_pushes through FakeGitHub endpoints."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_direct_pushes_detected(self):
+        """Commits with 1 parent (direct pushes) are reported."""
+        # Store data in post-jq shape: the production --jq filters to
+        # 1-parent commits and reshapes to {sha, message, author, date}.
+        # FakeGitHub doesn't execute --jq, so we pre-shape the data.
+        self.fake.commits_data = [
+            {
+                "sha": "abc12345",
+                "message": "quick hotfix",
+                "author": "dev",
+                "date": "2026-03-10T12:00:00Z",
+            },
+            {
+                "sha": "def67890",
+                "message": "another direct push",
+                "author": "dev",
+                "date": "2026-03-10T13:00:00Z",
+            },
+        ]
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertTrue(len(report) >= 1)
+        self.assertIn("2 direct push", report[0])
+        self.assertEqual(len(actions), 1)
+        self.assertIn("pushed directly", actions[0])
+
+    def test_no_direct_pushes(self):
+        """Empty commits list produces no report."""
+        self.fake.commits_data = []
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
+        self.assertEqual(report, [])
+        self.assertEqual(actions, [])
+
+    def test_api_error_handled(self):
+        """If the commits endpoint is unavailable, error is reported gracefully."""
+        # Patch the fake to simulate an API failure for commits
+        original_handle = self.fake._handle_api
+
+        def failing_api(args):
+            if args and args[0].endswith("/commits"):
+                return self.fake._fail("server error")
+            return original_handle(args)
+
+        self.fake._handle_api = failing_api
+        report, actions = check_status.check_direct_pushes(
+            "owner/repo", "main", "2026-03-01T00:00:00Z",
+        )
         self.assertEqual(len(report), 1)
         self.assertIn("skipped", report[0])
         self.assertEqual(actions, [])

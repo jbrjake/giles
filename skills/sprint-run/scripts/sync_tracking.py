@@ -76,7 +76,7 @@ def get_linked_pr(
     # Fallback: search pre-fetched PRs by branch name
     for pr in (all_prs or []):
         branch = pr.get("headRefName", "")
-        if re.search(re.escape(story_id), branch, re.IGNORECASE):
+        if re.search(rf"\b{re.escape(story_id)}\b", branch, re.IGNORECASE):
             return {
                 "number": pr["number"],
                 "state": (
