@@ -218,7 +218,7 @@ def main() -> None:
         sys.exit(1)
 
     # Find milestone
-    ms = find_milestone(repo, sprint_num)
+    ms = find_milestone(sprint_num)
     if ms is None:
         print(f"No milestone found for Sprint {sprint_num}", file=sys.stderr)
         sys.exit(1)

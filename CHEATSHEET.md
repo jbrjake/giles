@@ -124,11 +124,10 @@ you need without reading entire files.
 ### skills/sprint-run/scripts/update_burndown.py
 | Line | Function | Purpose |
 |------|----------|---------|
-| 25 | `find_milestone()` | Find GitHub milestone for sprint number |
-| 41 | `extract_story_id()` | Parse story ID from issue title |
-| 46 | `kanban_status()` | Derive status from issue labels |
-| 69 | `write_burndown()` | Generate burndown.md from milestone data |
-| 108 | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
+| 28 | `list_milestone_issues()` | Fetch all issues for a milestone |
+| 38 | `closed_date()` | Extract close date from issue data |
+| 52 | `write_burndown()` | Generate burndown.md from milestone data |
+| 91 | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
 
 ### scripts/sync_backlog.py
 | Line | Function | Purpose |

@@ -370,9 +370,27 @@ def find_milestone_number(milestone_title: str) -> int | None:
 def do_release(
     milestone_title: str, config: dict, dry_run: bool = False,
 ) -> bool:
-    """Execute the full release flow. Returns True on success."""
+    """Execute the full release flow. Returns True on success.
+
+    Pre-flight: validates COMMIT_PY exists and working tree is clean.
+    On failure: prints completed vs failed steps and restores project.toml
+    if it was modified but not committed.
+    """
     project_name = config.get("project", {}).get("name", "Project")
     toml_path = Path("sprint-config/project.toml")
+    completed_steps: list[str] = []
+
+    # Pre-flight checks
+    if not COMMIT_PY.exists():
+        print(f"Error: {COMMIT_PY} not found", file=sys.stderr)
+        return False
+    r = subprocess.run(
+        ["git", "status", "--porcelain"], capture_output=True, text=True,
+    )
+    if r.returncode != 0 or r.stdout.strip():
+        print("Error: working tree is not clean (commit or stash changes first)",
+              file=sys.stderr)
+        return False
 
     # 1. Calculate version
     new_ver, base_ver, bump_type, commits = calculate_version()
@@ -383,27 +401,43 @@ def do_release(
     print(f"Version: {base_ver} -> {new_ver} ({bump_type} bump)")
     print(f"  Based on {len(commits)} commit(s) since v{base_ver}")
 
+    def _fail(step: str, msg: str) -> bool:
+        print(f"{msg}", file=sys.stderr)
+        if completed_steps:
+            print(f"Completed: {', '.join(completed_steps)}", file=sys.stderr)
+        print(f"Failed at: {step}", file=sys.stderr)
+        return False
+
     if dry_run:
         print(f"\n[DRY-RUN] Would write version {new_ver} to {toml_path}")
         print(f"[DRY-RUN] Would commit: chore: bump version to {new_ver}")
         print(f"[DRY-RUN] Would create tag: v{new_ver}")
         print(f"[DRY-RUN] Would push tag: git push origin v{new_ver}")
     else:
+        # Save original TOML for rollback
+        original_toml = toml_path.read_text(encoding="utf-8")
+
         # 2-3. Write version and commit
         write_version_to_toml(new_ver, toml_path)
+        completed_steps.append("write-version")
         r = subprocess.run(
             ["git", "add", str(toml_path)], capture_output=True, text=True,
         )
         if r.returncode != 0:
-            print(f"git add failed: {r.stderr.strip()}", file=sys.stderr)
-            return False
+            toml_path.write_text(original_toml, encoding="utf-8")
+            return _fail("git-add", f"git add failed: {r.stderr.strip()}")
         r = subprocess.run(
             [sys.executable, str(COMMIT_PY), f"chore: bump version to {new_ver}"],
             capture_output=True, text=True,
         )
         if r.returncode != 0:
-            print(f"Version commit failed: {r.stderr}", file=sys.stderr)
-            return False
+            toml_path.write_text(original_toml, encoding="utf-8")
+            subprocess.run(
+                ["git", "checkout", "--", str(toml_path)],
+                capture_output=True, text=True,
+            )
+            return _fail("commit", f"Version commit failed: {r.stderr}")
+        completed_steps.append("commit-version")
 
         # 4-5. Tag and push
         r = subprocess.run(
@@ -412,15 +446,15 @@ def do_release(
             capture_output=True, text=True,
         )
         if r.returncode != 0:
-            print(f"Tag creation failed: {r.stderr.strip()}", file=sys.stderr)
-            return False
+            return _fail("create-tag", f"Tag creation failed: {r.stderr.strip()}")
+        completed_steps.append("create-tag")
         r = subprocess.run(
             ["git", "push", "origin", f"v{new_ver}"],
             capture_output=True, text=True,
         )
         if r.returncode != 0:
-            print(f"Tag push failed: {r.stderr.strip()}", file=sys.stderr)
-            return False
+            return _fail("push-tag", f"Tag push failed: {r.stderr.strip()}")
+        completed_steps.append("push-tag")
 
     # 6. Generate release notes
     notes = generate_release_notes(
@@ -445,6 +479,7 @@ def do_release(
         if binary and Path(binary).exists():
             release_args.append(binary)
         gh(release_args)
+        completed_steps.append("github-release")
 
         # Clean up notes file
         notes_path.unlink(missing_ok=True)
@@ -459,6 +494,7 @@ def do_release(
                 "api", f"repos/{{owner}}/{{repo}}/milestones/{ms_num}",
                 "-X", "PATCH", "-f", "state=closed",
             ])
+            completed_steps.append("close-milestone")
             print(f"Milestone '{milestone_title}' closed.")
     else:
         print(f"Warning: milestone '{milestone_title}' not found on GitHub")
@@ -479,6 +515,7 @@ def do_release(
         else:
             with open(status_file, "a", encoding="utf-8") as f:
                 f.write(f"\n{row}\n")
+            completed_steps.append("update-status")
 
     # 10. Print release URL
     if not dry_run:

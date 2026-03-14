@@ -391,18 +391,21 @@ class TestDoRelease(unittest.TestCase):
         args = mock_write_toml.call_args
         self.assertEqual(args[0][0], "1.1.0")
 
-        # subprocess.run called for: git add, commit, git tag, git push
-        self.assertEqual(mock_run.call_count, 4)
+        # subprocess.run called for: git status, git add, commit, git tag, git push
+        self.assertEqual(mock_run.call_count, 5)
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
-        # git add
+        # git status (pre-flight)
         self.assertEqual(run_cmds[0][0], "git")
-        self.assertEqual(run_cmds[0][1], "add")
+        self.assertEqual(run_cmds[0][1], "status")
+        # git add
+        self.assertEqual(run_cmds[1][0], "git")
+        self.assertEqual(run_cmds[1][1], "add")
         # git tag
-        self.assertEqual(run_cmds[2][0], "git")
-        self.assertEqual(run_cmds[2][1], "tag")
-        # git push
         self.assertEqual(run_cmds[3][0], "git")
-        self.assertEqual(run_cmds[3][1], "push")
+        self.assertEqual(run_cmds[3][1], "tag")
+        # git push
+        self.assertEqual(run_cmds[4][0], "git")
+        self.assertEqual(run_cmds[4][1], "push")
 
         # gh() called for: release create, milestone close, release view
         self.assertGreaterEqual(mock_gh.call_count, 2)
@@ -432,6 +435,7 @@ class TestDoRelease(unittest.TestCase):
     ):
         """When bump_type is 'none', do_release returns False immediately."""
         mock_calc.return_value = ("0.5.0", "0.5.0", "none", [])
+        mock_run.side_effect = _make_subprocess_side_effect()
 
         config = {
             "project": {"name": "TestProject", "repo": "owner/repo"},
@@ -442,7 +446,8 @@ class TestDoRelease(unittest.TestCase):
 
         self.assertFalse(result)
         mock_write_toml.assert_not_called()
-        mock_run.assert_not_called()
+        # Only pre-flight git status should have run
+        self.assertEqual(mock_run.call_count, 1)
         mock_gh.assert_not_called()
         mock_ms.assert_not_called()
 
@@ -492,11 +497,12 @@ class TestDoRelease(unittest.TestCase):
     def test_dry_run_no_mutations(
         self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
     ):
-        """With dry_run=True, no subprocess calls, no gh calls, no file mutations."""
+        """With dry_run=True, only pre-flight git status runs. No mutations."""
         mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
             {"subject": "feat: add dashboard", "body": ""},
         ])
         mock_ms.return_value = 7
+        mock_run.side_effect = _make_subprocess_side_effect()
 
         config = {
             "project": {"name": "TestProject", "repo": "owner/repo"},
@@ -513,8 +519,9 @@ class TestDoRelease(unittest.TestCase):
 
         self.assertTrue(result)
 
-        # No subprocess calls (no git tag, git push, git add, etc.)
-        mock_run.assert_not_called()
+        # Only pre-flight git status should have run
+        self.assertEqual(mock_run.call_count, 1)
+        self.assertEqual(mock_run.call_args_list[0][0][0][:2], ["git", "status"])
 
         # No write_version_to_toml call
         mock_write_toml.assert_not_called()

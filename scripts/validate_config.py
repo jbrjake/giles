@@ -626,21 +626,13 @@ def kanban_from_labels(issue: dict) -> str:
     return "done" if issue.get("state") == "closed" else "todo"
 
 
-def find_milestone(repo_or_sprint: str | int, sprint_num: int | None = None) -> dict | None:
+def find_milestone(sprint_num: int) -> dict | None:
     """Find the GitHub milestone matching a sprint number.
 
-    Usage:
-        find_milestone(sprint_num)          -- uses {owner}/{repo} template
-        find_milestone(repo, sprint_num)    -- explicit repo string (ignored,
-                                               kept for backward compat)
-
+    Queries the current repo (via gh CLI's {owner}/{repo} template).
     Returns the milestone dict or None.
     """
-    if sprint_num is None:
-        # Called as find_milestone(sprint_num)
-        num = int(repo_or_sprint)
-    else:
-        num = int(sprint_num)
+    num = int(sprint_num)
     milestones = gh_json([
         "api", "repos/{owner}/{repo}/milestones", "--paginate",
     ])
