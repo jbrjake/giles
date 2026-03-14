@@ -157,6 +157,12 @@ class FakeGitHub:
                         title = kv[6:]
                     elif kv.startswith("description="):
                         description = kv[12:]
+            # Reject duplicate milestone titles
+            for existing_ms in self.milestones:
+                if existing_ms["title"] == title:
+                    return self._fail(
+                        f"Validation Failed: milestone title '{title}' already exists"
+                    )
             ms = {
                 "number": self._next_ms,
                 "title": title,
@@ -337,8 +343,9 @@ class FakeGitHub:
         return self._fail(f"run {sub} not supported")
 
     def _run_list(self, args: list[str]) -> subprocess.CompletedProcess:
-        """Handle: gh run list [--branch <branch>] [--json ...] [--limit ...]."""
+        """Handle: gh run list [--branch <branch>] [--json ...] [--limit ...] [--status ...]."""
         branch_filter = ""
+        status_filter = ""
         json_fields: str | None = None
         limit: int | None = None
         i = 1
@@ -353,6 +360,7 @@ class FakeGitHub:
                 limit = int(args[i + 1])
                 i += 2
             elif args[i] == "--status" and i + 1 < len(args):
+                status_filter = args[i + 1]
                 i += 2
             else:
                 i += 1
@@ -362,6 +370,11 @@ class FakeGitHub:
             filtered = [
                 r for r in filtered
                 if r.get("headBranch") == branch_filter
+            ]
+        if status_filter:
+            filtered = [
+                r for r in filtered
+                if r.get("status") == status_filter
             ]
         if limit is not None:
             filtered = filtered[:limit]
@@ -472,6 +485,8 @@ class FakeGitHub:
             "body": body,
         }
         self.reviews.append(review)
+        # Store review on the PR object itself for per-PR querying
+        pr.setdefault("reviews", []).append(review)
         pr["reviewDecision"] = decision
         return self._ok("")
 

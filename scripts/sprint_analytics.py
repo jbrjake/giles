@@ -74,7 +74,7 @@ def compute_velocity(
 
 
 def compute_review_rounds(
-    repo: str, milestone_title: str,
+    milestone_title: str,
 ) -> dict:
     """Count review events per PR for stories in this milestone."""
     prs = gh_json([
@@ -235,7 +235,7 @@ def main() -> None:
 
     # Compute metrics
     velocity = compute_velocity(ms_title)
-    review = compute_review_rounds(repo, ms_title)
+    review = compute_review_rounds(ms_title)
     workload = compute_workload(ms_title)
 
     # Format and output

@@ -20,19 +20,10 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, extract_sp, gh,
-    find_milestone, extract_story_id, kanban_from_labels, warn_if_at_limit,
+    load_config, extract_sp,
+    find_milestone, extract_story_id, kanban_from_labels,
+    list_milestone_issues,
 )
-
-
-def list_milestone_issues(milestone_title: str) -> list[dict]:
-    raw = gh([
-        "issue", "list", "--milestone", milestone_title, "--state", "all",
-        "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
-    ])
-    issues = json.loads(raw) if raw else []
-    warn_if_at_limit(issues)
-    return issues
 
 
 def closed_date(issue: dict) -> str:

@@ -50,17 +50,21 @@ def find_latest_semver_tag() -> str | None:
     return None
 
 
+_COMMIT_DELIM = "\x00--END--\x00"
+
+
 def parse_commits_since(tag: str | None) -> list[dict]:
     """Parse commits since tag (or all commits). Returns [{subject, body}]."""
+    fmt = f"%s%n%b{_COMMIT_DELIM}"
     if tag:
-        cmd = ["git", "log", f"{tag}..HEAD", "--format=%s%n%b---COMMIT---"]
+        cmd = ["git", "log", f"{tag}..HEAD", f"--format={fmt}"]
     else:
-        cmd = ["git", "log", "--format=%s%n%b---COMMIT---"]
+        cmd = ["git", "log", f"--format={fmt}"]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         return []
     commits = []
-    for chunk in r.stdout.split("---COMMIT---"):
+    for chunk in r.stdout.split(_COMMIT_DELIM):
         chunk = chunk.strip()
         if not chunk:
             continue
@@ -345,14 +349,29 @@ def generate_release_notes(
             lines.append(f"- {b}")
         lines.append("")
 
+    # Only generate compare link when the prior tag actually exists
+    # (first release has no prior tag, so the link would 404)
     prev_tag = f"v{prev_version}" if prev_version != version else ""
     if prev_tag:
-        lines += [
-            "## Full Changelog",
-            "",
-            f"https://github.com/{repo}/compare/{prev_tag}...v{version}",
-            "",
-        ]
+        # Check if the prior tag exists in git
+        tag_check = subprocess.run(
+            ["git", "rev-parse", "--verify", f"refs/tags/{prev_tag}"],
+            capture_output=True, text=True,
+        )
+        if tag_check.returncode == 0:
+            lines += [
+                "## Full Changelog",
+                "",
+                f"https://github.com/{repo}/compare/{prev_tag}...v{version}",
+                "",
+            ]
+        else:
+            lines += [
+                "## Full Changelog",
+                "",
+                f"This is the initial release (v{version}).",
+                "",
+            ]
 
     return "\n".join(lines)
 
@@ -467,6 +486,17 @@ def do_release(
             return _fail("push-tag", f"Tag push failed: {r.stderr.strip()}")
         completed_steps.append("push-tag")
 
+        def _rollback_tag() -> None:
+            """Remove the tag locally and from remote on release failure."""
+            subprocess.run(
+                ["git", "tag", "-d", f"v{new_ver}"],
+                capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "push", "--delete", "origin", f"v{new_ver}"],
+                capture_output=True, text=True,
+            )
+
     # 6. Generate release notes
     notes = generate_release_notes(
         new_ver, base_ver, commits, milestone_title, config,
@@ -489,7 +519,12 @@ def do_release(
         binary = config.get("ci", {}).get("binary_path", "")
         if binary and Path(binary).exists():
             release_args.append(binary)
-        gh(release_args)
+        try:
+            gh(release_args)
+        except RuntimeError as exc:
+            _rollback_tag()
+            return _fail("github-release",
+                         f"GitHub Release failed (tag rolled back): {exc}")
         completed_steps.append("github-release")
 
         # Clean up notes file

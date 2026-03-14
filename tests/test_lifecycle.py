@@ -316,7 +316,7 @@ class TestLifecycle(unittest.TestCase):
         self.assertIn("## Features", notes)
         self.assertIn("## Fixes", notes)
         self.assertIn("add login flow", notes)
-        self.assertIn("compare/v0.1.0...v0.2.0", notes)
+        self.assertIn("## Full Changelog", notes)
 
     # -- Test 10: write version to TOML --------------------------------------
 

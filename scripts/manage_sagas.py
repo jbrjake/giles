@@ -20,6 +20,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
+
+
+def _safe_int(value: str) -> int:
+    """Extract leading digits from a string, returning 0 if none found."""
+    m = re.match(r'(\d+)', str(value).strip())
+    return int(m.group(1)) if m else 0
 EPIC_TABLE_ROW = re.compile(
     r'^\|\s*(E-\d+)\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|'
 )
@@ -47,10 +53,10 @@ def parse_saga(path: str) -> dict:
     section_ranges = _find_section_ranges(lines)
 
     return {
-        "title": lines[0].lstrip("# ").strip() if lines else "",
-        "stories_count": int(metadata.get("Stories", "0")),
-        "epics_count": int(metadata.get("Epics", "0")),
-        "total_sp": int(metadata.get("Total SP", "0")),
+        "title": re.sub(r'^#+\s*', '', lines[0]).strip() if lines else "",
+        "stories_count": _safe_int(metadata.get("Stories", "0")),
+        "epics_count": _safe_int(metadata.get("Epics", "0")),
+        "total_sp": _safe_int(metadata.get("Total SP", "0")),
         "epic_index": epic_index,
         "sprint_allocation": sprint_allocation,
         "section_ranges": section_ranges,

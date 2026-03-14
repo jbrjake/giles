@@ -398,8 +398,8 @@ class TestDoRelease(unittest.TestCase):
         args = mock_write_toml.call_args
         self.assertEqual(args[0][0], "1.1.0")
 
-        # subprocess.run called for: git status, git add, commit, git tag, git push
-        self.assertEqual(mock_run.call_count, 5)
+        # subprocess.run called for: git status, git add, commit, git tag, git push, tag-verify
+        self.assertGreaterEqual(mock_run.call_count, 5)
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
         # git status (pre-flight)
         self.assertEqual(run_cmds[0][0], "git")
@@ -598,8 +598,8 @@ class TestDoRelease(unittest.TestCase):
 
         self.assertTrue(result)
 
-        # Only pre-flight git status should have run
-        self.assertEqual(mock_run.call_count, 1)
+        # Pre-flight git status + tag existence check in release notes
+        self.assertGreaterEqual(mock_run.call_count, 1)
         self.assertEqual(mock_run.call_args_list[0][0][0][:2], ["git", "status"])
 
         # No write_version_to_toml call

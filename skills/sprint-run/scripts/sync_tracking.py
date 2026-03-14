@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
     load_config, gh, extract_story_id, kanban_from_labels, find_milestone,
-    warn_if_at_limit,
+    warn_if_at_limit, list_milestone_issues,
 )
 
 KANBAN_STATES = ("todo", "design", "dev", "review", "integration", "done")
@@ -34,22 +34,26 @@ def find_milestone_title(sprint_num: int) -> str | None:
     return ms["title"] if ms else None
 
 
-def list_issues(title: str) -> list[dict]:
-    raw = gh([
-        "issue", "list", "--milestone", title, "--state", "all",
-        "--json", "number,title,state,labels,closedAt,body",
-        "--limit", "500",
-    ])
-    issues = json.loads(raw) if raw else []
-    warn_if_at_limit(issues)
-    return issues
+def _fetch_all_prs() -> list[dict]:
+    """Fetch all PRs once for branch-based linkage (cached per sync run)."""
+    try:
+        raw = gh([
+            "pr", "list", "--state", "all",
+            "--json", "number,state,headRefName,mergedAt",
+            "--limit", "500",
+        ])
+        return json.loads(raw) if raw else []
+    except (RuntimeError, json.JSONDecodeError):
+        return []
 
 
-def get_linked_pr(issue_num: int, story_id: str) -> dict | None:
+def get_linked_pr(
+    issue_num: int, story_id: str, all_prs: list[dict] | None = None,
+) -> dict | None:
     """Find PR linked to issue via timeline API, fallback to branch name.
 
-    The fallback search matches only PRs whose branch contains the
-    specific story ID (case-insensitive).
+    The fallback search uses the pre-fetched all_prs list to avoid
+    per-issue API calls. Pass all_prs from _fetch_all_prs().
     """
     try:
         raw = gh([
@@ -70,34 +74,28 @@ def get_linked_pr(issue_num: int, story_id: str) -> dict | None:
             }
     except (RuntimeError, json.JSONDecodeError):
         pass
-    try:
-        raw = gh([
-            "pr", "list", "--state", "all",
-            "--json", "number,state,headRefName,mergedAt",
-            "--limit", "100",
-        ])
-        for pr in (json.loads(raw) if raw else []):
-            branch = pr.get("headRefName", "")
-            if re.search(re.escape(story_id), branch, re.IGNORECASE):
-                return {
-                    "number": pr["number"],
-                    "state": (
-                        "merged"
-                        if pr.get("mergedAt")
-                        else pr["state"]
-                    ),
-                    "merged": pr.get("mergedAt") is not None,
-                }
-    except (RuntimeError, json.JSONDecodeError):
-        pass
+    # Fallback: search pre-fetched PRs by branch name
+    for pr in (all_prs or []):
+        branch = pr.get("headRefName", "")
+        if re.search(re.escape(story_id), branch, re.IGNORECASE):
+            return {
+                "number": pr["number"],
+                "state": (
+                    "merged"
+                    if pr.get("mergedAt")
+                    else pr["state"]
+                ),
+                "merged": pr.get("mergedAt") is not None,
+            }
     return None
 
 
 def slug_from_title(title: str) -> str:
-    return re.sub(
+    slug = re.sub(
         r"\s+", "-",
         re.sub(r"[^a-zA-Z0-9\s-]", "", title).strip(),
     ).lower()
+    return slug if slug else "untitled"
 
 
 def _parse_closed(iso: str) -> str:
@@ -279,7 +277,7 @@ def main() -> None:
         print(f"No GitHub milestone for Sprint {sprint}", file=sys.stderr)
         sys.exit(1)
 
-    issues = list_issues(mt)
+    issues = list_milestone_issues(mt)
     if not issues:
         print(f"No issues in milestone '{mt}'")
         return
@@ -290,10 +288,11 @@ def main() -> None:
         if tf.story:
             existing[tf.story] = tf
 
+    all_prs = _fetch_all_prs()
     all_changes: list[str] = []
     for issue in issues:
         sid = extract_story_id(issue["title"])
-        pr = get_linked_pr(issue["number"], story_id=sid)
+        pr = get_linked_pr(issue["number"], story_id=sid, all_prs=all_prs)
         if sid in existing:
             changes = sync_one(existing[sid], issue, pr, sprint)
             if changes:

@@ -122,9 +122,7 @@ class TestComputeReviewRounds(unittest.TestCase):
         })
 
         with patch("subprocess.run", self.patched):
-            result = sprint_analytics.compute_review_rounds(
-                "testowner/testrepo", "Sprint 1",
-            )
+            result = sprint_analytics.compute_review_rounds("Sprint 1")
 
         self.assertEqual(result["avg_rounds"], 1.5)
         self.assertEqual(result["max_rounds"], 2)
@@ -134,9 +132,7 @@ class TestComputeReviewRounds(unittest.TestCase):
     def test_no_prs(self):
         """Handles empty PR list gracefully."""
         with patch("subprocess.run", self.patched):
-            result = sprint_analytics.compute_review_rounds(
-                "testowner/testrepo", "Sprint 1",
-            )
+            result = sprint_analytics.compute_review_rounds("Sprint 1")
         self.assertEqual(result["avg_rounds"], 0.0)
         self.assertEqual(result["pr_count"], 0)
 

@@ -9,7 +9,6 @@ No external dependencies -- stdlib only.
 """
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -584,9 +583,13 @@ def extract_sp(issue: dict) -> int:
       4. Body table format | N SP | (analytics-style)
     Returns 0 if no story points found.
     """
-    import re
     for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
+        if isinstance(label, str):
+            name = label
+        elif isinstance(label, dict):
+            name = label.get("name", "")
+        else:
+            continue
         if m := re.match(r"sp:(\d+)", name):
             return int(m.group(1))
     body = issue.get("body", "") or ""
@@ -669,6 +672,17 @@ def find_milestone(sprint_num: int) -> dict | None:
         if re.match(rf"^Sprint {num}\b", title):
             return ms
     return None
+
+
+def list_milestone_issues(milestone_title: str) -> list[dict]:
+    """Fetch all issues for a milestone (all states). Shared by sync/burndown."""
+    raw = gh([
+        "issue", "list", "--milestone", milestone_title, "--state", "all",
+        "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
+    ])
+    issues = json.loads(raw) if raw else []
+    warn_if_at_limit(issues)
+    return issues
 
 
 def warn_if_at_limit(results: list, limit: int = 500) -> list:

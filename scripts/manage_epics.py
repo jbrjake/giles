@@ -23,6 +23,34 @@ STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
 
+def _safe_int(value: str) -> int:
+    """Extract leading digits from a string, returning 0 if none found."""
+    m = re.match(r'(\d+)', str(value).strip())
+    return int(m.group(1)) if m else 0
+
+
+def _parse_epic_from_lines(lines: list[str]) -> dict:
+    """Parse pre-read lines into structured epic data (no file I/O)."""
+    metadata = _parse_header_table(lines)
+    stories, raw_sections = _parse_stories(lines)
+
+    # Extract title: strip leading "# " prefix (not individual chars)
+    title = ""
+    if lines:
+        first = lines[0]
+        title = re.sub(r'^#+\s*', '', first).strip()
+
+    return {
+        "title": title,
+        "saga": metadata.get("Saga", ""),
+        "stories_count": _safe_int(metadata.get("Stories", "0")),
+        "total_sp": _safe_int(metadata.get("Total SP", "0")),
+        "release": metadata.get("Release", ""),
+        "stories": stories,
+        "raw_sections": raw_sections,
+    }
+
+
 def parse_epic(path: str) -> dict:
     """Parse an epic file into structured data.
 
@@ -36,18 +64,7 @@ def parse_epic(path: str) -> dict:
         raw_sections: [{id, start_line, end_line, lines}, ...]
     """
     lines = Path(path).read_text(encoding="utf-8").splitlines()
-    metadata = _parse_header_table(lines)
-    stories, raw_sections = _parse_stories(lines)
-
-    return {
-        "title": lines[0].lstrip("# ").strip() if lines else "",
-        "saga": metadata.get("Saga", ""),
-        "stories_count": int(metadata.get("Stories", "0")),
-        "total_sp": int(metadata.get("Total SP", "0")),
-        "release": metadata.get("Release", ""),
-        "stories": stories,
-        "raw_sections": raw_sections,
-    }
+    return _parse_epic_from_lines(lines)
 
 
 def _parse_header_table(lines: list[str]) -> dict[str, str]:
@@ -90,9 +107,11 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
             title = m.group(3).strip()
             current_story_start = i
 
-            # Parse story metadata table
+            # Parse story metadata table (stop at first non-table line
+            # after the table starts, to avoid reading body tables as metadata)
             story_meta: dict[str, str] = {}
             j = i + 1
+            in_meta_table = False
             while j < len(lines):
                 row = TABLE_ROW.match(lines[j])
                 if row:
@@ -100,14 +119,24 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
                     value = row.group(2).strip()
                     if field not in ("Field", "---", ""):
                         story_meta[field] = value
+                    in_meta_table = True
                 elif lines[j].startswith("###"):
+                    break
+                elif re.match(r'^\|[-:\s|]+\|$', lines[j]):
+                    # Separator row like |---|---|
+                    in_meta_table = True
+                elif in_meta_table and lines[j].strip() == "":
+                    # Blank line after table — stop scanning metadata
+                    break
+                elif in_meta_table:
+                    # Non-table, non-blank line after table — stop
                     break
                 j += 1
 
             stories.append({
                 "id": story_id,
                 "title": title,
-                "story_points": int(story_meta.get("Story Points", "0")),
+                "story_points": _safe_int(story_meta.get("Story Points", "0")),
                 "priority": story_meta.get("Priority", ""),
                 "release": story_meta.get("Release", ""),
                 "saga": story_meta.get("Saga", ""),
@@ -202,8 +231,9 @@ def add_story(path: str, story_data: dict) -> None:
 
 def remove_story(path: str, story_id: str) -> None:
     """Remove a story section from an epic file."""
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
-    epic = parse_epic(path)
+    content = Path(path).read_text(encoding="utf-8")
+    lines = content.splitlines()
+    epic = _parse_epic_from_lines(lines)
     section = next(
         (s for s in epic["raw_sections"] if s["id"] == story_id), None
     )
@@ -232,8 +262,9 @@ def remove_story(path: str, story_id: str) -> None:
 
 def reorder_stories(path: str, story_ids: list[str]) -> None:
     """Reorder story sections to match the given ID list."""
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
-    epic = parse_epic(path)
+    content = Path(path).read_text(encoding="utf-8")
+    lines = content.splitlines()
+    epic = _parse_epic_from_lines(lines)
 
     # Find where stories begin (after the header/intro)
     first_section = epic["raw_sections"][0] if epic["raw_sections"] else None

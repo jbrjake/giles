@@ -207,14 +207,13 @@ def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
 def _count_sp(issues: list[dict]) -> tuple[int, int]:
     t = d = 0
     for i in issues:
-        sp = _extract_sp(i)
+        sp = extract_sp(i)
         t += sp
         if i.get("state") == "closed":
             d += sp
     return t, d
 
 
-_extract_sp = extract_sp
 
 
 # -- Drift detection ---------------------------------------------------------
@@ -252,8 +251,8 @@ def check_branch_divergence(
                     f"  Drift: MEDIUM — {branch} is {behind} commits "
                     f"behind {base_branch} ({ahead} ahead)"
                 )
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            report.append(f"  Drift: skipped {branch} — {exc}")
     return report, actions
 
 
@@ -289,8 +288,8 @@ def check_direct_pushes(
                 "I won't say who, but I will say it's making the merge "
                 "queue nervous."
             )
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        report.append(f"  Drift: direct push check skipped — {exc}")
     return report, actions
 
 

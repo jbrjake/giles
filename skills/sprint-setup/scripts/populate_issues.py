@@ -61,15 +61,25 @@ def _build_row_regex(config: dict) -> re.Pattern:
     """Build a row regex from config, or use the default.
 
     Config can specify [backlog] story_id_pattern for the ID column
-    (e.g. "PROJ-\\d{4}").
+    (e.g. "PROJ-\\d{4}"). Invalid patterns fall back to the default.
+    Patterns with capturing groups are rejected to prevent group-number shifts.
     """
     backlog = config.get("backlog", {})
     pattern = backlog.get("story_id_pattern", "")
     if pattern:
-        # Build regex: | <story_id> | <title> | [epic] | <saga> | <sp> | <priority> |
-        return re.compile(
-            rf"\|\s*({pattern})\s*\|\s*(.+?)\s*\|\s*(?:(E-\d{{4}})\s*\|\s*)?(S\d{{2}})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
-        )
+        # Reject patterns with unescaped capturing groups
+        if re.search(r'(?<!\\)\((?!\?)', pattern):
+            print(f"Warning: story_id_pattern contains capturing groups, "
+                  f"using default pattern", file=sys.stderr)
+            return _DEFAULT_ROW_RE
+        try:
+            return re.compile(
+                rf"\|\s*({pattern})\s*\|\s*(.+?)\s*\|\s*(?:(E-\d{{4}})\s*\|\s*)?(S\d{{2}})\s*\|\s*(\d+)\s*\|\s*(P\d)\s*\|"
+            )
+        except re.error as exc:
+            print(f"Warning: invalid story_id_pattern '{pattern}': {exc}, "
+                  f"using default", file=sys.stderr)
+            return _DEFAULT_ROW_RE
     return _DEFAULT_ROW_RE
 
 
@@ -116,17 +126,18 @@ def parse_milestone_stories(
 
 
 def _infer_sprint_number(mf: Path) -> int:
-    """Infer sprint number from filename or content.
+    """Infer sprint number from content headings first, then filename.
 
-    Looks for patterns like 'sprint-1', 'milestone-1', or a heading.
+    Priority matches bootstrap_github._collect_sprint_numbers: content-first.
     """
-    name = mf.stem.lower()
-    m = re.search(r"(\d+)", name)
-    if m:
-        return int(m.group(1))
-    # Try from content heading
+    # Content-first: look for Sprint N headings
     text = mf.read_text(encoding="utf-8")
     m = re.search(r"Sprint\s+(\d+)", text)
+    if m:
+        return int(m.group(1))
+    # Fallback: filename
+    name = mf.stem.lower()
+    m = re.search(r"(\d+)", name)
     if m:
         return int(m.group(1))
     return 1
@@ -256,7 +267,9 @@ def get_milestone_numbers() -> dict[str, int]:
     try:
         raw = gh(["api", "repos/{owner}/{repo}/milestones", "--jq", "."])
         return {m["title"]: m["number"] for m in json.loads(raw)} if raw else {}
-    except (RuntimeError, json.JSONDecodeError, KeyError):
+    except (RuntimeError, json.JSONDecodeError, KeyError) as exc:
+        print(f"Warning: could not fetch milestones: {exc}", file=sys.stderr)
+        print("Issues will be created without milestone assignment.", file=sys.stderr)
         return {}
 
 
