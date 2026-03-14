@@ -760,6 +760,123 @@ class TestDoRelease(unittest.TestCase):
             f"Expected 'git reset --hard' after release failure, got: {run_cmds}",
         )
 
+    # -- Test 8: P6-03 — gh release failure cleans up notes temp file ----------
+
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_gh_release_failure_cleans_notes(
+        self, mock_calc, mock_write_toml, mock_run,
+    ):
+        """P6-03: When GitHub release creation fails, no temp notes file remains."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: dashboard", "body": ""},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect(
+            pre_release_sha="cafe0000",
+        )
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        # Capture the notes file path from the gh() call
+        notes_file_path = None
+
+        def _gh_side_effect(args):
+            nonlocal notes_file_path
+            if args[0] == "release" and args[1] == "create":
+                # Extract the --notes-file path from args
+                for i, a in enumerate(args):
+                    if a == "--notes-file" and i + 1 < len(args):
+                        notes_file_path = args[i + 1]
+                raise RuntimeError("GitHub API error")
+            return ""
+
+        with patch("release_gate.gh", side_effect=_gh_side_effect):
+            with patch("release_gate.find_milestone_number", return_value=None):
+                result = do_release("Sprint 1", config)
+
+        self.assertFalse(result)
+
+        # The notes file should have been cleaned up by the finally block
+        self.assertIsNotNone(notes_file_path, "gh() should have received --notes-file")
+        self.assertFalse(
+            Path(notes_file_path).exists(),
+            f"Temp notes file should be cleaned up after failure: {notes_file_path}",
+        )
+
+        # Also verify no release-notes.md in cwd (P6-04: should use tempfile)
+        self.assertFalse(
+            Path("release-notes.md").exists(),
+            "release-notes.md should NOT be written to cwd",
+        )
+
+    # -- Test 9: P6-04 — release notes uses tempfile, not cwd -----------------
+
+    @patch("release_gate.gh")
+    @patch("release_gate.find_milestone_number")
+    @patch("release_gate.subprocess.run")
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    def test_release_notes_uses_tempfile(
+        self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
+    ):
+        """P6-04: do_release writes notes to a temp file, not 'release-notes.md' in cwd."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: add dashboard", "body": ""},
+        ])
+        mock_write_toml.return_value = None
+        mock_run.side_effect = _make_subprocess_side_effect()
+        mock_ms.return_value = 7
+        mock_gh.return_value = "https://github.com/owner/repo/releases/tag/v1.1.0"
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        # Capture the --notes-file path passed to gh()
+        notes_file_path = None
+        original_gh_return = mock_gh.return_value
+
+        def _gh_capture(args):
+            nonlocal notes_file_path
+            if isinstance(args, list) and len(args) >= 2:
+                if args[0] == "release" and args[1] == "create":
+                    for i, a in enumerate(args):
+                        if a == "--notes-file" and i + 1 < len(args):
+                            notes_file_path = args[i + 1]
+            return original_gh_return
+
+        mock_gh.side_effect = _gh_capture
+
+        result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertTrue(result)
+
+        # Notes file should NOT be release-notes.md in cwd
+        self.assertFalse(
+            Path("release-notes.md").exists(),
+            "release-notes.md should NOT be written to cwd",
+        )
+
+        # The notes file path should be in a temp directory, not cwd
+        self.assertIsNotNone(notes_file_path, "gh() should have received --notes-file")
+        self.assertNotEqual(
+            Path(notes_file_path).name, "release-notes.md",
+            "Notes file should not be named 'release-notes.md'",
+        )
+        # The temp file should be cleaned up after success
+        self.assertFalse(
+            Path(notes_file_path).exists(),
+            f"Temp notes file should be cleaned up after success: {notes_file_path}",
+        )
+
 
 # ---------------------------------------------------------------------------
 # P5-12: do_release integration test (dry-run path)

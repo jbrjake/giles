@@ -19,6 +19,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -523,35 +524,40 @@ def do_release(
     notes = generate_release_notes(
         new_ver, base_ver, commits, milestone_title, config,
     )
-    notes_path = Path("release-notes.md")
-
     if dry_run:
         print("\n[DRY-RUN] Release notes:\n")
         print(notes)
         print(f"\n[DRY-RUN] Would create GitHub Release v{new_ver}")
     else:
-        notes_path.write_text(notes, encoding="utf-8")
-
-        # 7. Create GitHub Release
-        release_args = [
-            "release", "create", f"v{new_ver}",
-            "--title", f"{project_name} {new_ver}",
-            "--notes-file", str(notes_path),
-        ]
-        binary = config.get("ci", {}).get("binary_path", "")
-        if binary and Path(binary).exists():
-            release_args.append(binary)
+        # Write notes to a temp file (not cwd) and ensure cleanup
+        notes_fd = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.md', prefix='release-notes-',
+            delete=False, encoding='utf-8',
+        )
+        notes_path = Path(notes_fd.name)
         try:
-            gh(release_args)
-        except RuntimeError as exc:
-            _rollback_tag()
-            _rollback_commit()
-            return _fail("github-release",
-                         f"GitHub Release failed (tag rolled back): {exc}")
-        completed_steps.append("github-release")
+            notes_fd.write(notes)
+            notes_fd.close()
 
-        # Clean up notes file
-        notes_path.unlink(missing_ok=True)
+            # 7. Create GitHub Release
+            release_args = [
+                "release", "create", f"v{new_ver}",
+                "--title", f"{project_name} {new_ver}",
+                "--notes-file", str(notes_path),
+            ]
+            binary = config.get("ci", {}).get("binary_path", "")
+            if binary and Path(binary).exists():
+                release_args.append(binary)
+            try:
+                gh(release_args)
+            except RuntimeError as exc:
+                _rollback_tag()
+                _rollback_commit()
+                return _fail("github-release",
+                             f"GitHub Release failed (tag rolled back): {exc}")
+            completed_steps.append("github-release")
+        finally:
+            notes_path.unlink(missing_ok=True)
 
     # 8. Close milestone
     ms_num = find_milestone_number(milestone_title)
