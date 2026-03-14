@@ -215,7 +215,7 @@ class ProjectScanner:
                                 multiline_cmds.append(line_content)
                             i += 1
                         if multiline_cmds:
-                            runs.append(" && ".join(multiline_cmds))
+                            runs.append("\n".join(multiline_cmds))
                         continue
                     else:
                         runs.append(cmd)
