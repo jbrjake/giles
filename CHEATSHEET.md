@@ -27,19 +27,20 @@ you need without reading entire files.
 | 510 | `get_milestones()` | Milestone file paths from config |
 | 525 | `get_ci_commands()` | CI check commands from [ci] section |
 | 534 | `get_base_branch()` | Base branch from config, defaults to 'main' |
-| 540 | `get_prd_dir()` | PRD directory path from config (optional) |
-| 549 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
-| 558 | `get_sagas_dir()` | Sagas directory path from config (optional) |
-| 567 | `get_epics_dir()` | Epics directory path from config (optional) |
-| 576 | `extract_sp()` | Shared story point extraction from labels/body |
-| 609 | `get_story_map()` | Story map file path from config (optional) |
-| 622 | `detect_sprint()` | Detect current sprint number from sprints directory |
-| 634 | `extract_story_id()` | Parse US-XXXX from issue title |
-| 640 | `_KANBAN_STATES` | Frozenset of 6 kanban states |
-| 643 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
-| 658 | `find_milestone()` | Look up GitHub milestone by sprint number |
-| 677 | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
-| 688 | `warn_if_at_limit()` | Warn if API response is at pagination limit |
+| 540 | `get_sprints_dir()` | Sprints directory path from config (required) |
+| 545 | `get_prd_dir()` | PRD directory path from config (optional) |
+| 554 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
+| 563 | `get_sagas_dir()` | Sagas directory path from config (optional) |
+| 572 | `get_epics_dir()` | Epics directory path from config (optional) |
+| 581 | `extract_sp()` | Shared story point extraction from labels/body |
+| 614 | `get_story_map()` | Story map file path from config (optional) |
+| 627 | `detect_sprint()` | Detect current sprint number from sprints directory |
+| 639 | `extract_story_id()` | Parse US-XXXX from issue title |
+| 645 | `_KANBAN_STATES` | Frozenset of 6 kanban states |
+| 648 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
+| 663 | `find_milestone()` | Look up GitHub milestone by sprint number |
+| 682 | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
+| 693 | `warn_if_at_limit()` | Warn if API response is at pagination limit |
 
 ### scripts/sprint_init.py
 | Line | Function | Purpose |
