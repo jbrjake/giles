@@ -17,30 +17,30 @@ you need without reading entire files.
 | 22 | `gh()` | Shared GitHub CLI wrapper (raises RuntimeError on failure) |
 | 32 | `gh_json()` | Run gh CLI and parse JSON output |
 | 47 | `parse_simple_toml()` | Custom TOML parser (no tomllib dep) |
-| 247 | `_REQUIRED_FILES` | List of files config dir must contain |
-| 260 | `_REQUIRED_TOML_KEYS` | Required keys: project.name, project.repo, etc. |
-| 271 | `_REQUIRED_TOML_SECTIONS` | project, paths, ci |
-| 274 | `validate_project()` | Full config validation, returns error list |
-| 383 | `_parse_team_index()` | Parse team/INDEX.md table |
-| 451 | `load_config()` | Load + validate, returns dict |
-| 482 | `get_team_personas()` | Personas from team/INDEX.md |
-| 510 | `get_milestones()` | Milestone file paths from config |
-| 525 | `get_ci_commands()` | CI check commands from [ci] section |
-| 534 | `get_base_branch()` | Base branch from config, defaults to 'main' |
-| 540 | `get_sprints_dir()` | Sprints directory path from config (required) |
-| 545 | `get_prd_dir()` | PRD directory path from config (optional) |
-| 554 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
-| 563 | `get_sagas_dir()` | Sagas directory path from config (optional) |
-| 572 | `get_epics_dir()` | Epics directory path from config (optional) |
-| 581 | `extract_sp()` | Shared story point extraction from labels/body |
-| 614 | `get_story_map()` | Story map file path from config (optional) |
-| 627 | `detect_sprint()` | Detect current sprint number from sprints directory |
-| 639 | `extract_story_id()` | Parse US-XXXX from issue title |
-| 645 | `_KANBAN_STATES` | Frozenset of 6 kanban states |
-| 648 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
-| 663 | `find_milestone()` | Look up GitHub milestone by sprint number |
-| 682 | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
-| 693 | `warn_if_at_limit()` | Warn if API response is at pagination limit |
+| 253 | `_REQUIRED_FILES` | List of files config dir must contain |
+| 266 | `_REQUIRED_TOML_KEYS` | Required keys: project.name, project.repo, etc. |
+| 277 | `_REQUIRED_TOML_SECTIONS` | project, paths, ci |
+| 280 | `validate_project()` | Full config validation, returns error list |
+| 389 | `_parse_team_index()` | Parse team/INDEX.md table |
+| 457 | `load_config()` | Load + validate, returns dict |
+| 491 | `get_team_personas()` | Personas from team/INDEX.md |
+| 519 | `get_milestones()` | Milestone file paths from config |
+| 534 | `get_ci_commands()` | CI check commands from [ci] section |
+| 543 | `get_base_branch()` | Base branch from config, defaults to 'main' |
+| 549 | `get_sprints_dir()` | Sprints directory path from config (required) |
+| 554 | `get_prd_dir()` | PRD directory path from config (optional) |
+| 563 | `get_test_plan_dir()` | Test plan directory path from config (optional) |
+| 572 | `get_sagas_dir()` | Sagas directory path from config (optional) |
+| 581 | `get_epics_dir()` | Epics directory path from config (optional) |
+| 590 | `extract_sp()` | Shared story point extraction from labels/body |
+| 623 | `get_story_map()` | Story map file path from config (optional) |
+| 636 | `detect_sprint()` | Detect current sprint number from sprints directory |
+| 648 | `extract_story_id()` | Parse US-XXXX from issue title |
+| 663 | `KANBAN_STATES` | Frozenset of 6 kanban states |
+| 667 | `kanban_from_labels()` | Derive kanban state from GitHub labels |
+| 682 | `find_milestone()` | Look up GitHub milestone by sprint number |
+| 701 | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
+| 712 | `warn_if_at_limit()` | Warn if API response is at pagination limit |
 
 ### scripts/sprint_init.py
 | Line | Function | Purpose |
@@ -48,11 +48,11 @@ you need without reading entire files.
 | 36 | `RICH_PERSONA_HEADINGS` | Headings that signal a rich persona file |
 | 61 | `ScanResult` | Dataclass with all detected fields |
 | 90 | `ProjectScanner` | Auto-detects language, personas, milestones, rules, deep docs |
-| 497 | `ConfigGenerator` | Generates sprint-config/ from scan results |
-| 818 | `_indicator()` | Confidence indicator character |
-| 826 | `print_scan_results()` | Human-readable scan output |
-| 862 | `print_generation_summary()` | Summary of generated config files |
-| 902 | `main()` | CLI entry point |
+| 512 | `ConfigGenerator` | Generates sprint-config/ from scan results |
+| 838 | `_indicator()` | Confidence indicator character |
+| 846 | `print_scan_results()` | Human-readable scan output |
+| 882 | `print_generation_summary()` | Summary of generated config files |
+| 922 | `main()` | CLI entry point |
 
 ### scripts/sprint_teardown.py
 | Line | Function | Purpose |
@@ -195,9 +195,9 @@ you need without reading entire files.
 | 40 | `parse_planned_tests()` | Extract TC/GP IDs from test plan files |
 | 58 | `detect_test_functions()` | Find test function names in source code by language |
 | 66 | `scan_project_tests()` | Walk project tree, find all test files and functions |
-| 90 | `check_test_coverage()` | Compare planned vs actual, return coverage report |
-| 131 | `format_report()` | Markdown coverage report |
-| 159 | `main()` | CLI: load config, check coverage, print |
+| 95 | `check_test_coverage()` | Compare planned vs actual, return coverage report |
+| 136 | `format_report()` | Markdown coverage report |
+| 164 | `main()` | CLI: load config, check coverage, print |
 
 ### scripts/manage_epics.py
 | Line | Function | Purpose |
@@ -211,8 +211,8 @@ you need without reading entire files.
 | 217 | `add_story()` | Append new story section to epic file |
 | 232 | `remove_story()` | Remove story section by ID |
 | 263 | `reorder_stories()` | Reorder story sections to match given ID list |
-| 318 | `renumber_stories()` | Replace story ID references (for splits) |
-| 337 | `main()` | CLI: add, remove, reorder, renumber subcommands |
+| 327 | `renumber_stories()` | Replace story ID references (for splits) |
+| 346 | `main()` | CLI: add, remove, reorder, renumber subcommands |
 
 ### scripts/manage_sagas.py
 | Line | Function | Purpose |
@@ -361,6 +361,11 @@ you need without reading entire files.
 | 23 | Story file format (YAML frontmatter) |
 | 46 | File map (where each tracking file lives) |
 
+### skills/sprint-run/references/context-recovery.md
+| Line | Section |
+|------|---------|
+| 1 | Context Recovery (6-step state reconstruction after context loss) |
+
 ### skills/sprint-setup/references/github-conventions.md
 | Line | Section |
 |------|---------|
@@ -368,6 +373,12 @@ you need without reading entire files.
 | 44 | Issue template |
 | 73 | PR template |
 | 108 | PR review template |
+
+### skills/sprint-setup/references/ci-workflow-template.md
+| Line | Section |
+|------|---------|
+| 7 | Workflow Template (YAML skeleton) |
+| 42 | Notes (customization guidance) |
 
 ### skills/sprint-release/references/release-checklist.md
 | Line | Section |
@@ -450,18 +461,18 @@ Required TOML keys: `project.name`, `project.repo`, `project.language`,
 Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`,
 `paths.epics_dir`, `paths.story_map`, `paths.team_topology`.
 
-See `validate_config.py:260` for the full list.
+See `validate_config.py:266` for the full list.
 
 ## Common modifications
 
 | Want to... | Edit |
 |-----------|------|
 | Add new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter |
-| Change config validation | `scripts/validate_config.py:247` (_REQUIRED_FILES), `:260` (_REQUIRED_TOML_KEYS) |
+| Change config validation | `scripts/validate_config.py:253` (_REQUIRED_FILES), `:266` (_REQUIRED_TOML_KEYS) |
 | Add label category | `bootstrap_github.py:157` (create_static_labels) |
 | Add language to CI gen | `setup_ci.py:61` (_SETUP_REGISTRY), `:75` (_ENV_BLOCKS) |
 | Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:29` (KANBAN_STATES) |
 | Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:115` (TF), `update_burndown.py:43` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:497` (ConfigGenerator) |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:512` (ConfigGenerator) |
 | Change story ID pattern | `populate_issues.py:60` (_build_row_regex), or set [backlog] story_id_pattern in TOML |
 | Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:75 handles injection. |
