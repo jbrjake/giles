@@ -39,7 +39,11 @@ import bootstrap_github
 import populate_issues
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
+import sync_tracking
 import update_burndown
+
+sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
+import check_status
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +427,140 @@ class TestLifecycle(unittest.TestCase):
                                 "At least one milestone from sprint sections")
         self.assertGreaterEqual(len(self.fake_gh.issues), 1,
                                 "At least one story issue created")
+
+
+    # -- Test 14: monitoring pipeline (sync → burndown → check) ---------------
+
+    def test_14_monitoring_pipeline(self):
+        """P6-08: sync_tracking → update_burndown → check_status pipeline."""
+        from datetime import datetime, timezone
+
+        config = self._generate_config()
+        sprints_dir = self.root / "sprints"
+        sprints_dir.mkdir(exist_ok=True)
+
+        # SPRINT-STATUS.md so detect_sprint() can find the current sprint
+        (sprints_dir / "SPRINT-STATUS.md").write_text(
+            "# Sprint Status\n\nCurrent Sprint: 1\n\n## Active Stories\n",
+            encoding="utf-8",
+        )
+
+        # Set up FakeGitHub state: one milestone, four issues
+        ms_title = "Sprint 1: Foundation"
+        self.fake_gh.milestones = [{
+            "number": 1,
+            "title": ms_title,
+            "state": "open",
+            "open_issues": 2,
+            "closed_issues": 2,
+        }]
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        self.fake_gh.issues = [
+            {
+                "number": 1,
+                "title": "US-0101: Basic setup",
+                "body": "| Story Points | 3 |",
+                "state": "closed",
+                "labels": [{"name": "kanban:done"}, {"name": "sp:3"}],
+                "milestone": {"title": ms_title},
+                "closedAt": now_iso,
+            },
+            {
+                "number": 2,
+                "title": "US-0102: Core feature",
+                "body": "",
+                "state": "closed",
+                "labels": [{"name": "kanban:done"}, {"name": "sp:5"}],
+                "milestone": {"title": ms_title},
+                "closedAt": now_iso,
+            },
+            {
+                "number": 3,
+                "title": "US-0103: API endpoint",
+                "body": "",
+                "state": "open",
+                "labels": [{"name": "kanban:dev"}, {"name": "sp:3"}],
+                "milestone": {"title": ms_title},
+                "closedAt": None,
+            },
+            {
+                "number": 4,
+                "title": "US-0104: Documentation",
+                "body": "",
+                "state": "open",
+                "labels": [{"name": "kanban:todo"}, {"name": "sp:2"}],
+                "milestone": {"title": ms_title},
+                "closedAt": None,
+            },
+        ]
+
+        stories_dir = sprints_dir / "sprint-1" / "stories"
+        stories_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
+            # --- Phase 1: sync_tracking creates tracking files ---------------
+            for issue in self.fake_gh.issues:
+                tf, changes = sync_tracking.create_from_issue(
+                    issue, sprint=1, d=stories_dir, pr=None,
+                )
+                sync_tracking.write_tf(tf)
+
+            tracking_files = list(stories_dir.glob("*.md"))
+            self.assertEqual(
+                len(tracking_files), 4,
+                f"Expected 4 tracking files, got {len(tracking_files)}",
+            )
+
+            # --- Phase 2: update_burndown reads tracking + writes burndown ---
+            issues = self.fake_gh.issues
+            now = datetime.now(timezone.utc)
+            rows: list[dict] = []
+            for issue in issues:
+                from validate_config import (
+                    extract_story_id, kanban_from_labels, extract_sp,
+                )
+                sid = extract_story_id(issue["title"])
+                short = (
+                    issue["title"].split(":", 1)[-1].strip()
+                    if ":" in issue["title"]
+                    else issue["title"]
+                )
+                rows.append({
+                    "story_id": sid,
+                    "short_title": short,
+                    "sp": extract_sp(issue),
+                    "status": kanban_from_labels(issue),
+                    "closed": update_burndown.closed_date(issue),
+                    "assignee": "\u2014",
+                    "pr": "\u2014",
+                })
+
+            bd_path = update_burndown.write_burndown(1, rows, now, sprints_dir)
+            update_burndown.update_sprint_status(1, rows, sprints_dir)
+
+            self.assertTrue(bd_path.exists(), "Burndown file should exist")
+            bd_text = bd_path.read_text(encoding="utf-8")
+            self.assertIn("Sprint 1 Burndown", bd_text)
+            # 8 done SP out of 13 total
+            self.assertIn("Completed: 8 SP", bd_text)
+            self.assertIn("Remaining: 5 SP", bd_text)
+
+            status_text = (sprints_dir / "SPRINT-STATUS.md").read_text(
+                encoding="utf-8",
+            )
+            self.assertIn("Active Stories", status_text)
+            self.assertIn("US-0101", status_text)
+
+            # --- Phase 3: check_milestone reports progress -------------------
+            report, actions = check_status.check_milestone(1)
+
+            report_text = "\n".join(report)
+            # 2 closed out of 4 total stories
+            self.assertIn("2/4", report_text)
+            self.assertIn("50%", report_text)
+            # SP counts: 8 done out of 13
+            self.assertIn("8/13 SP", report_text)
 
 
 if __name__ == "__main__":
