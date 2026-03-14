@@ -761,5 +761,77 @@ class TestDoRelease(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# P5-12: do_release integration test (dry-run path)
+# ---------------------------------------------------------------------------
+
+
+class TestDoReleaseDryRunIntegration(unittest.TestCase):
+    """P5-12: Exercises do_release dry-run path end-to-end.
+
+    Uses mocked subprocess to simulate a real git repo with tags and
+    commits, then verifies version calculation → notes generation flow.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="release-int-")
+        self.toml_path = Path(self.tmpdir) / "project.toml"
+        self.toml_path.write_text(
+            '[project]\nname = "TestApp"\nrepo = "owner/repo"\n'
+            '[release]\nversion = "1.0.0"\n',
+            encoding="utf-8",
+        )
+        self.config = {
+            "project": {"name": "TestApp", "repo": "owner/repo"},
+            "_config_dir": self.tmpdir,
+        }
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _make_side_effect(self):
+        """Subprocess side effect for dry-run test."""
+        def side_effect(args, **kwargs):
+            cmd = args if isinstance(args, list) else [args]
+            joined = " ".join(str(a) for a in cmd)
+            # git status --porcelain (clean tree)
+            if "status" in joined and "porcelain" in joined:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            # git tag --list (existing tag)
+            if "tag" in joined and "--list" in joined:
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout="v1.0.0\n", stderr="",
+                )
+            # git log (commits since tag)
+            if "git" in joined and "log" in joined:
+                return subprocess.CompletedProcess(
+                    cmd, 0,
+                    stdout="abc1234 feat: add new feature\ndef5678 fix: resolve bug\n",
+                    stderr="",
+                )
+            # Default success
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return side_effect
+
+    def test_dry_run_calculates_version_and_notes(self):
+        """Dry-run exercises version calc + notes generation without side effects."""
+        import io
+        from contextlib import redirect_stdout
+
+        with patch("subprocess.run", side_effect=self._make_side_effect()):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = do_release(
+                    "Sprint 1", self.config, dry_run=True,
+                )
+        output = buf.getvalue()
+        # Dry run should print version bump info
+        self.assertIn("1.0.0", output)
+        self.assertIn("DRY-RUN", output)
+        # Version file should NOT be modified (dry run)
+        self.assertIn('version = "1.0.0"', self.toml_path.read_text())
+
+
 if __name__ == "__main__":
     unittest.main()

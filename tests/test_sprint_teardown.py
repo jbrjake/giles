@@ -13,6 +13,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -437,6 +438,87 @@ class TestFullTeardownFlow(unittest.TestCase):
         self.assertFalse((self.config_dir / "development.md").exists())
         self.assertFalse((self.config_dir / "project.toml").exists())
         self.assertFalse((team_dir / "INDEX.md").exists())
+
+
+# ---------------------------------------------------------------------------
+# P5-25: sprint_teardown main() tests
+# ---------------------------------------------------------------------------
+
+
+class TestTeardownMainDryRun(unittest.TestCase):
+    """P5-25: main() dry-run mode."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.project_root = Path(self.tmpdir)
+        self.config_dir = self.project_root / "sprint-config"
+        self.config_dir.mkdir()
+        # Create a symlink and a generated file
+        orig = self.project_root / "RULES.md"
+        orig.write_text("# Rules")
+        (self.config_dir / "rules.md").symlink_to(orig)
+        (self.config_dir / "project.toml").write_text('[project]\nname = "test"')
+        self._saved_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+    def tearDown(self):
+        os.chdir(self._saved_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_dry_run_preserves_files(self):
+        """Dry run should not remove any files."""
+        with unittest.mock.patch(
+            "sys.argv", ["teardown", "--dry-run"],
+        ), self.assertRaises(SystemExit) as ctx:
+            sprint_teardown.main()
+        self.assertEqual(ctx.exception.code, 0)
+        # Files should still exist after dry run
+        self.assertTrue((self.config_dir / "rules.md").exists())
+        self.assertTrue((self.config_dir / "project.toml").exists())
+
+
+class TestTeardownMainExecute(unittest.TestCase):
+    """P5-25: main() execute mode."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.project_root = Path(self.tmpdir)
+        self.config_dir = self.project_root / "sprint-config"
+        self.config_dir.mkdir()
+        # Create a generated file only (no symlinks, no unknowns)
+        (self.config_dir / "project.toml").write_text('[project]\nname = "test"')
+        # Create RULES.md and DEVELOPMENT.md to satisfy verification
+        (self.project_root / "RULES.md").write_text("# Rules")
+        (self.project_root / "DEVELOPMENT.md").write_text("# Dev")
+        self._saved_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+    def tearDown(self):
+        os.chdir(self._saved_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_execute_removes_generated(self):
+        """Execute mode removes generated files and cleans up."""
+        with unittest.mock.patch(
+            "sys.argv", ["teardown", "--force"],
+        ), unittest.mock.patch(
+            "sprint_teardown.check_active_loops", return_value=[],
+        ):
+            sprint_teardown.main()
+        # Generated file should be removed
+        self.assertFalse((self.config_dir / "project.toml").exists())
+
+    def test_no_config_dir_exits_cleanly(self):
+        """main() exits cleanly when sprint-config/ doesn't exist."""
+        import shutil
+        shutil.rmtree(self.config_dir)
+        with unittest.mock.patch(
+            "sys.argv", ["teardown"],
+        ), self.assertRaises(SystemExit) as ctx:
+            sprint_teardown.main()
+        self.assertEqual(ctx.exception.code, 0)
 
 
 if __name__ == "__main__":
