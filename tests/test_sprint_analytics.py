@@ -89,6 +89,40 @@ class TestComputeVelocity(unittest.TestCase):
         self.assertEqual(result["delivered_sp"], 5)
         self.assertEqual(result["percentage"], 62)
 
+    def test_malformed_sp_labels_contribute_zero(self):
+        """Issues with malformed SP labels (sp:abc, sp:) contribute 0 SP.
+
+        Note: sp:3.5 extracts the leading integer (3) via regex, which
+        is intentional — extract_sp uses r"sp:(\\d+)" and picks up the
+        integer prefix. Truly non-numeric labels contribute 0.
+        """
+        for i, bad_label in enumerate(["sp:abc", "sp:"], start=1):
+            self.gh.issues.append({
+                "number": i, "title": f"US-010{i}", "state": "closed",
+                "labels": [{"name": bad_label}], "body": "",
+                "milestone": {"title": "Sprint 1"},
+            })
+        # sp:3.5 extracts 3 (leading digits)
+        self.gh.issues.append({
+            "number": 3, "title": "US-0103", "state": "closed",
+            "labels": [{"name": "sp:3.5"}], "body": "",
+            "milestone": {"title": "Sprint 1"},
+        })
+        # One valid issue
+        self.gh.issues.append({
+            "number": 4, "title": "US-0104", "state": "closed",
+            "labels": [{"name": "sp:5"}], "body": "",
+            "milestone": {"title": "Sprint 1"},
+        })
+
+        with patch("subprocess.run", self.patched):
+            result = sprint_analytics.compute_velocity("Sprint 1")
+
+        # sp:abc and sp: yield 0; sp:3.5 yields 3; sp:5 yields 5 => total 8
+        self.assertEqual(result["planned_sp"], 8)
+        self.assertEqual(result["delivered_sp"], 8)
+        self.assertEqual(result["story_count"], 4)
+
 
 class TestComputeReviewRounds(unittest.TestCase):
     """Test review round computation."""

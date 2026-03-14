@@ -262,6 +262,37 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertIn("CLI user", s.user_story)
         self.assertEqual(len(s.acceptance_criteria), 2)
 
+    def test_parse_milestone_stories_malformed_tables(self):
+        """parse_milestone_stories handles malformed markdown tables without crashing."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            malformed = Path(tmp) / "bad-milestone.md"
+            malformed.write_text(
+                "# Milestone: Broken\n\n"
+                "### Sprint 1: Stuff\n\n"
+                "| broken row with no proper columns |\n"
+                "| US-0101 | missing columns\n"
+                "| | | | | | |\n"
+                "|------|------|------|------|------|------|\n"
+                "| not-a-story-id | title | S01 | abc | P0 |\n"
+                "Just some random text in the middle\n"
+                "| US-0102 | Valid Title | S01 | 3 | P1 |\n"
+            )
+            config = {"backlog": {}}
+            stories = populate_issues.parse_milestone_stories(
+                [str(malformed)], config,
+            )
+            # The parser should not crash. It may or may not find stories
+            # depending on whether rows match the regex. The key assertion
+            # is that it returns a list without raising.
+            self.assertIsInstance(stories, list)
+            # The only potentially valid row is the last one (US-0102).
+            # Whether it matches depends on the regex strictness.
+            # Either way, it should not crash.
+            ids = [s.story_id for s in stories]
+            # US-0102 has 5 columns and matches the default row regex
+            self.assertIn("US-0102", ids)
+
 
 class TestHexwisePipeline(unittest.TestCase):
     """Full pipeline: init -> bootstrap -> populate against hexwise."""

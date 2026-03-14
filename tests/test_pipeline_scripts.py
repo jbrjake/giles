@@ -317,6 +317,35 @@ class TestManageEpics(unittest.TestCase):
             story_ids = [s["id"] for s in result["stories"]]
             self.assertEqual(story_ids, ["US-0104", "US-0101", "US-0102", "US-0103"])
 
+    def test_remove_story_nonexistent_id(self):
+        """Removing a story ID that doesn't exist should not crash or alter the file."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            original_content = epic_path.read_text()
+            # remove_story with a non-existent ID should return silently
+            remove_story(str(epic_path), "US-9999")
+            after_content = epic_path.read_text()
+            self.assertEqual(original_content, after_content)
+            # All original stories should still be present
+            result = parse_epic(str(epic_path))
+            story_ids = [s["id"] for s in result["stories"]]
+            self.assertIn("US-0101", story_ids)
+            self.assertIn("US-0102", story_ids)
+
+    def test_parse_epic_empty_file(self):
+        """Parsing an empty file should return a valid structure without crashing."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            empty_path = Path(tmp) / "empty-epic.md"
+            empty_path.write_text("")
+            result = parse_epic(str(empty_path))
+            self.assertEqual(result["title"], "")
+            self.assertEqual(result["stories"], [])
+            self.assertEqual(result["raw_sections"], [])
+            self.assertEqual(result["stories_count"], 0)
+            self.assertEqual(result["total_sp"], 0)
+
 
 # ---------------------------------------------------------------------------
 # Task 3: Saga Management
@@ -384,6 +413,25 @@ class TestManageSagas(unittest.TestCase):
             result = parse_saga(str(saga_path))
             # Should still have 3 epics for S01
             self.assertEqual(len(result["epic_index"]), 3)
+
+    def test_parse_saga_malformed_file(self):
+        """Parsing a file with no proper saga structure should not crash."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            malformed_path = Path(tmp) / "bad-saga.md"
+            malformed_path.write_text(
+                "This is just random text.\n"
+                "No tables, no headings, no structure.\n"
+                "Just plain prose that is not a saga.\n"
+            )
+            result = parse_saga(str(malformed_path))
+            self.assertEqual(result["title"], "This is just random text.")
+            self.assertEqual(result["stories_count"], 0)
+            self.assertEqual(result["epics_count"], 0)
+            self.assertEqual(result["total_sp"], 0)
+            self.assertEqual(result["epic_index"], [])
+            self.assertEqual(result["sprint_allocation"], [])
+            self.assertEqual(result["section_ranges"], {})
 
 
 # ---------------------------------------------------------------------------
@@ -524,6 +572,25 @@ class TestCIGeneration(unittest.TestCase):
         yaml = generate_ci_yaml(config)
         self.assertIn("go test", yaml)
         self.assertIn("go vet", yaml)
+
+    def test_unsupported_language_produces_todo_comment(self):
+        """Unsupported language (e.g. Haskell) produces a TODO setup comment, not a crash."""
+        config = {
+            "project": {"name": "test", "language": "Haskell", "repo": "o/r"},
+            "ci": {
+                "check_commands": ["cabal test"],
+                "build_command": "cabal build",
+            },
+        }
+        yaml = generate_ci_yaml(config)
+        # Should not crash and should produce valid YAML structure
+        self.assertIn("name: CI", yaml)
+        self.assertIn("jobs:", yaml)
+        # Should contain a TODO comment for the unsupported language
+        self.assertIn("TODO", yaml)
+        self.assertIn("haskell", yaml.lower())
+        # The check commands should still appear
+        self.assertIn("cabal test", yaml)
 
 
 # ---------------------------------------------------------------------------
