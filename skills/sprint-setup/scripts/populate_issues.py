@@ -268,9 +268,8 @@ def get_milestone_numbers() -> dict[str, int]:
         raw = gh(["api", "repos/{owner}/{repo}/milestones", "--jq", "."])
         return {m["title"]: m["number"] for m in json.loads(raw)} if raw else {}
     except (RuntimeError, json.JSONDecodeError, KeyError) as exc:
-        print(f"Warning: could not fetch milestones: {exc}", file=sys.stderr)
-        print("Issues will be created without milestone assignment.", file=sys.stderr)
-        return {}
+        print(f"Error: could not fetch milestones: {exc}", file=sys.stderr)
+        raise
 
 
 def build_milestone_title_map(

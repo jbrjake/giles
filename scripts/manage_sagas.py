@@ -131,7 +131,7 @@ def _find_section_ranges(lines: list[str]) -> dict[str, tuple[int, int]]:
         if line.startswith("## "):
             if current_section:
                 ranges[current_section] = (current_start, i)
-            current_section = line.lstrip("# ").strip()
+            current_section = line.lstrip("#").strip()
             current_start = i
 
     if current_section:
