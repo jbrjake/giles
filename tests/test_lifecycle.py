@@ -323,6 +323,31 @@ class TestLifecycle(unittest.TestCase):
         self.assertIn("add login flow", notes)
         self.assertIn("## Full Changelog", notes)
 
+    # -- Test 09b: release notes compare link with real prior tag -------------
+
+    def test_09b_release_notes_compare_link(self):
+        """P6-19: compare link is generated when prior tag exists in git."""
+        # Create a real v0.1.0 tag in the temp repo
+        subprocess.run(
+            ["git", "-c", "user.name=Test", "-c", "user.email=test@test.com",
+             "tag", "v0.1.0"],
+            cwd=str(self.root), capture_output=True, text=True, check=True,
+        )
+
+        commits = [
+            {"subject": "feat: add dashboard", "body": ""},
+        ]
+        config = {"project": {"repo": "testowner/testrepo"}}
+        notes = generate_release_notes(
+            "0.2.0", "0.1.0", commits,
+            "Sprint 2: Features", config,
+        )
+        expected_link = "https://github.com/testowner/testrepo/compare/v0.1.0...v0.2.0"
+        self.assertIn(expected_link, notes,
+                      "Compare link should appear when prior tag exists")
+        # Should NOT contain "initial release" text
+        self.assertNotIn("initial release", notes)
+
     # -- Test 10: write version to TOML --------------------------------------
 
     def test_10_version_written_to_toml(self):
