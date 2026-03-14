@@ -20,7 +20,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, extract_sp,
+    load_config, extract_sp, get_sprints_dir,
     find_milestone, extract_story_id, kanban_from_labels,
     list_milestone_issues,
 )
@@ -162,9 +162,7 @@ def main() -> None:
     sprint_num = int(sys.argv[1])
 
     config = load_config()
-    sprints_dir = Path(
-        config.get("paths", {}).get("sprints_dir", "sprints")
-    )
+    sprints_dir = get_sprints_dir(config)
 
     now = datetime.now(timezone.utc)
 

@@ -22,8 +22,8 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, gh, extract_story_id, kanban_from_labels, find_milestone,
-    warn_if_at_limit, list_milestone_issues,
+    load_config, gh, extract_story_id, get_sprints_dir, kanban_from_labels,
+    find_milestone, warn_if_at_limit, list_milestone_issues,
 )
 
 KANBAN_STATES = ("todo", "design", "dev", "review", "integration", "done")
@@ -265,9 +265,7 @@ def main() -> None:
     sprint = int(sys.argv[1])
 
     config = load_config()
-    sprints_dir = Path(
-        config.get("paths", {}).get("sprints_dir", "sprints")
-    )
+    sprints_dir = get_sprints_dir(config)
 
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)

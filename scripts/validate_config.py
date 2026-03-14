@@ -537,6 +537,11 @@ def get_base_branch(config: dict) -> str:
     return branch if branch else "main"
 
 
+def get_sprints_dir(config: dict) -> Path:
+    """Return sprints directory path (required key, always present after validation)."""
+    return Path(config.get("paths", {}).get("sprints_dir", "sprints"))
+
+
 def get_prd_dir(config: dict) -> Path | None:
     """Return PRD directory path, or None if not configured."""
     val = config.get("paths", {}).get("prd_dir")

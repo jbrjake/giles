@@ -19,7 +19,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, detect_sprint, warn_if_at_limit
+from validate_config import load_config, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -315,9 +315,7 @@ def main() -> None:
         print(__doc__.strip())
         sys.exit(0)
     config = load_config()
-    sprints_dir = Path(
-        config.get("paths", {}).get("sprints_dir", "sprints")
-    )
+    sprints_dir = get_sprints_dir(config)
 
     sprint_num: int | None = None
     if len(sys.argv) >= 2:

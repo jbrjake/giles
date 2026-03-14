@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import (
     load_config, extract_sp, gh, gh_json,
-    detect_sprint, find_milestone, warn_if_at_limit,
+    detect_sprint, find_milestone, get_sprints_dir, warn_if_at_limit,
 )
 
 
@@ -188,9 +188,7 @@ def main() -> None:
 
     config = load_config()
     repo = config.get("project", {}).get("repo", "")
-    sprints_dir = Path(
-        config.get("paths", {}).get("sprints_dir", "sprints"),
-    )
+    sprints_dir = get_sprints_dir(config)
 
     sprint_num: int | None = None
     if len(sys.argv) >= 2:

@@ -26,7 +26,7 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
-from validate_config import load_config, get_base_branch, gh, gh_json, warn_if_at_limit
+from validate_config import load_config, get_base_branch, get_sprints_dir, gh, gh_json, warn_if_at_limit
 COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 
 
@@ -546,9 +546,7 @@ def do_release(
         print(f"Warning: milestone '{milestone_title}' not found on GitHub")
 
     # 9. Update SPRINT-STATUS.md
-    sprints_dir = Path(
-        config.get("paths", {}).get("sprints_dir", "sprints")
-    )
+    sprints_dir = get_sprints_dir(config)
     status_file = sprints_dir / "SPRINT-STATUS.md"
     if status_file.exists():
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
