@@ -16,6 +16,14 @@ from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
+
+class ConfigError(ValueError):
+    """Raised when sprint-config validation fails."""
+
+
+# ---------------------------------------------------------------------------
 # Shared GitHub CLI helpers
 # ---------------------------------------------------------------------------
 
@@ -130,23 +138,33 @@ def _count_trailing_backslashes(s: str, pos: int) -> int:
 
 def _strip_inline_comment(val: str) -> str:
     """Remove trailing # comments that are outside of quotes."""
-    in_str = False
+    quote_char = None  # None, '"', or "'"
     for i, ch in enumerate(val):
-        if ch == '"' and _count_trailing_backslashes(val, i) % 2 == 0:
-            in_str = not in_str
-        elif ch == "#" and not in_str:
-            return val[:i].rstrip()
+        if quote_char is None:
+            if ch in ('"', "'"):
+                quote_char = ch
+            elif ch == "#":
+                return val[:i].rstrip()
+        elif ch == quote_char:
+            if quote_char == '"' and _count_trailing_backslashes(val, i) % 2 != 0:
+                continue  # escaped double quote
+            quote_char = None
     return val
 
 
 def _has_closing_bracket(s: str) -> bool:
     """Check if s contains ] outside of quoted strings."""
-    in_str = False
+    quote_char = None  # None, '"', or "'"
     for i, ch in enumerate(s):
-        if ch == '"' and _count_trailing_backslashes(s, i) % 2 == 0:
-            in_str = not in_str
-        elif ch == ']' and not in_str:
-            return True
+        if quote_char is None:
+            if ch in ('"', "'"):
+                quote_char = ch
+            elif ch == ']':
+                return True
+        elif ch == quote_char:
+            if quote_char == '"' and _count_trailing_backslashes(s, i) % 2 != 0:
+                continue  # escaped double quote
+            quote_char = None
     return False
 
 
@@ -188,6 +206,10 @@ def _parse_value(raw: str):
     if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
         return _unescape_toml_string(raw[1:-1])
 
+    # Literal string (single-quoted, no escape processing per TOML spec)
+    if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'"):
+        return raw[1:-1]
+
     # Array
     if raw.startswith("[") and raw.endswith("]"):
         inner = raw[1:-1].strip()
@@ -206,7 +228,9 @@ def _parse_value(raw: str):
     except ValueError:
         pass
 
-    # Fall back to raw string
+    # Fall back to raw string — intentional leniency: unquoted values like
+    # ``key = hello world`` are accepted as plain strings rather than raising.
+    # This keeps the minimal parser forgiving for non-standard TOML usage.
     return raw
 
 
@@ -460,12 +484,15 @@ def load_config(config_dir: str = "sprint-config") -> dict:
     Resolves all [paths] values relative to the project root (the directory
     from which the script is invoked), not relative to config_dir.
 
-    Calls sys.exit(1) if validation fails.
+    Raises ConfigError if validation fails.
     """
     ok, errors = validate_project(config_dir)
     if not ok:
         _print_errors(errors, config_dir)
-        sys.exit(1)
+        raise ConfigError(
+            f"Config validation failed ({len(errors)} error(s)): "
+            + "; ".join(errors)
+        )
 
     toml_path = Path(config_dir) / "project.toml"
     config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))

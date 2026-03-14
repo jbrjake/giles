@@ -548,6 +548,26 @@ class TestParseSimpleToml(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_simple_toml(toml_text)
 
+    def test_single_quote_preserves_hash(self):
+        """P6-12: Single-quoted TOML literal string preserves # inside."""
+        result = parse_simple_toml("key = 'has # inside'")
+        self.assertEqual(result["key"], "has # inside")
+
+    def test_single_quote_with_double_inside(self):
+        """P6-12: Single-quoted string containing double quotes."""
+        result = parse_simple_toml("key = 'say \"hi\"'")
+        self.assertEqual(result["key"], 'say "hi"')
+
+    def test_double_quote_with_single_inside(self):
+        """P6-12: Double-quoted string containing single quotes."""
+        result = parse_simple_toml("key = \"it's fine\"")
+        self.assertEqual(result["key"], "it's fine")
+
+    def test_unquoted_string_accepted(self):
+        """P6-13: Unquoted values accepted as raw strings (intentional leniency)."""
+        result = parse_simple_toml("key = hello world")
+        self.assertEqual(result["key"], "hello world")
+
 
 # ---------------------------------------------------------------------------
 # P2-05: Non-Rust CI Generation
@@ -1384,7 +1404,7 @@ class TestVerifyRef(unittest.TestCase):
         """A reference within tolerance passes."""
         # verify_ref uses ROOT which is the project root, so we need a real file
         passed, msg = verify_ref(
-            "scripts/validate_config.py", "parse_simple_toml", 47, 1,
+            "scripts/validate_config.py", "parse_simple_toml", 55, 1,
         )
         self.assertTrue(passed)
 
