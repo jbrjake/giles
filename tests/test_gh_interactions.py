@@ -26,7 +26,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from fake_github import FakeGitHub
 
+import commit
 from commit import validate_message, check_atomicity
+import sprint_analytics
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
@@ -1259,6 +1261,69 @@ class TestSlugFromTitle(unittest.TestCase):
         s1 = sync_tracking.slug_from_title("Add auth")
         s2 = sync_tracking.slug_from_title("Add auth module")
         self.assertNotEqual(s1, s2)
+
+
+# ---------------------------------------------------------------------------
+# P5-13: main() entry point tests (error paths)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncTrackingMainArgParsing(unittest.TestCase):
+    """P5-13: sync_tracking.main() rejects bad args."""
+
+    def test_no_args_exits_2(self):
+        with patch("sys.argv", ["sync_tracking.py"]):
+            with self.assertRaises(SystemExit) as ctx:
+                sync_tracking.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+    def test_non_numeric_exits_2(self):
+        with patch("sys.argv", ["sync_tracking.py", "abc"]):
+            with self.assertRaises(SystemExit) as ctx:
+                sync_tracking.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["sync_tracking.py", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                sync_tracking.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+
+class TestCheckStatusMainArgParsing(unittest.TestCase):
+    """P5-13: check_status.main() help flag."""
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["check_status.py", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                check_status.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+
+class TestCommitMainArgParsing(unittest.TestCase):
+    """P5-13: commit.main() error paths."""
+
+    def test_no_args_exits_2(self):
+        with patch("sys.argv", ["commit.py"]):
+            with self.assertRaises(SystemExit) as ctx:
+                commit.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["commit.py", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                commit.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+
+class TestSprintAnalyticsMainArgParsing(unittest.TestCase):
+    """P5-13: sprint_analytics.main() help flag."""
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["sprint_analytics.py", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                sprint_analytics.main()
+            self.assertEqual(ctx.exception.code, 0)
 
 
 # ---------------------------------------------------------------------------
