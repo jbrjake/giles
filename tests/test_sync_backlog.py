@@ -188,8 +188,9 @@ class TestDoSync(unittest.TestCase):
                 created = sync_backlog.do_sync(config)
             self.assertGreater(len(fake_gh.milestones), 0)
             self.assertGreater(len(fake_gh.issues), 0)
-            self.assertIn("milestones", created)
-            self.assertIn("issues", created)
+            # Verify return counts match actual FakeGitHub state
+            self.assertEqual(created["milestones"], len(fake_gh.milestones))
+            self.assertEqual(created["issues"], len(fake_gh.issues))
 
     def test_do_sync_idempotent(self):
         """Running do_sync twice doesn't duplicate issues."""

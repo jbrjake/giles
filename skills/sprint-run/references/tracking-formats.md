@@ -39,7 +39,7 @@ completed:
 ```
 
 The `status` field mirrors kanban states: `todo`, `design`, `dev`,
-`review`, `done`. GitHub is the source of truth for story state;
+`review`, `integration`, `done`. GitHub is the source of truth for story state;
 `sync_tracking.py` updates local tracking files to match GitHub.
 If they diverge, GitHub wins.
 

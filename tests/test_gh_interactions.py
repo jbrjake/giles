@@ -454,11 +454,19 @@ class TestCreateLabel(unittest.TestCase):
         self.assertIn("create", call_args)
         self.assertIn("test-label", call_args)
 
+    @patch("builtins.print")
     @patch("bootstrap_github.gh")
-    def test_label_error_handled(self, mock_gh):
+    def test_label_error_handled(self, mock_gh, mock_print):
         mock_gh.side_effect = RuntimeError("already exists")
         # Should not raise (create_label handles errors gracefully)
         bootstrap_github.create_label("existing-label", "ff0000")
+        # Verify the gh call was attempted (and failed)
+        mock_gh.assert_called_once()
+        # Verify the warning was printed (not silently swallowed)
+        mock_print.assert_called_once()
+        warning_msg = mock_print.call_args[0][0]
+        self.assertIn("existing-label", warning_msg)
+        self.assertIn("already exists", warning_msg)
 
 
 # ---------------------------------------------------------------------------

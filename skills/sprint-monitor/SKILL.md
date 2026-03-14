@@ -304,10 +304,4 @@ and fixes are not re-applied to passing CI.
 ## Manual Invocation
 
 When invoked outside of `/loop`, run all seven steps once and output the full
-report. Accept optional flags:
-
-- `--ci-only` -- run only Step 1.
-- `--pr-only` -- run only Step 2.
-- `--burndown-only` -- run only Step 3.
-- `--dry-run` -- check status but take no actions (no merges, no comments, no
-  pushes).
+report.
