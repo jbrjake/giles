@@ -1351,9 +1351,9 @@ class TestFakeGitHubFlagEnforcement(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
 
     def test_noop_flags_accepted(self):
-        """Flags in _ACCEPTED_NOOP_FLAGS (--paginate, --jq) are silently allowed."""
+        """Flags in _ACCEPTED_NOOP_FLAGS (--paginate, --notes-file) are silently allowed."""
         result = self.fake.handle([
-            "issue", "list", "--state", "all", "--jq", ".[].title",
+            "issue", "list", "--state", "all", "--paginate",
         ])
         self.assertEqual(result.returncode, 0)
 
@@ -1364,6 +1364,138 @@ class TestFakeGitHubFlagEnforcement(unittest.TestCase):
     def test_unknown_flag_on_release_create_raises(self):
         with self.assertRaises(NotImplementedError):
             self.fake.handle(["release", "create", "v1.0.0", "--prerelease"])
+
+
+class TestFakeGitHubShortFlags(unittest.TestCase):
+    """P6-01: _parse_flags handles single-dash flags (-f, -X)."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+
+    def test_short_flag_f_parsed(self):
+        """-f 'title=val' is captured by _parse_flags."""
+        flags = FakeGitHub._parse_flags(
+            ["repos/o/r/milestones", "-f", "title=Sprint 1"], start=1,
+        )
+        self.assertIn("f", flags)
+        self.assertEqual(flags["f"], ["title=Sprint 1"])
+
+    def test_short_flag_X_parsed(self):
+        """-X PATCH is captured by _parse_flags."""
+        flags = FakeGitHub._parse_flags(
+            ["repos/o/r/milestones/1", "-X", "PATCH"], start=1,
+        )
+        self.assertIn("X", flags)
+        self.assertEqual(flags["X"], ["PATCH"])
+
+    def test_unknown_short_flag_raises(self):
+        """-z is not in _KNOWN_FLAGS['api'] and raises NotImplementedError."""
+        with self.assertRaises(NotImplementedError) as ctx:
+            self.fake.handle(["api", "repos/o/r/milestones", "-z", "val"])
+        self.assertIn("-z", str(ctx.exception))
+
+    def test_short_and_long_flags_mixed(self):
+        """-f and --paginate can coexist in one parse."""
+        flags = FakeGitHub._parse_flags(
+            ["repos/o/r/milestones", "-f", "title=X", "--paginate"], start=1,
+        )
+        self.assertIn("f", flags)
+        self.assertEqual(flags["f"], ["title=X"])
+        self.assertIn("paginate", flags)
+
+
+class TestFakeGitHubJqHandlerScoped(unittest.TestCase):
+    """P6-07: --jq is handler-scoped, not a global noop."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+
+    def test_jq_accepted_on_api_handler(self):
+        """api handler has 'jq' in _KNOWN_FLAGS, so --jq is accepted."""
+        # Provide a milestones path so the api handler returns data
+        self.fake.milestones.append({"number": 1, "title": "M1"})
+        result = self.fake.handle([
+            "api", "repos/o/r/milestones", "--jq", ".[].title",
+        ])
+        self.assertEqual(result.returncode, 0)
+
+    def test_jq_rejected_on_handler_without_it(self):
+        """Handlers without 'jq' in _KNOWN_FLAGS raise NotImplementedError."""
+        with self.assertRaises(NotImplementedError) as ctx:
+            self.fake.handle([
+                "issue", "list", "--state", "all", "--jq", ".[].title",
+            ])
+        self.assertIn("jq", str(ctx.exception))
+        self.assertIn("issue_list", str(ctx.exception))
+
+
+class TestFakeGitHubIssueLabelFilter(unittest.TestCase):
+    """P6-11: _issue_list implements --label filtering."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+        # Create issues with different labels
+        self.fake.handle([
+            "issue", "create", "--title", "Bug fix",
+            "--label", "bug", "--label", "priority",
+        ])
+        self.fake.handle([
+            "issue", "create", "--title", "Feature A",
+            "--label", "enhancement",
+        ])
+        self.fake.handle([
+            "issue", "create", "--title", "Another bug",
+            "--label", "bug",
+        ])
+
+    def test_label_filter_returns_matching_issues(self):
+        """--label bug returns only issues with the 'bug' label."""
+        result = self.fake.handle([
+            "issue", "list", "--state", "all", "--label", "bug",
+            "--json", "number,title",
+        ])
+        self.assertEqual(result.returncode, 0)
+        issues = json.loads(result.stdout)
+        self.assertEqual(len(issues), 2)
+        titles = {iss["title"] for iss in issues}
+        self.assertEqual(titles, {"Bug fix", "Another bug"})
+
+    def test_label_filter_no_matches(self):
+        """--label with a non-existent label returns empty list."""
+        result = self.fake.handle([
+            "issue", "list", "--state", "all", "--label", "docs",
+            "--json", "number",
+        ])
+        self.assertEqual(result.returncode, 0)
+        issues = json.loads(result.stdout)
+        self.assertEqual(len(issues), 0)
+
+    def test_label_filter_with_milestone(self):
+        """--label and --milestone filters compose together."""
+        # Create a milestone and an issue with both label and milestone
+        self.fake.handle(["api", "repos/o/r/milestones", "-f", "title=M1"])
+        self.fake.handle([
+            "issue", "create", "--title", "Tracked bug",
+            "--label", "bug", "--milestone", "M1",
+        ])
+        result = self.fake.handle([
+            "issue", "list", "--state", "all",
+            "--label", "bug", "--milestone", "M1",
+            "--json", "number,title",
+        ])
+        self.assertEqual(result.returncode, 0)
+        issues = json.loads(result.stdout)
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["title"], "Tracked bug")
+
+    def test_no_label_filter_returns_all(self):
+        """Without --label, all issues are returned (existing behavior)."""
+        result = self.fake.handle([
+            "issue", "list", "--state", "all", "--json", "number",
+        ])
+        self.assertEqual(result.returncode, 0)
+        issues = json.loads(result.stdout)
+        self.assertEqual(len(issues), 3)
 
 
 if __name__ == "__main__":

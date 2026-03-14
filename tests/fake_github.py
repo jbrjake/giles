@@ -89,7 +89,7 @@ class FakeGitHub:
     # --paginate: FakeGitHub returns all data, so pagination is implicit.
     # --jq: FakeGitHub returns full JSON; callers must handle both formats.
     # --notes-file: release notes content not needed by most tests.
-    _ACCEPTED_NOOP_FLAGS = frozenset(("paginate", "jq", "notes-file"))
+    _ACCEPTED_NOOP_FLAGS = frozenset(("paginate", "notes-file"))
 
     # Known flags per handler, mapping handler name -> set of recognized flags.
     # Flags in this registry + _ACCEPTED_NOOP_FLAGS are allowed.
@@ -107,24 +107,34 @@ class FakeGitHub:
         "release_create": frozenset(("tag", "title", "notes", "notes-file", "target")),
         "release_view": frozenset(("json", "jq")),
         "label_create": frozenset(("color", "description", "force")),
-        "api": frozenset(("paginate", "f", "X")),
+        "api": frozenset(("paginate", "f", "X", "jq")),
     }
 
     @staticmethod
     def _parse_flags(args: list[str], start: int = 1) -> dict[str, list[str]]:
-        """Parse --flag value pairs into a dict.
+        """Parse --flag/​-f value pairs into a dict.
 
         Flags that appear multiple times get multiple values in the list.
         Bare flags (no value) get ["true"].
+        Supports both long flags (--flag) and short flags (-f, -X).
         """
         flags: dict[str, list[str]] = {}
         i = start
         while i < len(args):
             a = args[i]
             if a.startswith("--"):
-                key = a.lstrip("-")
+                key = a[2:]  # strip leading --
                 # Check if next arg is a value (not another flag) or end
-                if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    flags.setdefault(key, []).append(args[i + 1])
+                    i += 2
+                else:
+                    flags.setdefault(key, []).append("true")
+                    i += 1
+            elif len(a) == 2 and a.startswith("-") and a[1].isalpha():
+                key = a[1]  # strip leading -
+                # Short flags with values: -f "title=val", -X PATCH
+                if i + 1 < len(args) and not args[i + 1].startswith("-"):
                     flags.setdefault(key, []).append(args[i + 1])
                     i += 2
                 else:
@@ -289,6 +299,7 @@ class FakeGitHub:
         self._check_flags("issue_list", flags)
         state_filter = "open"
         milestone_filter = ""
+        label_filter = ""
         json_fields: str | None = None
         limit: int | None = None
         i = 1
@@ -298,6 +309,9 @@ class FakeGitHub:
                 i += 2
             elif args[i] == "--milestone" and i + 1 < len(args):
                 milestone_filter = args[i + 1]
+                i += 2
+            elif args[i] == "--label" and i + 1 < len(args):
+                label_filter = args[i + 1]
                 i += 2
             elif args[i] == "--json" and i + 1 < len(args):
                 json_fields = args[i + 1]
@@ -317,6 +331,11 @@ class FakeGitHub:
             filtered = [
                 iss for iss in filtered
                 if (iss.get("milestone") or {}).get("title") == milestone_filter
+            ]
+        if label_filter:
+            filtered = [
+                iss for iss in filtered
+                if any(l["name"] == label_filter for l in iss.get("labels", []))
             ]
         if limit is not None:
             filtered = filtered[:limit]
