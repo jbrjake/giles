@@ -21,7 +21,15 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts"))
 from validate_config import load_config, ConfigError, get_milestones
+
+try:
+    import bootstrap_github
+    import populate_issues
+except ImportError:
+    bootstrap_github = None  # type: ignore[assignment]
+    populate_issues = None  # type: ignore[assignment]
 
 # -- Constants ---------------------------------------------------------------
 
@@ -141,12 +149,8 @@ def do_sync(config: dict) -> dict[str, int]:
     Imports bootstrap_github and populate_issues lazily to avoid pulling
     in the setup scripts at module load time.
     """
-    # Lazy import — only needed when actually syncing
-    _setup_scripts = str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts")
-    if _setup_scripts not in sys.path:
-        sys.path.insert(0, _setup_scripts)
-    import bootstrap_github
-    import populate_issues
+    if bootstrap_github is None or populate_issues is None:
+        raise ImportError("bootstrap_github or populate_issues not available")
 
     result = {"milestones": 0, "issues": 0}
 
