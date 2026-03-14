@@ -21,7 +21,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "scripts"))
+
+from fake_github import FakeGitHub
 
 from commit import validate_message, check_atomicity
 
@@ -1011,6 +1014,46 @@ class TestKanbanFromLabels(unittest.TestCase):
     def test_no_kanban_label_closed(self):
         issue = {"labels": [], "state": "closed"}
         self.assertEqual(validate_config.kanban_from_labels(issue), "done")
+
+
+# ---------------------------------------------------------------------------
+# P5-09: FakeGitHub flag enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestFakeGitHubFlagEnforcement(unittest.TestCase):
+    """P5-09: FakeGitHub raises NotImplementedError on unknown flags."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+
+    def test_unknown_flag_on_issue_list_raises(self):
+        """An unregistered flag like --assignee raises NotImplementedError."""
+        with self.assertRaises(NotImplementedError) as ctx:
+            self.fake.handle(["issue", "list", "--assignee", "jonr"])
+        self.assertIn("assignee", str(ctx.exception))
+
+    def test_known_flags_accepted(self):
+        """Registered flags like --state, --json don't raise."""
+        result = self.fake.handle([
+            "issue", "list", "--state", "open", "--json", "number,title",
+        ])
+        self.assertEqual(result.returncode, 0)
+
+    def test_noop_flags_accepted(self):
+        """Flags in _ACCEPTED_NOOP_FLAGS (--paginate, --jq) are silently allowed."""
+        result = self.fake.handle([
+            "issue", "list", "--state", "all", "--jq", ".[].title",
+        ])
+        self.assertEqual(result.returncode, 0)
+
+    def test_unknown_flag_on_pr_list_raises(self):
+        with self.assertRaises(NotImplementedError):
+            self.fake.handle(["pr", "list", "--search", "is:draft"])
+
+    def test_unknown_flag_on_release_create_raises(self):
+        with self.assertRaises(NotImplementedError):
+            self.fake.handle(["release", "create", "v1.0.0", "--prerelease"])
 
 
 if __name__ == "__main__":

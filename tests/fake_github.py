@@ -85,6 +85,31 @@ class FakeGitHub:
             return items
         return [{k: item.get(k) for k in keys} for item in items]
 
+    # Flags that are accepted but ignored (no-op in test context).
+    # --paginate: FakeGitHub returns all data, so pagination is implicit.
+    # --jq: FakeGitHub returns full JSON; callers must handle both formats.
+    # --notes-file: release notes content not needed by most tests.
+    _ACCEPTED_NOOP_FLAGS = frozenset(("paginate", "jq", "notes-file"))
+
+    # Known flags per handler, mapping handler name -> set of recognized flags.
+    # Flags in this registry + _ACCEPTED_NOOP_FLAGS are allowed.
+    # Anything else raises NotImplementedError.
+    _KNOWN_FLAGS: dict[str, frozenset[str]] = {
+        "issue_create": frozenset(("title", "body", "label", "milestone")),
+        "issue_list": frozenset(("state", "milestone", "json", "limit", "label")),
+        "issue_edit": frozenset(("add-label", "remove-label", "milestone")),
+        "issue_close": frozenset(),
+        "run_list": frozenset(("branch", "json", "limit", "status")),
+        "pr_list": frozenset(("json", "state", "limit")),
+        "pr_create": frozenset(("title", "body", "base", "head", "label", "milestone")),
+        "pr_review": frozenset(("body", "approve", "request-changes")),
+        "pr_merge": frozenset(("squash", "merge", "rebase")),
+        "release_create": frozenset(("tag", "title", "notes", "notes-file", "target")),
+        "release_view": frozenset(("json", "jq")),
+        "label_create": frozenset(("color", "description", "force")),
+        "api": frozenset(("paginate", "f", "X")),
+    }
+
     @staticmethod
     def _parse_flags(args: list[str], start: int = 1) -> dict[str, list[str]]:
         """Parse --flag value pairs into a dict.
@@ -108,6 +133,23 @@ class FakeGitHub:
             else:
                 i += 1
         return flags
+
+    @classmethod
+    def _check_flags(cls, handler_name: str, flags: dict[str, list[str]]) -> None:
+        """Raise NotImplementedError for flags not in the known registry.
+
+        This prevents tests from silently passing when production code
+        sends flags that FakeGitHub doesn't handle.
+        """
+        known = cls._KNOWN_FLAGS.get(handler_name, frozenset())
+        allowed = known | cls._ACCEPTED_NOOP_FLAGS
+        for flag in flags:
+            if flag not in allowed:
+                raise NotImplementedError(
+                    f"FakeGitHub handler '{handler_name}' does not handle "
+                    f"flag '--{flag}'. Add it to _KNOWN_FLAGS['{handler_name}'] "
+                    f"or _ACCEPTED_NOOP_FLAGS if it's intentionally ignored."
+                )
 
     # -- Handlers: auth / version ---------------------------------------------
 
@@ -146,6 +188,9 @@ class FakeGitHub:
         if not args:
             return self._fail("no api path")
         path = args[0]
+        # Validate known flags (api uses -f and -X as short flags)
+        flags = self._parse_flags(args, start=1)
+        self._check_flags("api", flags)
         # Create milestone
         if "milestones" in path and "-f" in args:
             title = ""
@@ -240,6 +285,8 @@ class FakeGitHub:
         return self._ok(url)
 
     def _issue_list(self, args: list[str]) -> subprocess.CompletedProcess:
+        flags = self._parse_flags(args, start=1)
+        self._check_flags("issue_list", flags)
         state_filter = "open"
         milestone_filter = ""
         json_fields: str | None = None
@@ -290,6 +337,7 @@ class FakeGitHub:
             return self._fail(f"issue {issue_num} not found")
 
         flags = self._parse_flags(args, start=2)
+        self._check_flags("issue_edit", flags)
 
         for label_name in flags.get("add-label", []):
             existing = [l["name"] for l in issue["labels"]]
@@ -344,6 +392,8 @@ class FakeGitHub:
 
     def _run_list(self, args: list[str]) -> subprocess.CompletedProcess:
         """Handle: gh run list [--branch <branch>] [--json ...] [--limit ...] [--status ...]."""
+        flags = self._parse_flags(args, start=1)
+        self._check_flags("run_list", flags)
         branch_filter = ""
         status_filter = ""
         json_fields: str | None = None
@@ -399,6 +449,8 @@ class FakeGitHub:
 
     def _pr_list(self, args: list[str]) -> subprocess.CompletedProcess:
         """Handle: gh pr list [--json ...] [--state ...] [--limit ...]."""
+        flags = self._parse_flags(args, start=1)
+        self._check_flags("pr_list", flags)
         json_fields: str | None = None
         state_filter = "open"
         limit: int | None = None
@@ -429,6 +481,7 @@ class FakeGitHub:
     def _pr_create(self, args: list[str]) -> subprocess.CompletedProcess:
         """Handle: gh pr create --title T --body B --base main --head feat --label L --milestone M."""
         flags = self._parse_flags(args, start=1)
+        self._check_flags("pr_create", flags)
 
         title = flags.get("title", [""])[0]
         body = flags.get("body", [""])[0]
@@ -470,6 +523,7 @@ class FakeGitHub:
             return self._fail(f"PR {pr_num} not found")
 
         flags = self._parse_flags(args, start=2)
+        self._check_flags("pr_review", flags)
         body = flags.get("body", [""])[0]
 
         if "approve" in flags:
@@ -545,6 +599,7 @@ class FakeGitHub:
             i += 1
 
         flags = self._parse_flags(args, start=i)
+        self._check_flags("release_create", flags)
         if "tag" in flags:
             tag = flags["tag"][0]
         title = flags.get("title", [tag])[0]
