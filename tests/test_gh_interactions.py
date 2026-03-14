@@ -1492,6 +1492,93 @@ class TestSyncTrackingIO(unittest.TestCase):
         self.assertEqual(recovered.title, "Fix: colon edge case")
 
 
+class TestWriteTfEscaping(unittest.TestCase):
+    """P6-17: write_tf quotes YAML-sensitive values; read_tf round-trips them."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="sync-esc-")
+        self.tmp = Path(self.tmpdir)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_title_with_colon_roundtrips(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "colon.md",
+            story="US-01", title="Feat: Add auth", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "Feat: Add auth")
+
+    def test_title_starting_with_bracket(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "bracket.md",
+            story="US-02", title="[WIP] Feature", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "[WIP] Feature")
+
+    def test_title_with_hash(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "hash.md",
+            story="US-03", title="Fix #42 bug", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "Fix #42 bug")
+
+    def test_title_without_special_chars(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "plain.md",
+            story="US-04", title="Simple title", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        # Verify no quotes were added in the raw file
+        raw = tf.path.read_text(encoding="utf-8")
+        self.assertIn("title: Simple title", raw)
+        self.assertNotIn('title: "Simple title"', raw)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "Simple title")
+
+    def test_title_with_existing_quotes(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "quotes.md",
+            story="US-05", title='Say "hello"', sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, 'Say "hello"')
+
+    def test_branch_with_special_chars_roundtrips(self):
+        tf = sync_tracking.TF(
+            path=self.tmp / "branch.md",
+            story="US-06", title="Normal", sprint=1,
+            branch="[feature]/test",
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.branch, "[feature]/test")
+
+    def test_yaml_safe_empty_string(self):
+        # _yaml_safe should pass through empty strings unchanged
+        self.assertEqual(sync_tracking._yaml_safe(""), "")
+
+    def test_yaml_safe_special_start_chars(self):
+        for ch in '[{>|*&!%@`':
+            val = f"{ch}value"
+            safe = sync_tracking._yaml_safe(val)
+            self.assertTrue(safe.startswith('"'), f"Expected quoting for {ch!r}")
+
+    def test_yaml_safe_dash_space_prefix(self):
+        self.assertEqual(sync_tracking._yaml_safe("- list item"), '"- list item"')
+
+    def test_yaml_safe_question_space_prefix(self):
+        self.assertEqual(sync_tracking._yaml_safe("? key"), '"? key"')
+
+
 class TestSlugFromTitle(unittest.TestCase):
     """P5-11: slug generation edge cases."""
 
