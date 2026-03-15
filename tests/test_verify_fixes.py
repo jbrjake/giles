@@ -847,5 +847,117 @@ class TestTeardownInteractiveConfirmation(unittest.TestCase):
         self.assertEqual(exists_count, 1, "Exactly one file should be skipped")
 
 
+class TestEveryScriptMainCovered(unittest.TestCase):
+    """BH-P11-202: Gate test — every script with def main() must have a test.
+
+    Discovers all Python scripts in scripts/ and skills/*/scripts/ that
+    define a main() function, then scans test files for calls to
+    <module>.main().  Scripts without main() tests are reported as failures
+    so new scripts can't slip through CI without orchestration coverage.
+
+    Existing untested scripts are listed in _KNOWN_UNTESTED.  As tests
+    are added, entries should be removed.  The set should eventually be empty.
+    """
+
+    # Scripts that predate this gate and don't yet have main() tests.
+    # Remove entries as tests are added; the goal is an empty set.
+    _KNOWN_UNTESTED = frozenset((
+        "team_voices",
+        "sprint_init",
+        "traceability",
+        "validate_config",
+        "manage_sagas",
+        "manage_epics",
+        "test_coverage",
+        "setup_ci",
+        "bootstrap_github",
+        "populate_issues",
+        "update_burndown",
+        "release_gate",
+    ))
+
+    def test_every_script_main_has_test(self):
+        """Every script with def main() should have a test calling module.main()."""
+        import re
+
+        # 1. Discover scripts with def main()
+        script_dirs = [
+            ROOT / "scripts",
+            ROOT / "skills" / "sprint-setup" / "scripts",
+            ROOT / "skills" / "sprint-run" / "scripts",
+            ROOT / "skills" / "sprint-monitor" / "scripts",
+            ROOT / "skills" / "sprint-release" / "scripts",
+        ]
+        scripts_with_main: list[str] = []
+        for d in script_dirs:
+            if not d.is_dir():
+                continue
+            for py in sorted(d.glob("*.py")):
+                text = py.read_text()
+                if re.search(r"^def main\(\)", text, re.MULTILINE):
+                    scripts_with_main.append(py.stem)
+
+        self.assertTrue(scripts_with_main, "Should find at least one script with main()")
+
+        # 2. Scan test files for <module>.main() calls
+        test_dir = ROOT / "tests"
+        test_source = ""
+        for tf in sorted(test_dir.glob("test_*.py")):
+            test_source += tf.read_text()
+
+        # 3. Check each script
+        untested = []
+        for module_name in scripts_with_main:
+            pattern = rf"\b{re.escape(module_name)}\.main\(\)"
+            if not re.search(pattern, test_source):
+                if module_name not in self._KNOWN_UNTESTED:
+                    untested.append(module_name)
+
+        if untested:
+            self.fail(
+                f"Scripts with def main() but no test calling module.main(): "
+                f"{', '.join(untested)}. Add a main() integration test or "
+                f"add to _KNOWN_UNTESTED (not recommended for new scripts)."
+            )
+
+    def test_known_untested_not_stale(self):
+        """_KNOWN_UNTESTED entries should only list scripts that actually exist."""
+        import re
+
+        script_dirs = [
+            ROOT / "scripts",
+            ROOT / "skills" / "sprint-setup" / "scripts",
+            ROOT / "skills" / "sprint-run" / "scripts",
+            ROOT / "skills" / "sprint-monitor" / "scripts",
+            ROOT / "skills" / "sprint-release" / "scripts",
+        ]
+        all_scripts: set[str] = set()
+        for d in script_dirs:
+            if not d.is_dir():
+                continue
+            for py in d.glob("*.py"):
+                text = py.read_text()
+                if re.search(r"^def main\(\)", text, re.MULTILINE):
+                    all_scripts.add(py.stem)
+
+        # Check for stale entries (scripts that no longer exist or gained tests)
+        test_dir = ROOT / "tests"
+        test_source = ""
+        for tf in sorted(test_dir.glob("test_*.py")):
+            test_source += tf.read_text()
+
+        stale = []
+        for name in sorted(self._KNOWN_UNTESTED):
+            if name not in all_scripts:
+                stale.append(f"{name} (script not found)")
+            elif re.search(rf"\b{re.escape(name)}\.main\(\)", test_source):
+                stale.append(f"{name} (has test now — remove from _KNOWN_UNTESTED)")
+
+        if stale:
+            self.fail(
+                f"Stale _KNOWN_UNTESTED entries: {', '.join(stale)}"
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
