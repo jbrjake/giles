@@ -402,7 +402,9 @@ def validate_project(
     # ------------------------------------------------------------------
     missing_files: list[tuple[str, str]] = []
     for template, description in _REQUIRED_FILES:
-        fpath = template.format(config_dir=config_dir)
+        # Use .replace() instead of .format() to avoid format-string
+        # injection if config_dir contains braces (BH-P11-110).
+        fpath = template.replace("{config_dir}", str(config_dir))
         if not Path(fpath).is_file():
             missing_files.append((fpath, description))
             errors.append(f"Missing file: {fpath} -- {description}")

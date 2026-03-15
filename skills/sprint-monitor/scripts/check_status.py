@@ -277,6 +277,10 @@ def check_direct_pushes(
     report: list[str] = []
     actions: list[str] = []
     try:
+        # Note: `select(.parents | length == 1)` intentionally excludes
+        # merge commits (2+ parents) AND the initial/root commit (0 parents).
+        # Excluding root commits is acceptable — force-pushed root commits
+        # are extremely rare and not a practical drift concern. (BH-P11-114)
         commits = gh_json([
             "api", f"repos/{repo}/commits",
             "-f", f"sha={base_branch}", "-f", f"since={since}",

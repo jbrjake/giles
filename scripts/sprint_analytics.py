@@ -191,6 +191,11 @@ def format_report(
 
 # §sprint_analytics.main
 def main() -> None:
+    # Note: -h/--help must be the first argument. This is a lightweight
+    # hand-rolled parser (not argparse), so `-h` is only recognized at
+    # argv[1]. This is intentional — the script takes at most one
+    # positional arg (sprint number), so full argparse is overkill.
+    # (BH-P11-111)
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())
         sys.exit(0)

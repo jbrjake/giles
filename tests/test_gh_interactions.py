@@ -550,6 +550,117 @@ class TestCreateLabel(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# BH-P11-001/002/003: Idempotency tests for bootstrap_github.py
+# ---------------------------------------------------------------------------
+
+class TestBootstrapStaticLabelsIdempotent(unittest.TestCase):
+    """BH-P11-001: Calling create_static_labels() twice produces no duplicates."""
+
+    def test_static_labels_idempotent(self):
+        fake_gh = FakeGitHub()
+        with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+            bootstrap_github.create_static_labels()
+            count_after_first = len(fake_gh.labels)
+            self.assertGreater(count_after_first, 0, "Should create labels")
+
+            bootstrap_github.create_static_labels()
+            count_after_second = len(fake_gh.labels)
+
+        self.assertEqual(
+            count_after_first, count_after_second,
+            f"Label count changed from {count_after_first} to "
+            f"{count_after_second} after second create_static_labels() call",
+        )
+
+
+class TestBootstrapMilestonesIdempotent(unittest.TestCase):
+    """BH-P11-002: Calling create_milestones_on_github() twice produces no duplicates."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmpdir.name)
+        # Create a minimal milestone file
+        backlog = self.root / "sprint-config" / "backlog" / "milestones"
+        backlog.mkdir(parents=True)
+        (backlog / "milestone-1.md").write_text(
+            "# Sprint 1: Foundation\n\n"
+            "### Sprint 1: Foundation\n\n"
+            "| US-0101 | Setup | S01 | 3 | P0 |\n",
+            encoding="utf-8",
+        )
+        self.config = {
+            "project": {"name": "test", "repo": "owner/repo", "language": "python"},
+            "paths": {
+                "backlog_dir": str(self.root / "sprint-config" / "backlog"),
+            },
+        }
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_milestones_idempotent(self):
+        fake_gh = FakeGitHub()
+        with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+            bootstrap_github.create_milestones_on_github(self.config)
+            count_after_first = len(fake_gh.milestones)
+            self.assertEqual(count_after_first, 1, "Should create 1 milestone")
+
+            bootstrap_github.create_milestones_on_github(self.config)
+            count_after_second = len(fake_gh.milestones)
+
+        self.assertEqual(
+            count_after_first, count_after_second,
+            f"Milestone count changed from {count_after_first} to "
+            f"{count_after_second} after second call",
+        )
+
+
+class TestBootstrapPersonaLabelsIdempotent(unittest.TestCase):
+    """BH-P11-003: Calling create_persona_labels() twice produces no duplicates."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmpdir.name)
+        team_dir = self.root / "sprint-config" / "team"
+        team_dir.mkdir(parents=True)
+        (team_dir / "INDEX.md").write_text(
+            "| Name | Role | File |\n"
+            "|------|------|------|\n"
+            "| Alice | Engineer | alice.md |\n"
+            "| Bob | Architect | bob.md |\n",
+            encoding="utf-8",
+        )
+        (team_dir / "alice.md").write_text("# Alice\n## Role\nEngineer\n")
+        (team_dir / "bob.md").write_text("# Bob\n## Role\nArchitect\n")
+        self.config = {
+            "project": {"name": "test", "repo": "owner/repo"},
+            "paths": {"team_dir": str(team_dir)},
+        }
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_persona_labels_idempotent(self):
+        fake_gh = FakeGitHub()
+        with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+            bootstrap_github.create_persona_labels(self.config)
+            count_after_first = len(fake_gh.labels)
+            self.assertGreater(count_after_first, 0, "Should create persona labels")
+
+            bootstrap_github.create_persona_labels(self.config)
+            count_after_second = len(fake_gh.labels)
+
+        self.assertEqual(
+            count_after_first, count_after_second,
+            f"Persona label count changed from {count_after_first} to "
+            f"{count_after_second} after second create_persona_labels() call",
+        )
+        # Verify both persona labels exist
+        self.assertIn("persona:alice", fake_gh.labels)
+        self.assertIn("persona:bob", fake_gh.labels)
+
+
+# ---------------------------------------------------------------------------
 # bootstrap_github.py tests -- _collect_sprint_numbers
 # ---------------------------------------------------------------------------
 
@@ -1486,6 +1597,55 @@ class TestSyncOne(unittest.TestCase):
         issue = {"state": "open", "labels": [], "number": 5}
         changes = sync_tracking.sync_one(tf, issue, None, 1)
         self.assertEqual(changes, [])
+
+
+class TestSyncOneGitHubAuthoritative(unittest.TestCase):
+    """BH-P11-007: sync_one() must NOT push local state back to GitHub.
+
+    GitHub is authoritative. When local status disagrees with GitHub labels,
+    sync_one() should update the local TF to match GitHub — never invoke
+    gh issue edit or gh label commands to change GitHub state.
+    """
+
+    def test_no_gh_calls_on_status_disagreement(self):
+        """sync_one() with disagreeing states must not call gh CLI."""
+        gh_calls: list[list[str]] = []
+
+        def spy_subprocess(args, *a, **kw):
+            if isinstance(args, list) and args and args[0] == "gh":
+                gh_calls.append(args)
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout="", stderr="",
+            )
+
+        # Local says "todo", GitHub says "review" via labels
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0001",
+            status="todo", sprint=1, issue_number="5",
+        )
+        issue = {
+            "state": "open",
+            "labels": [{"name": "kanban:review"}],
+            "number": 5,
+        }
+
+        with patch("subprocess.run", spy_subprocess):
+            changes = sync_tracking.sync_one(tf, issue, None, 1)
+
+        # Local TF should be updated to match GitHub
+        self.assertEqual(tf.status, "review")
+        self.assertTrue(len(changes) > 0)
+
+        # No gh CLI calls should have been made
+        gh_edit_calls = [
+            c for c in gh_calls
+            if len(c) > 2 and c[1] in ("issue", "label")
+        ]
+        self.assertEqual(
+            gh_edit_calls, [],
+            f"sync_one() should not call gh to modify GitHub state, "
+            f"but found: {gh_edit_calls}",
+        )
 
 
 class TestCreateFromIssue(unittest.TestCase):

@@ -1249,5 +1249,60 @@ class TestParseCommitsSince(unittest.TestCase):
         self.assertEqual(commits, [])
 
 
+# ---------------------------------------------------------------------------
+# BH-P11-112: do_release handles FileNotFoundError when git is missing
+# ---------------------------------------------------------------------------
+
+
+class TestDoReleaseGitMissing(unittest.TestCase):
+    """BH-P11-112: do_release should handle FileNotFoundError from subprocess.
+
+    If git is not installed, subprocess.run raises FileNotFoundError.
+    do_release must catch this and print a clean error, not crash with a
+    traceback.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+        self.addCleanup(os.chdir, self._orig_cwd)
+
+        sc_dir = Path(self.tmpdir) / "sprint-config"
+        sc_dir.mkdir()
+        (sc_dir / "project.toml").write_text(
+            '[project]\nname = "TestApp"\nrepo = "owner/repo"\n',
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    @patch("release_gate.subprocess.run")
+    def test_git_not_installed_returns_false(self, mock_run):
+        """FileNotFoundError from subprocess.run produces a clean error."""
+        import io
+        from contextlib import redirect_stderr
+
+        mock_run.side_effect = FileNotFoundError(
+            "[Errno 2] No such file or directory: 'git'"
+        )
+
+        config = {
+            "project": {"name": "TestApp", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+        }
+
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = do_release("Sprint 1", config)
+
+        self.assertFalse(result)
+        self.assertIn("git", buf.getvalue().lower())
+
+
 if __name__ == "__main__":
     unittest.main()

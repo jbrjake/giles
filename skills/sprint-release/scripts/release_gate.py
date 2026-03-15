@@ -434,9 +434,14 @@ def do_release(
     if not COMMIT_PY.exists():
         print(f"Error: {COMMIT_PY} not found", file=sys.stderr)
         return False
-    r = subprocess.run(
-        ["git", "status", "--porcelain"], capture_output=True, text=True,
-    )
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        # git binary is not installed or not on PATH (BH-P11-112)
+        print("Error: git is not installed or not on PATH", file=sys.stderr)
+        return False
     if r.returncode != 0:
         print("Error: not a git repository or git is not available",
               file=sys.stderr)

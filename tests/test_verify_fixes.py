@@ -654,5 +654,182 @@ class TestValidateAnchorsMainIntegration(unittest.TestCase):
         self.assertIn("# §example.my_func", source)
 
 
+# ---------------------------------------------------------------------------
+# BH-P11-110: Format string injection in validate_project
+# ---------------------------------------------------------------------------
+
+
+class TestValidateProjectFormatStringInjection(unittest.TestCase):
+    """BH-P11-110: config_dir containing format specifiers must not crash.
+
+    validate_project() should use .replace() instead of .format() to
+    expand {config_dir} in required file paths. This prevents any
+    theoretical format-string injection if config_dir contains braces.
+    """
+
+    def test_config_dir_with_format_specifier_does_not_crash(self):
+        """validate_project with config_dir='{0.__class__}' must not raise."""
+        malicious_dir = "{0.__class__}"
+        # Should return errors (dir doesn't exist) but NOT raise
+        ok, errors = validate_project(malicious_dir)
+        self.assertFalse(ok)
+        self.assertTrue(len(errors) > 0)
+
+    def test_config_dir_with_brace_pattern_preserved_in_errors(self):
+        """The braces in config_dir should appear literally in error messages."""
+        malicious_dir = "{__class__.__mro__}"
+        ok, errors = validate_project(malicious_dir)
+        self.assertFalse(ok)
+        # The error paths should contain the literal braces, not expanded
+        has_brace = any("{__class__.__mro__}" in e for e in errors)
+        self.assertTrue(has_brace,
+                        f"Braces not preserved in errors: {errors}")
+
+    def test_source_uses_replace_not_format(self):
+        """validate_project must use .replace(), not .format(), for path expansion."""
+        import inspect
+        source = inspect.getsource(validate_project)
+        self.assertNotIn('.format(config_dir=', source,
+                         "validate_project still uses .format(); use .replace() instead")
+        self.assertIn('.replace("{config_dir}"', source,
+                      "validate_project should use .replace() for path expansion")
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-008: sprint_init creates symlinks for project files
+# ---------------------------------------------------------------------------
+
+class TestSprintInitSymlinks(unittest.TestCase):
+    """BH-P11-008: ConfigGenerator creates symlinks for rules.md and development.md."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="giles-p11-008-")
+        self.root = Path(self.tmpdir)
+        mock = MockProject(self.root)
+        mock.create()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_rules_and_dev_guide_are_symlinks(self):
+        """rules.md and development.md in sprint-config/ should be symlinks."""
+        scanner = ProjectScanner(self.root)
+        scan = scanner.scan()
+        gen = ConfigGenerator(scan)
+        gen.generate()
+
+        config_dir = self.root / "sprint-config"
+        rules_link = config_dir / "rules.md"
+        dev_link = config_dir / "development.md"
+
+        self.assertTrue(rules_link.exists(), "rules.md should exist")
+        self.assertTrue(dev_link.exists(), "development.md should exist")
+        self.assertTrue(
+            rules_link.is_symlink(),
+            "rules.md should be a symlink, not a regular file",
+        )
+        self.assertTrue(
+            dev_link.is_symlink(),
+            "development.md should be a symlink, not a regular file",
+        )
+
+        # Verify the symlinks resolve to the original project files
+        rules_target = rules_link.resolve()
+        dev_target = dev_link.resolve()
+        self.assertEqual(
+            rules_target, (self.root / "RULES.md").resolve(),
+            f"rules.md symlink target {rules_target} does not match "
+            f"expected {self.root / 'RULES.md'}",
+        )
+        self.assertEqual(
+            dev_target, (self.root / "DEVELOPMENT.md").resolve(),
+            f"development.md symlink target {dev_target} does not match "
+            f"expected {self.root / 'DEVELOPMENT.md'}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-009: validate_project rejects config with missing required key
+# ---------------------------------------------------------------------------
+
+class TestValidateProjectMissingKey(unittest.TestCase):
+    """BH-P11-009: validate_project() rejects config missing a required key."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="giles-p11-009-")
+        self.root = Path(self.tmpdir)
+        mock = MockProject(self.root)
+        mock.create()
+        # Generate valid config first
+        scanner = ProjectScanner(self.root)
+        scan = scanner.scan()
+        gen = ConfigGenerator(scan)
+        gen.generate()
+        self.config_dir = str(self.root / "sprint-config")
+        self.toml_path = self.root / "sprint-config" / "project.toml"
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_missing_build_command_fails(self):
+        """Removing ci.build_command should cause validation to fail."""
+        # Verify config is valid first
+        ok, errors = validate_project(self.config_dir)
+        self.assertTrue(ok, f"Baseline config should be valid: {errors}")
+
+        # Remove build_command from the TOML
+        toml_text = self.toml_path.read_text(encoding="utf-8")
+        lines = [
+            line for line in toml_text.splitlines()
+            if not line.strip().startswith("build_command")
+        ]
+        self.toml_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        # Now validation should fail
+        ok, errors = validate_project(self.config_dir)
+        self.assertFalse(ok, "Config with missing build_command should fail")
+        error_text = " ".join(errors).lower()
+        self.assertTrue(
+            "build_command" in error_text or "ci.build_command" in error_text,
+            f"Error should mention build_command, got: {errors}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-010: KANBAN_STATES constant matches documented states
+# ---------------------------------------------------------------------------
+
+from validate_config import KANBAN_STATES
+
+
+class TestKanbanStatesConstant(unittest.TestCase):
+    """BH-P11-010: KANBAN_STATES matches the 6 documented kanban states."""
+
+    def test_kanban_states_match_documented(self):
+        """KANBAN_STATES must equal the 6 states from kanban-protocol.md."""
+        expected = {"todo", "design", "dev", "review", "integration", "done"}
+        self.assertEqual(
+            set(KANBAN_STATES), expected,
+            f"KANBAN_STATES = {set(KANBAN_STATES)} does not match "
+            f"documented states {expected}",
+        )
+
+    def test_kanban_states_is_frozenset(self):
+        """KANBAN_STATES should be immutable (frozenset)."""
+        self.assertIsInstance(
+            KANBAN_STATES, frozenset,
+            "KANBAN_STATES should be a frozenset to prevent mutation",
+        )
+
+    def test_kanban_states_count(self):
+        """Exactly 6 kanban states."""
+        self.assertEqual(
+            len(KANBAN_STATES), 6,
+            f"Expected 6 kanban states, got {len(KANBAN_STATES)}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
