@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -364,6 +365,7 @@ def main() -> None:
             report_lines.append(f"Sync: {sync_status}")
         except Exception as exc:
             report_lines.append(f"Sync: error — {exc}")
+            traceback.print_exc(file=sys.stderr)
 
     repo = config.get("project", {}).get("repo", "")
     base_branch = get_base_branch(config)

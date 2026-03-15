@@ -253,7 +253,7 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
     new_section = ["## Team Voices", ""]
     for name, quote in voices.items():
         if new_section[-1] != "":
-            new_section.append(">")
+            new_section.append("")
         new_section.append(f'> **{name}:** "{quote}"')
 
     new_lines = lines[:start] + new_section + [""] + lines[end:]

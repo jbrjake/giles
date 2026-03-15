@@ -280,8 +280,8 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
     release_section = re.search(r"^\[release\]", text, re.MULTILINE)
     if release_section:
         start = release_section.start()
-        # Match section headers like [other] but not array lines like ["a"]
-        next_section = re.search(r"^\[(?![\s\"\'])", text[start + 1:], re.MULTILINE)
+        # Match section headers like [other] but not array-of-tables [[x]] or ["a"]
+        next_section = re.search(r"^\[(?![\[\s\"\'])", text[start + 1:], re.MULTILINE)
         end = (start + 1 + next_section.start()) if next_section else len(text)
 
         section_text = text[start:end]
@@ -537,14 +537,21 @@ def do_release(
 
         def _rollback_tag() -> None:
             """Remove the tag locally and from remote on release failure."""
-            subprocess.run(
+            r1 = subprocess.run(
                 ["git", "tag", "-d", f"v{new_ver}"],
                 capture_output=True, text=True,
             )
-            subprocess.run(
+            if r1.returncode != 0:
+                print(f"Warning: failed to delete local tag v{new_ver}: {r1.stderr.strip()}",
+                      file=sys.stderr)
+            r2 = subprocess.run(
                 ["git", "push", "--delete", "origin", f"v{new_ver}"],
                 capture_output=True, text=True,
             )
+            if r2.returncode != 0:
+                print(f"Warning: failed to delete remote tag v{new_ver}. "
+                      f"Run manually: git push --delete origin v{new_ver}",
+                      file=sys.stderr)
 
     # 6. Generate release notes
     notes = generate_release_notes(

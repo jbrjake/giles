@@ -70,8 +70,8 @@ def get_linked_pr(
             if isinstance(linked, dict):
                 linked = [linked]
             if linked:
-                # Prefer open PRs, then merged, then closed (last updated)
-                best = linked[-1]  # default to most recent
+                # Prefer open PRs, then first merged, then last in list
+                best = linked[-1]  # default to last in list
                 for d in linked:
                     if d.get("state") == "open":
                         best = d
@@ -79,6 +79,7 @@ def get_linked_pr(
                     if (d.get("pull_request", {}).get("merged_at")
                             is not None):
                         best = d
+                        break
                 return {
                     "number": best.get("number"),
                     "state": best.get("state"),
@@ -175,7 +176,7 @@ def _yaml_safe(value: str) -> str:
     needs_quoting = (
         ': ' in value
         or value.endswith(':')
-        or value[0] in '[{>|*&!%@`'
+        or value[0] in '\'\"[{>|*&!%@`'
         or '#' in value
         or value.startswith('- ')
         or value.startswith('? ')

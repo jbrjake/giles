@@ -254,6 +254,27 @@ class TestWriteVersionToToml(unittest.TestCase):
         finally:
             path.unlink()
 
+    def test_array_of_tables_after_release(self):
+        """BH-P11-106: [[plugins]] after [release] must not split the section."""
+        toml_content = (
+            '[release]\nversion = "1.0"\n\n'
+            '[[plugins]]\nname = "foo"\n'
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False,
+        ) as f:
+            f.write(toml_content)
+            path = Path(f.name)
+        try:
+            write_version_to_toml("2.0.0", path)
+            text = path.read_text()
+            self.assertIn('version = "2.0.0"', text)
+            # [[plugins]] must be preserved intact
+            self.assertIn('[[plugins]]', text)
+            self.assertIn('name = "foo"', text)
+        finally:
+            path.unlink()
+
     def test_multiline_array_in_release_section(self):
         """P7-07/P7-13: Multiline array in [release] must not corrupt next section."""
         toml_content = (
@@ -889,6 +910,37 @@ class TestGetLinkedPrTimeline(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["number"], 99)
         self.assertTrue(result["merged"])
+
+    def test_timeline_prefers_first_merged_pr(self):
+        """BH-P11-101: When multiple merged PRs exist, pick the first one found."""
+        self.fake.timeline_events[8] = [
+            {
+                "source": {
+                    "issue": {
+                        "number": 10,
+                        "state": "closed",
+                        "pull_request": {"merged_at": "2026-01-01T00:00:00Z"},
+                    }
+                }
+            },
+            {
+                "source": {
+                    "issue": {
+                        "number": 20,
+                        "state": "closed",
+                        "pull_request": {"merged_at": "2026-06-01T00:00:00Z"},
+                    }
+                }
+            },
+        ]
+        patched = make_patched_subprocess(self.fake)
+        with patch("subprocess.run", patched):
+            result = sync_tracking.get_linked_pr(
+                8, story_id="US-03", all_prs=[]
+            )
+        self.assertIsNotNone(result)
+        # Should pick the first merged PR, not the last (order-dependent bug)
+        self.assertEqual(result["number"], 10)
 
     def test_timeline_no_match_falls_back(self):
         """Timeline has events but no PR link -- should fall back to branch search."""
@@ -1914,6 +1966,30 @@ class TestWriteTfEscaping(unittest.TestCase):
     def test_yaml_safe_normal_no_quoting(self):
         """P7-04: Normal value without colon should not be quoted."""
         self.assertEqual(sync_tracking._yaml_safe("normal"), "normal")
+
+    def test_yaml_safe_single_quote_start(self):
+        """BH-P11-105: Single-quote start must trigger quoting."""
+        val = "'Twas a dark night'"
+        safe = sync_tracking._yaml_safe(val)
+        self.assertTrue(safe.startswith('"'),
+                        f"Expected quoting for single-quote start: {safe!r}")
+
+    def test_yaml_safe_double_quote_start(self):
+        """BH-P11-105: Double-quote start must trigger quoting."""
+        val = '"Hello" said Bob'
+        safe = sync_tracking._yaml_safe(val)
+        self.assertTrue(safe.startswith('"'),
+                        f"Expected quoting for double-quote start: {safe!r}")
+
+    def test_single_quote_title_roundtrips(self):
+        """BH-P11-105: Title starting and ending with single quotes round-trips."""
+        tf = sync_tracking.TF(
+            path=self.tmp / "squote.md",
+            story="US-07", title="'Twas a dark night'", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "'Twas a dark night'")
 
 
 class TestSlugFromTitle(unittest.TestCase):

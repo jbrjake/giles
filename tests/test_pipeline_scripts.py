@@ -803,6 +803,23 @@ class TestUpdateTeamVoices(unittest.TestCase):
             self.assertIn("## Epic Index", content)
             self.assertIn("E-9901", content)
 
+    def test_multiple_voices_separate_blockquotes(self):
+        """BH-P11-113: Multiple voices must be separate blockquotes, not merged."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            voices = {"Ada": "Types matter", "Bob": "Speed matters"}
+            update_team_voices(str(saga_path), voices)
+            lines = saga_path.read_text(encoding="utf-8").splitlines()
+            # Find the voice lines
+            ada_idx = next(i for i, l in enumerate(lines) if "Ada" in l)
+            bob_idx = next(i for i, l in enumerate(lines) if "Bob" in l)
+            # Between them there must be a non-blockquote line (empty line)
+            between = lines[ada_idx + 1:bob_idx]
+            has_separator = any(not line.startswith(">") for line in between)
+            self.assertTrue(has_separator,
+                            f"Voices should be separate blockquotes, but got: {between}")
+
 
 # ---------------------------------------------------------------------------
 # P2-09: Renumber Stories
