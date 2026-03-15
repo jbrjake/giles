@@ -350,7 +350,7 @@ Giles expects your project to have:
 - **Team personas** in markdown: name, role, domain, voice, review focus,
   background. The deeper the better.
 - **Sprint backlog** as milestone files with story tables
-  (`| US-NNNN | title | saga | SP | priority |` — optional 6th column: `| epic |`)
+  (`| Story | Title | Epic | Saga | SP | Priority |` — Epic is the optional 3rd column)
 - **Project rules** documenting your coding standards and conventions
 
 The `sprint-setup` skill scans for these files automatically and creates

@@ -110,7 +110,6 @@ what you need without reading entire files.
 ### skills/sprint-run/scripts/sync_tracking.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
-| §validate_config.KANBAN_STATES | `KANBAN_STATES` | Tuple of 6 states: todo..done |
 | §sync_tracking.find_milestone_title | `find_milestone_title()` | Look up milestone title by sprint number |
 | §sync_tracking._fetch_all_prs | `_fetch_all_prs()` | Batch-fetch all PRs (one API call for entire sync) |
 | §sync_tracking.get_linked_pr | `get_linked_pr()` | Find PR linked to issue via timeline, fallback to branch |
@@ -202,7 +201,7 @@ what you need without reading entire files.
 ### scripts/manage_epics.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
-| §manage_epics._safe_int | `_safe_int()` | Extract leading digits from string, 0 on failure |
+| §validate_config.safe_int | `_safe_int()` | Imported from validate_config — extract leading digits, 0 on failure |
 | §manage_epics._parse_epic_from_lines | `_parse_epic_from_lines()` | Parse epic from pre-read lines (avoids TOCTOU) |
 | §manage_epics.parse_epic | `parse_epic()` | Parse epic file: metadata + stories list + raw sections |
 | §manage_epics._parse_header_table | `_parse_header_table()` | Epic-level metadata table (Saga, Stories, Total SP) |
@@ -217,7 +216,7 @@ what you need without reading entire files.
 ### scripts/manage_sagas.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
-| §manage_sagas._safe_int | `_safe_int()` | Extract leading digits from string, 0 on failure |
+| §validate_config.safe_int | `_safe_int()` | Imported from validate_config — extract leading digits, 0 on failure |
 | §manage_sagas.parse_saga | `parse_saga()` | Parse saga file: metadata + epic index + sprint allocation |
 | §manage_sagas._parse_header_table | `_parse_header_table()` | Saga-level metadata table |
 | §manage_sagas._parse_epic_index | `_parse_epic_index()` | Epic Index table (ID, name, stories, SP) |
