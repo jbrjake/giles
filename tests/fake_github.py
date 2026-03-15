@@ -91,6 +91,46 @@ class FakeGitHub:
             return items
         return [{k: item.get(k) for k in keys} for item in items]
 
+    # Cache jq availability check
+    _jq_available: bool | None = None
+
+    @classmethod
+    def _check_jq(cls) -> bool:
+        """Check if the jq Python package is available (dev dependency)."""
+        if cls._jq_available is None:
+            try:
+                import jq as _jq  # noqa: F401
+                cls._jq_available = True
+            except ImportError:
+                cls._jq_available = False
+        return cls._jq_available
+
+    def _maybe_apply_jq(self, json_str: str, flags: dict[str, list[str]]) -> str:
+        """Apply --jq filter to JSON output if the jq package is available.
+
+        Matches ``gh --jq`` behavior: applies the jq expression to the
+        JSON data and returns the result.  If the result is a plain string,
+        returns it unquoted (matching gh CLI output).  Otherwise returns JSON.
+
+        Falls back to returning unfiltered data if jq is not installed.
+        """
+        jq_exprs = flags.get("jq", [])
+        if not jq_exprs:
+            return json_str
+        if not self._check_jq():
+            return json_str  # graceful fallback
+
+        import jq as _jq
+        jq_expr = jq_exprs[0]
+        data = json.loads(json_str)
+        result = _jq.first(jq_expr, data)
+
+        if result is None:
+            return "null"
+        if isinstance(result, str):
+            return result  # raw string (matches gh --jq behavior)
+        return json.dumps(result)
+
     @staticmethod
     def _extract_search_milestone(search: str) -> str | None:
         """Extract milestone title from a --search string like 'milestone:"Sprint 1"'.
@@ -159,9 +199,9 @@ class FakeGitHub:
         "pr_review": frozenset(("body", "approve", "request-changes")),
         "pr_merge": frozenset(("squash", "merge", "rebase")),
         "release_create": frozenset(("tag", "title", "notes")),  # target: accepted, not used
-        "release_view": frozenset(("json",)),  # jq: accepted, not evaluated
+        "release_view": frozenset(("json", "jq")),  # jq evaluated when package available
         "label_create": frozenset(("color", "description", "force")),
-        "api": frozenset(("f", "X")),  # jq: accepted, not evaluated
+        "api": frozenset(("f", "X", "jq")),  # jq evaluated when package available
     }
 
     # Flags that always consume the next argument as their value,
@@ -316,7 +356,8 @@ class FakeGitHub:
 
         # List milestones
         if "milestones" in path and "-f" not in args and "-X" not in args:
-            return self._ok(json.dumps(self.milestones))
+            json_str = json.dumps(self.milestones)
+            return self._ok(self._maybe_apply_jq(json_str, flags))
 
         # PATCH milestone (close)
         if "milestones" in path and "-X" in args:
@@ -331,7 +372,8 @@ class FakeGitHub:
                 data = self.comparisons.get(
                     branch, {"behind_by": 0, "ahead_by": 0},
                 )
-                return self._ok(json.dumps(data))
+                json_str = json.dumps(data)
+                return self._ok(self._maybe_apply_jq(json_str, flags))
             return self._fail(f"FakeGitHub: malformed compare path: {path}")
 
         # Commits endpoint: repos/{owner}/{repo}/commits
@@ -358,33 +400,35 @@ class FakeGitHub:
                     ]
                 except (ValueError, TypeError):
                     pass  # Unparseable date — return all
-            return self._ok(json.dumps(data))
+            json_str = json.dumps(data)
+            return self._ok(self._maybe_apply_jq(json_str, flags))
 
         # Timeline endpoint: repos/{owner}/{repo}/issues/{N}/timeline
-        # --jq filter shape assumed (from sync_tracking.py):
-        #   --jq '[.[] | select(.source.issue.pull_request != null)
-        #          | .source.issue] | first'
-        # FakeGitHub returns the pre-filtered single object (what jq | first
-        # would produce) so callers can json.loads() directly.
+        # Production jq filter (sync_tracking.py):
+        #   '[.[] | select(.source?.issue?.pull_request?) | .source.issue]'
+        # With jq package: returns all events, jq filters to matching PRs.
+        # Without jq: falls back to manual pre-filtering.
         if "/timeline" in path:
             import re as _re
             m = _re.search(r"/issues/(\d+)/timeline", path)
             if m:
                 issue_num = int(m.group(1))
                 events = self.timeline_events.get(issue_num)
-                if events:
-                    # Mimic --jq '[... | first]': find first event with
-                    # source.issue.pull_request and return that issue object
-                    for ev in events:
-                        src = ev.get("source", {}).get("issue", {})
-                        if src.get("pull_request"):
-                            return self._ok(json.dumps(src))
-                    # Events exist but none have pull_request
-                    return self._ok("null")
-                # No timeline events registered for this issue
-                return self._fail(
-                    f"FakeGitHub: no timeline events for issue {issue_num}"
-                )
+                if not events:
+                    return self._fail(
+                        f"FakeGitHub: no timeline events for issue {issue_num}"
+                    )
+                jq_exprs = flags.get("jq", [])
+                if jq_exprs and self._check_jq():
+                    # Full fidelity: return all events, let jq filter
+                    json_str = json.dumps(events)
+                    return self._ok(self._maybe_apply_jq(json_str, flags))
+                # Fallback: pre-filter (when jq package unavailable)
+                for ev in events:
+                    src = ev.get("source", {}).get("issue", {})
+                    if src.get("pull_request"):
+                        return self._ok(json.dumps(src))
+                return self._ok("null")
 
         # Fail loudly on unhandled API paths instead of silently returning []
         # so new API calls in production don't get free "green bar" (BH-008)
@@ -788,9 +832,10 @@ class FakeGitHub:
                 i += 1
             flags = self._parse_flags(args, start=i)
             self._check_flags("release_view", flags)
-            return self._ok(json.dumps({
+            json_str = json.dumps({
                 "url": f"https://github.com/testowner/testrepo/releases/tag/{tag}"
-            }))
+            })
+            return self._ok(self._maybe_apply_jq(json_str, flags))
         return self._fail(f"release {sub} not supported")
 
     def _release_create(self, args: list[str]) -> subprocess.CompletedProcess:

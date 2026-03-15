@@ -1,0 +1,5 @@
+# Dev-only dependencies for testing. NOT needed to use the plugin.
+# Install: pip install -r requirements-dev.txt
+pytest>=9.0
+jq>=1.11        # jq expression evaluation in FakeGitHub test double
+hypothesis>=6   # property-based testing for regex/parsing

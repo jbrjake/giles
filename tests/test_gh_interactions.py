@@ -1501,21 +1501,32 @@ class TestCheckDirectPushesFakeGH(unittest.TestCase):
 
     def test_direct_pushes_detected(self):
         """Commits with 1 parent (direct pushes) are reported."""
-        # Store data in post-jq shape: the production --jq filters to
-        # 1-parent commits and reshapes to {sha, message, author, date}.
-        # FakeGitHub doesn't execute --jq, so we pre-shape the data.
+        # Use real GitHub API commit shape — jq evaluates the production
+        # filter: select(.parents | length == 1) | {sha, message, author, date}
         self.fake.commits_data = [
             {
-                "sha": "abc12345",
-                "message": "quick hotfix",
-                "author": "dev",
-                "date": "2026-03-10T12:00:00Z",
+                "sha": "abc12345full",
+                "parents": [{"sha": "parent1"}],  # 1 parent = direct push
+                "commit": {
+                    "message": "quick hotfix",
+                    "author": {"name": "dev", "date": "2026-03-10T12:00:00Z"},
+                },
             },
             {
-                "sha": "def67890",
-                "message": "another direct push",
-                "author": "dev",
-                "date": "2026-03-10T13:00:00Z",
+                "sha": "def67890full",
+                "parents": [{"sha": "parent2"}],  # 1 parent = direct push
+                "commit": {
+                    "message": "another direct push",
+                    "author": {"name": "dev", "date": "2026-03-10T13:00:00Z"},
+                },
+            },
+            {
+                "sha": "merge123456",
+                "parents": [{"sha": "p1"}, {"sha": "p2"}],  # 2 parents = merge
+                "commit": {
+                    "message": "Merge branch 'feat' into main",
+                    "author": {"name": "dev", "date": "2026-03-10T14:00:00Z"},
+                },
             },
         ]
         report, actions = check_status.check_direct_pushes(
@@ -2899,22 +2910,24 @@ class TestSyncTrackingMainIntegration(unittest.TestCase):
 class TestFakeGitHubStrictMode(unittest.TestCase):
     """BH-P11-200: FakeGitHub strict mode warns on accepted-but-unimplemented flags."""
 
-    def test_strict_warns_on_unimplemented_jq(self):
-        """--jq on api handler is accepted but not evaluated; strict warns."""
+    def test_jq_now_implemented_no_warning(self):
+        """--jq on api handler is now evaluated; no strict warning."""
         fake = FakeGitHub(strict=True)
         fake.milestones.append({"number": 1, "title": "M1"})
-        with self.assertWarns(UserWarning) as cm:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # Should NOT warn since jq is now in _IMPLEMENTED_FLAGS
             fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
-        self.assertIn("--jq", str(cm.warning))
-        self.assertIn("does NOT use it", str(cm.warning))
-        self.assertEqual(len(fake._strict_warnings), 1)
+        self.assertEqual(len(fake._strict_warnings), 0)
 
-    def test_strict_warns_on_release_view_jq(self):
-        """--jq on release view is accepted but not evaluated; strict warns."""
+    def test_jq_evaluates_on_release_view(self):
+        """--jq on release view extracts the url field."""
         fake = FakeGitHub(strict=True)
-        with self.assertWarns(UserWarning):
-            fake.handle(["release", "view", "v1.0.0", "--jq", ".url"])
-        self.assertEqual(len(fake._strict_warnings), 1)
+        result = fake.handle(["release", "view", "v1.0.0", "--jq", ".url"])
+        self.assertEqual(result.returncode, 0)
+        # jq should extract the raw url string
+        self.assertIn("v1.0.0", result.stdout)
+        self.assertNotIn("{", result.stdout)  # not JSON, raw string
 
     def test_strict_warns_on_release_create_target(self):
         """--target on release create is accepted but not used; strict warns."""
@@ -2968,12 +2981,17 @@ class TestFakeGitHubStrictMode(unittest.TestCase):
     def test_strict_warnings_accumulate(self):
         """Multiple strict warnings accumulate in _strict_warnings."""
         fake = FakeGitHub(strict=True)
-        fake.milestones.append({"number": 1, "title": "M1"})
-        import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
-            fake.handle(["release", "view", "v1.0", "--jq", ".url"])
+            # --target on release create is accepted but not implemented
+            fake.handle([
+                "release", "create", "v1.0", "--title", "R1",
+                "--notes", "test", "--target", "main",
+            ])
+            fake.handle([
+                "release", "create", "v2.0", "--title", "R2",
+                "--notes", "test", "--target", "dev",
+            ])
         self.assertEqual(len(fake._strict_warnings), 2)
 
 
