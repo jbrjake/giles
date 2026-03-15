@@ -170,6 +170,13 @@ def gate_prs(milestone_title: str) -> tuple[bool, str]:
         "--json", "number,title,milestone", "--limit", "500",
     ])
     warn_if_at_limit(prs, 500)
+    # If we hit the limit, we can't guarantee all PRs were checked —
+    # fail the gate rather than risk a false pass.
+    if len(prs) >= 500:
+        return False, (
+            "PR list may be truncated (500 returned). "
+            "Cannot guarantee no milestone PRs exist beyond this limit."
+        )
     matching = [
         p for p in prs
         if (p.get("milestone") or {}).get("title") == milestone_title

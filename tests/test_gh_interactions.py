@@ -343,6 +343,18 @@ class TestGatePRs(unittest.TestCase):
         ok, _ = gate_prs("Sprint 1")
         self.assertTrue(ok)
 
+    @patch("release_gate.gh_json")
+    @patch("release_gate.warn_if_at_limit")
+    def test_limit_hit_fails_gate(self, mock_warn, mock_gh):
+        """P7-03/P7-12: When 500 PRs returned, gate fails due to truncation risk."""
+        mock_gh.return_value = [
+            {"number": i, "title": f"PR {i}", "milestone": None}
+            for i in range(500)
+        ]
+        ok, detail = gate_prs("Sprint 1")
+        self.assertFalse(ok)
+        self.assertIn("truncated", detail)
+
 
 class TestGenerateReleaseNotes(unittest.TestCase):
 
@@ -504,6 +516,62 @@ class TestGetExistingIssues(unittest.TestCase):
         mock_gh.side_effect = RuntimeError("auth failed")
         with self.assertRaises(RuntimeError):
             populate_issues.get_existing_issues()
+
+
+# ---------------------------------------------------------------------------
+# populate_issues.py tests -- _infer_sprint_number
+# ---------------------------------------------------------------------------
+
+class TestInferSprintNumber(unittest.TestCase):
+    """P7-10: Direct tests for populate_issues._infer_sprint_number."""
+
+    def test_heading_match(self):
+        """Heading-anchored ### Sprint N takes priority."""
+        result = populate_issues._infer_sprint_number(
+            Path("milestone-2.md"),
+            "# Milestone 2\n\n### Sprint 2: Core\nThis builds on Sprint 1.",
+        )
+        self.assertEqual(result, 2)
+
+    def test_prose_only_falls_through_to_filename(self):
+        """P7-02: Prose mention of Sprint N should NOT match; fall back to filename."""
+        result = populate_issues._infer_sprint_number(
+            Path("milestone-3.md"),
+            "No heading here\nRefers to Sprint 1 work.",
+        )
+        self.assertEqual(result, 3)  # from filename, not prose
+
+    def test_filename_with_number(self):
+        """Filename digits used as fallback when no heading present."""
+        result = populate_issues._infer_sprint_number(
+            Path("milestone-5.md"),
+            "No sprint headings in this file.",
+        )
+        self.assertEqual(result, 5)
+
+    def test_filename_without_number_defaults_to_1(self):
+        """No heading, no digits in filename → default to 1."""
+        result = populate_issues._infer_sprint_number(
+            Path("backlog.md"),
+            "No sprint headings here either.",
+        )
+        self.assertEqual(result, 1)
+
+    def test_content_parameter_passthrough(self):
+        """Content parameter prevents file I/O — uses provided text."""
+        result = populate_issues._infer_sprint_number(
+            Path("nonexistent-file.md"),
+            "### Sprint 4: Final\nStory details.",
+        )
+        self.assertEqual(result, 4)
+
+    def test_multiple_headings_returns_first(self):
+        """Multiple sprint headings — returns the first one found."""
+        result = populate_issues._infer_sprint_number(
+            Path("multi.md"),
+            "### Sprint 3: Early\n\n### Sprint 4: Late\n",
+        )
+        self.assertEqual(result, 3)
 
 
 # ---------------------------------------------------------------------------

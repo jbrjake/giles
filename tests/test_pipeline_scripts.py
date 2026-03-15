@@ -568,6 +568,58 @@ class TestParseSimpleToml(unittest.TestCase):
         result = parse_simple_toml("key = hello world")
         self.assertEqual(result["key"], "hello world")
 
+    # -- P7-01: Single-quoted arrays ----------------------------------------
+
+    def test_single_quote_array_with_comma(self):
+        """P7-01: Single-quoted array element containing a comma."""
+        result = parse_simple_toml("items = ['has, comma', 'ok']")
+        self.assertEqual(result["items"], ["has, comma", "ok"])
+
+    def test_mixed_quote_array(self):
+        """P7-01: Array with mixed single- and double-quoted elements."""
+        result = parse_simple_toml("mixed = ['a, b', \"c, d\"]")
+        self.assertEqual(result["mixed"], ["a, b", "c, d"])
+
+    # -- P7-09: Direct _split_array tests -----------------------------------
+
+    def test_split_array_empty_input(self):
+        """P7-09: _split_array on empty string returns empty list."""
+        from validate_config import _split_array
+        self.assertEqual(_split_array(""), [])
+
+    def test_split_array_single_element(self):
+        """P7-09: _split_array with one unquoted element."""
+        from validate_config import _split_array
+        self.assertEqual(_split_array('"hello"'), ['"hello"'])
+
+    def test_split_array_trailing_comma(self):
+        """P7-09: _split_array ignores trailing comma (empty tail)."""
+        from validate_config import _split_array
+        self.assertEqual(_split_array('"a", "b",'), ['"a"', ' "b"'])
+
+    def test_split_array_escaped_quote_inside_string(self):
+        """P7-09: _split_array with escaped quote inside double-quoted string."""
+        from validate_config import _split_array
+        result = _split_array(r'"say \"hi\"", "ok"')
+        self.assertEqual(len(result), 2)
+
+    def test_split_array_single_quotes_with_comma(self):
+        """P7-09: _split_array respects single-quoted strings with commas."""
+        from validate_config import _split_array
+        result = _split_array("'has, comma', 'ok'")
+        self.assertEqual(len(result), 2)
+
+    def test_split_array_mixed_quotes(self):
+        """P7-09: _split_array with mixed quote types."""
+        from validate_config import _split_array
+        result = _split_array("'a, b', \"c, d\"")
+        self.assertEqual(len(result), 2)
+
+    def test_split_array_whitespace_only(self):
+        """P7-09: _split_array with whitespace-only input returns empty list."""
+        from validate_config import _split_array
+        self.assertEqual(_split_array("   "), [])
+
 
 # ---------------------------------------------------------------------------
 # P2-05: Non-Rust CI Generation

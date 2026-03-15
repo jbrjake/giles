@@ -136,9 +136,10 @@ def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
     Priority matches bootstrap_github._collect_sprint_numbers: content-first.
     Pass *content* to avoid re-reading the file (caller often has it already).
     """
-    # Content-first: look for Sprint N headings
+    # Content-first: look for Sprint N headings (anchored to markdown heading)
     text = content if content is not None else mf.read_text(encoding="utf-8")
-    m = re.search(r"Sprint\s+(\d+)", text)
+    # Prefer heading-anchored match (matches bootstrap_github._collect_sprint_numbers)
+    m = re.search(r"^###\s+Sprint\s+(\d+)", text, re.MULTILINE)
     if m:
         return int(m.group(1))
     # Fallback: filename

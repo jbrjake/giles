@@ -240,6 +240,7 @@ def _parse_value(raw: str):
 def _split_array(inner: str) -> list[str]:
     """Split array contents by commas, respecting quoted strings.
 
+    Handles both single- and double-quoted strings as per the TOML spec.
     Handles escaped quotes (``\\"``) and escaped backslashes (``\\\\``).
     An even number of consecutive backslashes before a quote means the
     quote is real (ends/starts the string); an odd number means it's escaped.
@@ -247,13 +248,21 @@ def _split_array(inner: str) -> list[str]:
     parts: list[str] = []
     current = ""
     in_str = False
+    quote_char = ""
     for ch in inner:
-        if ch == '"':
-            # Count consecutive trailing backslashes using the shared helper
+        if not in_str and ch in ('"', "'"):
+            # Starting a new string — record which quote type
             n_bs = _count_trailing_backslashes(current, len(current))
             if n_bs % 2 == 0:
-                # Even backslashes (0, 2, …) → quote is real
-                in_str = not in_str
+                in_str = True
+                quote_char = ch
+            current += ch
+        elif in_str and ch == quote_char:
+            # Potentially closing the current string
+            n_bs = _count_trailing_backslashes(current, len(current))
+            if n_bs % 2 == 0:
+                in_str = False
+                quote_char = ""
             current += ch
         elif ch == "," and not in_str:
             parts.append(current)
