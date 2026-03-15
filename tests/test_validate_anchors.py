@@ -98,5 +98,48 @@ class TestFindAnchorDefs(unittest.TestCase):
         self.assertEqual(defs, {})
 
 
+from validate_anchors import find_anchor_refs
+
+
+class TestFindAnchorRefs(unittest.TestCase):
+    """Scan doc files for §-prefixed references."""
+
+    def test_table_cell_refs(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("| `scripts/foo.py` | `bar()` §foo.bar, `baz()` §foo.baz |\n")
+            f.flush()
+            refs = find_anchor_refs(Path(f.name))
+        names = [r[0] for r in refs]
+        self.assertEqual(names, ["foo.bar", "foo.baz"])
+
+    def test_anchor_column_ref(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("| §validate_config.gh | `gh()` | Wrapper |\n")
+            f.flush()
+            refs = find_anchor_refs(Path(f.name))
+        self.assertEqual(refs[0][0], "validate_config.gh")
+
+    def test_prose_ref(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("See §sprint-run.kickoff for details.\n")
+            f.flush()
+            refs = find_anchor_refs(Path(f.name))
+        self.assertEqual(refs[0][0], "sprint-run.kickoff")
+
+    def test_no_refs_returns_empty(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("No anchor references here.\n")
+            f.flush()
+            refs = find_anchor_refs(Path(f.name))
+        self.assertEqual(refs, [])
+
+    def test_ref_includes_line_number(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("line one\n§foo.bar on line two\n")
+            f.flush()
+            refs = find_anchor_refs(Path(f.name))
+        self.assertEqual(refs[0], ("foo.bar", 2))
+
+
 if __name__ == "__main__":
     unittest.main()

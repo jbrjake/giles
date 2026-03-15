@@ -86,3 +86,16 @@ def find_anchor_defs(file_path: Path) -> dict[str, int]:
         if m:
             defs[m.group(1)] = i
     return defs
+
+
+_REF_RE = re.compile(r"§([\w-]+\.[\w_]+)(?=[\s,|]|$)")
+
+
+def find_anchor_refs(doc_path: Path) -> list[tuple[str, int]]:
+    """Return [(anchor_name, line_number), ...] for all § refs in a doc file."""
+    refs: list[tuple[str, int]] = []
+    text = doc_path.read_text(encoding="utf-8")
+    for i, line in enumerate(text.splitlines(), 1):
+        for m in _REF_RE.finditer(line):
+            refs.append((m.group(1), i))
+    return refs
