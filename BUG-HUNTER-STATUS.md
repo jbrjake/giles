@@ -1,6 +1,6 @@
 # Bug Hunter Status — Pass 11 (Fresh Adversarial Legacy Review)
 
-## Current State: 39/42 RESOLVED — 3 structural prevention items open
+## Current State: 42/42 RESOLVED — ALL COMPLETE
 ## Started: 2026-03-15
 ## Phase 1-3 Completed: 2026-03-15
 
@@ -20,11 +20,11 @@
 - [x] Phase 3: Adversarial code audit (15 findings)
 - [x] Phase 4: All 39 punchlist items resolved (6 commits)
 - [x] Phase 5: Trend analysis across passes 5–11 (210 findings reviewed)
-- [ ] Phase 6: Structural prevention — 3 items to eliminate recurring patterns (BH-P11-200/201/202)
+- [x] Phase 6: Structural prevention — 3 items resolved (BH-P11-200/201/202)
 
 ## Resolution Summary
-- Tests before: 546 pass | Tests after: 586 pass (+40 new tests)
-- 6 commits across 5 batches
+- Tests before: 546 pass | Tests after: 604 pass (+58 new tests)
+- 9 commits across 8 batches
 - Batch 1: Quick wins — doc clarification, assertion fixes, analytics, parsing (7 items)
 - Batch 2: gh_json migration — 3 call sites using raw json.loads (3 items)
 - Batch 3: Test quality — call_args assertions + main() integration tests (7 items)
@@ -32,13 +32,16 @@
 - Batch 5a: Missing tests — idempotency, symlinks, KANBAN_STATES (7 items)
 - Batch 5b: Small fixes — format injection, git check, documentation (4 items)
 - Batch 5c+d: Test infra — FakeGitHub fidelity, teardown tests, MockProject dedup (5 items)
+- Batch 6: Structural prevention — main() coverage gate (BH-P11-202)
+- Batch 7: Structural prevention — FakeGitHub strict mode (BH-P11-200)
+- Batch 8: Structural prevention — call-args audit helper (BH-P11-201)
 
 ## Totals
 - 42 items: 8 High, 18 Medium, 16 Low
-- 39 resolved, 3 open (structural prevention)
+- 42 resolved, 0 open
 - Top themes: mock abuse (7), missing tests (8), logic bugs (8), doc drift (3)
 
-## Open Items (Structural Prevention)
-- [ ] BH-P11-200 — FakeGitHub strict mode: reject flags it doesn't evaluate (High)
-- [ ] BH-P11-201 — Call-args audit: auto-verify mocked gh/gh_json calls (High)
-- [ ] BH-P11-202 — Script main() coverage gate: fail CI for untested main() (Medium)
+## Structural Prevention (Completed)
+- [x] BH-P11-200 — FakeGitHub strict mode: _IMPLEMENTED_FLAGS + warnings for unimplemented flags
+- [x] BH-P11-201 — Call-args audit: MonitoredMock + patch_gh helper in tests/gh_test_helpers.py
+- [x] BH-P11-202 — Script main() coverage gate: TestEveryScriptMainCovered in test_verify_fixes.py

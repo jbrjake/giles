@@ -458,7 +458,7 @@ Scope: Recurring patterns across passes 5–11 (210 total findings). These are s
 - **Problem:** FakeGitHub accepts flags like `--jq`, `--search`, `--state`, `--branch` via `_KNOWN_FLAGS` but silently ignores most of them, returning all data regardless of filters. Production code thinks it's filtering; tests pass without exercising the query path. This pattern generated ~18 findings across 5 of 7 passes (passes 5, 6, 8, 10, 11). New production code that adds a filter parameter gets "free green bar" from tests that don't actually validate the filter works.
 - **Acceptance Criteria:** Add a `strict=True` mode (default on) where FakeGitHub distinguishes between _accepted_ flags (parsed and silently consumed) and _implemented_ flags (actually used to filter results). When `strict=True`, any flag in `_KNOWN_FLAGS` that is NOT in `_IMPLEMENTED_FLAGS` causes the handler to emit a warning or raise, alerting test authors that their test isn't exercising the filter. Existing tests that intentionally skip filtering can opt out with `FakeGitHub(strict=False)`.
 - **Validation:** `grep -c "_IMPLEMENTED_FLAGS" tests/fake_github.py` should return >0. A test that passes `--branch main` to a handler that doesn't filter by branch should produce a warning.
-- **Status:** Open
+- **Status:** Resolved
 
 ### BH-P11-201 — Call-args audit: auto-verify mocked gh_json/gh calls are interrogated
 - **Severity:** High
@@ -467,7 +467,7 @@ Scope: Recurring patterns across passes 5–11 (210 total findings). These are s
 - **Problem:** Tests that patch `gh_json` or `gh` set up return values and verify output formatting, but never check `mock.call_args` to confirm the function constructed the right query. If production code dropped a `--milestone` filter or `--branch` flag, tests would still pass. This "mock-returns-what-you-assert" pattern was found in passes 9 and 11 (total ~12 items). Pass 11 added `call_args` assertions to existing tests, but nothing prevents new tests from repeating the pattern.
 - **Acceptance Criteria:** A shared test utility (e.g., `assert_gh_args_verified` context manager or a `conftest.py` fixture) that wraps `@patch("module.gh_json")` and automatically warns or fails if the mock was called but `call_args` was never accessed by the test. New tests using this helper structurally cannot ignore query parameters.
 - **Validation:** At least one existing test uses the new helper. A deliberately bad test (patches gh_json, ignores call_args) triggers the warning.
-- **Status:** Open
+- **Status:** Resolved
 
 ### BH-P11-202 — Script main() coverage gate: fail CI if new scripts lack main() tests
 - **Severity:** Medium
@@ -476,4 +476,4 @@ Scope: Recurring patterns across passes 5–11 (210 total findings). These are s
 - **Problem:** Every pass finds 3–5 scripts where individual functions are well-tested but `main()` — the orchestration code that parses args, loads config, calls functions, handles errors — is untested. We keep adding these tests one at a time in each pass, and new scripts get written without them. This pattern recurred in passes 5, 7, 10, and 11 (~15 total items).
 - **Acceptance Criteria:** A test that discovers all `scripts/**/*.py` and `skills/**/scripts/*.py` files containing `def main()`, then asserts each one has at least one test that calls `<module>.main()`. Untested main() functions cause the test to fail with a message naming the script. New scripts without main() tests fail CI immediately.
 - **Validation:** `python -m pytest tests/ -k "every_script_main" -v` passes. Adding a new script with `def main()` and no test causes the gate to fail.
-- **Status:** Open
+- **Status:** Resolved
