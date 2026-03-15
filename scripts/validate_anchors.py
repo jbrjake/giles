@@ -69,3 +69,20 @@ NAMESPACE_MAP: dict[str, str] = {
 def resolve_namespace(namespace: str) -> str:
     """Return the relative file path for a namespace, or raise KeyError."""
     return NAMESPACE_MAP[namespace]
+
+
+# Regex patterns for anchor definitions
+_PY_ANCHOR_RE = re.compile(r"^# §([\w]+\.[\w]+)$")
+_MD_ANCHOR_RE = re.compile(r"^<!-- §([\w-]+\.[\w_]+) -->$")
+
+
+def find_anchor_defs(file_path: Path) -> dict[str, int]:
+    """Return {anchor_name: line_number} for all anchors defined in a file."""
+    defs: dict[str, int] = {}
+    text = file_path.read_text(encoding="utf-8")
+    for i, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        m = _PY_ANCHOR_RE.match(stripped) or _MD_ANCHOR_RE.match(stripped)
+        if m:
+            defs[m.group(1)] = i
+    return defs

@@ -43,5 +43,60 @@ class TestNamespaceMap(unittest.TestCase):
             self.assertTrue(full.exists(), f"§{ns} -> {rel_path} does not exist")
 
 
+import tempfile
+import textwrap
+
+from validate_anchors import find_anchor_defs
+
+
+class TestFindAnchorDefs(unittest.TestCase):
+    """Scan files for anchor definition comments."""
+
+    def test_python_function_anchor(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(textwrap.dedent("""\
+                # §mymod.my_func
+                def my_func():
+                    pass
+            """))
+            f.flush()
+            defs = find_anchor_defs(Path(f.name))
+        self.assertEqual(defs, {"mymod.my_func": 1})
+
+    def test_markdown_heading_anchor(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(textwrap.dedent("""\
+                # Title
+                <!-- §sprint-run.kickoff -->
+                ## Kickoff
+            """))
+            f.flush()
+            defs = find_anchor_defs(Path(f.name))
+        self.assertEqual(defs, {"sprint-run.kickoff": 2})
+
+    def test_multiple_anchors(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(textwrap.dedent("""\
+                # §mod.func_a
+                def func_a():
+                    pass
+
+                # §mod.CONST_B
+                CONST_B = 42
+            """))
+            f.flush()
+            defs = find_anchor_defs(Path(f.name))
+        self.assertEqual(len(defs), 2)
+        self.assertIn("mod.func_a", defs)
+        self.assertIn("mod.CONST_B", defs)
+
+    def test_no_anchors_returns_empty(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("def plain_func():\n    pass\n")
+            f.flush()
+            defs = find_anchor_defs(Path(f.name))
+        self.assertEqual(defs, {})
+
+
 if __name__ == "__main__":
     unittest.main()
