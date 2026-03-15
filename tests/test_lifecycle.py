@@ -361,42 +361,9 @@ class TestLifecycle(unittest.TestCase):
         # Original config should still be intact
         self.assertIn("[project]", text)
 
-    # -- Test 11: extract_sp from issue data ---------------------------------
-
-    def test_11_extract_sp(self):
-        """update_burndown.extract_sp handles labels and body."""
-        # From label
-        issue_label = {
-            "labels": [{"name": "sp:3"}],
-            "body": "",
-        }
-        self.assertEqual(update_burndown.extract_sp(issue_label), 3)
-
-        # From body
-        issue_body = {
-            "labels": [],
-            "body": "| Story Points | 5 |",
-        }
-        self.assertEqual(update_burndown.extract_sp(issue_body), 5)
-
-        # No SP
-        issue_none = {"labels": [], "body": "No points"}
-        self.assertEqual(update_burndown.extract_sp(issue_none), 0)
-
-    # -- Test 12: commit message validation in lifecycle ---------------------
-
-    def test_12_commit_validation(self):
-        """Commit message validation works across all types."""
-        # Valid messages
-        for msg in ["feat: add login", "fix(parser): handle null",
-                     "refactor!: rewrite core"]:
-            ok, err = validate_message(msg)
-            self.assertTrue(ok, f"'{msg}' should be valid: {err}")
-
-        # Invalid messages
-        for msg in ["", "not a commit", "feature: wrong type"]:
-            ok, _ = validate_message(msg)
-            self.assertFalse(ok, f"'{msg}' should be invalid")
+    # Tests 11 (extract_sp) and 12 (commit validation) removed —
+    # comprehensive versions live in test_gh_interactions.py:
+    #   TestExtractSP (10 cases) and TestValidateMessage (9 cases).
 
     # -- Test 13: full init -> bootstrap -> issues pipeline ------------------
 

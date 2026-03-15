@@ -171,14 +171,34 @@ class TestCoverage(unittest.TestCase):
         )
         self.assertGreater(len(report["planned"]), 0)
         self.assertEqual(len(report["implemented"]), 0)
-        # With no implementations, nothing can match — all planned are missing
-        self.assertEqual(report["missing"], report["planned"])
+        # Verify specific planned IDs appear in missing, not just that sets match
+        planned_ids = set(report["planned"])
+        missing_ids = set(report["missing"])
+        self.assertTrue(planned_ids, "Expected non-empty planned test cases")
+        self.assertEqual(planned_ids, missing_ids,
+                         "All planned tests should be missing when none implemented")
+        # Spot-check: at least one known test case ID from the hexwise fixture
+        self.assertTrue(
+            any(tc_id.startswith("TC-") or tc_id.startswith("GP-")
+                for tc_id in planned_ids),
+            f"Expected TC-/GP-prefixed IDs, got: {planned_ids}",
+        )
         self.assertEqual(len(report.get("matched", [])), 0)
 
     def test_coverage_language_detection_rust(self):
         """Detect #[test] fn patterns in Rust."""
         funcs = detect_test_functions("rust", '#[test]\nfn test_parsing() {')
         self.assertEqual(funcs, ["test_parsing"])
+
+    def test_coverage_rust_tokio_test(self):
+        """BH-014: detect #[tokio::test] async fn in Rust."""
+        funcs = detect_test_functions("rust", '#[tokio::test]\nasync fn test_async_thing() {')
+        self.assertEqual(funcs, ["test_async_thing"])
+
+    def test_coverage_rust_async_std_test(self):
+        """BH-014: detect #[async_std::test] async fn in Rust."""
+        funcs = detect_test_functions("rust", '#[async_std::test]\nasync fn test_another() {')
+        self.assertEqual(funcs, ["test_another"])
 
     def test_coverage_language_detection_python(self):
         """Detect def test_* patterns in Python."""
@@ -345,6 +365,37 @@ class TestManageEpics(unittest.TestCase):
             self.assertEqual(result["raw_sections"], [])
             self.assertEqual(result["stories_count"], 0)
             self.assertEqual(result["total_sp"], 0)
+
+
+    def test_format_story_section_missing_keys(self):
+        """BH-005: _format_story_section with missing keys uses defaults."""
+        from manage_epics import _format_story_section
+        result = _format_story_section({"id": "US-001", "title": "Test"})
+        self.assertIn("US-001", result)
+        self.assertIn("Test", result)
+        # Should have defaults for missing fields
+        self.assertIn("Story Points", result)
+
+    def test_format_story_section_empty_dict(self):
+        """BH-005: _format_story_section({}) does not crash."""
+        from manage_epics import _format_story_section
+        result = _format_story_section({})
+        self.assertIn("US-XXXX", result)
+        self.assertIn("Untitled", result)
+
+    def test_add_story_duplicate_raises(self):
+        """BH-011: adding a story with an existing ID raises ValueError."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            with self.assertRaises(ValueError) as ctx:
+                add_story(str(epic_path), {
+                    "id": "US-0101",  # already exists
+                    "title": "Duplicate",
+                    "story_points": 1,
+                    "priority": "P2",
+                })
+            self.assertIn("US-0101", str(ctx.exception))
 
 
 # ---------------------------------------------------------------------------

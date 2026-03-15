@@ -202,22 +202,8 @@ class TestDetermineBump(unittest.TestCase):
         self.assertEqual(determine_bump(commits), "major")
 
 
-class TestBumpVersion(unittest.TestCase):
-
-    def test_patch(self):
-        self.assertEqual(bump_version("0.1.0", "patch"), "0.1.1")
-
-    def test_minor(self):
-        self.assertEqual(bump_version("0.1.0", "minor"), "0.2.0")
-
-    def test_major(self):
-        self.assertEqual(bump_version("0.1.0", "major"), "1.0.0")
-
-    def test_minor_resets_patch(self):
-        self.assertEqual(bump_version("1.2.3", "minor"), "1.3.0")
-
-    def test_major_resets_minor_and_patch(self):
-        self.assertEqual(bump_version("1.2.3", "major"), "2.0.0")
+# TestBumpVersion removed — comprehensive version with error cases
+# lives in test_release_gate.py:TestBumpVersion (6 tests).
 
 
 class TestWriteVersionToToml(unittest.TestCase):
@@ -1030,6 +1016,30 @@ class TestGetBaseBranch(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# BH-004: extract_sp word-boundary adversarial tests
+# ---------------------------------------------------------------------------
+
+class TestExtractSPWordBoundary(unittest.TestCase):
+    """Verify extract_sp doesn't match 'sp' as a substring."""
+
+    def test_wasp_not_matched(self):
+        issue = {"labels": [], "body": "The wasp: 3 project"}
+        self.assertEqual(update_burndown.extract_sp(issue), 0)
+
+    def test_bsp_not_matched(self):
+        issue = {"labels": [], "body": "BSP: 2 value"}
+        self.assertEqual(update_burndown.extract_sp(issue), 0)
+
+    def test_standalone_sp_still_works(self):
+        issue = {"labels": [], "body": "sp: 5"}
+        self.assertEqual(update_burndown.extract_sp(issue), 5)
+
+    def test_sp_with_equals(self):
+        issue = {"labels": [], "body": "SP = 8"}
+        self.assertEqual(update_burndown.extract_sp(issue), 8)
+
+
+# ---------------------------------------------------------------------------
 # check_status.py tests -- drift detection
 # ---------------------------------------------------------------------------
 
@@ -1212,9 +1222,8 @@ class TestCheckBranchDivergenceFakeGH(unittest.TestCase):
         self.assertEqual(report, [])
         self.assertEqual(actions, [])
 
-    def test_api_error_handled(self):
-        """Branch not in comparisons still returns default {behind_by: 0}."""
-        # Default is behind_by=0, ahead_by=0 — no drift
+    def test_unknown_branch_returns_no_drift(self):
+        """Branch not in comparisons returns default {behind_by: 0} — no drift."""
         report, actions = check_status.check_branch_divergence(
             "owner/repo", "main", ["feat/unknown"],
         )

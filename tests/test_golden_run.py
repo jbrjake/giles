@@ -99,13 +99,13 @@ class TestGoldenRun(unittest.TestCase):
             diffs = check_fn(snapshot)
             self.assertEqual(diffs, [], f"{phase_name} mismatch: {diffs}")
         else:
+            # Don't skip — let the test continue so non-golden assertions
+            # still provide value. Golden comparisons are simply skipped.
             import warnings
             warnings.warn(
-                "Golden recordings absent — run GOLDEN_RECORD=1 to create them",
+                f"Golden recordings absent for {phase_name} — "
+                "run GOLDEN_RECORD=1 to create them",
                 stacklevel=2,
-            )
-            self.skipTest(
-                "No golden recordings found. Run with GOLDEN_RECORD=1 to create them."
             )
 
     def test_golden_full_setup_pipeline(self):
