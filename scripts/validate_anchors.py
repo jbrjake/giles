@@ -157,3 +157,106 @@ def check_anchors(
         unreferenced.append(f"§{anchor_name} in {rel_path}")
 
     return broken, unreferenced
+
+
+def _find_symbol_line(file_path: Path, symbol: str) -> int | None:
+    """Find line number of a symbol definition (def/class/constant)."""
+    text = file_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    clean = symbol.strip("()")
+    patterns = [
+        rf"^(def|class)\s+{re.escape(clean)}\b",
+        rf"^{re.escape(clean)}\s*[:=]",
+        rf"^\s+(def|class)\s+{re.escape(clean)}\b",
+    ]
+    for i, line in enumerate(lines, 1):
+        for pat in patterns:
+            if re.search(pat, line):
+                return i
+    return None
+
+
+def _find_heading_line(file_path: Path, slug: str) -> int | None:
+    """Find line number of a markdown heading matching a slug.
+
+    Slug matching: 'kickoff' matches '## Kickoff', '## Phase 1: Kickoff', etc.
+    Converts heading text to slug (lowercase, spaces/special chars -> underscore)
+    and checks if the heading slug ends with the target slug or matches exactly.
+    Suffix-only matching avoids false positives (e.g., 'check' won't match
+    'pre_flight_check_ci').
+    """
+    text = file_path.read_text(encoding="utf-8")
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.startswith("#"):
+            heading_text = re.sub(r"^#+\s*", "", line).strip()
+            heading_slug = re.sub(r"[^a-z0-9]+", "_", heading_text.lower()).strip("_")
+            if heading_slug == slug or heading_slug.endswith("_" + slug):
+                return i
+    return None
+
+
+def fix_missing_anchors(
+    root: Path | None = None,
+    doc_files: list[str] | None = None,
+    namespace_map: dict[str, str] | None = None,
+) -> int:
+    """Insert missing anchor comments into source files. Returns count fixed."""
+    root = root or ROOT
+    doc_files = doc_files or DOC_FILES
+    namespace_map = namespace_map or NAMESPACE_MAP
+
+    # Collect existing anchors
+    existing: set[str] = set()
+    for ns, rel_path in namespace_map.items():
+        full = root / rel_path
+        if full.exists():
+            existing.update(find_anchor_defs(full).keys())
+
+    # Collect references that need fixing
+    needed: set[str] = set()
+    for doc_name in doc_files:
+        doc_path = root / doc_name
+        if doc_path.exists():
+            for anchor_name, _ in find_anchor_refs(doc_path):
+                if anchor_name not in existing:
+                    ns = anchor_name.split(".")[0]
+                    if ns in namespace_map:
+                        needed.add(anchor_name)
+
+    # Group by file for efficient insertion
+    fixes_by_file: dict[str, list[tuple[str, int]]] = {}
+    for anchor_name in needed:
+        ns, symbol = anchor_name.split(".", 1)
+        rel_path = namespace_map[ns]
+        full = root / rel_path
+        if not full.exists():
+            continue
+
+        if rel_path.endswith(".py"):
+            target_line = _find_symbol_line(full, symbol)
+        else:
+            target_line = _find_heading_line(full, symbol)
+
+        if target_line is not None:
+            fixes_by_file.setdefault(rel_path, []).append((anchor_name, target_line))
+
+    # Apply fixes (insert anchor comments, working bottom-up to preserve line numbers)
+    fixed_count = 0
+    for rel_path, fixes in fixes_by_file.items():
+        full = root / rel_path
+        lines = full.read_text(encoding="utf-8").splitlines()
+        is_python = rel_path.endswith(".py")
+
+        # Sort by line number descending so insertions don't shift later targets
+        for anchor_name, target_line in sorted(fixes, key=lambda x: x[1], reverse=True):
+            idx = target_line - 1  # 0-based
+            if is_python:
+                anchor_comment = f"# §{anchor_name}"
+            else:
+                anchor_comment = f"<!-- §{anchor_name} -->"
+            lines.insert(idx, anchor_comment)
+            fixed_count += 1
+
+        full.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return fixed_count

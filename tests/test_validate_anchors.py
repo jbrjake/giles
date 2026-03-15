@@ -205,5 +205,81 @@ class TestCheckAnchors(unittest.TestCase):
         self.assertIn("mymod.my_func", unreferenced[0])
 
 
+from validate_anchors import fix_missing_anchors
+
+
+class TestFixMode(unittest.TestCase):
+    """Autofix inserts missing anchor comments."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        src = self.tmpdir / "scripts"
+        src.mkdir()
+        # Source file WITHOUT anchor, but with the function
+        (src / "mymod.py").write_text(
+            "def my_func():\n    pass\n\nCONST = 42\n"
+        )
+        self.ns_map = {"mymod": "scripts/mymod.py"}
+
+    def test_fix_inserts_python_anchor(self):
+        (self.tmpdir / "DOC.md").write_text("§mymod.my_func\n")
+        fixed = fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=self.ns_map,
+        )
+        self.assertEqual(fixed, 1)
+        content = (self.tmpdir / "scripts" / "mymod.py").read_text()
+        self.assertIn("# §mymod.my_func", content)
+
+    def test_fix_inserts_above_definition(self):
+        (self.tmpdir / "DOC.md").write_text("§mymod.my_func\n")
+        fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=self.ns_map,
+        )
+        lines = (self.tmpdir / "scripts" / "mymod.py").read_text().splitlines()
+        anchor_idx = next(i for i, l in enumerate(lines) if "§mymod.my_func" in l)
+        self.assertIn("def my_func", lines[anchor_idx + 1])
+
+    def test_fix_skips_existing_anchor(self):
+        # Add anchor manually first
+        (self.tmpdir / "scripts" / "mymod.py").write_text(
+            "# §mymod.my_func\ndef my_func():\n    pass\n"
+        )
+        (self.tmpdir / "DOC.md").write_text("§mymod.my_func\n")
+        fixed = fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=self.ns_map,
+        )
+        self.assertEqual(fixed, 0)
+
+    def test_fix_markdown_heading(self):
+        md_dir = self.tmpdir / "skills" / "sprint-run"
+        md_dir.mkdir(parents=True)
+        (md_dir / "SKILL.md").write_text("# Title\n## Kickoff\nContent\n")
+        ns_map = {"sprint-run": "skills/sprint-run/SKILL.md"}
+        (self.tmpdir / "DOC.md").write_text("§sprint-run.kickoff\n")
+        fixed = fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=ns_map,
+        )
+        self.assertEqual(fixed, 1)
+        content = (md_dir / "SKILL.md").read_text()
+        self.assertIn("<!-- §sprint-run.kickoff -->", content)
+
+    def test_fix_reports_unfixable(self):
+        (self.tmpdir / "DOC.md").write_text("§mymod.nonexistent\n")
+        fixed = fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=self.ns_map,
+        )
+        self.assertEqual(fixed, 0)  # nothing to fix — symbol doesn't exist
+
+
 if __name__ == "__main__":
     unittest.main()
