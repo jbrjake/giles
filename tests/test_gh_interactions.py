@@ -2894,5 +2894,86 @@ class TestSyncTrackingMainIntegration(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 1)
 
 
+class TestFakeGitHubStrictMode(unittest.TestCase):
+    """BH-P11-200: FakeGitHub strict mode warns on accepted-but-unimplemented flags."""
+
+    def test_strict_warns_on_unimplemented_jq(self):
+        """--jq on api handler is accepted but not evaluated; strict warns."""
+        fake = FakeGitHub(strict=True)
+        fake.milestones.append({"number": 1, "title": "M1"})
+        with self.assertWarns(UserWarning) as cm:
+            fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
+        self.assertIn("--jq", str(cm.warning))
+        self.assertIn("does NOT use it", str(cm.warning))
+        self.assertEqual(len(fake._strict_warnings), 1)
+
+    def test_strict_warns_on_release_view_jq(self):
+        """--jq on release view is accepted but not evaluated; strict warns."""
+        fake = FakeGitHub(strict=True)
+        with self.assertWarns(UserWarning):
+            fake.handle(["release", "view", "v1.0.0", "--jq", ".url"])
+        self.assertEqual(len(fake._strict_warnings), 1)
+
+    def test_strict_warns_on_release_create_target(self):
+        """--target on release create is accepted but not used; strict warns."""
+        fake = FakeGitHub(strict=True)
+        with self.assertWarns(UserWarning):
+            fake.handle([
+                "release", "create", "v1.0", "--title", "Release",
+                "--notes", "test", "--target", "main",
+            ])
+        self.assertEqual(len(fake._strict_warnings), 1)
+
+    def test_strict_false_suppresses_warnings(self):
+        """strict=False disables unimplemented-flag warnings."""
+        fake = FakeGitHub(strict=False)
+        fake.milestones.append({"number": 1, "title": "M1"})
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # Should NOT raise even with warnings-as-errors
+            fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
+        self.assertEqual(len(fake._strict_warnings), 0)
+
+    def test_implemented_flags_no_warning(self):
+        """Flags in _IMPLEMENTED_FLAGS don't trigger strict warnings."""
+        fake = FakeGitHub(strict=True)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # --state and --json are implemented in issue_list
+            fake.handle(["issue", "list", "--state", "all", "--json", "number"])
+        self.assertEqual(len(fake._strict_warnings), 0)
+
+    def test_unknown_flag_always_raises(self):
+        """Unknown flags raise NotImplementedError regardless of strict mode."""
+        for strict in (True, False):
+            fake = FakeGitHub(strict=strict)
+            with self.assertRaises(NotImplementedError):
+                fake.handle(["issue", "list", "--bogus-flag", "val"])
+
+    def test_implemented_subset_of_known(self):
+        """Every _IMPLEMENTED_FLAGS entry must be a subset of _KNOWN_FLAGS."""
+        for handler, impl_flags in FakeGitHub._IMPLEMENTED_FLAGS.items():
+            known = FakeGitHub._KNOWN_FLAGS.get(handler, frozenset())
+            extra = impl_flags - known
+            self.assertEqual(
+                extra, frozenset(),
+                f"_IMPLEMENTED_FLAGS['{handler}'] contains flags not in "
+                f"_KNOWN_FLAGS: {extra}",
+            )
+
+    def test_strict_warnings_accumulate(self):
+        """Multiple strict warnings accumulate in _strict_warnings."""
+        fake = FakeGitHub(strict=True)
+        fake.milestones.append({"number": 1, "title": "M1"})
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
+            fake.handle(["release", "view", "v1.0", "--jq", ".url"])
+        self.assertEqual(len(fake._strict_warnings), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

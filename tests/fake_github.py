@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import json
 import subprocess
+import warnings
 from datetime import datetime, timezone
 
 
 class FakeGitHub:
     """Simulate GitHub API responses for gh CLI calls."""
 
-    def __init__(self):
+    def __init__(self, strict: bool = True):
         self.labels: dict[str, dict] = {}
         self.milestones: list[dict] = []
         self.issues: list[dict] = []
@@ -29,6 +30,8 @@ class FakeGitHub:
         self.timeline_events: dict[int, list[dict]] = {}  # issue# -> events
         self.comparisons: dict[str, dict] = {}  # branch -> {behind_by, ahead_by}
         self.commits_data: list[dict] = []       # commit objects for /commits endpoint
+        self.strict = strict
+        self._strict_warnings: list[str] = []    # collected warnings
         self._next_issue = 1
         self._next_ms = 1
         self._next_pr = 1
@@ -140,6 +143,27 @@ class FakeGitHub:
         "api": frozenset(("paginate", "f", "X", "jq")),
     }
 
+    # Flags that each handler actually evaluates to filter or shape results.
+    # Subset of _KNOWN_FLAGS.  Flags in _KNOWN_FLAGS but NOT here are accepted
+    # without error but do NOT affect handler behavior.
+    # In strict mode (default), passing such a flag triggers a warning so test
+    # authors know their query filter isn't actually being exercised.
+    _IMPLEMENTED_FLAGS: dict[str, frozenset[str]] = {
+        "issue_create": frozenset(("title", "body", "label", "milestone")),
+        "issue_list": frozenset(("state", "milestone", "json", "limit", "label", "search")),
+        "issue_edit": frozenset(("add-label", "remove-label", "milestone")),
+        "issue_close": frozenset(),
+        "run_list": frozenset(("branch", "json", "limit", "status")),
+        "pr_list": frozenset(("json", "state", "limit", "search")),
+        "pr_create": frozenset(("title", "body", "base", "head", "label", "milestone")),
+        "pr_review": frozenset(("body", "approve", "request-changes")),
+        "pr_merge": frozenset(("squash", "merge", "rebase")),
+        "release_create": frozenset(("tag", "title", "notes")),  # target: accepted, not used
+        "release_view": frozenset(("json",)),  # jq: accepted, not evaluated
+        "label_create": frozenset(("color", "description", "force")),
+        "api": frozenset(("f", "X")),  # jq: accepted, not evaluated
+    }
+
     # Flags that always consume the next argument as their value,
     # even if it starts with a dash (e.g., --title "-1 Fix bug").
     _VALUE_BEARING_FLAGS = frozenset((
@@ -192,15 +216,16 @@ class FakeGitHub:
                 i += 1
         return flags
 
-    @classmethod
-    def _check_flags(cls, handler_name: str, flags: dict[str, list[str]]) -> None:
-        """Raise NotImplementedError for flags not in the known registry.
+    def _check_flags(self, handler_name: str, flags: dict[str, list[str]]) -> None:
+        """Raise NotImplementedError for unknown flags; warn for unimplemented ones.
 
-        This prevents tests from silently passing when production code
-        sends flags that FakeGitHub doesn't handle.
+        Unknown flags (not in _KNOWN_FLAGS or _ACCEPTED_NOOP_FLAGS) always raise.
+        In strict mode, flags that are known but not in _IMPLEMENTED_FLAGS emit
+        a warning so test authors know their filter isn't being exercised.
         """
-        known = cls._KNOWN_FLAGS.get(handler_name, frozenset())
-        allowed = known | cls._ACCEPTED_NOOP_FLAGS
+        known = self._KNOWN_FLAGS.get(handler_name, frozenset())
+        allowed = known | self._ACCEPTED_NOOP_FLAGS
+        implemented = self._IMPLEMENTED_FLAGS.get(handler_name, frozenset())
         for flag in flags:
             if flag not in allowed:
                 raise NotImplementedError(
@@ -208,6 +233,17 @@ class FakeGitHub:
                     f"flag '--{flag}'. Add it to _KNOWN_FLAGS['{handler_name}'] "
                     f"or _ACCEPTED_NOOP_FLAGS if it's intentionally ignored."
                 )
+            if self.strict and flag in known and flag not in implemented:
+                if flag not in self._ACCEPTED_NOOP_FLAGS:
+                    msg = (
+                        f"FakeGitHub strict mode: handler '{handler_name}' "
+                        f"accepts '--{flag}' but does NOT use it to filter "
+                        f"results. Your test is not exercising this filter. "
+                        f"Either implement the flag in FakeGitHub and add it "
+                        f"to _IMPLEMENTED_FLAGS, or use FakeGitHub(strict=False)."
+                    )
+                    self._strict_warnings.append(msg)
+                    warnings.warn(msg, stacklevel=3)
 
     # -- Handlers: auth / version ---------------------------------------------
 
@@ -744,7 +780,14 @@ class FakeGitHub:
         elif sub == "view":
             # --jq filter shape assumed (from release_gate.py do_release):
             #   --jq '.url' — FakeGitHub returns the full {url: ...} object.
-            tag = args[1] if len(args) > 1 else ""
+            # Extract tag (first positional arg after "view")
+            tag = ""
+            i = 1
+            if i < len(args) and not args[i].startswith("-"):
+                tag = args[i]
+                i += 1
+            flags = self._parse_flags(args, start=i)
+            self._check_flags("release_view", flags)
             return self._ok(json.dumps({
                 "url": f"https://github.com/testowner/testrepo/releases/tag/{tag}"
             }))
