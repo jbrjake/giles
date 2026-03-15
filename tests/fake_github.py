@@ -110,6 +110,13 @@ class FakeGitHub:
         "release_create": frozenset(("tag", "title", "notes", "notes-file", "target")),
         "release_view": frozenset(("json", "jq")),
         "label_create": frozenset(("color", "description", "force")),
+        # NOTE: --jq is accepted but NOT evaluated. FakeGitHub returns
+        # pre-shaped data that matches what production jq filters would produce.
+        # Tests using jq-dependent endpoints verify the fixture shape, not jq
+        # filter correctness. Endpoints that rely on jq filtering:
+        #   - /issues/{N}/timeline (| first) → returns first linked PR
+        #   - /commits (.[].sha, .[].commit.message) → returns commits_data
+        # If jq fidelity becomes critical, implement pyjq or basic expression eval.
         "api": frozenset(("paginate", "f", "X", "jq")),
     }
 

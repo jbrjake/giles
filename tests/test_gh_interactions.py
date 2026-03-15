@@ -1016,6 +1016,73 @@ class TestGetBaseBranch(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# BH-022 / BH-025 / BH-026: Tests for new shared helpers
+# ---------------------------------------------------------------------------
+
+class TestSharedHelpers(unittest.TestCase):
+    """Tests for safe_int and parse_iso_date in validate_config."""
+
+    def test_safe_int_basic(self):
+        from validate_config import safe_int
+        self.assertEqual(safe_int("42"), 42)
+        self.assertEqual(safe_int("  5abc"), 5)
+        self.assertEqual(safe_int("abc"), 0)
+        self.assertEqual(safe_int(""), 0)
+
+    def test_parse_iso_date_utc(self):
+        from validate_config import parse_iso_date
+        self.assertEqual(parse_iso_date("2026-03-15T12:00:00Z"), "2026-03-15")
+
+    def test_parse_iso_date_empty(self):
+        from validate_config import parse_iso_date
+        self.assertEqual(parse_iso_date(""), "")
+        self.assertEqual(parse_iso_date("", default="—"), "—")
+
+    def test_parse_iso_date_invalid(self):
+        from validate_config import parse_iso_date
+        self.assertEqual(parse_iso_date("not-a-date"), "")
+
+    def test_parse_iso_date_custom_format(self):
+        from validate_config import parse_iso_date
+        result = parse_iso_date("2026-03-15T12:00:00Z", fmt="%Y-%m-%dT%H:%M")
+        self.assertIn("2026-03-15", result)
+
+    def test_gh_custom_timeout(self):
+        """BH-016: gh() accepts custom timeout parameter."""
+        from validate_config import gh
+        import inspect
+        sig = inspect.signature(gh)
+        self.assertIn("timeout", sig.parameters)
+        self.assertEqual(sig.parameters["timeout"].default, 60)
+
+
+class TestParseSimpleTomlEdgeCases(unittest.TestCase):
+    """BH-022: TOML parser edge cases for escaping, brackets, comments."""
+
+    def test_inline_comment_stripped(self):
+        from validate_config import parse_simple_toml
+        result = parse_simple_toml('[project]\nname = "test"  # a comment\n')
+        self.assertEqual(result["project"]["name"], "test")
+
+    def test_escaped_quotes_in_string(self):
+        from validate_config import parse_simple_toml
+        toml_str = '[project]\nname = "has \\"quotes\\""\n'
+        result = parse_simple_toml(toml_str)
+        self.assertIn("quotes", result["project"]["name"])
+
+    def test_array_value(self):
+        from validate_config import parse_simple_toml
+        result = parse_simple_toml('[ci]\ncheck_commands = ["lint", "test"]\n')
+        self.assertEqual(result["ci"]["check_commands"], ["lint", "test"])
+
+    def test_boolean_values(self):
+        from validate_config import parse_simple_toml
+        result = parse_simple_toml('[project]\nenabled = true\ndisabled = false\n')
+        self.assertTrue(result["project"]["enabled"])
+        self.assertFalse(result["project"]["disabled"])
+
+
+# ---------------------------------------------------------------------------
 # BH-004: extract_sp word-boundary adversarial tests
 # ---------------------------------------------------------------------------
 
