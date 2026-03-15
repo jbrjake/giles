@@ -219,6 +219,9 @@ class ProjectScanner:
                         multiline_cmds: list[str] = []
                         i += 1
                         while i < len(lines) and (lines[i].startswith("  ") or lines[i].strip() == ""):
+                            # Stop at new YAML step (- run:, - name:, etc.)
+                            if re.match(r'^\s*- ', lines[i]):
+                                break
                             line_content = lines[i].strip()
                             if line_content:
                                 multiline_cmds.append(line_content)

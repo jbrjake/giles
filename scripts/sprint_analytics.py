@@ -262,7 +262,6 @@ def main() -> None:
         # Dedup: skip if this sprint already has an entry (BH-016)
         # Use word-boundary match to avoid "Sprint 1" matching "Sprint 10"
         existing = analytics_path.read_text(encoding="utf-8")
-        header = f"### Sprint {sprint_num}"
         if re.search(rf"^### Sprint {sprint_num}\b", existing, re.MULTILINE):
             print(f"Sprint {sprint_num} already in {analytics_path} (skipping)")
         else:

@@ -131,7 +131,7 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertIn("palette", index_lower)
         self.assertIn("checker", index_lower)
 
-    def test_config_has_two_milestones(self):
+    def test_config_has_three_milestones(self):
         ms_dir = self.config_dir / "backlog" / "milestones"
         md_files = [f for f in ms_dir.iterdir()
                     if f.is_file() and f.suffix == ".md"]

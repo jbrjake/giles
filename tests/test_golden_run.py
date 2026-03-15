@@ -99,6 +99,11 @@ class TestGoldenRun(unittest.TestCase):
             diffs = check_fn(snapshot)
             self.assertEqual(diffs, [], f"{phase_name} mismatch: {diffs}")
         else:
+            import warnings
+            warnings.warn(
+                "Golden recordings absent — run GOLDEN_RECORD=1 to create them",
+                stacklevel=2,
+            )
             self.skipTest(
                 "No golden recordings found. Run with GOLDEN_RECORD=1 to create them."
             )

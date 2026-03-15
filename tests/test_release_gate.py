@@ -471,9 +471,15 @@ class TestDoRelease(unittest.TestCase):
         # gh() called for: release create, milestone close, release view
         self.assertGreaterEqual(mock_gh.call_count, 2)
         gh_calls = [call[0][0] for call in mock_gh.call_args_list]
-        # First gh call is release create
+        # First gh call is release create with correct tag
         self.assertEqual(gh_calls[0][0], "release")
         self.assertEqual(gh_calls[0][1], "create")
+        self.assertIn("v1.1.0", gh_calls[0])
+        # Verify release notes content was passed (--notes-file arg present)
+        self.assertTrue(
+            any("--notes-file" in str(arg) or "--notes" in str(arg) for arg in gh_calls[0]),
+            "release create should include notes"
+        )
         # Second gh call is milestone close
         self.assertIn("milestones/7", gh_calls[1][1])
 

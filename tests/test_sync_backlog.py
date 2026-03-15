@@ -28,7 +28,9 @@ class TestHashMilestoneFiles(unittest.TestCase):
             (ms_dir / "milestone-1.md").write_text("# Sprint 1\nstories here")
             result = sync_backlog.hash_milestone_files([str(ms_dir / "milestone-1.md")])
             self.assertIn("milestone-1.md", result)
-            self.assertEqual(len(result["milestone-1.md"]), 64)  # sha256 hex
+            import hashlib
+            expected = hashlib.sha256(b"# Sprint 1\nstories here").hexdigest()
+            self.assertEqual(result["milestone-1.md"], expected)
 
     def test_hashes_change_on_edit(self):
         with tempfile.TemporaryDirectory() as td:
