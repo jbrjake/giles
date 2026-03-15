@@ -1948,7 +1948,7 @@ class TestFakeGitHubFlagEnforcement(unittest.TestCase):
 
     def test_unknown_flag_on_pr_list_raises(self):
         with self.assertRaises(NotImplementedError):
-            self.fake.handle(["pr", "list", "--search", "is:draft"])
+            self.fake.handle(["pr", "list", "--assignee", "@me"])
 
     def test_unknown_flag_on_release_create_raises(self):
         with self.assertRaises(NotImplementedError):

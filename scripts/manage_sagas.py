@@ -22,11 +22,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
 
-# §manage_sagas._safe_int
-def _safe_int(value: str) -> int:
-    """Extract leading digits from a string, returning 0 if none found."""
-    m = re.match(r'(\d+)', str(value).strip())
-    return int(m.group(1)) if m else 0
+from validate_config import safe_int as _safe_int
 EPIC_TABLE_ROW = re.compile(
     r'^\|\s*(E-\d+)\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|'
 )
@@ -277,6 +273,9 @@ def main() -> None:
         print(f"Updated sprint allocation in {saga_file}")
 
     elif command == "update-index":
+        if len(sys.argv) < 4:
+            print("Usage: manage_sagas.py update-index <saga-file> <epics-dir> [saga-id]", file=sys.stderr)
+            sys.exit(1)
         epics_dir = sys.argv[3]
         saga_id = sys.argv[4] if len(sys.argv) > 4 else ""
         update_epic_index(saga_file, epics_dir, saga_id=saga_id)

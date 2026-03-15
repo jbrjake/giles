@@ -103,7 +103,7 @@ class FakeGitHub:
         "issue_edit": frozenset(("add-label", "remove-label", "milestone")),
         "issue_close": frozenset(),
         "run_list": frozenset(("branch", "json", "limit", "status")),
-        "pr_list": frozenset(("json", "state", "limit")),
+        "pr_list": frozenset(("json", "state", "limit", "search")),
         "pr_create": frozenset(("title", "body", "base", "head", "label", "milestone")),
         "pr_review": frozenset(("body", "approve", "request-changes")),
         "pr_merge": frozenset(("squash", "merge", "rebase")),

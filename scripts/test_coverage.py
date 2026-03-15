@@ -20,7 +20,7 @@ from validate_config import load_config, ConfigError
 # Language-specific test function patterns
 # §test_coverage._TEST_PATTERNS
 _TEST_PATTERNS: dict[str, re.Pattern] = {
-    "rust": re.compile(r'#\[test\]\s*(?:#\[.*\]\s*)*fn\s+(\w+)'),
+    "rust": re.compile(r'#\[(?:test|tokio::test|async_std::test)\]\s*(?:#\[.*\]\s*)*(?:async\s+)?fn\s+(\w+)'),
     "python": re.compile(r'def\s+(test_\w+)'),
     "javascript": re.compile(r'(?:it|test)\s*\(\s*[\'"]([^\'"]+)'),
     "go": re.compile(r'func\s+(Test\w+)'),

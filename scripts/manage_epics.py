@@ -23,11 +23,7 @@ STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
 
-# §manage_epics._safe_int
-def _safe_int(value: str) -> int:
-    """Extract leading digits from a string, returning 0 if none found."""
-    m = re.match(r'(\d+)', str(value).strip())
-    return int(m.group(1)) if m else 0
+from validate_config import safe_int as _safe_int
 
 
 # §manage_epics._parse_epic_from_lines
@@ -170,13 +166,17 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
 # §manage_epics._format_story_section
 def _format_story_section(story_data: dict) -> str:
     """Format a story data dict as a markdown section."""
+    sid = story_data.get("id", "US-XXXX")
+    title = story_data.get("title", "Untitled")
+    sp = story_data.get("story_points", 0)
+    priority = story_data.get("priority", "medium")
     lines = [
-        f"### {story_data['id']}: {story_data['title']}",
+        f"### {sid}: {title}",
         "",
         "| Field | Value |",
         "|-------|-------|",
-        f"| Story Points | {story_data['story_points']} |",
-        f"| Priority | {story_data['priority']} |",
+        f"| Story Points | {sp} |",
+        f"| Priority | {priority} |",
     ]
 
     if story_data.get("personas"):
@@ -222,8 +222,16 @@ def _format_story_section(story_data: dict) -> str:
 
 # §manage_epics.add_story
 def add_story(path: str, story_data: dict) -> None:
-    """Append a new story section to an epic file."""
+    """Append a new story section to an epic file.
+
+    Raises ValueError if a story with the same ID already exists.
+    """
     content = Path(path).read_text(encoding="utf-8")
+    story_id = story_data.get("id", "")
+    if story_id:
+        epic = _parse_epic_from_lines(content.splitlines())
+        if any(s["id"] == story_id for s in epic["stories"]):
+            raise ValueError(f"Story {story_id} already exists in {path}")
     new_section = _format_story_section(story_data)
 
     # Ensure the file ends with proper separation

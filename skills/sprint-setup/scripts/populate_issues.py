@@ -276,8 +276,12 @@ def get_existing_issues() -> set[str]:
 def get_milestone_numbers() -> dict[str, int]:
     """Fetch milestone title -> number mapping from GitHub."""
     try:
-        raw = gh(["api", "repos/{owner}/{repo}/milestones", "--paginate", "--jq", "."])
-        return {m["title"]: m["number"] for m in json.loads(raw)} if raw else {}
+        # Use per_page=100 to minimise pages; no --jq to avoid
+        # concatenated JSON arrays on multi-page responses.
+        raw = gh(["api", "repos/{owner}/{repo}/milestones?per_page=100",
+                  "--paginate"], timeout=120)
+        milestones = json.loads(raw) if raw else []
+        return {m["title"]: m["number"] for m in milestones}
     except (RuntimeError, json.JSONDecodeError, KeyError) as exc:
         print(f"Error: could not fetch milestones: {exc}", file=sys.stderr)
         raise

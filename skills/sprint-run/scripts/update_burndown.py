@@ -22,21 +22,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, extract_sp, get_sprints_dir,
     find_milestone, extract_story_id, kanban_from_labels,
-    list_milestone_issues,
+    list_milestone_issues, parse_iso_date,
 )
 
 
 # §update_burndown.closed_date
 def closed_date(issue: dict) -> str:
     """Return the date an issue was closed, or a dash."""
-    raw = issue.get("closedAt")
-    if not raw:
-        return "\u2014"
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d")
-    except (ValueError, TypeError):
-        return "\u2014"
+    return parse_iso_date(issue.get("closedAt", ""), default="\u2014")
 
 
 # -- Output writers ----------------------------------------------------------
@@ -109,10 +102,10 @@ def update_sprint_status(
 
     new_table = "\n".join(table_lines) + "\n"
 
-    # Replace existing Active Stories section
-    pattern = r"## Active Stories.*?(?=\n## |\Z)"
-    if re.search(pattern, text, re.DOTALL):
-        text = re.sub(pattern, new_table.rstrip(), text, flags=re.DOTALL)
+    # Replace existing Active Stories section (up to next ## heading or EOF)
+    pattern = r"## Active Stories[^\n]*\n(?:\s*\n)*(?:\|[^\n]*\n)*"
+    if re.search(pattern, text):
+        text = re.sub(pattern, new_table.rstrip() + "\n", text)
     else:
         text = text.rstrip() + "\n\n" + new_table
 

@@ -12,6 +12,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -24,19 +25,43 @@ class ConfigError(ValueError):
 
 
 # ---------------------------------------------------------------------------
+# Shared utility helpers
+# ---------------------------------------------------------------------------
+
+# §validate_config.safe_int
+def safe_int(value: str) -> int:
+    """Extract leading digits from a string, returning 0 if none found."""
+    m = re.match(r'(\d+)', str(value).strip())
+    return int(m.group(1)) if m else 0
+
+
+# §validate_config.parse_iso_date
+def parse_iso_date(iso: str, fmt: str = "%Y-%m-%d", default: str = "") -> str:
+    """Parse an ISO 8601 date string, return formatted date or default."""
+    if not iso:
+        return default
+    try:
+        return datetime.fromisoformat(
+            iso.replace("Z", "+00:00")
+        ).strftime(fmt)
+    except (ValueError, TypeError):
+        return default
+
+
+# ---------------------------------------------------------------------------
 # Shared GitHub CLI helpers
 # ---------------------------------------------------------------------------
 
 # §validate_config.gh
-def gh(args: list[str]) -> str:
+def gh(args: list[str], timeout: int = 60) -> str:
     """Run a gh CLI command and return stdout. Raises RuntimeError on failure."""
     try:
         r = subprocess.run(
-            ["gh", *args], capture_output=True, text=True, timeout=30,
+            ["gh", *args], capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(
-            f"gh {' '.join(args)}: timed out after 30s"
+            f"gh {' '.join(args)}: timed out after {timeout}s"
         ) from None
     if r.returncode != 0:
         raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
@@ -671,7 +696,7 @@ def extract_sp(issue: dict) -> int:
             return int(m.group(1))
     body = issue.get("body", "") or ""
     if m := re.search(
-        r"(?:story\s*points?|sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
+        r"(?:story\s*points?|\bsp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
     ):
         return int(m.group(1))
     if m := re.search(r"\|\s*SP\s*\|\s*(\d+)\s*\|", body):

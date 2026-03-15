@@ -21,10 +21,10 @@ from validate_config import load_config, ConfigError
 
 # Pattern: > **Name:** "text" or > **Name:** text
 # Note: colon is inside the bold markers: **Name:**
-# Uses explicit alternatives for quoted and unquoted text.
+# Try fully-quoted first (entire text wrapped in quotes), then unquoted.
 # §team_voices.VOICE_PATTERN
 VOICE_PATTERN = re.compile(
-    r'^>\s*\*\*([^*]+?):\*\*\s*(?:"(.+?)"|(.+?))\s*$'
+    r'^>\s*\*\*([^*]+?):\*\*\s*(?:"(.+)"|(.+?))\s*$'
 )
 
 

@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, gh, extract_story_id, get_sprints_dir,
     kanban_from_labels, find_milestone, warn_if_at_limit,
-    list_milestone_issues, KANBAN_STATES,
+    list_milestone_issues, parse_iso_date, KANBAN_STATES,
 )
 
 
@@ -58,22 +58,36 @@ def get_linked_pr(
     per-issue API calls. Pass all_prs from _fetch_all_prs().
     """
     try:
+        # Fetch all linked PRs, prefer open/merged over closed
         raw = gh([
             "api",
             f"repos/{{owner}}/{{repo}}/issues/{issue_num}/timeline",
             "--paginate", "--jq",
             '[.[] | select(.source?.issue?.pull_request?) '
-            '| .source.issue] | first',
+            '| .source.issue]',
         ])
         if raw and raw != "null":
-            d = json.loads(raw)
-            return {
-                "number": d.get("number"),
-                "state": d.get("state"),
-                "merged": (
-                    d.get("pull_request", {}).get("merged_at") is not None
-                ),
-            }
+            linked = json.loads(raw)
+            if isinstance(linked, dict):
+                linked = [linked]
+            if linked:
+                # Prefer open PRs, then merged, then closed (last updated)
+                best = linked[-1]  # default to most recent
+                for d in linked:
+                    if d.get("state") == "open":
+                        best = d
+                        break
+                    if (d.get("pull_request", {}).get("merged_at")
+                            is not None):
+                        best = d
+                return {
+                    "number": best.get("number"),
+                    "state": best.get("state"),
+                    "merged": (
+                        best.get("pull_request", {}).get("merged_at")
+                        is not None
+                    ),
+                }
     except (RuntimeError, json.JSONDecodeError):
         pass
     # Fallback: search pre-fetched PRs by branch name
@@ -102,14 +116,7 @@ def slug_from_title(title: str) -> str:
 
 
 def _parse_closed(iso: str) -> str:
-    if not iso:
-        return ""
-    try:
-        return datetime.fromisoformat(
-            iso.replace("Z", "+00:00")
-        ).strftime("%Y-%m-%d")
-    except (ValueError, TypeError):
-        return ""
+    return parse_iso_date(iso)
 
 
 # -- Tracking file dataclass and I/O ----------------------------------------

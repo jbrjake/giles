@@ -240,7 +240,11 @@ def remove_generated(generated: list[Path], project_root: Path, force: bool) -> 
         if remove_all:
             do_remove = True
         else:
-            answer = input(f"  Remove {rel}? [y/n/a(ll)] ").strip().lower()
+            try:
+                answer = input(f"  Remove {rel}? [y/n/a(ll)] ").strip().lower()
+            except EOFError:
+                print("  Non-interactive mode — skipping remaining prompts.", file=sys.stderr)
+                break
             if answer == "a":
                 remove_all = True
                 do_remove = True
