@@ -1,345 +1,372 @@
-# Bug Hunter Punchlist — Pass 6 (Legacy Code Adversarial Review)
-
-**Date**: 2026-03-14
-**Baseline**: 399 pass, 0 fail, 2.83s
-**Scope**: Full codebase — 17 scripts, 10 test files, ~12,100 LOC total
-**Perspective**: New developer inheriting "legacy" code after 5 prior audit passes
-
----
-
-## Systemic Patterns
-
-Four root causes generate the majority of findings:
-
-### Pattern A: FakeGitHub behavioral fidelity gaps (still)
-Pass 5 added `_KNOWN_FLAGS` enforcement for `--` prefixed flags. But production code
-uses single-dash flags (`-f`, `-X`) that bypass `_parse_flags` entirely. And multiple
-API endpoints are unhandled, so tests silently take error paths. Affects: P6-01, P6-02,
-P6-03, P6-05, P6-11.
-
-### Pattern B: Untested monitoring features
-`check_branch_divergence`, `check_direct_pushes`, and `get_linked_pr` timeline API
-all hit unhandled FakeGitHub endpoints. Tests pass because RuntimeError is caught. The
-actual functionality is zero-percent tested. Affects: P6-02, P6-05, P6-06.
-
-### Pattern C: Doc claims exceed implementation
-`merge_strategy` is documented as configurable in 3 places and generated in config,
-but no script reads it. Several SKILL.md sections describe behavior that doesn't
-exist in code. Affects: P6-09, P6-10, P6-15, P6-16.
-
-### Pattern D: Error recovery paths untested
-`do_release` has careful rollback logic that was tested in Pass 5, but new gaps remain:
-notes file not cleaned up on failure, hardcoded paths, and no integration test of the
-full release pipeline against FakeGitHub. Affects: P6-03, P6-04, P6-08.
-
----
-
-## HIGH
-
-### P6-01: `_parse_flags` silently skips single-dash flags, bypassing `_check_flags` enforcement
-- **File**: `tests/fake_github.py:122-135`
-- **Bug**: `_parse_flags` only processes args starting with `--`. Production code uses `-f` (bootstrap_github.py:234, check_status.py:272, release_gate.py:564) and `-X` (release_gate.py:564). These single-dash flags are silently skipped (fall to `i += 1`). `_check_flags` never sees them. The `_KNOWN_FLAGS["api"]` entries for "f" and "X" are dead code that can never match.
-- **Impact**: The Pass 5 flag enforcement mechanism has a hole. Any new production code using short flags gets free green bar.
-- **Acceptance**: `_parse_flags` captures both `--flag` and `-flag` variants. Test: pass an unknown `-z` flag to an API handler and verify `NotImplementedError` is raised.
-- **Validation**:
-  ```
-  python -m pytest tests/ -k "test_parse_flags_short" -v
-  # New test: FakeGitHub._parse_flags captures -f, -X
-  # New test: _check_flags raises on unknown short flag -z
-  # All 399 existing tests still pass
-  ```
-- **Status**: RESOLVED (f42139c)
-
-### P6-02: `check_branch_divergence` and `check_direct_pushes` are zero-percent tested
-- **File**: `skills/sprint-monitor/scripts/check_status.py:222-294`
-- **Bug**: Both functions call `gh_json` with API endpoints (`repos/{repo}/compare/...` and `repos/{repo}/commits`) that FakeGitHub doesn't handle. FakeGitHub returns `_fail("unhandled API path")` which causes `gh()` to raise `RuntimeError`. The callers catch this silently. Tests pass because the error paths produce empty report/action lists. ~73 lines of branch divergence + direct push detection have never been exercised.
-- **Impact**: If these features have bugs (wrong thresholds, bad JSON parsing, broken formatting), no test would catch them.
-- **Acceptance**: FakeGitHub handles `repos/{repo}/compare/{base}...{branch}` and `repos/{repo}/commits` endpoints. At least 2 tests per function: happy path (drift detected) and clean path (no drift).
-- **Validation**:
-  ```
-  python -m pytest tests/test_gh_interactions.py -k "branch_divergence or direct_push" -v
-  # New tests: check_branch_divergence returns HIGH drift for >20 behind
-  # New tests: check_direct_pushes detects non-merge commits
-  # Verify FakeGitHub raises on unknown compare/ sub-paths
-  ```
-- **Status**: RESOLVED (92822ca)
-
-### P6-03: `do_release` doesn't clean up `release-notes.md` on failure
-- **File**: `skills/sprint-release/scripts/release_gate.py:526-554`
-- **Bug**: `notes_path = Path("release-notes.md")` is written at line 533. Cleaned up at line 554 after success. But if `gh(release_args)` raises RuntimeError at line 545, the except block (546-550) calls `_rollback_tag()` and `_rollback_commit()` but never calls `notes_path.unlink()`. A stale `release-notes.md` remains in the working directory.
-- **Impact**: After a failed release, the working tree is not clean. The next `do_release` pre-flight check (`git status --porcelain`) will fail because of the leftover file.
-- **Acceptance**: After a simulated release failure (GitHub release creation fails), `release-notes.md` does not exist in the working directory. The _fail path includes cleanup.
-- **Validation**:
-  ```
-  python -m pytest tests/test_release_gate.py -k "gh_release_failure_cleans_notes" -v
-  # New test: after gh release create fails, cwd has no release-notes.md
-  ```
-- **Status**: RESOLVED (34d7c9b)
-
-### P6-04: `release-notes.md` path is hardcoded to cwd
-- **File**: `skills/sprint-release/scripts/release_gate.py:526`
-- **Bug**: `notes_path = Path("release-notes.md")` writes to current working directory. If run from a subdirectory or if a file named `release-notes.md` already exists (e.g., user's existing notes), it gets overwritten without warning. Should use a temp file.
-- **Impact**: Data loss if user has a `release-notes.md` in their project root. Also, cwd-relative path is fragile (see P5-05 precedent for the same class of bug).
-- **Acceptance**: `notes_path` uses `tempfile.NamedTemporaryFile` or a path derived from config. No hardcoded filename in cwd.
-- **Validation**:
-  ```
-  python -m pytest tests/test_release_gate.py -k "notes_file_temp" -v
-  # New test: do_release doesn't write release-notes.md to cwd
-  # New test: existing release-notes.md in cwd is not overwritten
-  ```
-- **Status**: RESOLVED (34d7c9b)
-
-### P6-05: `get_linked_pr` timeline API always fails in tests — fallback is the only tested path
-- **File**: `skills/sprint-run/scripts/sync_tracking.py:57-89`
-- **Bug**: The timeline API call (`repos/{owner}/{repo}/issues/{N}/timeline`) at line 59-63 hits an unhandled FakeGitHub endpoint. It always raises RuntimeError, so the except block at line 74 fires, and the function falls back to branch-name matching. The primary PR-linking mechanism (timeline API) has zero test coverage.
-- **Impact**: If the timeline API response parsing has bugs (wrong JSON path, missing fields), no test would catch them. The jq filter `'[.[] | select(.source?.issue?.pull_request?) | .source.issue] | first'` is complex and untested.
-- **Acceptance**: FakeGitHub handles the timeline API endpoint. At least one test verifies timeline-based PR linking works. At least one test verifies the fallback path is taken when timeline returns no match.
-- **Validation**:
-  ```
-  python -m pytest tests/test_gh_interactions.py -k "timeline_pr_link" -v
-  # New test: timeline API returns linked PR → get_linked_pr returns it
-  # New test: timeline API returns no match → fallback to branch name
-  ```
-- **Status**: RESOLVED (92822ca)
-
-### P6-06: `get_linked_pr` fallback uses substring matching for story IDs
-- **File**: `skills/sprint-run/scripts/sync_tracking.py:79`
-- **Bug**: `re.search(re.escape(story_id), branch, re.IGNORECASE)` matches story_id as a substring of the branch name. Story ID `"US-01"` would match branch `"sprint-1/US-010-feature"` because `"US-01"` is a substring of `"US-010"`. This produces a false positive PR link.
-- **Impact**: During sync, a story could be incorrectly linked to another story's PR. The tracking file would show the wrong PR number.
-- **Acceptance**: Use word boundary matching: `rf"\b{re.escape(story_id)}\b"`. Test that `US-01` does NOT match `US-010` branch but DOES match `US-01-feature`.
-- **Validation**:
-  ```
-  python -m pytest tests/test_gh_interactions.py -k "pr_link_boundary" -v
-  # New test: get_linked_pr("US-01") does not match branch "sprint-1/US-010-feature"
-  # New test: get_linked_pr("US-01") matches branch "sprint-1/US-01-setup"
-  ```
-- **Status**: RESOLVED (92822ca)
-
-### P6-07: `_ACCEPTED_NOOP_FLAGS` includes `--jq` but `--jq` changes response shape
-- **File**: `tests/fake_github.py:92`
-- **Bug**: `--jq` is listed as a no-op flag, but in production `gh --jq <expr>` transforms the JSON output shape. FakeGitHub returns full JSON, while production returns jq-filtered JSON. Code that depends on the filtered shape works in tests (full JSON is a superset) but the test doesn't verify the code handles the exact production response shape.
-- **Specific cases**: `check_branch_divergence` (check_status.py:237) expects `{behind_by, ahead_by}` from `--jq`. `get_linked_pr` (sync_tracking.py:62) expects a single issue object from `--jq '[...] | first'`. `check_direct_pushes` (check_status.py:274) expects `[{sha, message, author, date}]`.
-- **Impact**: Tests provide false confidence. If production jq output differs from what the code expects, no test would catch it.
-- **Acceptance**: Either (a) FakeGitHub applies `--jq` transforms for known patterns, or (b) move `--jq` out of `_ACCEPTED_NOOP_FLAGS` and into handler-specific implementations, or (c) test explicitly with the expected response shape (mock the pre-filtered data).
-- **Validation**:
-  ```
-  python -m pytest tests/ -v
-  # All tests pass after --jq handling change
-  # New tests verify response shapes match production --jq output
-  ```
-- **Status**: RESOLVED (f42139c)
-
-### P6-08: No integration test covers the sprint-run monitoring pipeline
-- **File**: N/A (missing test)
-- **Bug**: The test suite covers init → bootstrap → populate (test_lifecycle.py) but never tests sync_tracking → update_burndown → check_status as a connected pipeline. Each script is unit-tested individually, but the data flow between them (tracking files written by sync_tracking, read by update_burndown, milestone progress checked by check_status) is never verified end-to-end.
-- **Impact**: State-passing bugs between scripts (wrong file formats, missing fields, path derivation errors) would go undetected. Pass 5 identified this as the #1 area for Pass 6 to probe.
-- **Acceptance**: One integration test that: (1) creates issues in FakeGitHub with a milestone, (2) runs sync_tracking to create tracking files, (3) runs update_burndown to create burndown.md, (4) runs check_status to verify milestone progress reporting. All against FakeGitHub + temp directory.
-- **Validation**:
-  ```
-  python -m pytest tests/test_lifecycle.py -k "monitoring_pipeline" -v
-  # New test: sync_tracking -> update_burndown -> check_status pipeline
-  # Verify: tracking files created, burndown.md written, status report contains progress %
-  ```
-- **Status**: RESOLVED (031f2c8)
-
----
-
-## MEDIUM
-
-### P6-09: `merge_strategy` is a phantom feature — documented but never consumed
-- **File**: `CLAUDE.md:106`, `skills/sprint-monitor/SKILL.md:167`, `skills/sprint-run/references/story-execution.md:128`, `scripts/sprint_init.py:647`
-- **Bug**: P5-29 was marked "RESOLVED" but the fix was incomplete. The key is generated in config (`sprint_init.py:647`) and documented in 3 places as configurable, but no Python script reads `config.get("conventions", {}).get("merge_strategy")`. `story-execution.md:128` says "Merge the PR using the configured strategy" but the skill prompt doesn't inject the config value.
-- **Impact**: Users who change `merge_strategy` to "rebase" in their config will see no effect. The documentation claims a capability that doesn't exist.
-- **Acceptance**: Either (a) story-execution.md injects `merge_strategy` from config into the merge command, or (b) all docs are updated to say merge strategy is always squash (removing the false configurability claim).
-- **Validation**:
-  ```
-  grep -rn "merge_strategy" skills/ scripts/ --include="*.py" | grep -v "test\|golden\|bug-hunter"
-  # If option (a): at least one script reads merge_strategy from config
-  # If option (b): zero doc references to merge_strategy as "configurable"
-  ```
-- **Status**: RESOLVED (0d8445b)
-
-### P6-10: `branch_pattern` and `commit_style` are also phantom features
-- **File**: `scripts/sprint_init.py:645-646`, `CLAUDE.md:106`
-- **Bug**: Same pattern as P6-09. `branch_pattern` and `commit_style` are generated in config and documented as convention keys, but no script reads them. The story-execution.md reference file hardcodes branch pattern `sprint-{N}/US-{ID}-{slug}` and commit.py enforces conventional commits regardless of what `commit_style` says.
-- **Impact**: Config keys that do nothing erode trust. Users who customize these expecting behavior changes will be confused.
-- **Acceptance**: Either implement the keys or remove them from generated config and docs.
-- **Validation**:
-  ```
-  grep -rn "branch_pattern\|commit_style" scripts/ skills/ --include="*.py" | grep -v "init\|test\|golden\|bug-hunter"
-  # Zero results = phantom keys confirmed
-  ```
-- **Status**: RESOLVED (0d8445b)
-
-### P6-11: FakeGitHub `_issue_list` doesn't implement `--label` filtering
-- **File**: `tests/fake_github.py:287-324`
-- **Bug**: `_KNOWN_FLAGS["issue_list"]` includes "label" and `_check_flags` accepts it. But `_issue_list` only filters by `--state`, `--milestone`, `--json`, and `--limit`. The `--label` flag is parsed but not applied. If any future production code uses `gh issue list --label`, tests will return unfiltered results.
-- **Impact**: Latent — no current production code uses `--label` with `issue list`. But the flag registry falsely claims it's "known" when it's actually silently ignored.
-- **Acceptance**: Either (a) implement label filtering in `_issue_list`, or (b) remove "label" from `_KNOWN_FLAGS["issue_list"]` so it raises NotImplementedError if used.
-- **Validation**:
-  ```
-  python -m pytest tests/ -k "issue_list_label_filter" -v
-  # If (a): new test verifying label filter returns only matching issues
-  # If (b): new test verifying --label raises NotImplementedError
-  ```
-- **Status**: RESOLVED (f42139c)
-
-### P6-12: `_strip_inline_comment` doesn't handle single-quoted TOML strings
-- **File**: `scripts/validate_config.py:131-139`
-- **Bug**: Only tracks `"` (double-quote) for string boundaries. TOML also supports literal strings with `'` (single quotes). A value like `key = 'hello # world'` would have `# world'` stripped as a comment, resulting in `key = 'hello`.
-- **Impact**: Low — the generated `project.toml` only uses double quotes, and the parser docs say "minimal subset." But if a user hand-edits the TOML with single quotes, values would silently truncate.
-- **Acceptance**: `_strip_inline_comment` tracks both `'` and `"` as string delimiters. Test: `parse_simple_toml("key = 'has # inside'")` returns `{"key": "has # inside"}`.
-- **Validation**:
-  ```
-  python -m pytest tests/test_pipeline_scripts.py -k "single_quote_comment" -v
-  # New test: single-quoted string with # is preserved
-  ```
-- **Status**: RESOLVED (806dfbb)
-
-### P6-13: `_parse_value` silently accepts unquoted strings, masking config errors
-- **File**: `scripts/validate_config.py:209-210`
-- **Bug**: When a value doesn't match bool, string, array, or int, it falls through to `return raw`. This means `key = hello world` (without quotes) is silently accepted as the string `"hello world"`. TOML spec requires strings to be quoted. This lenience masks config errors.
-- **Impact**: Users who forget to quote values won't get an error. The value might work by accident or produce subtle bugs if it contains TOML metacharacters.
-- **Acceptance**: Either (a) log a warning for unquoted string values, or (b) document the lenient behavior as intentional in the parser docstring.
-- **Validation**:
-  ```
-  python -m pytest tests/test_pipeline_scripts.py -k "unquoted_string" -v
-  # If (a): test verifies warning is emitted for unquoted strings
-  # If (b): test documents and asserts the lenient behavior
-  ```
-- **Status**: RESOLVED (806dfbb)
-
-### P6-14: Multiple test files use `os.chdir` without `addCleanup` safety net
-- **File**: `tests/test_lifecycle.py:154`, `tests/test_release_gate.py:395`
-- **Bug**: Both files save cwd in setUp and restore in tearDown. But if setUp fails AFTER `os.chdir()` but BEFORE the test runs (or if the test method itself crashes in a way that prevents tearDown), cwd remains changed for subsequent test classes. Pass 5 fixed this in `test_hexwise_setup.py` with `addClassCleanup` but the same pattern persists in 2 other test files.
-- **Impact**: A test crash could leave cwd changed, causing cascading failures in subsequent tests. Flaky on CI.
-- **Acceptance**: Both files use `self.addCleanup(os.chdir, saved_cwd)` immediately after `os.chdir()` to guarantee restoration.
-- **Validation**:
-  ```
-  grep -n "os.chdir" tests/test_lifecycle.py tests/test_release_gate.py
-  # Every os.chdir should be immediately followed by addCleanup
-  python -m pytest tests/ -v  # All still pass
-  ```
-- **Status**: RESOLVED (f409f15)
-
-### P6-15: sprint-monitor SKILL.md describes auto-merge behavior that doesn't exist
-- **File**: `skills/sprint-monitor/SKILL.md:167`
-- **Bug**: SKILL.md says to merge PRs "using the strategy from `project.toml [conventions] merge_strategy`". But `check_status.py` only REPORTS approved PRs — it never calls `gh pr merge`. The merge is done by sprint-run during story execution, not by sprint-monitor.
-- **Impact**: Anyone reading the SKILL.md would think sprint-monitor auto-merges PRs, which it does not.
-- **Acceptance**: SKILL.md language clarified to say "report ready-to-merge PRs" rather than implying it performs the merge.
-- **Validation**:
-  ```
-  grep -n "merge" skills/sprint-monitor/SKILL.md
-  # No language implying sprint-monitor performs merges
-  ```
-- **Status**: RESOLVED (0d8445b)
-
-### P6-16: `load_config()` calls `sys.exit(1)` instead of raising an exception
-- **File**: `scripts/validate_config.py:468`
-- **Bug**: `load_config()` is a library function used by 8+ scripts. On validation failure, it calls `sys.exit(1)` instead of raising an exception. This makes it impossible to use in library context, difficult to test without catching SystemExit, and violates the principle that only `main()` should call sys.exit.
-- **Impact**: Any script that wants to handle config errors gracefully (e.g., retry, use defaults, show UI) can't — the function kills the process. Tests must use `self.assertRaises(SystemExit)`.
-- **Acceptance**: `load_config()` raises `ConfigError` (or `ValueError`) on failure. The `sys.exit(1)` moves to each script's `main()` function. Existing behavior preserved — scripts still exit on bad config.
-- **Validation**:
-  ```
-  python -m pytest tests/ -k "load_config" -v
-  # New test: load_config with bad config raises ValueError, not SystemExit
-  # All existing tests still pass (callers catch the exception or it propagates to main)
-  ```
-- **Status**: RESOLVED (e22e0e1)
-
-### P6-17: `write_tf` frontmatter doesn't escape values containing YAML-sensitive characters
-- **File**: `skills/sprint-run/scripts/sync_tracking.py:153-173`
-- **Bug**: `write_tf` writes `key: {value}` directly. If `tf.title` contains a colon-space sequence like `"Feat: Add auth"`, the written frontmatter is `title: Feat: Add auth`. `read_tf` uses `re.search(rf"^title:\s*(.+)")` which correctly captures everything after `title:` as one value. But if a value starts with YAML special chars (`[`, `{`, `>`, `|`, `*`, `&`), YAML-aware tools that read the same frontmatter could misinterpret it.
-- **Impact**: Low for giles itself (it uses regex parsing, not YAML). But if users or external tools parse tracking files as YAML, values could be misinterpreted. Defensive quoting would make the format robust.
-- **Acceptance**: Values containing `: ` or YAML special chars are quoted in the frontmatter output. Round-trip test: write → read recovers identical values for edge-case titles.
-- **Validation**:
-  ```
-  python -m pytest tests/test_gh_interactions.py -k "write_tf_escaping" -v
-  # New test: title with colons round-trips correctly
-  # New test: title starting with [ or { round-trips correctly
-  ```
-- **Status**: RESOLVED (a82ecf5)
-
----
-
-## LOW
-
-### P6-18: `_parse_workflow_runs` joins multiline blocks with `&&` incorrectly
-- **File**: `scripts/sprint_init.py:218`
-- **Bug**: Multiline `run: |` blocks are collected and joined with `" && "`. But a multiline run block could contain a single multi-line command (e.g., a heredoc, a Python one-liner with `\`, or a pipe chain). Joining all lines with `&&` turns them into separate commands.
-- **Fix**: Join with `\n` or `;` instead of `&&`, or skip multiline blocks and only extract single-line `run:` values.
-- **Status**: RESOLVED (e6a1f72)
-
-### P6-19: `generate_release_notes` compare link branch never tested with real prior tag
-- **File**: `skills/sprint-release/scripts/release_gate.py:361-378`
-- **Bug**: `git rev-parse --verify refs/tags/{prev_tag}` runs against real git (not FakeGitHub). In test environments, temp repos never have prior semver tags, so the code always takes the "initial release" path (line 373-378). The "compare link" path (lines 366-371) is never exercised.
-- **Fix**: Test_lifecycle or test_release_gate should create a v0.1.0 tag in the temp repo before testing release notes generation with a v0.2.0 release.
-- **Status**: RESOLVED (c744749)
-
-### P6-20: `do_release` pre-flight doesn't handle git errors gracefully
-- **File**: `skills/sprint-release/scripts/release_gate.py:416-420`
-- **Bug**: `r = subprocess.run(["git", "status", "--porcelain"], ...)`. If git is not installed or not a git repo, `r.returncode != 0` catches it, but the error message ("working tree is not clean") is misleading — the actual problem is "not a git repository."
-- **Fix**: Separate the "not a git repo" and "dirty working tree" error messages.
-- **Status**: RESOLVED (129e979)
-
-### P6-21: `do_sync` uses runtime `sys.path` mutation for lazy imports
-- **File**: `scripts/sync_backlog.py:145-149`
-- **Bug**: Appends to `sys.path` and imports `bootstrap_github` and `populate_issues` at call time. If these modules were previously imported with a different path (e.g., from a test that manipulated sys.path), Python's module cache returns the stale import.
-- **Fix**: Use a consistent import strategy. Either import at module level with a guarded `try/except`, or use `importlib` for explicit reloading.
-- **Status**: RESOLVED (6b7a52e)
-
-### P6-22: `_parse_team_index` doesn't validate row cell count vs header count
-- **File**: `scripts/validate_config.py:414-418`
-- **Bug**: If a data row has fewer cells than headers, the row dict silently misses some keys. If it has more cells, extras are dropped. Downstream code uses `.get()` with defaults so it doesn't crash, but a malformed INDEX.md could produce personas with empty names.
-- **Fix**: Log a warning if cell count doesn't match header count.
-- **Status**: RESOLVED (ee72a3a)
-
-### P6-23: Batch fix commits from Mar 13 are impossible to bisect
-- **File**: Git history
-- **Bug**: Not a code bug — a process issue. Commits like "fix: batch resolve P5-05/06/.../40" touch 18+ punchlist items in one commit. If any of those fixes introduced a regression, `git bisect` would point at the mega-commit and require manual triage.
-- **Fix**: Future fix passes should commit one item per commit (or small related groups of 2-3).
-- **Status**: ACKNOWLEDGED (process note)
-
-### P6-24: Line-number index files (CLAUDE.md, CHEATSHEET.md) are churn amplifiers
-- **File**: `CLAUDE.md`, `CHEATSHEET.md`
-- **Bug**: Not a code bug — a design tradeoff. These files contain line-number references (`:47`, `:280`) that go stale with every code change. They account for 23 of the last 50 file changes (46% of churn). The `verify_line_refs.py` script mitigates this but doesn't prevent the churn.
-- **Impact**: Every code change requires a doc update. Reviewers must check line-number drift. The maintenance cost may exceed the navigation benefit.
-- **Fix**: Consider replacing line-number references with function-name references or grep-able anchors (e.g., `# ANCHOR: parse_simple_toml`) that don't drift when surrounding code changes.
-- **Status**: ACKNOWLEDGED (process/design note)
-
----
+# Bug Hunter Punchlist — Pass 7
 
 ## Summary
+| Metric | Value |
+|--------|-------|
+| Total items | 22 |
+| Priority P0 (blocks correctness) | 3 |
+| Priority P1 (real bug, needs fix) | 5 |
+| Priority P2 (hardening / coverage gap) | 10 |
+| Priority P3 (doc / hygiene) | 4 |
+| Baseline tests | 467 pass, 0 fail |
+| Final tests | 508 pass, 0 fail |
+| All items fixed | YES |
 
-| Severity | Count | Description |
-|----------|-------|-------------|
-| HIGH     | 8     | FakeGitHub blind spots, untested monitoring features, release error recovery, integration gap |
-| MEDIUM   | 9     | Phantom features, TOML parser gaps, test safety, doc-code mismatch |
-| LOW      | 7     | Workflow parsing, process issues, design considerations |
-| **Total** | **24** | |
+### Sources
+- Direct code audit of all 19 production scripts (~7,200 LOC)
+- Doc-to-implementation audit: `audit/1-doc-claims.md` (19 discrepancies, 17 verified correct)
+- Test quality audit: `audit/2-test-quality.md` (15 findings across 286 test methods)
+- Git churn analysis: `recon/0e-churn.md` (52% fix commits in last 50)
 
-### Recommended Fix Order
+---
 
-**Phase 1 — FakeGitHub fidelity (P6-01, P6-07, P6-11)**: Fix the test double's blind spots first. This unblocks honest testing for many other items. The single-dash flag fix is foundational.
+## P0 — Blocks Correctness
 
-**Phase 2 — Untested monitoring features (P6-02, P6-05, P6-06)**: Add FakeGitHub endpoints for compare, commits, and timeline APIs. Write tests that actually exercise branch divergence, direct push detection, and timeline-based PR linking.
+### P7-01: `_split_array` ignores single-quoted strings
+- **File:** `scripts/validate_config.py:240-265`
+- **Bug:** `_split_array()` only tracks `"` for string boundary detection. Single-quoted array elements containing commas (e.g., `['has, comma', 'ok']`) split incorrectly on the inner comma.
+- **Root cause:** P6-12 added single-quote support to `_parse_value()` (line 213) but `_split_array()` is called first on array contents and doesn't know about single quotes.
+- **Impact:** Any TOML array with single-quoted elements containing commas will silently produce wrong data. While generated configs use double quotes, user-authored TOML can use single quotes per spec.
+- **Acceptance criteria:**
+  1. `parse_simple_toml("items = ['has, comma', 'ok']")` returns `{"items": ["has, comma", "ok"]}`
+  2. `parse_simple_toml("mixed = ['a, b', \"c, d\"]")` returns `{"mixed": ["a, b", "c, d"]}`
+  3. Existing double-quote array tests still pass
+- **Validation:**
+  ```
+  python -m unittest tests.test_pipeline_scripts -v -k "single_quote"
+  python -m unittest tests.test_pipeline_scripts -v -k "toml"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-**Phase 3 — Error recovery (P6-03, P6-04)**: Fix the release notes cleanup gap and hardcoded path. These are small, surgical fixes with clear acceptance criteria.
+### P7-02: `_infer_sprint_number` greedy regex matches prose
+- **File:** `skills/sprint-setup/scripts/populate_issues.py:141`
+- **Bug:** `re.search(r"Sprint\s+(\d+)", text)` matches the FIRST occurrence of "Sprint N" anywhere in the file — including prose paragraphs, references to other sprints, or sentences like "this builds on Sprint 1 work." A milestone-2 file that mentions Sprint 1 in its description would be inferred as sprint 1.
+- **Root cause:** No heading anchor (`^###\s+Sprint`) or section boundary check.
+- **Impact:** Wrong sprint number → issues created under wrong milestone. The bootstrap_github equivalent (`_collect_sprint_numbers`) has the same pattern but uses `### Sprint (\d+):` with heading anchors.
+- **Acceptance criteria:**
+  1. `_infer_sprint_number(path, "# Milestone 2\n\n### Sprint 2: Core\nThis builds on Sprint 1.")` → `2` (matches heading, not prose)
+  2. `_infer_sprint_number(path, "No heading here\nRefers to Sprint 3 work.")` → falls back to filename
+  3. Existing sprint number inference behavior preserved for well-formed files
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "sprint_number"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-**Phase 4 — Integration test (P6-08)**: Add the sprint-run monitoring pipeline integration test. This is the highest-value new test — it covers the data flow between 3 scripts that has never been verified.
+### P7-03: `gate_prs` client-side filtering misses PRs beyond limit
+- **File:** `skills/sprint-release/scripts/release_gate.py:166-180`
+- **Bug:** `gate_prs()` fetches all open PRs with `--limit 500` and filters client-side by milestone title. If a repo has >500 open PRs, milestone-targeted PRs beyond page 500 won't be found, and the gate will falsely pass. The `warn_if_at_limit(prs, 500)` call warns but the function still returns `True` for the unchecked PRs.
+- **Root cause:** `gh pr list` doesn't support server-side milestone filtering. The workaround fetches "enough" but has no guarantee.
+- **Impact:** Release gate could pass when milestone PRs exist — shipping unreleased code.
+- **Acceptance criteria:**
+  1. When `warn_if_at_limit` triggers (len == 500), `gate_prs` returns `(False, ...)` with a message about potential truncation
+  2. Test covers the limit-hit path
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "gate_prs"
+  python -m unittest tests.test_release_gate -v -k "gate_prs"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-**Phase 5 — Phantom features (P6-09, P6-10, P6-15)**: Decide: implement `merge_strategy`/`branch_pattern`/`commit_style` or remove them. Either way, eliminate the doc-code mismatch.
+---
 
-**Phase 6 — Remaining medium + low items**: Work through P6-12 through P6-24 in order.
+## P1 — Real Bug, Needs Fix
 
-### What's Different About Pass 6
+### P7-04: `_yaml_safe` misses trailing-colon values
+- **File:** `skills/sprint-run/scripts/sync_tracking.py:165-179`
+- **Bug:** `_yaml_safe()` checks for `': '` (colon-space) but not a trailing colon without space. A value like `"http:"` or `"note:"` wouldn't be quoted, but YAML parsers treat lines ending with `:` as mapping keys.
+- **Impact:** Tracking files with trailing-colon values produce malformed YAML that would fail on re-parse.
+- **Acceptance criteria:**
+  1. `_yaml_safe("http:")` returns `'"http:"'`
+  2. `_yaml_safe("note:")` returns `'"note:"'`
+  3. `_yaml_safe("normal")` still returns `"normal"` (no quoting)
+  4. Existing `_yaml_safe` tests still pass
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "yaml_safe"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-Pass 5 caught surface bugs (off-by-one, missing coverage, substring matches). Pass 6 found structural issues that require understanding how the system works as a whole:
+### P7-05: Bare `except Exception` on sync_backlog import
+- **File:** `skills/sprint-monitor/scripts/check_status.py:25-29`
+- **Bug:** `except Exception as _import_err` catches ALL exceptions during import of `sync_backlog`, including `SyntaxError`, `NameError`, `TypeError`. A broken `sync_backlog.py` would be silently degraded to `None` with only a stderr warning, and the monitor would run without backlog sync — potentially missing backlog changes.
+- **Root cause:** Import was wrapped in try/except for deployment flexibility, but the exception scope is too broad.
+- **Impact:** Syntax errors or import chain bugs in sync_backlog or its transitive imports (validate_config, bootstrap_github, populate_issues) would be silently swallowed.
+- **Acceptance criteria:**
+  1. Change to `except ImportError` (the legitimate failure case — module not found)
+  2. Other exceptions propagate normally
+  3. Test verifies `ImportError` is still caught gracefully
+  4. Test verifies `SyntaxError` is NOT caught (propagates)
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "check_status"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-1. **The test double has a blind spot in its own enforcement mechanism.** `_check_flags` was Pass 5's big fix, but it only works for `--` flags. Short flags bypass it entirely.
+### P7-06: `_collect_sprint_numbers` silent fallback to sprint 1
+- **File:** `skills/sprint-setup/scripts/bootstrap_github.py:96-98`
+- **Bug:** When a milestone file has no `### Sprint N:` sections AND the filename contains no digits, `re.search(r"(\d+)", mf.stem)` returns None, and the fallback is `sprint_nums.add(1)`. This silently creates a "sprint:1" label from a file that has no sprint association, potentially masking a misconfigured milestone file.
+- **Impact:** Milestone files without sprint sections get silently mapped to Sprint 1. If multiple such files exist, they all collapse to the same sprint label, hiding the problem.
+- **Acceptance criteria:**
+  1. When a milestone file has no sprint sections AND no number in filename, log a warning (to stderr or print) rather than silently defaulting to 1
+  2. Test covers the warning path
+  3. Existing sprint number extraction still works for well-formed files
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "sprint"
+  python -m unittest tests.test_hexwise_setup -v
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-2. **Three monitoring features exist in production code but have zero test coverage.** They silently fail in tests because FakeGitHub doesn't handle their API endpoints. The tests pass because the error is caught. This is the most dangerous kind of "coverage" — it looks covered at a distance but is completely hollow.
+### P7-07: `write_version_to_toml` section boundary matches array lines
+- **File:** `skills/sprint-release/scripts/release_gate.py:266`
+- **Bug:** `re.search(r"^\[", text[start + 1:], re.MULTILINE)` uses `^\[` to find the next TOML section after `[release]`. But in TOML, multiline arrays have lines starting with `[` that are array elements, not section headers. If the `[release]` section contained a multiline array value, the section boundary would be detected too early, and version insertion would corrupt the file.
+- **Root cause:** No distinction between `[section]` headers and `[array, content]` lines.
+- **Impact:** Low probability in practice (generated TOML uses inline arrays), but a correctness bug in a release-path function. If a user adds a multiline array to `[release]`, the version write corrupts the TOML.
+- **Acceptance criteria:**
+  1. `write_version_to_toml` correctly handles a `[release]` section followed by a multiline array key before the next section
+  2. Test verifies: `[release]\ngate_checks = [\n  "check1",\n  "check2"\n]\n\n[other]\nkey = 1` — version insertion doesn't corrupt `[other]`
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "version_to_toml"
+  python -m unittest tests.test_release_gate -v -k "version"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-3. **Three config keys are generated, documented, and never consumed.** This is the "phantom feature" pattern — it erodes trust in documentation and config.
+### P7-08: `check_branch_divergence` silently skips list responses
+- **File:** `skills/sprint-monitor/scripts/check_status.py:242-243`
+- **Bug:** `if isinstance(data, list): continue` — when the GitHub API returns a list instead of a dict (which can happen with certain `--jq` filters or API error shapes), the branch is silently skipped with no report entry. The user never learns that divergence data was unavailable for that branch.
+- **Impact:** Branch drift could go undetected if the API response format changes or is unexpected.
+- **Acceptance criteria:**
+  1. When `data` is a list, add a warning to the report (e.g., "Could not parse divergence data for {branch}")
+  2. Test covers the list-response path
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "branch_divergence"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
 
-4. **The sprint-run monitoring phase has never been tested as a pipeline.** Each script works in isolation, but the data flow between them is unverified. This is where integration bugs hide.
+---
+
+## P2 — Hardening / Coverage Gap
+
+### P7-09: `_split_array` has zero direct test coverage
+- **File:** `scripts/validate_config.py:240-265`, `tests/test_pipeline_scripts.py`
+- **Gap:** `_split_array()` is only tested indirectly through `parse_simple_toml` array tests. No test directly exercises the function's edge cases: empty strings, nested quotes, escaped characters at boundaries, trailing commas, whitespace-only elements.
+- **Acceptance criteria:**
+  1. Direct tests for `_split_array` covering: empty input, single element, trailing comma, escaped quote inside string, mixed quote types, whitespace-only element
+  2. At least 6 new test methods
+- **Validation:**
+  ```
+  python -m unittest tests.test_pipeline_scripts -v -k "split_array"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-10: `_infer_sprint_number` has zero test coverage
+- **File:** `skills/sprint-setup/scripts/populate_issues.py:133-149`
+- **Gap:** This function is only exercised indirectly through `parse_milestone_stories()`. No test covers: heading-based inference, prose-mention false positive, filename fallback, or the default-to-1 path.
+- **Acceptance criteria:**
+  1. Direct tests for `_infer_sprint_number` covering: heading match, prose-only mention, filename with number, filename without number, content parameter passthrough
+  2. At least 5 new test methods
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "infer_sprint"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-11: `_parse_workflow_runs` has zero test coverage
+- **File:** `scripts/sprint_init.py:~215`
+- **Gap:** The multiline workflow `run:` block detection uses an indentation heuristic that joins continued lines. No test covers: single-line runs, multiline runs, mixed indentation, empty run blocks.
+- **Acceptance criteria:**
+  1. Direct tests for `_parse_workflow_runs` (or `_extract_ci_commands` which calls it) covering: simple one-liner `run: cmd`, multiline `run: |\n  cmd1\n  cmd2`, and mixed cases
+  2. At least 3 new test methods
+- **Validation:**
+  ```
+  python -m unittest tests.test_pipeline_scripts -v -k "workflow_run"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-12: `gate_prs` limit-hit path untested
+- **File:** `skills/sprint-release/scripts/release_gate.py:172`, `tests/test_gh_interactions.py`
+- **Gap:** `gate_prs` tests mock `gh_json` to return 0-1 PRs. No test verifies behavior when `warn_if_at_limit(prs, 500)` triggers (len(prs) == 500). Combined with P7-03, this means the truncation risk is both unhandled AND untested.
+- **Acceptance criteria:**
+  1. Test with exactly 500 PRs returned from mock
+  2. Verify warning is emitted (or gate fails per P7-03 fix)
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "gate_prs"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-13: `write_version_to_toml` multiline array test missing
+- **File:** `tests/test_gh_interactions.py:225-267`
+- **Gap:** All three `write_version_to_toml` tests use simple flat TOML structures. No test has a `[release]` section followed by a multiline array before the next section header, which would trigger the section-boundary regex bug (P7-07).
+- **Acceptance criteria:**
+  1. Test with TOML containing: `[release]\nkeys = [\n  "a",\n  "b"\n]\n\n[other]\nfoo = 1`
+  2. Verify version is inserted in `[release]` without corrupting `[other]`
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "version_to_toml"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-16: `format_issue_body()` has zero test coverage
+- **File:** `skills/sprint-setup/scripts/populate_issues.py:317`
+- **Gap:** `format_issue_body()` generates the full GitHub issue body markdown (user story, acceptance criteria checkboxes, task breakdown, metadata table). Integration tests create issues and check titles, but NEVER inspect body content. A regression in body formatting would pass all tests.
+- **Acceptance criteria:**
+  1. Direct test creates a `Story` with acceptance criteria, tasks, epic ref, saga ref
+  2. Asserts body contains `- [ ] AC-` checkboxes, task list, metadata table
+  3. At least 2 test methods (happy path + minimal story)
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "format_issue_body"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-17: `find_latest_semver_tag()` and `parse_commits_since()` untested
+- **File:** `skills/sprint-release/scripts/release_gate.py:39,57`
+- **Gap:** These two functions are critical to release correctness — they determine the previous version and the commit diff. Both have zero direct tests. `calculate_version` tests mock these functions out entirely, so the actual git-tag parsing and commit extraction logic is never exercised.
+- **Acceptance criteria:**
+  1. Test `find_latest_semver_tag()` with: no tags, one tag, multiple tags (verifies sorting)
+  2. Test `parse_commits_since()` with: tag exists, no tag (from root), empty range
+  3. At least 4 new test methods
+- **Validation:**
+  ```
+  python -m unittest tests.test_release_gate -v -k "semver_tag or commits_since"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-18: `create_issue()` missing-milestone KeyError path untested
+- **File:** `skills/sprint-setup/scripts/populate_issues.py`
+- **Gap:** `create_issue()` receives `ms_numbers` and `ms_titles` dicts keyed by sprint number. No test covers the case where a story's sprint number is NOT in these dicts. This would raise a `KeyError` in production.
+- **Acceptance criteria:**
+  1. Test calling `create_issue()` with a story whose sprint number has no milestone mapping
+  2. Verify it raises `KeyError` or handles gracefully (whichever is the intended behavior)
+- **Validation:**
+  ```
+  python -m unittest tests.test_gh_interactions -v -k "create_issue"
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+### P7-19: Weak assertions mask regressions in deterministic fixtures
+- **File:** `tests/test_lifecycle.py`, `tests/test_hexwise_setup.py`, `tests/test_sync_backlog.py`
+- **Gap:** ~10 locations use `assertGreater(len(...), 0)` or `assertGreaterEqual(len(...), N)` where the fixture is deterministic and the exact count is known. A regression that drops 90% of data would still pass. Examples: `test_lifecycle.py:230` (should be `== 1`), `test_lifecycle.py:245` (should be `== 2`), `test_hexwise_setup.py:93` (should be `== 3`).
+- **Acceptance criteria:**
+  1. Replace all `assertGreater(len(...), 0)` / `assertGreaterEqual` with `assertEqual` where fixture counts are deterministic
+  2. Identify at least 8 locations and fix
+- **Validation:**
+  ```
+  grep -rn "assertGreater\|assertGreaterEqual" tests/ | grep "len(" | wc -l  # should decrease
+  python -m unittest discover tests/ -v 2>&1 | tail -1
+  ```
+- **Status:** fixed
+
+---
+
+## P3 — Documentation / Hygiene
+
+### P7-14: `commit.py` and `validate_anchors.py` missing from CLAUDE.md
+- **File:** `CLAUDE.md` (Scripts table)
+- **Gap:** Two production scripts (`scripts/commit.py`, `scripts/validate_anchors.py`) are not listed in the CLAUDE.md "Scripts" table. Both are standalone scripts with their own test files. `commit.py` is used by the release pipeline. `validate_anchors.py` maintains the greppable anchor system that CLAUDE.md itself depends on.
+- **Acceptance criteria:**
+  1. Both scripts appear in the CLAUDE.md "Scripts (all stdlib-only Python 3.10+)" table
+  2. Key functions listed with `§` anchors matching the pattern used for other scripts
+  3. `validate_anchors.py` check mode passes after the update
+- **Validation:**
+  ```
+  grep -c "commit.py" CLAUDE.md  # should be >= 1
+  grep -c "validate_anchors.py" CLAUDE.md  # should be >= 1
+  python scripts/validate_anchors.py check  # should exit 0
+  ```
+- **Status:** fixed
+
+### P7-15: `_parse_workflow_runs` multiline join uses indentation heuristic
+- **File:** `scripts/sprint_init.py:~215`
+- **Doc gap:** The scanner's CI command extraction uses an undocumented indentation-based heuristic to detect multiline `run:` blocks in GitHub Actions YAML. This is fragile (a `run:` value that uses `>` or `>-` folded style instead of `|` literal style would not be detected). Should be documented as a known limitation in CLAUDE.md or in the function docstring.
+- **Acceptance criteria:**
+  1. Docstring for `_parse_workflow_runs` (or `_extract_ci_commands`) mentions the multiline detection strategy and its limitations (literal block only, no folded style)
+  2. CLAUDE.md "Key Architectural Decisions" or the scanner's entry notes this limitation
+- **Validation:**
+  ```
+  grep -A2 "_parse_workflow_runs\|_extract_ci_commands" scripts/sprint_init.py | head -10
+  ```
+- **Status:** fixed
+
+### P7-20: `release_gate.py` missing from CLAUDE.md and CHEATSHEET.md
+- **File:** `CLAUDE.md`, `CHEATSHEET.md`
+- **Gap:** `release_gate.py` is the primary automation script for the sprint-release skill (658 LOC, highest churn at 8 changes). It is completely absent from CLAUDE.md's Scripts table and CHEATSHEET.md's function index. An agent reading the docs cannot discover it. Meanwhile, `sprint-release/SKILL.md` references it at line 12.
+- **Acceptance criteria:**
+  1. `release_gate.py` appears in CLAUDE.md Scripts table with key functions and `§` anchors
+  2. CHEATSHEET.md has a complete function index for `release_gate.py`
+  3. `validate_anchors.py check` passes after update
+- **Validation:**
+  ```
+  grep -c "release_gate.py" CLAUDE.md  # should be >= 1
+  grep -c "release_gate" CHEATSHEET.md  # should be >= 1
+  python scripts/validate_anchors.py check
+  ```
+- **Status:** fixed
+
+### P7-21: sprint-release SKILL.md describes phantom features
+- **File:** `skills/sprint-release/SKILL.md:59-60,90-91,122-125`
+- **Gap:** The SKILL.md describes features that don't exist in `release_gate.py`:
+  1. Config-driven gates (`[release] milestones`, `gate_file`) — gates are actually hardcoded
+  2. Config-driven versioning — versions are actually calculated from conventional commits
+  3. SBOM generation (`sbom_command`) — not implemented
+  4. Multi-platform builds — single `build_command` only
+- **Acceptance criteria:**
+  1. Rewrite affected SKILL.md sections to match `release_gate.py`'s actual capabilities
+  2. Or implement the described features (much larger scope)
+  3. No phantom config keys referenced that aren't read by code
+- **Validation:**
+  ```
+  grep -n "sbom_command\|gate_file\|milestones.*=\|per.*platform" skills/sprint-release/SKILL.md | wc -l  # should be 0 after fix
+  ```
+- **Status:** fixed
+
+### P7-22: README.md references phantom `feedback_dir` config key
+- **File:** `README.md`
+- **Gap:** README.md lists `feedback_dir` as an optional deep-doc path key. No Python script reads this key. No `get_feedback_dir()` function exists. The skeleton template has it commented out. Previously identified as P4-31.
+- **Acceptance criteria:**
+  1. Remove `feedback_dir` from README.md's config key list
+  2. Or implement `get_feedback_dir()` in validate_config.py
+- **Validation:**
+  ```
+  grep -c "feedback_dir" README.md  # should be 0 after fix
+  ```
+- **Status:** fixed
+
+---
+
+## Patterns Identified
+
+### Pattern A: Single-Quote Blind Spots
+P7-01 and P7-09 both stem from the same root: when P6-12 added single-quote support to `_parse_value`, the downstream `_split_array` wasn't updated. This is a "fix one layer, miss the next" pattern. **Sibling check:** Are there other functions that process TOML string content without single-quote awareness? `_strip_inline_comment()` — appears safe (operates on raw line, not inside quotes). No other siblings found.
+
+### Pattern B: Regex Overreach in Parsers
+P7-02, P7-07, and P7-15 all involve regex patterns that match too broadly: `Sprint\s+(\d+)` matching prose, `^\[` matching array lines, and indentation heuristics for multiline blocks. The project leans heavily on regex parsing of structured formats (TOML, YAML, Markdown) where a proper parser would be more robust. Given the stdlib-only constraint, this is an accepted trade-off, but each regex parser needs more edge case tests.
+
+### Pattern C: Silent Degradation
+P7-05, P7-06, and P7-08 share a pattern of silently continuing when data is unexpected: bare `except Exception`, default-to-1 fallback, and `if isinstance(data, list): continue`. The monitoring and bootstrap scripts prefer availability over correctness, which means bugs manifest as missing data rather than errors. Recommendation: prefer logging a warning + continuing over pure silent skip.
+
+### Pattern D: Doc-Code Drift in SKILL.md Files
+P7-20, P7-21, and P7-22 reveal that SKILL.md files and README.md describe aspirational features that were never implemented. The sprint-release SKILL.md is the worst offender — it describes config-driven gates, config-driven versioning, SBOM generation, and multi-platform builds that are all phantom. This pattern is dangerous because agents read SKILL.md to understand what's possible. When the doc says "read gate_file from config" but the code has hardcoded gates, agents will waste time looking for config keys that don't exist.
+
+### Pattern E: Coverage Theater in Integration Tests
+P7-16, P7-17, P7-18, and P7-19 share a pattern where integration tests exercise code paths but assert on the wrong things — checking that issues were created (by title count) but never inspecting body content, checking that versions were calculated but mocking out the git-tag parsing that determines the input. Functions look "covered" in a trace but their actual behavior is unvalidated. The `assertGreater(len(...), 0)` pattern is the most visible symptom: it asserts "something happened" without checking what.
