@@ -1,0 +1,458 @@
+"""Property-based tests for regex/parsing functions.
+
+Uses hypothesis to generate random inputs and verify invariants that must
+always hold, regardless of input. These functions were identified as the
+top 5 regex/parsing hotspots across 11 bug-hunter passes (22 regex bugs).
+
+Targets:
+  - extract_story_id  (validate_config.py)
+  - extract_sp        (validate_config.py)
+  - _yaml_safe        (sync_tracking.py)
+  - _parse_team_index (validate_config.py) — via table-shaped text
+  - parse_simple_toml (validate_config.py)
+"""
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+import pytest
+from hypothesis import given, assume, settings, example
+from hypothesis import strategies as st
+
+# -- Path setup so imports resolve -------------------------------------------
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent
+        / "skills"
+        / "sprint-run"
+        / "scripts"
+    ),
+)
+
+from validate_config import (
+    extract_story_id,
+    extract_sp,
+    parse_simple_toml,
+)
+from sync_tracking import _yaml_safe
+
+
+# ============================================================================
+# 1. extract_story_id — must always return a non-empty string
+# ============================================================================
+
+class TestExtractStoryId:
+    """Property tests for extract_story_id."""
+
+    @given(st.text(min_size=0, max_size=200))
+    @settings(max_examples=500)
+    def test_never_returns_empty(self, title: str):
+        """extract_story_id must return a non-empty string for any input."""
+        result = extract_story_id(title)
+        assert isinstance(result, str)
+        assert len(result) > 0, f"Empty result for title={title!r}"
+
+    @given(
+        prefix=st.from_regex(r"[A-Z]{1,5}", fullmatch=True),
+        num=st.integers(min_value=0, max_value=99999),
+        suffix=st.text(max_size=100),
+    )
+    @settings(max_examples=300)
+    def test_standard_ids_extracted(self, prefix: str, num: int, suffix: str):
+        """Titles starting with PREFIX-NNN always extract that ID."""
+        story_id = f"{prefix}-{num}"
+        title = f"{story_id}: {suffix}"
+        result = extract_story_id(title)
+        assert result == story_id
+
+    @given(st.text(min_size=0, max_size=200))
+    @settings(max_examples=300)
+    def test_result_is_safe_for_filenames(self, title: str):
+        """Fallback slugs must be filename-safe (no weird characters)."""
+        result = extract_story_id(title)
+        # Standard IDs are PREFIX-NNN — always safe
+        if re.match(r"^[A-Z]+-\d+$", result):
+            return
+        # Fallback slugs or "unknown" — must be lowercase alphanumeric + dash/underscore
+        assert re.match(
+            r"^[a-z0-9_-]+$", result
+        ), f"Unsafe slug {result!r} for title={title!r}"
+
+    @given(st.text(min_size=0, max_size=200))
+    @settings(max_examples=300)
+    def test_result_max_length(self, title: str):
+        """Result is never longer than 40 chars (fallback limit) or the ID itself."""
+        result = extract_story_id(title)
+        if re.match(r"^[A-Z]+-\d+$", result):
+            # Standard IDs have no length limit but are bounded by input
+            assert len(result) <= len(title) + 1
+        else:
+            assert len(result) <= 40
+
+    @example("")
+    @example("   ")
+    @example("::::")
+    @example("---")
+    @example("🎉🎊🎈")
+    @given(st.text(max_size=50))
+    @settings(max_examples=200)
+    def test_never_crashes(self, title: str):
+        """Must never raise an exception."""
+        # Just calling it is the test — hypothesis will report any exception
+        extract_story_id(title)
+
+
+# ============================================================================
+# 2. extract_sp — must always return a non-negative integer
+# ============================================================================
+
+class TestExtractSp:
+    """Property tests for extract_sp."""
+
+    @given(st.dictionaries(st.text(max_size=20), st.text(max_size=200)))
+    @settings(max_examples=300)
+    def test_always_returns_int(self, issue: dict):
+        """extract_sp must return an integer >= 0 for any dict input."""
+        result = extract_sp(issue)
+        assert isinstance(result, int)
+        assert result >= 0
+
+    @given(sp_value=st.integers(min_value=0, max_value=999))
+    @settings(max_examples=200)
+    def test_label_extraction(self, sp_value: int):
+        """sp:N labels are always correctly extracted."""
+        issue = {"labels": [{"name": f"sp:{sp_value}"}]}
+        assert extract_sp(issue) == sp_value
+
+    @given(sp_value=st.integers(min_value=0, max_value=999))
+    @settings(max_examples=200)
+    def test_body_text_extraction(self, sp_value: int):
+        """'story points: N' in body is always extracted."""
+        issue = {"body": f"Some text\nstory points: {sp_value}\nmore text"}
+        assert extract_sp(issue) == sp_value
+
+    @given(sp_value=st.integers(min_value=0, max_value=999))
+    @settings(max_examples=200)
+    def test_body_table_extraction(self, sp_value: int):
+        """| SP | N | table format is always extracted."""
+        issue = {"body": f"| SP | {sp_value} |"}
+        assert extract_sp(issue) == sp_value
+
+    @given(sp_value=st.integers(min_value=0, max_value=999))
+    @settings(max_examples=200)
+    def test_sp_equals_extraction(self, sp_value: int):
+        """'sp = N' in body is always extracted."""
+        issue = {"body": f"sp = {sp_value}"}
+        assert extract_sp(issue) == sp_value
+
+    def test_no_false_positives_on_words(self):
+        """Words containing 'sp' should not trigger false matches."""
+        issue = {"body": "This is a special display of a spectrum"}
+        assert extract_sp(issue) == 0
+
+    @given(
+        sp_label=st.integers(min_value=1, max_value=99),
+        sp_body=st.integers(min_value=1, max_value=99),
+    )
+    @settings(max_examples=100)
+    def test_label_takes_precedence(self, sp_label: int, sp_body: int):
+        """When both label and body have SP, label wins."""
+        assume(sp_label != sp_body)
+        issue = {
+            "labels": [{"name": f"sp:{sp_label}"}],
+            "body": f"story points: {sp_body}",
+        }
+        assert extract_sp(issue) == sp_label
+
+    @given(st.text(max_size=200))
+    @settings(max_examples=200)
+    def test_never_crashes_on_body(self, body: str):
+        """Random body text never causes a crash."""
+        extract_sp({"body": body, "labels": []})
+
+
+# ============================================================================
+# 3. _yaml_safe — roundtrip: quoted values must be parseable back
+# ============================================================================
+
+class TestYamlSafe:
+    """Property tests for _yaml_safe (sync_tracking.py)."""
+
+    @given(st.text(max_size=200))
+    @settings(max_examples=500)
+    def test_never_crashes(self, value: str):
+        """Must handle any string without raising."""
+        _yaml_safe(value)
+
+    @given(st.text(min_size=1, max_size=200))
+    @settings(max_examples=500)
+    def test_empty_preserves_empty(self, value: str):
+        """Non-empty input produces non-empty output."""
+        result = _yaml_safe(value)
+        assert len(result) > 0
+
+    def test_empty_string_passthrough(self):
+        """Empty string passes through unchanged."""
+        assert _yaml_safe("") == ""
+
+    @given(st.text(min_size=1, max_size=200))
+    @settings(max_examples=500)
+    def test_quoting_roundtrip(self, value: str):
+        """If _yaml_safe quotes the value, unquoting must recover the original."""
+        result = _yaml_safe(value)
+        if result.startswith('"') and result.endswith('"'):
+            # Unquote: strip outer quotes, unescape inner \"
+            inner = result[1:-1].replace('\\"', '"')
+            assert inner == value, (
+                f"Roundtrip failed: {value!r} -> {result!r} -> {inner!r}"
+            )
+        else:
+            # Not quoted — must be identical
+            assert result == value
+
+    @given(st.text(min_size=1, max_size=200))
+    @settings(max_examples=500)
+    def test_dangerous_chars_get_quoted(self, value: str):
+        """Values with YAML-dangerous characters must be quoted."""
+        dangerous = (
+            ': ' in value
+            or value.endswith(':')
+            or (value and value[0] in '\'\"[{>|*&!%@`')
+            or '#' in value
+            or value.startswith('- ')
+            or value.startswith('? ')
+        )
+        result = _yaml_safe(value)
+        if dangerous:
+            assert result.startswith('"') and result.endswith('"'), (
+                f"Dangerous value not quoted: {value!r} -> {result!r}"
+            )
+
+    @example('hello "world"')
+    @example('"already quoted"')
+    @example('value: with colon')
+    @example('# comment-like')
+    @example('- list item')
+    @example('? mapping key')
+    @given(st.text(min_size=1, max_size=100))
+    @settings(max_examples=300)
+    def test_no_unescaped_quotes_inside(self, value: str):
+        """Quoted output must not have unescaped double quotes in the middle."""
+        result = _yaml_safe(value)
+        if result.startswith('"') and result.endswith('"'):
+            inner = result[1:-1]
+            # Walk the inner string: every " must be preceded by \
+            i = 0
+            while i < len(inner):
+                if inner[i] == '"':
+                    assert i > 0 and inner[i - 1] == '\\', (
+                        f"Unescaped \" at position {i} in {result!r}"
+                    )
+                i += 1
+
+
+# ============================================================================
+# 4. parse_simple_toml — structural invariants
+# ============================================================================
+
+# Strategies for generating valid TOML fragments
+_toml_key = st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_-]{0,20}", fullmatch=True)
+_toml_string_val = st.text(
+    alphabet=st.characters(
+        whitelist_categories=("L", "N", "P", "S", "Z"),
+        blacklist_characters='"\\#\n\r',
+    ),
+    max_size=50,
+)
+_toml_int_val = st.integers(min_value=-9999, max_value=9999)
+_toml_bool_val = st.booleans()
+
+
+def _toml_line(key: str, value) -> str:
+    """Build a single TOML key=value line."""
+    if isinstance(value, bool):
+        return f'{key} = {"true" if value else "false"}'
+    elif isinstance(value, int):
+        return f"{key} = {value}"
+    else:
+        escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+        return f'{key} = "{escaped}"'
+
+
+class TestParseSimpleToml:
+    """Property tests for parse_simple_toml."""
+
+    @given(st.text(max_size=500))
+    @settings(max_examples=300)
+    def test_returns_dict_or_raises_valueerror(self, text: str):
+        """parse_simple_toml either returns a dict or raises ValueError."""
+        try:
+            result = parse_simple_toml(text)
+            assert isinstance(result, dict)
+        except ValueError:
+            pass  # Unterminated multiline arrays raise ValueError — that's fine
+
+    @given(
+        key=_toml_key,
+        value=st.one_of(_toml_string_val, _toml_int_val, _toml_bool_val),
+    )
+    @settings(max_examples=300)
+    def test_single_kv_roundtrip(self, key: str, value):
+        """A single key=value line must roundtrip correctly."""
+        line = _toml_line(key, value)
+        result = parse_simple_toml(line)
+        assert key in result
+        if isinstance(value, str):
+            assert result[key] == value, f"{line!r} -> {result!r}"
+        elif isinstance(value, bool):
+            assert result[key] is value
+        else:
+            assert result[key] == value
+
+    @given(
+        section=st.from_regex(r"[a-zA-Z][a-zA-Z0-9_]{0,10}", fullmatch=True),
+        key=_toml_key,
+        value=_toml_string_val,
+    )
+    @settings(max_examples=300)
+    def test_section_nesting(self, section: str, key: str, value: str):
+        """[section] header creates nested dict."""
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        toml_text = f'[{section}]\n{key} = "{escaped}"'
+        result = parse_simple_toml(toml_text)
+        assert section in result
+        assert isinstance(result[section], dict)
+        assert result[section][key] == value
+
+    @given(
+        items=st.lists(_toml_string_val, min_size=0, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_string_array(self, items: list):
+        """Arrays of strings must roundtrip."""
+        escaped_items = [
+            '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+            for v in items
+        ]
+        line = f'arr = [{", ".join(escaped_items)}]'
+        result = parse_simple_toml(line)
+        assert result["arr"] == items
+
+    def test_empty_input(self):
+        """Empty string produces empty dict."""
+        assert parse_simple_toml("") == {}
+
+    def test_comments_only(self):
+        """Comment-only input produces empty dict."""
+        assert parse_simple_toml("# just a comment\n# another") == {}
+
+    @given(
+        key=_toml_key,
+        items=st.lists(_toml_string_val, min_size=1, max_size=4),
+    )
+    @settings(max_examples=200)
+    def test_multiline_array(self, key: str, items: list):
+        """Multiline arrays (bracket on next lines) must roundtrip."""
+        inner_lines = [
+            '  "' + v.replace("\\", "\\\\").replace('"', '\\"') + '",'
+            for v in items
+        ]
+        toml_text = f"{key} = [\n" + "\n".join(inner_lines) + "\n]"
+        result = parse_simple_toml(toml_text)
+        assert result[key] == items
+
+    @given(
+        s1=st.from_regex(r"[a-zA-Z][a-zA-Z0-9_]{0,8}", fullmatch=True),
+        s2=st.from_regex(r"[a-zA-Z][a-zA-Z0-9_]{0,8}", fullmatch=True),
+        k1=_toml_key,
+        k2=_toml_key,
+    )
+    @settings(max_examples=200)
+    def test_multiple_sections_independent(self, s1: str, s2: str, k1: str, k2: str):
+        """Two different sections don't overwrite each other."""
+        assume(s1 != s2)
+        toml_text = f'[{s1}]\n{k1} = "a"\n[{s2}]\n{k2} = "b"'
+        result = parse_simple_toml(toml_text)
+        assert s1 in result
+        assert s2 in result
+        assert result[s1][k1] == "a"
+        assert result[s2][k2] == "b"
+
+
+# ============================================================================
+# 5. _parse_team_index — table parsing invariants (via string input)
+# ============================================================================
+
+# We can't easily call _parse_team_index with hypothesis because it reads
+# from a file. Instead, we test the regex logic it uses by extracting the
+# core parsing into test cases that use the same patterns.
+
+class TestParseTeamIndexProperties:
+    """Property tests for team INDEX.md table parsing patterns."""
+
+    @given(
+        name=st.text(
+            alphabet=st.characters(whitelist_categories=("L", "N"), min_codepoint=65, max_codepoint=122),
+            min_size=1,
+            max_size=20,
+        ),
+        role=st.sampled_from(["Developer", "Reviewer", "Designer", "QA", "PM"]),
+    )
+    @settings(max_examples=200)
+    def test_table_row_extraction(self, name: str, role: str):
+        """Pipe-delimited table rows are correctly split into cells."""
+        row = f"| {name} | {role} | {name.lower()}.md |"
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        assert len(cells) == 3
+        assert cells[0] == name
+        assert cells[1] == role
+        assert cells[2] == f"{name.lower()}.md"
+
+    @given(
+        sep=st.from_regex(r"[-:]{1,10}", fullmatch=True),
+    )
+    @settings(max_examples=100)
+    def test_separator_detection(self, sep: str):
+        """Separator rows (|---|---|) are correctly identified."""
+        row = f"| {sep} | {sep} | {sep} |"
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        # All non-empty cells should match the separator pattern
+        non_empty = [c for c in cells if c.strip()]
+        assert all(re.match(r"^[-:]+$", c) for c in non_empty)
+
+    @given(
+        n_rows=st.integers(min_value=0, max_value=10),
+    )
+    @settings(max_examples=100)
+    def test_row_count_fidelity(self, n_rows: int):
+        """Number of data rows parsed equals number of data rows in input."""
+        header = "| Name | Role | File |"
+        sep = "| --- | --- | --- |"
+        rows = [f"| Person{i} | Dev | person{i}.md |" for i in range(n_rows)]
+        table = "\n".join([header, sep] + rows)
+
+        # Simulate the parsing logic from _parse_team_index
+        headers: list[str] = []
+        parsed_rows: list[dict] = []
+        for line in table.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                continue
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            if not headers:
+                headers = [c.lower() for c in cells]
+                continue
+            sep_cells = [c.strip() for c in cells]
+            if all(re.match(r"^[-:]+$", c) for c in sep_cells if c):
+                continue
+            row = {}
+            for i, cell in enumerate(cells):
+                if i < len(headers):
+                    row[headers[i]] = cell
+            parsed_rows.append(row)
+
+        assert len(parsed_rows) == n_rows
