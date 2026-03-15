@@ -7,7 +7,7 @@ description: Continuous CI/PR/burndown monitoring for active sprints, designed f
 
 | Step | Script |
 |------|--------|
-| Full status check | `scripts/check_status.py [sprint-number]` |
+| Full status check | `skills/sprint-monitor/scripts/check_status.py [sprint-number]` |
 | Burndown update | `skills/sprint-run/scripts/update_burndown.py` |
 
 # Sprint Monitor

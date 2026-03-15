@@ -1,7 +1,7 @@
 # Giles Cheatsheet
 
-Quick-reference index with line numbers. Grep for section headers to find what
-you need without reading entire files.
+Quick-reference index with §-anchor references. Grep for section headers to find
+what you need without reading entire files.
 
 ## Skill lifecycle
 
@@ -485,6 +485,7 @@ sprint-config/
   team/INDEX.md          -- Name | Role | File
   team/{name}.md         -- persona profiles (often symlinks)
   team/giles.md          -- built-in scrum master (copied, not symlinked)
+  team/insights.md       -- motivation distillation (generated at kickoff)
   team/history/          -- Sprint History files (written by Giles during retro)
   backlog/INDEX.md       -- saga routing table
   backlog/milestones/    -- one .md per milestone with story tables

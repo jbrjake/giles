@@ -339,7 +339,7 @@ picks up from there.
 |-------|-------------|
 | `sprint-setup` | One-time bootstrap: scans project, generates config, creates all GitHub labels/milestones/issues, sets up CI |
 | `sprint-run` | Runs a sprint: kickoff, story execution (TDD, PRs, reviews), demo, retro |
-| `sprint-monitor` | Checks CI status, open PRs, and burndown (designed for `/loop`) |
+| `sprint-monitor` | Checks CI status, open PRs, burndown, branch drift, and mid-sprint check-ins (designed for `/loop`) |
 | `sprint-release` | Release gating: validates milestones, tags, creates GitHub Releases |
 | `sprint-teardown` | Removes `sprint-config/` safely without touching original project files |
 
@@ -350,7 +350,7 @@ Giles expects your project to have:
 - **Team personas** in markdown: name, role, domain, voice, review focus,
   background. The deeper the better.
 - **Sprint backlog** as milestone files with story tables
-  (`| US-NNNN | title | saga | SP | priority |`)
+  (`| US-NNNN | title | saga | SP | priority |` — optional 6th column: `| epic |`)
 - **Project rules** documenting your coding standards and conventions
 
 The `sprint-setup` skill scans for these files automatically and creates
