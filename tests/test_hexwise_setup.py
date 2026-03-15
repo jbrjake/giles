@@ -90,14 +90,14 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertEqual(self.scan.language.value.lower(), "rust")
 
     def test_scanner_finds_personas(self):
-        self.assertGreaterEqual(len(self.scan.persona_files), 3)
+        self.assertEqual(len(self.scan.persona_files), 4)  # 3 devs + giles
         names = {Path(p.path).stem for p in self.scan.persona_files}
         self.assertIn("rusti", names)
         self.assertIn("palette", names)
         self.assertIn("checker", names)
 
     def test_scanner_finds_milestones(self):
-        self.assertGreaterEqual(len(self.scan.backlog_files), 2)
+        self.assertEqual(len(self.scan.backlog_files), 3)  # 3 milestone files
 
     def test_scanner_finds_rules_and_dev(self):
         self.assertIsNotNone(self.scan.rules_file.value)
@@ -135,7 +135,7 @@ class TestHexwiseSetup(unittest.TestCase):
         ms_dir = self.config_dir / "backlog" / "milestones"
         md_files = [f for f in ms_dir.iterdir()
                     if f.is_file() and f.suffix == ".md"]
-        self.assertGreaterEqual(len(md_files), 2)
+        self.assertEqual(len(md_files), 3)  # 3 milestone files
 
     def test_repo_detection(self):
         toml_text = (self.config_dir / "project.toml").read_text()
@@ -224,7 +224,7 @@ class TestHexwiseSetup(unittest.TestCase):
         # Check enrichment worked
         us0101 = next(s for s in stories if s.story_id == "US-0101")
         self.assertNotEqual(us0101.epic, "")
-        self.assertGreaterEqual(len(us0101.acceptance_criteria), 2)
+        self.assertEqual(len(us0101.acceptance_criteria), 4)
 
     def test_parse_detail_block_story(self):
         """Parser extracts stories from detail block format in epics."""
@@ -385,7 +385,8 @@ class TestHexwisePipeline(unittest.TestCase):
                     populate_issues.create_issue(story, ms_numbers, ms_titles)
 
         # Verify results
-        self.assertGreater(len(self.fake_gh.labels), 10, "Should have many labels")
+        self.assertGreaterEqual(len(self.fake_gh.labels), 17,
+                                "Should have static + persona + sprint labels")
         self.assertEqual(len(self.fake_gh.milestones), 3, "Should have 3 milestones")
         self.assertEqual(len(self.fake_gh.issues), 17, "Should have 17 issues (stories)")
 
@@ -438,8 +439,8 @@ class TestHexwisePipeline(unittest.TestCase):
         state = self.fake_gh.dump_state()
         self.assertIn("labels", state)
         self.assertIn("milestones", state)
-        self.assertGreater(len(state["labels"]), 0)
-        self.assertGreater(len(state["milestones"]), 0)
+        self.assertGreaterEqual(len(state["labels"]), 13)  # static labels minimum
+        self.assertEqual(len(state["milestones"]), 3)
 
 
 if __name__ == "__main__":

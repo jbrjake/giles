@@ -1381,5 +1381,63 @@ class TestKanbanFromLabels(unittest.TestCase):
         self.assertEqual(kanban_from_labels(issue), "todo")
 
 
+# ---------------------------------------------------------------------------
+# P7-11: _parse_workflow_runs direct tests
+# ---------------------------------------------------------------------------
+
+class TestParseWorkflowRuns(unittest.TestCase):
+    """P7-11: Direct tests for ProjectScanner._parse_workflow_runs."""
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp()
+        self.root = Path(self._tmpdir)
+        self.scanner = ProjectScanner(self.root)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_single_line_run(self):
+        """Single-line run: command is extracted."""
+        yml = self.root / "ci.yml"
+        yml.write_text("    - run: cargo test\n", encoding="utf-8")
+        result = self.scanner._parse_workflow_runs(yml)
+        self.assertEqual(result, ["cargo test"])
+
+    def test_multiline_run_block(self):
+        """Multiline run: | block joins continued lines."""
+        yml = self.root / "ci.yml"
+        yml.write_text(
+            "    - run: |\n"
+            "        cargo fmt --check\n"
+            "        cargo test\n",
+            encoding="utf-8",
+        )
+        result = self.scanner._parse_workflow_runs(yml)
+        self.assertEqual(len(result), 1)
+        self.assertIn("cargo fmt --check", result[0])
+        self.assertIn("cargo test", result[0])
+
+    def test_multiple_single_line_runs(self):
+        """Multiple single-line runs extracted correctly."""
+        yml = self.root / "ci.yml"
+        yml.write_text(
+            "    - run: echo hello\n"
+            "    - run: npm run lint\n",
+            encoding="utf-8",
+        )
+        result = self.scanner._parse_workflow_runs(yml)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], "echo hello")
+        self.assertEqual(result[1], "npm run lint")
+
+    def test_empty_file(self):
+        """Empty file returns no runs."""
+        yml = self.root / "ci.yml"
+        yml.write_text("", encoding="utf-8")
+        result = self.scanner._parse_workflow_runs(yml)
+        self.assertEqual(result, [])
+
+
 if __name__ == "__main__":
     unittest.main()

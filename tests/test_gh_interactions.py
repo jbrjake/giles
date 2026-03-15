@@ -563,6 +563,69 @@ class TestCollectSprintNumbers(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# populate_issues.py tests -- format_issue_body
+# ---------------------------------------------------------------------------
+
+class TestFormatIssueBody(unittest.TestCase):
+    """P7-16: Direct tests for populate_issues.format_issue_body()."""
+
+    def test_full_story(self):
+        """Body includes AC checkboxes, epic, saga, dependencies."""
+        story = populate_issues.Story(
+            story_id="US-0042", title="Add Login",
+            saga="auth", sp=3, priority="high", sprint=1,
+            user_story="As a user I want to log in.",
+            acceptance_criteria=["Login form renders", "Session created"],
+            epic="E-01: Authentication",
+            blocked_by="US-0041", blocks="US-0043",
+            test_cases="TC-01, TC-02",
+        )
+        body = populate_issues.format_issue_body(story)
+        self.assertIn("- [ ] `AC-01`: Login form renders", body)
+        self.assertIn("- [ ] `AC-02`: Session created", body)
+        self.assertIn("**Epic:** E-01: Authentication", body)
+        self.assertIn("**Saga:** auth", body)
+        self.assertIn("**Blocked by:** US-0041", body)
+        self.assertIn("**Blocks:** US-0043", body)
+        self.assertIn("**Test cases:** TC-01, TC-02", body)
+        self.assertIn("## User Story", body)
+
+    def test_minimal_story(self):
+        """Minimal story — no AC, no epic, no deps."""
+        story = populate_issues.Story(
+            story_id="US-0001", title="Stub",
+            saga="core", sp=1, priority="low", sprint=1,
+        )
+        body = populate_issues.format_issue_body(story)
+        self.assertIn("US-0001", body)
+        self.assertIn("Stub", body)
+        self.assertNotIn("## Acceptance Criteria", body)
+        self.assertNotIn("## Dependencies", body)
+        self.assertNotIn("## User Story", body)
+
+
+class TestCreateIssueMissingMilestone(unittest.TestCase):
+    """P7-18: create_issue when sprint has no milestone mapping."""
+
+    @patch("populate_issues.gh")
+    def test_missing_milestone_still_creates_issue(self, mock_gh):
+        """Issue is created without --milestone when sprint not in mapping."""
+        mock_gh.return_value = "https://github.com/test/repo/issues/1"
+        story = populate_issues.Story(
+            story_id="US-9999", title="Orphan Story",
+            saga="core", sp=2, priority="medium", sprint=99,
+        )
+        # Sprint 99 has no entry in either dict
+        result = populate_issues.create_issue(
+            story, milestone_numbers={}, milestone_titles={},
+        )
+        self.assertTrue(result)
+        # Verify --milestone was NOT passed
+        call_args = mock_gh.call_args[0][0]
+        self.assertNotIn("--milestone", call_args)
+
+
+# ---------------------------------------------------------------------------
 # populate_issues.py tests -- get_existing_issues with mocked gh
 # ---------------------------------------------------------------------------
 

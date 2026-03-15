@@ -186,8 +186,8 @@ class TestDoSync(unittest.TestCase):
             config = self._write_config_and_milestones(td)
             with patch("subprocess.run", make_patched_subprocess(fake_gh)):
                 created = sync_backlog.do_sync(config)
-            self.assertGreater(len(fake_gh.milestones), 0)
-            self.assertGreater(len(fake_gh.issues), 0)
+            self.assertEqual(len(fake_gh.milestones), 1)
+            self.assertEqual(len(fake_gh.issues), 2)
             # Verify return counts match actual FakeGitHub state
             self.assertEqual(created["milestones"], len(fake_gh.milestones))
             self.assertEqual(created["issues"], len(fake_gh.issues))

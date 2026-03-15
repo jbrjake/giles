@@ -1039,5 +1039,110 @@ class TestDoReleaseDryRunIntegration(unittest.TestCase):
         self.assertIn('version = "1.0.0"', self.toml_path.read_text())
 
 
+# ---------------------------------------------------------------------------
+# P7-17: find_latest_semver_tag and parse_commits_since direct tests
+# ---------------------------------------------------------------------------
+
+from release_gate import find_latest_semver_tag, parse_commits_since
+
+
+class TestFindLatestSemverTag(unittest.TestCase):
+    """P7-17: Direct tests for find_latest_semver_tag()."""
+
+    @patch("release_gate.subprocess.run")
+    def test_no_tags(self, mock_run):
+        """No tags → returns None."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr="",
+        )
+        self.assertIsNone(find_latest_semver_tag())
+
+    @patch("release_gate.subprocess.run")
+    def test_single_tag(self, mock_run):
+        """Single semver tag is returned."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="v1.2.3\n", stderr="",
+        )
+        self.assertEqual(find_latest_semver_tag(), "v1.2.3")
+
+    @patch("release_gate.subprocess.run")
+    def test_multiple_tags_sorted(self, mock_run):
+        """First matching semver tag returned (already sorted by git)."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout="v2.0.0\nv1.5.0\nv1.0.0\n", stderr="",
+        )
+        self.assertEqual(find_latest_semver_tag(), "v2.0.0")
+
+    @patch("release_gate.subprocess.run")
+    def test_non_semver_tags_skipped(self, mock_run):
+        """Non-semver tags are skipped."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout="v-beta\nv1.0.0\n", stderr="",
+        )
+        self.assertEqual(find_latest_semver_tag(), "v1.0.0")
+
+    @patch("release_gate.subprocess.run")
+    def test_git_error_returns_none(self, mock_run):
+        """Git error → returns None."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=128, stdout="", stderr="error",
+        )
+        self.assertIsNone(find_latest_semver_tag())
+
+
+class TestParseCommitsSince(unittest.TestCase):
+    """P7-17: Direct tests for parse_commits_since()."""
+
+    @patch("release_gate.subprocess.run")
+    def test_with_tag(self, mock_run):
+        """Parses commits since a given tag."""
+        delim = "\x00--END--\x00"
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout=f"feat: add login\n\nbody text{delim}fix: typo{delim}",
+            stderr="",
+        )
+        commits = parse_commits_since("v1.0.0")
+        self.assertEqual(len(commits), 2)
+        self.assertEqual(commits[0]["subject"], "feat: add login")
+        self.assertEqual(commits[0]["body"], "body text")
+        self.assertEqual(commits[1]["subject"], "fix: typo")
+
+    @patch("release_gate.subprocess.run")
+    def test_no_tag_all_commits(self, mock_run):
+        """No tag → parses all commits."""
+        delim = "\x00--END--\x00"
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout=f"initial commit{delim}",
+            stderr="",
+        )
+        commits = parse_commits_since(None)
+        self.assertEqual(len(commits), 1)
+        # Verify the command didn't include a tag..HEAD range
+        cmd = mock_run.call_args[0][0]
+        self.assertNotIn("..HEAD", " ".join(cmd))
+
+    @patch("release_gate.subprocess.run")
+    def test_empty_range(self, mock_run):
+        """Empty commit range returns empty list."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr="",
+        )
+        commits = parse_commits_since("v1.0.0")
+        self.assertEqual(commits, [])
+
+    @patch("release_gate.subprocess.run")
+    def test_git_error(self, mock_run):
+        """Git error returns empty list."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=128, stdout="", stderr="error",
+        )
+        commits = parse_commits_since("v1.0.0")
+        self.assertEqual(commits, [])
+
+
 if __name__ == "__main__":
     unittest.main()

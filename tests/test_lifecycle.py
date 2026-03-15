@@ -227,7 +227,7 @@ class TestLifecycle(unittest.TestCase):
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
             bootstrap_github.create_milestones_on_github(config)
 
-        self.assertGreater(len(self.fake_gh.milestones), 0)
+        self.assertEqual(len(self.fake_gh.milestones), 1)
         titles = [ms["title"] for ms in self.fake_gh.milestones]
         # Should contain something related to Sprint 1
         has_sprint_1 = any("Sprint 1" in t for t in titles)
@@ -242,7 +242,7 @@ class TestLifecycle(unittest.TestCase):
         milestone_files = get_milestones(config)
 
         stories = populate_issues.parse_milestone_stories(milestone_files, config)
-        self.assertGreater(len(stories), 0)
+        self.assertEqual(len(stories), 2)
 
         # Fake existing issues: none
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
@@ -263,7 +263,7 @@ class TestLifecycle(unittest.TestCase):
             for story in stories:
                 populate_issues.create_issue(story, ms_numbers, ms_titles)
 
-        self.assertGreater(len(self.fake_gh.issues), 0)
+        self.assertEqual(len(self.fake_gh.issues), 2)
         issue_titles = [iss["title"] for iss in self.fake_gh.issues]
         self.assertTrue(
             any("US-0101" in t for t in issue_titles),
@@ -449,10 +449,10 @@ class TestLifecycle(unittest.TestCase):
         # Verify the pipeline produced expected counts
         self.assertGreaterEqual(len(self.fake_gh.labels), 15,
                                 "Labels: static + persona + sprint + saga + kanban")
-        self.assertGreaterEqual(len(self.fake_gh.milestones), 1,
-                                "At least one milestone from sprint sections")
-        self.assertGreaterEqual(len(self.fake_gh.issues), 1,
-                                "At least one story issue created")
+        self.assertEqual(len(self.fake_gh.milestones), 1,
+                         "Exactly 1 milestone from milestone-1.md")
+        self.assertEqual(len(self.fake_gh.issues), 2,
+                         "Exactly 2 issues from 2 stories in milestone-1.md")
 
 
     # -- Test 14: monitoring pipeline (sync → burndown → check) ---------------
