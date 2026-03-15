@@ -266,6 +266,37 @@ class TestWriteVersionToToml(unittest.TestCase):
         finally:
             path.unlink()
 
+    def test_multiline_array_in_release_section(self):
+        """P7-07/P7-13: Multiline array in [release] must not corrupt next section."""
+        toml_content = (
+            '[release]\n'
+            'gate_checks = [\n'
+            '  "check1",\n'
+            '  "check2"\n'
+            ']\n'
+            '\n'
+            '[other]\n'
+            'key = 1\n'
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False,
+        ) as f:
+            f.write(toml_content)
+            path = Path(f.name)
+        try:
+            write_version_to_toml("2.0.0", path)
+            text = path.read_text()
+            self.assertIn('version = "2.0.0"', text)
+            # [other] section must still be intact
+            self.assertIn('[other]', text)
+            self.assertIn('key = 1', text)
+            # Version should be in [release], not [other]
+            other_idx = text.index('[other]')
+            version_idx = text.index('version = "2.0.0"')
+            self.assertLess(version_idx, other_idx)
+        finally:
+            path.unlink()
+
 
 # ---------------------------------------------------------------------------
 # release_gate.py -- gate validation tests (mocked gh)
@@ -484,6 +515,51 @@ class TestCreateLabel(unittest.TestCase):
         warning_msg = mock_print.call_args[0][0]
         self.assertIn("existing-label", warning_msg)
         self.assertIn("already exists", warning_msg)
+
+
+# ---------------------------------------------------------------------------
+# bootstrap_github.py tests -- _collect_sprint_numbers
+# ---------------------------------------------------------------------------
+
+class TestCollectSprintNumbers(unittest.TestCase):
+    """P7-06: _collect_sprint_numbers warns on silent fallback to sprint 1."""
+
+    def test_heading_extraction(self):
+        """Extracts sprint numbers from ### Sprint N: headings."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False
+        ) as f:
+            f.write("### Sprint 2: Core\n### Sprint 3: Polish\n")
+            f.flush()
+            result = bootstrap_github._collect_sprint_numbers([f.name])
+        Path(f.name).unlink()
+        self.assertEqual(result, {2, 3})
+
+    def test_filename_fallback(self):
+        """Falls back to filename number when no headings found."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", prefix="milestone-5-",
+            delete=False
+        ) as f:
+            f.write("No sprint headings here.\n")
+            f.flush()
+            result = bootstrap_github._collect_sprint_numbers([f.name])
+        Path(f.name).unlink()
+        self.assertEqual(result, {5})
+
+    def test_no_heading_no_number_warns(self):
+        """P7-06: No heading + no digits in filename → warns + defaults to 1."""
+        import io, contextlib
+        td = tempfile.mkdtemp()
+        fpath = Path(td) / "backlog.md"
+        fpath.write_text("No sprint headings, no number in name.\n")
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            result = bootstrap_github._collect_sprint_numbers([str(fpath)])
+        fpath.unlink()
+        Path(td).rmdir()
+        self.assertEqual(result, {1})
+        self.assertIn("defaulting to sprint 1", captured.getvalue())
 
 
 # ---------------------------------------------------------------------------
@@ -960,6 +1036,17 @@ class TestCheckBranchDivergence(unittest.TestCase):
         self.assertIn("skipped", report[0])
         self.assertIn("feat/broken", report[0])
         self.assertEqual(actions, [])
+
+    @patch("check_status.gh_json")
+    def test_list_response_warns(self, mock_gh):
+        """P7-08: List response adds warning instead of silently skipping."""
+        mock_gh.return_value = [{"behind_by": 5}]  # list, not dict
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/odd"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("WARNING", report[0])
+        self.assertIn("feat/odd", report[0])
 
 
 class TestCheckDirectPushes(unittest.TestCase):
@@ -1646,6 +1733,18 @@ class TestWriteTfEscaping(unittest.TestCase):
     def test_yaml_safe_question_space_prefix(self):
         self.assertEqual(sync_tracking._yaml_safe("? key"), '"? key"')
 
+    def test_yaml_safe_trailing_colon(self):
+        """P7-04: Trailing colon must be quoted (YAML mapping key)."""
+        self.assertEqual(sync_tracking._yaml_safe("http:"), '"http:"')
+
+    def test_yaml_safe_trailing_colon_note(self):
+        """P7-04: Another trailing colon case."""
+        self.assertEqual(sync_tracking._yaml_safe("note:"), '"note:"')
+
+    def test_yaml_safe_normal_no_quoting(self):
+        """P7-04: Normal value without colon should not be quoted."""
+        self.assertEqual(sync_tracking._yaml_safe("normal"), "normal")
+
 
 class TestSlugFromTitle(unittest.TestCase):
     """P5-11: slug generation edge cases."""
@@ -1699,6 +1798,22 @@ class TestSyncTrackingMainArgParsing(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 sync_tracking.main()
             self.assertEqual(ctx.exception.code, 0)
+
+
+class TestCheckStatusImportGuard(unittest.TestCase):
+    """P7-05: sync_backlog import uses ImportError, not bare Exception."""
+
+    def test_import_guard_uses_import_error(self):
+        """ImportError should be caught gracefully (sync_backlog missing)."""
+        # Verify the import guard specifically uses ImportError, not bare Exception.
+        import inspect
+        source = inspect.getsource(check_status)
+        # Find the import block (between "Import sync engine" and "MAX_LOGS")
+        import_block = source[
+            source.index("Import sync engine"):source.index("MAX_LOGS")
+        ]
+        self.assertIn("except ImportError", import_block)
+        self.assertNotIn("except Exception", import_block)
 
 
 class TestCheckStatusMainArgParsing(unittest.TestCase):

@@ -168,6 +168,7 @@ def _yaml_safe(value: str) -> str:
         return value
     needs_quoting = (
         ': ' in value
+        or value.endswith(':')
         or value[0] in '[{>|*&!%@`'
         or '#' in value
         or value.startswith('- ')

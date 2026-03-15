@@ -24,7 +24,7 @@ from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, g
 # -- Import sync engine ------------------------------------------------------
 try:
     from sync_backlog import main as sync_backlog_main
-except Exception as _import_err:
+except ImportError as _import_err:
     print(f"Warning: sync_backlog unavailable: {_import_err}", file=sys.stderr)
     sync_backlog_main = None
 
@@ -240,6 +240,10 @@ def check_branch_divergence(
                 "--jq", "{behind_by: .behind_by, ahead_by: .ahead_by}",
             ])
             if isinstance(data, list):
+                report.append(
+                    f"  Drift: WARNING — could not parse divergence "
+                    f"data for {branch} (unexpected list response)"
+                )
                 continue
             behind = data.get("behind_by", 0)
             ahead = data.get("ahead_by", 0)

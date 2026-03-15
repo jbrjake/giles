@@ -270,7 +270,8 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
     release_section = re.search(r"^\[release\]", text, re.MULTILINE)
     if release_section:
         start = release_section.start()
-        next_section = re.search(r"^\[", text[start + 1:], re.MULTILINE)
+        # Match section headers like [other] but not array lines like ["a"]
+        next_section = re.search(r"^\[(?![\s\"\'])", text[start + 1:], re.MULTILINE)
         end = (start + 1 + next_section.start()) if next_section else len(text)
 
         section_text = text[start:end]

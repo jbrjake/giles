@@ -95,7 +95,15 @@ def _collect_sprint_numbers(milestone_files: list[str]) -> set[int]:
         else:
             # Infer sprint number from filename (e.g. milestone-2.md)
             m = re.search(r"(\d+)", mf.stem)
-            sprint_nums.add(int(m.group(1)) if m else 1)
+            if m:
+                sprint_nums.add(int(m.group(1)))
+            else:
+                print(
+                    f"Warning: {mf.name} has no sprint sections and no "
+                    f"number in filename — defaulting to sprint 1",
+                    file=sys.stderr,
+                )
+                sprint_nums.add(1)
     return sprint_nums
 
 
