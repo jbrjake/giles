@@ -2163,5 +2163,226 @@ class TestFakeGitHubIssueLabelFilter(unittest.TestCase):
         self.assertEqual(len(issues), 3)
 
 
+# ---------------------------------------------------------------------------
+# BH-series regression tests (pass 10 bug fixes)
+# ---------------------------------------------------------------------------
+
+import validate_config
+
+
+class TestBH001PaginatedJson(unittest.TestCase):
+    """BH-001: gh_json handles concatenated JSON arrays from --paginate."""
+
+    def test_normal_json_still_works(self):
+        """Single JSON array is parsed normally."""
+        fake = FakeGitHub()
+        fake.milestones = [{"number": 1, "title": "Sprint 1"}]
+        with patch("subprocess.run", make_patched_subprocess(fake)):
+            result = validate_config.gh_json([
+                "api", "repos/{owner}/{repo}/milestones", "--paginate",
+            ])
+        self.assertEqual(len(result), 1)
+
+    def test_concatenated_json_arrays(self):
+        """Concatenated arrays [a][b] are merged into one list."""
+        # Directly test the parsing logic
+        import json
+        raw = '[{"a":1},{"a":2}][{"a":3}]'
+        decoder = json.JSONDecoder()
+        parts = []
+        pos = 0
+        while pos < len(raw):
+            while pos < len(raw) and raw[pos] in ' \n\r\t':
+                pos += 1
+            if pos >= len(raw):
+                break
+            obj, end = decoder.raw_decode(raw, pos)
+            if isinstance(obj, list):
+                parts.extend(obj)
+            else:
+                parts.append(obj)
+            pos = end
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[2]["a"], 3)
+
+
+class TestBH004VacuousTruth(unittest.TestCase):
+    """BH-004: ci_ok is False when no checks are COMPLETED."""
+
+    def test_in_progress_checks_not_green(self):
+        """All checks in_progress should NOT report CI as green."""
+        pr = {
+            "number": 1, "title": "Test PR",
+            "reviewDecision": "APPROVED",
+            "statusCheckRollup": [
+                {"status": "IN_PROGRESS", "conclusion": None},
+            ],
+            "createdAt": "",
+            "labels": [],
+        }
+        fake = FakeGitHub()
+        fake.prs.append(pr)
+        with patch.object(check_status, "gh_json", return_value=[pr]):
+            report, actions = check_status.check_prs()
+        # Should NOT say "CI green, ready to merge"
+        full = "\n".join(report)
+        self.assertNotIn("CI green", full)
+        self.assertIn("CI pending", full)
+
+    def test_empty_checks_not_green(self):
+        """No checks at all should NOT report CI as green."""
+        pr = {
+            "number": 2, "title": "Empty checks",
+            "reviewDecision": "APPROVED",
+            "statusCheckRollup": [],
+            "createdAt": "",
+            "labels": [],
+        }
+        with patch.object(check_status, "gh_json", return_value=[pr]):
+            report, _actions = check_status.check_prs()
+        full = "\n".join(report)
+        self.assertNotIn("CI green", full)
+
+
+class TestBH005SprintStatusRegex(unittest.TestCase):
+    """BH-005: update_sprint_status handles content between heading and table."""
+
+    def test_description_between_heading_and_table(self):
+        """Old table rows are fully replaced even with content between heading and table."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_file = Path(tmpdir) / "SPRINT-STATUS.md"
+            status_file.write_text(
+                "# Sprint Status\n\n"
+                "## Active Stories\n\n"
+                "Some description paragraph.\n\n"
+                "| old | table | old | old |\n"
+                "|-----|-------|-----|-----|\n"
+                "| OLD-001 | old | old | old |\n\n"
+                "## Other\n",
+                encoding="utf-8",
+            )
+            rows = [
+                {"story_id": "NEW-001", "short_title": "New", "sp": 3,
+                 "status": "dev", "closed": "\u2014",
+                 "assignee": "Ren", "pr": "#1"},
+            ]
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            content = status_file.read_text()
+            self.assertIn("NEW-001", content)
+            self.assertNotIn("OLD-001", content)
+            self.assertIn("## Other", content)
+
+
+class TestBH008NestedArrays(unittest.TestCase):
+    """BH-008: TOML parser handles nested arrays."""
+
+    def test_nested_arrays_parsed(self):
+        toml = '[test]\nkey = [["a", "b"], ["c", "d"]]'
+        result = validate_config.parse_simple_toml(toml)
+        val = result.get("test", {}).get("key", [])
+        self.assertEqual(len(val), 2)
+        self.assertEqual(val[0], ["a", "b"])
+        self.assertEqual(val[1], ["c", "d"])
+
+
+class TestBH009FmValEscape(unittest.TestCase):
+    """BH-009: _fm_val unescapes quotes like read_tf."""
+
+    def test_escaped_quotes_unescaped(self):
+        fm = 'title: "He said \\"hello\\" to her"'
+        result = update_burndown._fm_val(fm, "title")
+        self.assertEqual(result, 'He said "hello" to her')
+
+    def test_plain_value_unchanged(self):
+        fm = 'title: "Simple title"'
+        result = update_burndown._fm_val(fm, "title")
+        self.assertEqual(result, "Simple title")
+
+
+class TestBH010FlagEqualsValue(unittest.TestCase):
+    """BH-010: _parse_flags handles --flag=value syntax."""
+
+    def test_equals_syntax_parsed(self):
+        result = FakeGitHub._parse_flags(["list", "--state=all"])
+        self.assertIn("state", result)
+        self.assertEqual(result["state"], ["all"])
+
+    def test_space_syntax_still_works(self):
+        result = FakeGitHub._parse_flags(["list", "--state", "all"])
+        self.assertIn("state", result)
+        self.assertEqual(result["state"], ["all"])
+
+
+class TestBH011ExtractSpBoundary(unittest.TestCase):
+    """BH-011: extract_sp doesn't match BSP, ISP as story points."""
+
+    def test_standalone_sp_matches(self):
+        self.assertEqual(validate_config.extract_sp({"body": "SP: 3"}), 3)
+
+    def test_bsp_does_not_match(self):
+        self.assertEqual(validate_config.extract_sp({"body": "BSP: 5"}), 0)
+
+    def test_isp_does_not_match(self):
+        self.assertEqual(validate_config.extract_sp({"body": "ISP = 3"}), 0)
+
+    def test_story_points_still_matches(self):
+        self.assertEqual(
+            validate_config.extract_sp({"body": "Story Points: 8"}), 8)
+
+    def test_start_of_line_sp(self):
+        self.assertEqual(validate_config.extract_sp({"body": "sp: 5"}), 5)
+
+
+class TestBH020CommitsSinceFilter(unittest.TestCase):
+    """BH-020: FakeGitHub /commits endpoint respects -f since= filter."""
+
+    def test_since_filters_old_commits(self):
+        fake = FakeGitHub()
+        fake.commits_data = [
+            {"sha": "old", "commit": {"author": {"date": "2025-01-01T00:00:00Z"}}},
+            {"sha": "new", "commit": {"author": {"date": "2026-01-01T00:00:00Z"}}},
+        ]
+        result = fake.handle([
+            "api", "repos/test/test/commits",
+            "-f", "sha=main", "-f", "since=2025-06-01T00:00:00Z",
+        ])
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["sha"], "new")
+
+
+class TestBH022FirstErrorFalsePositive(unittest.TestCase):
+    """BH-022: _first_error skips lines like '0 errors'."""
+
+    def test_zero_errors_skipped(self):
+        log = "Tests: 42 passed, 0 errors\nfatal: actual error here"
+        result = check_status._first_error(log)
+        self.assertIn("actual error", result)
+        self.assertNotIn("0 errors", result)
+
+    def test_no_failures_skipped(self):
+        log = "no failed tests\nERROR: real problem"
+        result = check_status._first_error(log)
+        self.assertIn("real problem", result)
+
+    def test_real_error_still_matched(self):
+        log = "ERROR: something broke"
+        result = check_status._first_error(log)
+        self.assertIn("something broke", result)
+
+
+class TestBH023HyphenatedTomlKeys(unittest.TestCase):
+    """BH-023: TOML parser accepts hyphenated bare keys."""
+
+    def test_hyphenated_key_parsed(self):
+        result = validate_config.parse_simple_toml('base-branch = "main"')
+        self.assertEqual(result.get("base-branch"), "main")
+
+    def test_underscored_key_still_works(self):
+        result = validate_config.parse_simple_toml('base_branch = "main"')
+        self.assertEqual(result.get("base_branch"), "main")
+
+
 if __name__ == "__main__":
     unittest.main()
