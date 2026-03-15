@@ -12,7 +12,6 @@ Idempotent -- prints "Everything in sync" when nothing to fix.
 """
 from __future__ import annotations
 
-import json
 import re
 import sys
 from dataclasses import dataclass
@@ -38,13 +37,13 @@ def find_milestone_title(sprint_num: int) -> str | None:
 def _fetch_all_prs() -> list[dict]:
     """Fetch all PRs once for branch-based linkage (cached per sync run)."""
     try:
-        raw = gh([
+        result = gh_json([
             "pr", "list", "--state", "all",
             "--json", "number,state,headRefName,mergedAt",
             "--limit", "500",
         ])
-        return json.loads(raw) if raw else []
-    except (RuntimeError, json.JSONDecodeError):
+        return result if isinstance(result, list) else []
+    except RuntimeError:
         return []
 
 

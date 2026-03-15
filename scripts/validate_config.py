@@ -838,17 +838,16 @@ def find_milestone(sprint_num: int) -> dict | None:
 # §validate_config.list_milestone_issues
 def list_milestone_issues(milestone_title: str) -> list[dict]:
     """Fetch all issues for a milestone (all states). Shared by sync/burndown."""
-    raw = gh([
-        "issue", "list", "--milestone", milestone_title, "--state", "all",
-        "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
-    ])
-    if not raw:
-        return []
     try:
-        issues = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        print(f"Warning: failed to parse issue list for milestone "
+        issues = gh_json([
+            "issue", "list", "--milestone", milestone_title, "--state", "all",
+            "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
+        ])
+    except RuntimeError as exc:
+        print(f"Warning: failed to fetch issues for milestone "
               f"'{milestone_title}': {exc}", file=sys.stderr)
+        return []
+    if not isinstance(issues, list):
         return []
     warn_if_at_limit(issues)
     return issues
