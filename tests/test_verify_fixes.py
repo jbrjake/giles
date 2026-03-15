@@ -432,5 +432,227 @@ class TestParseTeamIndexSeparatorDetection(unittest.TestCase):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+# ---------------------------------------------------------------------------
+# BH-P11-057: commit.py main() integration test
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(ROOT / "tests"))
+
+import io
+import subprocess as _subprocess
+from unittest.mock import patch
+
+import commit
+
+
+class TestCommitMainIntegration(unittest.TestCase):
+    """BH-P11-057: Integration test for commit.main().
+
+    Patches sys.argv and subprocess.run to verify main() validates the
+    message, checks atomicity, and calls git commit end-to-end.
+    """
+
+    def _fake_subprocess_run(self, args, *a, **kw):
+        """Simulate git commands for commit.py."""
+        if isinstance(args, list) and args[0] == "git":
+            if args[1] == "diff" and "--cached" in args:
+                # Return staged files in a single directory
+                return _subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout="scripts/commit.py\nscripts/validate_config.py\n",
+                    stderr="",
+                )
+            if args[1] == "commit":
+                return _subprocess.CompletedProcess(
+                    args=args, returncode=0,
+                    stdout="[main abc1234] feat: add feature\n 2 files changed",
+                    stderr="",
+                )
+        return _subprocess.CompletedProcess(
+            args=args, returncode=1, stdout="", stderr="unknown command",
+        )
+
+    def test_main_happy_path(self):
+        """main() validates, checks atomicity, and commits successfully."""
+        with (
+            patch("subprocess.run", self._fake_subprocess_run),
+            patch("sys.argv", ["commit.py", "feat: add new feature"]),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            commit.main()
+
+        output = mock_out.getvalue()
+        self.assertIn("abc1234", output)
+
+    def test_main_dry_run(self):
+        """main() in dry-run mode validates but does not commit."""
+        with (
+            patch("subprocess.run", self._fake_subprocess_run),
+            patch("sys.argv", ["commit.py", "--dry-run", "feat: preview"]),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                commit.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+        output = mock_out.getvalue()
+        self.assertIn("DRY-RUN", output)
+        self.assertIn("feat: preview", output)
+
+    def test_main_invalid_message_exits_1(self):
+        """main() exits 1 when the commit message is not conventional."""
+        with (
+            patch("sys.argv", ["commit.py", "bad message no type"]),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                commit.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_main_no_staged_changes_exits_1(self):
+        """main() exits 1 when there are no staged changes."""
+        def no_staged(args, *a, **kw):
+            if isinstance(args, list) and args[0] == "git" and args[1] == "diff":
+                return _subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="", stderr="",
+                )
+            return _subprocess.CompletedProcess(
+                args=args, returncode=1, stdout="", stderr="error",
+            )
+
+        with (
+            patch("subprocess.run", no_staged),
+            patch("sys.argv", ["commit.py", "feat: add something"]),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                commit.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-058: validate_anchors.py main() integration test
+# ---------------------------------------------------------------------------
+
+import validate_anchors
+
+
+class TestValidateAnchorsMainIntegration(unittest.TestCase):
+    """BH-P11-058: Integration test for validate_anchors.main().
+
+    Creates temp files with anchor definitions and references, then
+    verifies main() in check mode validates them correctly.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = Path(self._tmpdir.name)
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_main_check_mode_all_resolved(self):
+        """main() exits cleanly when all anchors resolve."""
+        # Create a Python source file with an anchor definition
+        scripts_dir = self.tmpdir / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "example.py").write_text(
+            "# some code\n"
+            "# §example.my_func\n"
+            "def my_func():\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        # Create a doc file that references the anchor
+        (self.tmpdir / "DOCS.md").write_text(
+            "# Documentation\n\n"
+            "See §example.my_func for details.\n",
+            encoding="utf-8",
+        )
+
+        namespace_map = {"example": "scripts/example.py"}
+        doc_files = ["DOCS.md"]
+
+        with (
+            patch("sys.argv", ["validate_anchors.py"]),
+            patch("validate_anchors.ROOT", self.tmpdir),
+            patch("validate_anchors.NAMESPACE_MAP", namespace_map),
+            patch("validate_anchors.DOC_FILES", doc_files),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            validate_anchors.main()
+
+        output = mock_out.getvalue()
+        self.assertIn("1 reference(s) checked, all resolved", output)
+
+    def test_main_check_mode_broken_ref_exits_1(self):
+        """main() exits 1 when a reference points to a missing anchor."""
+        # Create a Python source file WITHOUT the referenced anchor
+        scripts_dir = self.tmpdir / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "example.py").write_text(
+            "# some code\n"
+            "def other_func():\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        # Create a doc file that references a non-existent anchor
+        (self.tmpdir / "DOCS.md").write_text(
+            "# Documentation\n\n"
+            "See §example.missing_func for details.\n",
+            encoding="utf-8",
+        )
+
+        namespace_map = {"example": "scripts/example.py"}
+        doc_files = ["DOCS.md"]
+
+        with (
+            patch("sys.argv", ["validate_anchors.py"]),
+            patch("validate_anchors.ROOT", self.tmpdir),
+            patch("validate_anchors.NAMESPACE_MAP", namespace_map),
+            patch("validate_anchors.DOC_FILES", doc_files),
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                validate_anchors.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_main_fix_mode_inserts_anchors(self):
+        """main() --fix inserts missing anchors into source files."""
+        scripts_dir = self.tmpdir / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "example.py").write_text(
+            "# some code\n"
+            "def my_func():\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        # Doc references an anchor that exists in the code but not as an anchor comment
+        (self.tmpdir / "DOCS.md").write_text(
+            "# Documentation\n\n"
+            "See §example.my_func for details.\n",
+            encoding="utf-8",
+        )
+
+        namespace_map = {"example": "scripts/example.py"}
+        doc_files = ["DOCS.md"]
+
+        with (
+            patch("sys.argv", ["validate_anchors.py", "--fix"]),
+            patch("validate_anchors.ROOT", self.tmpdir),
+            patch("validate_anchors.NAMESPACE_MAP", namespace_map),
+            patch("validate_anchors.DOC_FILES", doc_files),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            validate_anchors.main()
+
+        output = mock_out.getvalue()
+        self.assertIn("Fixed 1 missing anchor", output)
+        # Verify the anchor was actually inserted in the source file
+        source = (scripts_dir / "example.py").read_text(encoding="utf-8")
+        self.assertIn("# §example.my_func", source)
+
+
 if __name__ == "__main__":
     unittest.main()

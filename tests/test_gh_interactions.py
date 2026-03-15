@@ -12,7 +12,9 @@ Run: python -m unittest tests.test_gh_interactions -v
 """
 from __future__ import annotations
 
+import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -296,6 +298,11 @@ class TestGateStories(unittest.TestCase):
         ok, detail = gate_stories("Sprint 1")
         self.assertTrue(ok)
         self.assertIn("closed", detail.lower())
+        # BH-P11-052: Verify query includes milestone filter
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("--milestone", call_args)
+        self.assertIn("Sprint 1", call_args)
+        self.assertIn("--state", call_args)
 
     @patch("release_gate.gh_json")
     def test_open_issues(self, mock_gh):
@@ -306,6 +313,9 @@ class TestGateStories(unittest.TestCase):
         ok, detail = gate_stories("Sprint 1")
         self.assertFalse(ok)
         self.assertIn("2 open", detail)
+        # BH-P11-052: Verify query includes milestone filter
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("Sprint 1", call_args)
 
 
 class TestGateCI(unittest.TestCase):
@@ -317,6 +327,10 @@ class TestGateCI(unittest.TestCase):
         ]
         ok, detail = gate_ci({"project": {}})
         self.assertTrue(ok)
+        # BH-P11-053: Verify query includes branch filter
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("--branch", call_args)
+        self.assertIn("main", call_args)  # default base_branch
 
     @patch("release_gate.gh_json")
     def test_failing(self, mock_gh):
@@ -326,6 +340,9 @@ class TestGateCI(unittest.TestCase):
         ok, detail = gate_ci({"project": {}})
         self.assertFalse(ok)
         self.assertIn("failure", detail)
+        # BH-P11-053: Verify query includes branch filter
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("--branch", call_args)
 
     @patch("release_gate.gh_json")
     def test_no_runs(self, mock_gh):
@@ -420,6 +437,10 @@ class TestCheckCI(unittest.TestCase):
         report, actions = check_status.check_ci()
         self.assertIn("1 passing", report[0])
         self.assertEqual(len(actions), 0)
+        # BH-P11-063: Verify query requests correct JSON fields
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("run", call_args)
+        self.assertIn("--json", call_args)
 
     @patch("check_status.gh")
     @patch("check_status.gh_json")
@@ -457,6 +478,10 @@ class TestCheckPRs(unittest.TestCase):
         report, actions = check_status.check_prs()
         self.assertIn("1 open", report[0])
         self.assertIn("1 approved", report[0])
+        # BH-P11-063: Verify query requests correct resource and fields
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("pr", call_args)
+        self.assertIn("--json", call_args)
 
     @patch("check_status.gh_json")
     def test_needs_review_pr(self, mock_gh):
@@ -2388,6 +2413,249 @@ class TestBH023HyphenatedTomlKeys(unittest.TestCase):
     def test_underscored_key_still_works(self):
         result = validate_config.parse_simple_toml('base_branch = "main"')
         self.assertEqual(result.get("base_branch"), "main")
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-055: check_status.py main() integration test
+# ---------------------------------------------------------------------------
+
+
+class TestCheckStatusMainIntegration(unittest.TestCase):
+    """BH-P11-055: Integration test for check_status.main().
+
+    Patches sys.argv, load_config, and subprocess.run (via FakeGitHub)
+    to verify main() orchestrates all checks and writes a log file.
+    """
+
+    def setUp(self):
+        self.gh = FakeGitHub()
+        self.patched = make_patched_subprocess(self.gh)
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+        self.sprints_dir = Path(self.tmpdir) / "sprints"
+        sprint_dir = self.sprints_dir / "sprint-1"
+        sprint_dir.mkdir(parents=True)
+
+        # Populate GitHub state: milestone + issues
+        self.gh.milestones.append({
+            "number": 1, "title": "Sprint 1: First Light",
+            "state": "open", "open_issues": 1, "closed_issues": 1,
+            "created_at": "2026-03-01T00:00:00Z",
+        })
+        self.gh.issues.extend([
+            {
+                "number": 1, "title": "US-0101: Story 1", "state": "closed",
+                "labels": [{"name": "sp:5"}], "body": "",
+                "milestone": {"title": "Sprint 1: First Light"},
+                "closedAt": "2026-03-10T12:00:00Z",
+            },
+            {
+                "number": 2, "title": "US-0102: Story 2", "state": "open",
+                "labels": [{"name": "sp:3"}], "body": "",
+                "milestone": {"title": "Sprint 1: First Light"},
+                "closedAt": None,
+            },
+        ])
+        # One CI run
+        self.gh.runs.append({
+            "status": "completed", "conclusion": "success",
+            "name": "CI", "headBranch": "main", "databaseId": 1,
+        })
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    def _make_config(self):
+        return {
+            "project": {"name": "TestProj", "repo": "owner/repo"},
+            "paths": {"sprints_dir": str(self.sprints_dir)},
+            "ci": {"check_commands": [], "build_command": ""},
+        }
+
+    def test_main_happy_path(self):
+        """main() with explicit sprint number runs all checks and writes log."""
+        config = self._make_config()
+
+        with (
+            patch("subprocess.run", self.patched),
+            patch("check_status.load_config", return_value=config),
+            patch("check_status.sync_backlog_main", None),
+            patch("sys.argv", ["check_status.py", "1"]),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            # main() calls sys.exit(0) when no actions needed or sys.exit(1) when actions
+            with self.assertRaises(SystemExit) as ctx:
+                check_status.main()
+
+        output = mock_out.getvalue()
+        # Report header
+        self.assertIn("Sprint 1 Status", output)
+        # CI check ran
+        self.assertIn("CI:", output)
+        # Progress check ran
+        self.assertIn("Progress:", output)
+        # Log file was written
+        self.assertIn("Log written:", output)
+        # Verify log file exists on disk
+        logs = list((self.sprints_dir / "sprint-1").glob("monitor-*.log"))
+        self.assertGreaterEqual(len(logs), 1)
+        log_text = logs[0].read_text(encoding="utf-8")
+        self.assertIn("Sprint 1 Status", log_text)
+
+    def test_main_config_error_exits_1(self):
+        """main() exits 1 when load_config raises ConfigError."""
+        from validate_config import ConfigError
+
+        with (
+            patch("check_status.load_config", side_effect=ConfigError("bad")),
+            patch("sys.argv", ["check_status.py", "1"]),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                check_status.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_main_non_numeric_arg_exits_2(self):
+        """main() exits 2 when given a non-numeric sprint argument."""
+        config = self._make_config()
+        with (
+            patch("check_status.load_config", return_value=config),
+            patch("sys.argv", ["check_status.py", "abc"]),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                check_status.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-056: sync_tracking.py main() integration test
+# ---------------------------------------------------------------------------
+
+
+class TestSyncTrackingMainIntegration(unittest.TestCase):
+    """BH-P11-056: Integration test for sync_tracking.main().
+
+    Patches sys.argv, load_config, subprocess.run (via FakeGitHub), and
+    find_milestone to verify main() fetches issues and creates tracking files.
+    """
+
+    def setUp(self):
+        self.gh = FakeGitHub()
+        self.patched = make_patched_subprocess(self.gh)
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+        self.sprints_dir = Path(self.tmpdir) / "sprints"
+        self.sprints_dir.mkdir(parents=True)
+
+        # Populate GitHub state: milestone + issues
+        self.gh.milestones.append({
+            "number": 1, "title": "Sprint 1: First Light",
+            "state": "open", "open_issues": 2, "closed_issues": 0,
+        })
+        self.gh.issues.extend([
+            {
+                "number": 1, "title": "US-0101: Setup CI",
+                "state": "open", "body": "Set up CI pipeline",
+                "labels": [{"name": "kanban:dev"}, {"name": "sp:3"}],
+                "milestone": {"title": "Sprint 1: First Light"},
+                "closedAt": None,
+            },
+            {
+                "number": 2, "title": "US-0102: Add auth",
+                "state": "open", "body": "Add authentication",
+                "labels": [{"name": "kanban:todo"}, {"name": "sp:5"}],
+                "milestone": {"title": "Sprint 1: First Light"},
+                "closedAt": None,
+            },
+        ])
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    def _make_config(self):
+        return {
+            "project": {"name": "TestProj", "repo": "owner/repo"},
+            "paths": {"sprints_dir": str(self.sprints_dir)},
+            "ci": {"check_commands": [], "build_command": ""},
+        }
+
+    def test_main_creates_tracking_files(self):
+        """main() creates tracking files for each issue in the milestone."""
+        config = self._make_config()
+        ms = {"number": 1, "title": "Sprint 1: First Light"}
+
+        with (
+            patch("subprocess.run", self.patched),
+            patch("sync_tracking.load_config", return_value=config),
+            patch("sync_tracking.find_milestone", return_value=ms),
+            patch("sys.argv", ["sync_tracking.py", "1"]),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            sync_tracking.main()
+
+        output = mock_out.getvalue()
+        # Should report changes
+        self.assertIn("Sync complete", output)
+        self.assertIn("created tracking file", output)
+
+        # Verify tracking files were created
+        stories_dir = self.sprints_dir / "sprint-1" / "stories"
+        tracking_files = list(stories_dir.glob("*.md"))
+        self.assertEqual(len(tracking_files), 2)
+
+        # Verify content of one tracking file
+        contents = [f.read_text(encoding="utf-8") for f in tracking_files]
+        all_text = "\n".join(contents)
+        self.assertIn("US-0101", all_text)
+        self.assertIn("US-0102", all_text)
+
+    def test_main_idempotent_sync(self):
+        """Running main() twice reports 'Everything in sync' on second run."""
+        config = self._make_config()
+        ms = {"number": 1, "title": "Sprint 1: First Light"}
+
+        # First run creates files
+        with (
+            patch("subprocess.run", self.patched),
+            patch("sync_tracking.load_config", return_value=config),
+            patch("sync_tracking.find_milestone", return_value=ms),
+            patch("sys.argv", ["sync_tracking.py", "1"]),
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            sync_tracking.main()
+
+        # Second run should be idempotent
+        with (
+            patch("subprocess.run", self.patched),
+            patch("sync_tracking.load_config", return_value=config),
+            patch("sync_tracking.find_milestone", return_value=ms),
+            patch("sys.argv", ["sync_tracking.py", "1"]),
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            sync_tracking.main()
+
+        self.assertIn("Everything in sync", mock_out.getvalue())
+
+    def test_main_no_milestone_exits_1(self):
+        """main() exits 1 when no milestone is found."""
+        config = self._make_config()
+
+        with (
+            patch("subprocess.run", self.patched),
+            patch("sync_tracking.load_config", return_value=config),
+            patch("sync_tracking.find_milestone", return_value=None),
+            patch("sys.argv", ["sync_tracking.py", "99"]),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                sync_tracking.main()
+            self.assertEqual(ctx.exception.code, 1)
 
 
 if __name__ == "__main__":
