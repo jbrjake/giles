@@ -260,3 +260,45 @@ def fix_missing_anchors(
         full.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     return fixed_count
+
+
+def main() -> None:
+    fix_mode = "--fix" in sys.argv
+
+    if fix_mode:
+        fixed = fix_missing_anchors()
+        if fixed:
+            print(f"Fixed {fixed} missing anchor(s).")
+        # Re-check after fixing
+        broken, unreferenced = check_anchors()
+        if broken:
+            print(f"\n{len(broken)} broken reference(s) (manual fix needed):")
+            for msg in broken:
+                print(f"  {msg}")
+    else:
+        broken, unreferenced = check_anchors()
+
+    if not broken:
+        # Count total refs for summary
+        total = 0
+        for doc_name in DOC_FILES:
+            doc_path = ROOT / doc_name
+            if doc_path.exists():
+                total += len(find_anchor_refs(doc_path))
+        print(f"{total} reference(s) checked, all resolved.")
+
+    if unreferenced:
+        print(f"\n{len(unreferenced)} anchor(s) defined but unreferenced (info):")
+        for msg in unreferenced:
+            print(f"  {msg}")
+
+    if broken:
+        if not fix_mode:
+            print(f"\n{len(broken)} broken reference(s):")
+            for msg in broken:
+                print(f"  {msg}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
