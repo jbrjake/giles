@@ -1,45 +1,38 @@
-# Bug Hunter Status — Pass 8 (Fresh Adversarial Review)
+# Bug Hunter Status — Pass 9 (Fresh Adversarial Legacy Review)
 
-## Current State: ALL 23 ITEMS RESOLVED
+## Current State: ALL RESOLVED — 27/27 items fixed
 ## Started: 2026-03-15
 
 ---
 
 ## Completed Steps
-- [x] Archived pass 7 artifacts to bug-hunter-prior-pass7/
+- [x] Archived pass 8 artifacts to bug-hunter-prior-pass8/
 - [x] 0a: Project overview → `recon/0a-project-overview.md`
 - [x] 0b: Test infrastructure → `recon/0b-test-infra.md`
-- [x] 0c: Test baseline (508 pass, 0 fail, 2.7s) → `recon/0c-test-baseline.md`
+- [x] 0c: Test baseline (508 pass, 0 fail, 3.0s) → `recon/0c-test-baseline.md`
 - [x] 0d: Lint/type check — none configured
 - [x] 0e: Git churn analysis → `recon/0e-churn.md`
-- [x] 0f: Skipped/disabled tests → none found
-- [x] 0g: Recon summary (via subagent reports)
-- [x] Phase 1: Doc-to-implementation audit → `audit/1-doc-claims-raw.md` (11 findings)
-- [x] Phase 2: Test quality audit → `audit/2-test-quality-raw.md` (40 findings)
-- [x] Phase 3: Adversarial code audit → `audit/3-code-audit-raw.md` (9 medium + 8 low)
-- [x] Findings verified against source code (spot-checked top 15)
-- [x] Punchlist compiled → `BUG-HUNTER-PUNCHLIST.md` (23 items)
+- [x] 0f: Skipped/disabled tests → `recon/0f-skipped-tests.md` (none found)
+- [x] 0g: Recon summary → `recon/0g-recon-summary.md`
+- [x] Phase 1: Doc-to-implementation audit → `audit/1-doc-claims-raw.md` (7 findings)
+- [x] Phase 2: Test quality audit → `audit/2-test-quality-raw.md` (4 critical, 14 high, 31 medium)
+- [x] Phase 3: Adversarial code audit → `audit/3-code-audit-raw.md` (1 high, 16 medium, 25 low)
+- [x] Top 15 findings verified against actual source code
+- [x] Punchlist compiled → `BUG-HUNTER-PUNCHLIST.md` (27 items)
+- [x] Phase 4: Fix loop — all 27 items resolved in 3 commits
 
-## Punchlist Summary
-| Priority | Count | IDs |
-|----------|-------|-----|
-| CRITICAL | 2 | BH-001, BH-003 |
-| HIGH | 8 | BH-002, BH-004, BH-005, BH-006, BH-007, BH-008, BH-009, BH-010 |
-| MEDIUM | 8 | BH-011 through BH-018 |
-| LOW | 5 | BH-019 through BH-023 |
+## Fix Summary
+| Commit | Items | Description |
+|--------|-------|-------------|
+| `fix: code bugs` | 14 | BH-003,004,005,009,010,011,012,013,014,016,023,024,025,026 |
+| `fix: test quality` | 6 | BH-001,002,007,008,015 (+9 new tests, -7 duplicates) |
+| `docs: fix doc-code drift` | 7 | BH-006,017,018,019,020,021,027 |
 
-## Patterns
-- **PAT-001: Quality Gatekeepers Have Blind Spots** — BH-001, BH-007, BH-008, BH-009, BH-011
-- **PAT-002: Phantom Features in Docs** — BH-013, BH-014, BH-015
-- **PAT-003: Unvalidated String Construction** — BH-004, BH-006, BH-012
+## Final Baseline
+510 tests, 0 failures (was 508 at start of pass 9)
 
-## Fix Loop Complete
-All 23 items resolved in 5 commits:
-1. `fix: P0 critical bugs` — BH-001 (anchor regex), BH-003 (timeout handling)
-2. `fix: HIGH code bugs` — BH-004, BH-005, BH-006, BH-010, BH-012
-3. `fix: HIGH test mock bugs` — BH-007, BH-008, BH-009
-4. `docs: fix broken anchors, remove phantom features` — BH-002, BH-013-018
-5. `fix: MEDIUM+LOW bugs` — BH-011, BH-019-023
-
-Test suite: 508 pass, 0 fail, 0 skip
-Anchor validator: 474 references checked, all resolved
+## Patterns Addressed
+- **PAT-001: Tests That Verify The Mock** — 3 items fixed (golden skip, tautology, rename)
+- **PAT-002: Missing Input Validation** — 5 items fixed (defaults, guards, EOFError)
+- **PAT-003: Doc Claims Without Code** — 7 items fixed (paths, descriptions, missing entries)
+- **PAT-004: Regex Under/Over-Match** — 4 items fixed (word boundaries, greedy, async patterns)
