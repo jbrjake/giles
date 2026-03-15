@@ -214,6 +214,31 @@ class TestComputeReviewRounds(unittest.TestCase):
         self.assertEqual(result["avg_rounds"], 0.0)
         self.assertEqual(result["pr_count"], 0)
 
+    def test_all_zero_rounds_max_story_is_none(self):
+        """BH-P11-108: When all PRs have 0 rounds, max_story should be 'none'."""
+        with patch("subprocess.run", self.patched):
+            # Create PRs with no reviews
+            subprocess.run([
+                "gh", "pr", "create",
+                "--title", "US-0101: No reviews",
+                "--base", "main", "--head", "feat/a",
+                "--milestone", "Sprint 1",
+            ])
+            subprocess.run([
+                "gh", "pr", "create",
+                "--title", "US-0102: Also no reviews",
+                "--base", "main", "--head", "feat/b",
+                "--milestone", "Sprint 1",
+            ])
+            for pr in self.gh.prs:
+                pr["state"] = "closed"
+
+            result = sprint_analytics.compute_review_rounds("Sprint 1")
+
+        self.assertEqual(result["max_rounds"], 0)
+        self.assertEqual(result["max_story"], "none",
+                         "max_story should be 'none' when no PR has any reviews")
+
 
 class TestComputeWorkload(unittest.TestCase):
     """Test workload distribution computation."""

@@ -117,6 +117,8 @@ def compute_review_rounds(
     total_rounds = sum(r for _, r in rounds_per_pr)
     avg = total_rounds / len(rounds_per_pr) if rounds_per_pr else 0.0
     max_story, max_rounds = max(rounds_per_pr, key=lambda x: x[1])
+    if max_rounds == 0:
+        max_story = "none"
 
     return {
         "avg_rounds": round(avg, 1),

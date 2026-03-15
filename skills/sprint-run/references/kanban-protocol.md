@@ -31,6 +31,11 @@ integration → done  CI green, merged, issue closed
 <!-- §kanban-protocol.rules_one_story_per_persona_in_dev_3_round_review_limit -->
 ## Rules
 
+> **Note:** These rules are process guidelines for the AI team personas, not
+> programmatically enforced constraints. Scripts like `sync_tracking.py` accept
+> any kanban label — enforcement is the responsibility of the LLM orchestrating
+> the sprint, not the tooling.
+
 - Allow only ONE story per persona in `dev` state at a time. This prevents
   context thrashing. A persona may have multiple stories in `design` because
   reading does not conflict.
@@ -55,6 +60,10 @@ On each transition, execute these steps in order:
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
+
+> **Note:** WIP limits are behavioral guidelines for the LLM, not programmatic
+> constraints. No code enforces these limits — they rely on the AI personas
+> self-regulating during sprint execution.
 
 | State | Max stories (whole team) |
 |---|---|

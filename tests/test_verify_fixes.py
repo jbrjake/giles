@@ -390,5 +390,47 @@ class TestParseTeamIndexCellCountWarning(unittest.TestCase):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+class TestParseTeamIndexSeparatorDetection(unittest.TestCase):
+    """BH-P11-109: separator detection strips whitespace from cells."""
+
+    def test_separator_with_whitespace_cell(self):
+        """A separator like '| --- |  |' should not be treated as data."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-p11-109-")
+        index_path = Path(tmpdir) / "INDEX.md"
+        index_path.write_text(
+            "| Name | Role |\n"
+            "| --- |  |\n"
+            "| Alice | Engineer |\n",
+            encoding="utf-8",
+        )
+
+        rows = _parse_team_index(index_path)
+
+        # Only Alice should appear — the separator row must not be data
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Alice")
+
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_single_column_separator(self):
+        """A separator like '|---|' with fewer columns than header is still a separator."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-p11-109b-")
+        index_path = Path(tmpdir) / "INDEX.md"
+        index_path.write_text(
+            "| Name | Role | File |\n"
+            "|---|\n"
+            "| Alice | Engineer | alice.md |\n",
+            encoding="utf-8",
+        )
+
+        rows = _parse_team_index(index_path)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Alice")
+
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

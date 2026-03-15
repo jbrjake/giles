@@ -518,7 +518,9 @@ def _parse_team_index(index_path: Path) -> list[dict[str, str]]:
             continue
 
         # Skip separator rows (e.g., |---|---|---|)
-        if all(re.match(r"^[-:]+$", c) for c in cells):
+        # Strip whitespace from cells and filter empty ones before checking
+        sep_cells = [c.strip() for c in cells]
+        if all(re.match(r"^[-:]+$", c) for c in sep_cells if c):
             continue
 
         if len(cells) != len(headers):

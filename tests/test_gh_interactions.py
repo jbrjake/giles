@@ -1546,12 +1546,18 @@ class TestUpdateSprintStatus(unittest.TestCase):
             self.assertIn("US-0001", content)
 
     def test_skips_missing_file(self):
+        """BH-P11-050: Assert no file is created when SPRINT-STATUS.md is missing."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             rows = [{"story_id": "X", "short_title": "X", "sp": 0,
                       "status": "todo", "closed": ""}]
-            # Should not raise
-            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            result = update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            # Should return None (early exit) and not create any file
+            self.assertIsNone(result)
+            self.assertFalse(
+                (Path(tmpdir) / "SPRINT-STATUS.md").exists(),
+                "SPRINT-STATUS.md should not be created when it doesn't exist",
+            )
 
 
 class TestKanbanFromLabels(unittest.TestCase):
