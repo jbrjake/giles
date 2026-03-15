@@ -5,7 +5,6 @@ Config-driven: reads milestone file paths and repo info from project.toml
 via validate_config.load_config(). No hardcoded paths or project names.
 """
 
-import json
 import re
 import subprocess
 import sys
@@ -14,7 +13,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, get_milestones, gh, warn_if_at_limit
+from validate_config import load_config, ConfigError, get_milestones, gh, gh_json, warn_if_at_limit
 
 
 @dataclass
@@ -262,10 +261,11 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 def get_existing_issues() -> set[str]:
     """Fetch existing issue title prefixes (story IDs) for idempotency."""
     try:
-        raw = gh(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
-        issues = json.loads(raw) if raw else []
+        issues = gh_json(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
+        if not isinstance(issues, list):
+            raise RuntimeError(f"Expected list from gh, got {type(issues).__name__}")
         warn_if_at_limit(issues, 500)
-    except (RuntimeError, json.JSONDecodeError) as exc:
+    except RuntimeError as exc:
         print(f"Error: could not fetch existing issues: {exc}", file=sys.stderr)
         raise
     existing: set[str] = set()
@@ -280,13 +280,12 @@ def get_existing_issues() -> set[str]:
 def get_milestone_numbers() -> dict[str, int]:
     """Fetch milestone title -> number mapping from GitHub."""
     try:
-        # Use per_page=100 to minimise pages; no --jq to avoid
-        # concatenated JSON arrays on multi-page responses.
-        raw = gh(["api", "repos/{owner}/{repo}/milestones?per_page=100",
-                  "--paginate"], timeout=120)
-        milestones = json.loads(raw) if raw else []
+        milestones = gh_json(["api", "repos/{owner}/{repo}/milestones?per_page=100",
+                              "--paginate"])
+        if not isinstance(milestones, list):
+            raise RuntimeError(f"Expected list from gh, got {type(milestones).__name__}")
         return {m["title"]: m["number"] for m in milestones}
-    except (RuntimeError, json.JSONDecodeError, KeyError) as exc:
+    except (RuntimeError, KeyError) as exc:
         print(f"Error: could not fetch milestones: {exc}", file=sys.stderr)
         raise
 
@@ -425,7 +424,7 @@ def main() -> None:
     print("\nChecking for existing issues...")
     try:
         existing = get_existing_issues()
-    except (RuntimeError, json.JSONDecodeError):
+    except RuntimeError:
         print("Cannot proceed without checking existing issues (would create duplicates).",
               file=sys.stderr)
         sys.exit(1)
@@ -433,7 +432,7 @@ def main() -> None:
         print(f"  Found {len(existing)} existing story issues.")
     try:
         milestone_numbers = get_milestone_numbers()
-    except (RuntimeError, json.JSONDecodeError, KeyError):
+    except (RuntimeError, KeyError):
         print("Cannot proceed without milestone data.", file=sys.stderr)
         sys.exit(1)
     milestone_titles = build_milestone_title_map(milestone_files)

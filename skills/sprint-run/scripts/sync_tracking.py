@@ -22,7 +22,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, ConfigError, gh, extract_story_id, get_sprints_dir,
+    load_config, ConfigError, gh, gh_json, extract_story_id, get_sprints_dir,
     kanban_from_labels, find_milestone, warn_if_at_limit,
     list_milestone_issues, parse_iso_date, KANBAN_STATES,
 )
@@ -59,15 +59,14 @@ def get_linked_pr(
     """
     try:
         # Fetch all linked PRs, prefer open/merged over closed
-        raw = gh([
+        linked = gh_json([
             "api",
             f"repos/{{owner}}/{{repo}}/issues/{issue_num}/timeline",
             "--paginate", "--jq",
             '[.[] | select(.source?.issue?.pull_request?) '
             '| .source.issue]',
         ])
-        if raw and raw != "null":
-            linked = json.loads(raw)
+        if linked:
             if isinstance(linked, dict):
                 linked = [linked]
             if linked:
@@ -88,7 +87,7 @@ def get_linked_pr(
                         is not None
                     ),
                 }
-    except (RuntimeError, json.JSONDecodeError):
+    except RuntimeError:
         pass
     # Fallback: search pre-fetched PRs by branch name
     for pr in (all_prs or []):

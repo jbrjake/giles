@@ -618,27 +618,27 @@ class TestCreateIssueMissingMilestone(unittest.TestCase):
 class TestGetExistingIssues(unittest.TestCase):
     """Test populate_issues.get_existing_issues() with mocked gh."""
 
-    @patch("populate_issues.gh")
-    def test_returns_story_ids(self, mock_gh):
-        mock_gh.return_value = json.dumps([
+    @patch("populate_issues.gh_json")
+    def test_returns_story_ids(self, mock_gh_json):
+        mock_gh_json.return_value = [
             {"title": "US-0101: Setup project"},
             {"title": "US-0102: Add auth"},
             {"title": "Not a story"},
-        ])
+        ]
         existing = populate_issues.get_existing_issues()
         self.assertIn("US-0101", existing)
         self.assertIn("US-0102", existing)
         self.assertEqual(len(existing), 2)
 
-    @patch("populate_issues.gh")
-    def test_handles_empty_response(self, mock_gh):
-        mock_gh.return_value = "[]"
+    @patch("populate_issues.gh_json")
+    def test_handles_empty_response(self, mock_gh_json):
+        mock_gh_json.return_value = []
         existing = populate_issues.get_existing_issues()
         self.assertEqual(len(existing), 0)
 
-    @patch("populate_issues.gh")
-    def test_handles_gh_failure(self, mock_gh):
-        mock_gh.side_effect = RuntimeError("auth failed")
+    @patch("populate_issues.gh_json")
+    def test_handles_gh_failure(self, mock_gh_json):
+        mock_gh_json.side_effect = RuntimeError("auth failed")
         with self.assertRaises(RuntimeError):
             populate_issues.get_existing_issues()
 
@@ -787,10 +787,10 @@ class TestFindMilestoneBoundary(unittest.TestCase):
 class TestGetLinkedPR(unittest.TestCase):
     """P1-02: Test get_linked_pr matches correct story ID."""
 
-    @patch("sync_tracking.gh")
-    def test_matches_correct_story_id(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_matches_correct_story_id(self, mock_gh_json):
         """Fallback search should match only the requested story ID."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 10, "state": "MERGED", "headRefName": "sprint-1/us-0099-other", "mergedAt": "2026-03-01"},
             {"number": 20, "state": "OPEN", "headRefName": "sprint-1/us-0001-setup", "mergedAt": None},
@@ -799,10 +799,10 @@ class TestGetLinkedPR(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["number"], 20)
 
-    @patch("sync_tracking.gh")
-    def test_does_not_match_wrong_story(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_does_not_match_wrong_story(self, mock_gh_json):
         """Should return None if no PR matches the requested story ID."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 10, "state": "OPEN", "headRefName": "sprint-1/us-0099-other", "mergedAt": None},
         ]
@@ -900,20 +900,20 @@ class TestGetLinkedPrTimeline(unittest.TestCase):
 class TestGetLinkedPrWordBoundary(unittest.TestCase):
     """P6-06: Fallback branch matching must use word boundaries."""
 
-    @patch("sync_tracking.gh")
-    def test_pr_link_no_substring_match(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_pr_link_no_substring_match(self, mock_gh_json):
         """US-01 must NOT match branch containing US-010."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 30, "state": "OPEN", "headRefName": "sprint-1/US-010-feature", "mergedAt": None},
         ]
         result = sync_tracking.get_linked_pr(1, story_id="US-01", all_prs=all_prs)
         self.assertIsNone(result)
 
-    @patch("sync_tracking.gh")
-    def test_pr_link_exact_match(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_pr_link_exact_match(self, mock_gh_json):
         """US-01 should match branch sprint-1/US-01-setup."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 31, "state": "OPEN", "headRefName": "sprint-1/US-01-setup", "mergedAt": None},
         ]
@@ -921,10 +921,10 @@ class TestGetLinkedPrWordBoundary(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["number"], 31)
 
-    @patch("sync_tracking.gh")
-    def test_pr_link_exact_match_end_of_branch(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_pr_link_exact_match_end_of_branch(self, mock_gh_json):
         """US-01 should match branch ending with US-01 (no trailing slug)."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 32, "state": "OPEN", "headRefName": "sprint-1/US-01", "mergedAt": None},
         ]
@@ -932,10 +932,10 @@ class TestGetLinkedPrWordBoundary(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["number"], 32)
 
-    @patch("sync_tracking.gh")
-    def test_pr_link_longer_id_no_false_positive(self, mock_gh):
+    @patch("sync_tracking.gh_json")
+    def test_pr_link_longer_id_no_false_positive(self, mock_gh_json):
         """US-0001 must NOT match US-00010 branch."""
-        mock_gh.side_effect = RuntimeError("timeline API unavailable")
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
         all_prs = [
             {"number": 33, "state": "OPEN", "headRefName": "sprint-1/US-00010-big", "mergedAt": None},
         ]
