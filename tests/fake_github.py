@@ -113,8 +113,17 @@ class FakeGitHub:
         "api": frozenset(("paginate", "f", "X", "jq")),
     }
 
-    @staticmethod
-    def _parse_flags(args: list[str], start: int = 1) -> dict[str, list[str]]:
+    # Flags that always consume the next argument as their value,
+    # even if it starts with a dash (e.g., --title "-1 Fix bug").
+    _VALUE_BEARING_FLAGS = frozenset((
+        "title", "body", "milestone", "jq", "json", "label", "state",
+        "limit", "branch", "base", "head", "notes", "notes-file",
+        "tag", "target", "color", "description", "add-label",
+        "remove-label", "status",
+    ))
+
+    @classmethod
+    def _parse_flags(cls, args: list[str], start: int = 1) -> dict[str, list[str]]:
         """Parse --flag/​-f value pairs into a dict.
 
         Flags that appear multiple times get multiple values in the list.
@@ -127,8 +136,11 @@ class FakeGitHub:
             a = args[i]
             if a.startswith("--"):
                 key = a[2:]  # strip leading --
-                # Check if next arg is a value (not another flag) or end
-                if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                # Value-bearing flags always consume next arg regardless of prefix
+                if key in cls._VALUE_BEARING_FLAGS and i + 1 < len(args):
+                    flags.setdefault(key, []).append(args[i + 1])
+                    i += 2
+                elif i + 1 < len(args) and not args[i + 1].startswith("-"):
                     flags.setdefault(key, []).append(args[i + 1])
                     i += 2
                 else:
@@ -325,6 +337,14 @@ class FakeGitHub:
                 i += 2
             else:
                 i += 1
+        # Validate milestone exists (matches real GitHub API behavior)
+        if milestone:
+            ms_exists = any(ms["title"] == milestone for ms in self.milestones)
+            if not ms_exists:
+                return self._fail(
+                    f"Validation Failed: milestone '{milestone}' not found"
+                )
+
         issue = {
             "number": self._next_issue,
             "title": title,
