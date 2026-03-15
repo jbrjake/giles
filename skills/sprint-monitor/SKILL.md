@@ -27,6 +27,7 @@ Each invocation performs seven steps in order:
 3. Check sprint status
 4. Report a one-line summary
 
+<!-- §sprint-monitor.prerequisites -->
 ## Prerequisites
 
 - Run `scripts/validate_config.py` first. Load `project.toml` for paths.
@@ -45,6 +46,8 @@ test -f "${sprints_dir}/SPRINT-STATUS.md" || echo "SPRINT-STATUS.md missing"
 grep -q "phase:.*development" "${sprints_dir}/SPRINT-STATUS.md" || echo "No active development phase"
 ```
 
+<!-- §sprint-monitor.step_0_sync_backlog_debounce_throttle -->
+<!-- §sprint-monitor.step_0_sync_backlog -->
 ## Step 0 -- Sync Backlog
 
 Run the backlog sync engine to detect new or changed milestone files and
@@ -68,6 +71,7 @@ This script:
 If the script fails, log the error and continue with Step 1. The sync is
 best-effort and must not block monitoring.
 
+<!-- §sprint-monitor.step_1_check_ci_status -->
 ## Step 1 -- Check CI Status
 
 Query the five most recent workflow runs:
@@ -102,6 +106,8 @@ For each failing run:
 5. Update the story tracking file with the CI status (`CI: failing`,
    `CI: fix pushed`, or `CI: needs manual attention`).
 
+<!-- §sprint-monitor.step_1_5_drift_detection_branch_divergence_direct_pushes -->
+<!-- §sprint-monitor.step_1_5_drift_detection -->
 ## Step 1.5 -- Drift Detection
 
 Check for two types of drift that can silently derail a sprint:
@@ -132,6 +138,7 @@ If any direct pushes found, flag in Giles's voice:
 "Someone appears to have pushed directly to {base_branch}. I won't say
 who, but I will say it's making the merge queue nervous."
 
+<!-- §sprint-monitor.step_2_check_open_prs -->
 ## Step 2 -- Check Open PRs
 
 Query all open pull requests:
@@ -178,6 +185,8 @@ Process each PR according to its state:
   ```
 - Check existing comments first to avoid duplicates.
 
+<!-- §sprint-monitor.step_2_5_mid_sprint_check_in_threshold_triggered_giles_ceremony -->
+<!-- §sprint-monitor.step_2_5_mid_sprint_check_in -->
 ## Step 2.5 -- Mid-Sprint Check-In
 
 Check whether the sprint has crossed the halfway mark:
@@ -219,6 +228,7 @@ This check-in is informational. It does not block story execution.
 If the user invokes sprint-run while a check-in is pending, Giles
 presents it before resuming work.
 
+<!-- §sprint-monitor.step_3_check_sprint_status -->
 ## Step 3 -- Check Sprint Status
 
 Run the status check script (path relative to skill install location):
@@ -243,6 +253,7 @@ If the script is missing or fails, reconstruct status manually:
 gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title | startswith("Sprint")) | {title, open_issues, closed_issues}'
 ```
 
+<!-- §sprint-monitor.step_4_report -->
 ## Step 4 -- Report
 
 Output a single status line summarizing the sprint:
@@ -263,6 +274,8 @@ line listing the actions:
 Actions: merged PR #42, pushed CI fix to feature/parser, flagged PR #45 for review
 ```
 
+<!-- §sprint-monitor.rate_limiting -->
+<!-- §sprint-monitor.rate_limiting_and_deduplication -->
 ## Rate Limiting
 
 ### Action deduplication

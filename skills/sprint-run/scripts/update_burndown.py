@@ -26,6 +26,7 @@ from validate_config import (
 )
 
 
+# §update_burndown.closed_date
 def closed_date(issue: dict) -> str:
     """Return the date an issue was closed, or a dash."""
     raw = issue.get("closedAt")
@@ -40,6 +41,7 @@ def closed_date(issue: dict) -> str:
 
 # -- Output writers ----------------------------------------------------------
 
+# §update_burndown.write_burndown
 def write_burndown(
     sprint_num: int, rows: list[dict], now: datetime, sprints_dir: Path
 ) -> Path:
@@ -79,6 +81,7 @@ def write_burndown(
     return path
 
 
+# §update_burndown.update_sprint_status
 def update_sprint_status(
     sprint_num: int, rows: list[dict], sprints_dir: Path
 ) -> None:
@@ -118,6 +121,7 @@ def update_sprint_status(
 
 # -- Persona / PR helpers ---------------------------------------------------
 
+# §update_burndown.load_tracking_metadata
 def load_tracking_metadata(
     sprint_num: int, sprints_dir: Path
 ) -> dict[str, dict]:
@@ -148,6 +152,7 @@ def _fm_val(frontmatter: str, key: str) -> str | None:
 
 # -- Main --------------------------------------------------------------------
 
+# §update_burndown.main
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())

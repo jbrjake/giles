@@ -11,6 +11,8 @@ from project.toml `[paths]`).
 
 A retro that produces no doc changes is a failed retro.
 
+<!-- §ceremony-retro.facilitation_giles_facilitates_pm_participates_as_team_member -->
+<!-- §ceremony-retro.facilitation -->
 ## Facilitation
 
 Giles facilitates. The PM participates as a team member — they provide
@@ -36,6 +38,7 @@ I'd like to hear from them first."
 After cutting scope: "We deferred {N} stories this sprint. That was the right
 call, and I want to hear whether anyone disagrees."
 
+<!-- §ceremony-retro.format_start_stop_continue -->
 ## Format: Start / Stop / Continue
 
 Giles collects feedback from each persona involved in the sprint. He manages
@@ -57,6 +60,7 @@ the sprint?"
 - Things that worked well and should be preserved
 - Practices worth reinforcing or formalizing
 
+<!-- §ceremony-retro.feedback_distillation_identify_patterns_propose_doc_changes -->
 ## Feedback Distillation
 
 This is the most important part of the retro. After collecting raw feedback:
@@ -71,6 +75,7 @@ Giles synthesizes with data when available: "Three of you mentioned review
 friction. The numbers back that up — average review rounds this sprint was 2.8,
 up from 1.9 last sprint."
 
+<!-- §ceremony-retro.2_propose_doc_changes -->
 ### 2. Propose Doc Changes
 
 For each pattern, Giles proposes a concrete change:
@@ -87,17 +92,20 @@ For each pattern, Giles proposes a concrete change:
   that reveal design gaps get added to Open Questions; resolved questions
   get promoted to Requirements.
 
+<!-- §ceremony-retro.3_get_user_approval -->
 ### 3. Get User Approval
 
 Present all proposed changes to the user. Do not apply changes without approval.
 Group changes by file for easy review.
 
+<!-- §ceremony-retro.4_apply_changes -->
 ### 4. Apply Changes
 
 After approval, edit the project docs directly. Verify each change is applied
 correctly. Confirm the file stays under the 500-line target / 750-line hard
 limit.
 
+<!-- §ceremony-retro.5_sprint_analytics -->
 ### 5. Sprint Analytics
 
 Run `scripts/sprint_analytics.py` (path relative to plugin root) to compute
@@ -115,6 +123,7 @@ Append findings to `{sprints_dir}/analytics.md`. Format:
 If the analytics script is unavailable or fails, Giles writes observations
 from memory. The script makes it precise; Giles makes it useful.
 
+<!-- §ceremony-retro.6_write_sprint_history -->
 ### 6. Write Sprint History
 
 For each persona who worked during the sprint, Giles appends an entry to
@@ -138,6 +147,7 @@ Each entry follows this format:
 Also append Giles's own entry to `{team_dir}/history/giles.md` — process
 observations, facilitation learnings, what he'd adjust.
 
+<!-- §ceremony-retro.7_definition_of_done_review -->
 ### 7. Definition of Done Review
 
 Read `sprint-config/definition-of-done.md`. Based on this sprint's
@@ -150,6 +160,7 @@ Examples of retro-driven DoD additions:
 
 Present proposed changes to the user. Apply only after approval.
 
+<!-- §ceremony-retro.examples_of_retro_driven_doc_changes -->
 ## Examples of Retro-Driven Doc Changes
 
 - Sprint revealed a recurring code anti-pattern — add to project rules as a
@@ -168,6 +179,7 @@ Present proposed changes to the user. Apply only after approval.
 - Sprint revealed an untested edge case — add to test plan adversarial
   tests and link to relevant story
 
+<!-- §ceremony-retro.output_template_retro_md -->
 ## Output
 
 Write `{sprints_dir}/sprint-{N}/retro.md` (path from project.toml `[paths]`):
@@ -207,6 +219,7 @@ Write `{sprints_dir}/sprint-{N}/retro.md` (path from project.toml `[paths]`):
 - Trend: {increasing / stable / decreasing}
 ```
 
+<!-- §ceremony-retro.rules_must_produce_at_least_one_doc_change -->
 ## Rules
 
 - Every retro must produce at least one proposed doc change. If the team cannot

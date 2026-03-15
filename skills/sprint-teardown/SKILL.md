@@ -11,6 +11,7 @@ Symlinks are removed; the files they point to are left untouched. Generated file
 
 ---
 
+<!-- §sprint-teardown.safety_principles -->
 ## Safety Principles
 
 1. **Never delete a file that existed before sprint-init ran.** The teardown only
@@ -60,6 +61,7 @@ test -d sprint-config/ || echo "No sprint-config/ found. Nothing to do."
 
 ---
 
+<!-- §sprint-teardown.step_3_dry_run -->
 ## Step 3: Dry Run
 
 Run the teardown script in dry-run mode to show what would be removed:
@@ -113,6 +115,7 @@ Present this to the user and ask for confirmation before proceeding.
 
 ---
 
+<!-- §sprint-teardown.step_4_execute_teardown -->
 ## Step 4: Execute Teardown
 
 Once the user confirms, run the teardown:

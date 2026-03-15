@@ -19,6 +19,7 @@ tracking files. Run once at project start; subsequent sprints use `sprint-run`.
 
 ---
 
+<!-- §sprint-setup.phase_0_project_initialization -->
 ## Phase 0: Project Initialization
 
 If `sprint-config/` exists — run `scripts/validate_config.py`. Pass → Step 1. Fail → show errors, stop.
@@ -29,6 +30,7 @@ auto-detect project structure and generate config. Load `project.toml` via
 
 ---
 
+<!-- §sprint-setup.step_1_check_prerequisites -->
 ## Step 1: Check Prerequisites
 
 Read `references/prerequisites-checklist.md` and verify each item:
@@ -43,6 +45,8 @@ Proceed to Step 2 only when all checks pass.
 
 ---
 
+<!-- §sprint-setup.step_2_github_bootstrap -->
+<!-- §sprint-setup.step_2_github_bootstrap_labels_milestones_issues_ci -->
 ## Step 2: GitHub Bootstrap
 
 All scripts are idempotent — safe to re-run. They read `sprint-config/project.toml`

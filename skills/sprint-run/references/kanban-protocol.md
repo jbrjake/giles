@@ -3,6 +3,7 @@
 Load this reference when transitioning stories between states or updating
 tracking artifacts.
 
+<!-- §kanban-protocol.states_6_todo_design_dev_review_integration_done -->
 ## States
 
 | State | Label | Description |
@@ -14,6 +15,7 @@ tracking artifacts.
 | integration | `kanban:integration` | Approved, CI green, merging |
 | done | `kanban:done` | Merged, issue closed, burndown updated |
 
+<!-- §kanban-protocol.transitions_allowed_state_changes -->
 ## Transitions
 
 ```
@@ -25,6 +27,7 @@ review → integration Approved by reviewer
 integration → done  CI green, merged, issue closed
 ```
 
+<!-- §kanban-protocol.rules_one_story_per_persona_in_dev_3_round_review_limit -->
 ## Rules
 
 - Allow only ONE story per persona in `dev` state at a time. This prevents
@@ -39,6 +42,7 @@ integration → done  CI green, merged, issue closed
   2. Story tracking file in `{sprints_dir}/sprint-{N}/`
   3. Sprint status file
 
+<!-- §kanban-protocol.github_label_sync_procedure -->
 ## GitHub Label Sync
 
 On each transition, execute these steps in order:
@@ -48,6 +52,7 @@ On each transition, execute these steps in order:
 3. Update the project board column if using GitHub Projects
 4. Log the transition in the story tracking file with a timestamp
 
+<!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
 
 | State | Max stories (whole team) |
@@ -60,6 +65,7 @@ On each transition, execute these steps in order:
 If a WIP limit is reached, the team must pull stories through the bottleneck
 before starting new work.
 
+<!-- §kanban-protocol.blocked_stories -->
 ## Blocked Stories
 
 If a story is blocked:

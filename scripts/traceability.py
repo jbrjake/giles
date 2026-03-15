@@ -19,13 +19,17 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from validate_config import load_config, ConfigError
 
 # Patterns
+# §traceability.STORY_HEADING
 STORY_HEADING = re.compile(r'^###\s+(US-\d+):\s*(.+)')
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
+# §traceability.TEST_CASE_HEADING
 TEST_CASE_HEADING = re.compile(r'^###\s+((?:TC|GP)-[\w-]+):\s*(.+)')
+# §traceability.REQ_TABLE_ROW
 REQ_TABLE_ROW = re.compile(r'^\|\s*(REQ-[\w-]+)\s*\|\s*(US-[\w, –-]+)\s*\|')
 REQ_PATTERN = re.compile(r'US-\d+')
 
 
+# §traceability.parse_stories
 def parse_stories(epics_dir: str) -> dict[str, dict]:
     """Extract story IDs, titles, and test case links from epic files.
 
@@ -73,6 +77,7 @@ def parse_stories(epics_dir: str) -> dict[str, dict]:
     return stories
 
 
+# §traceability.parse_test_cases
 def parse_test_cases(test_plan_dir: str) -> dict[str, dict]:
     """Extract test case IDs from test plan files.
 
@@ -94,6 +99,7 @@ def parse_test_cases(test_plan_dir: str) -> dict[str, dict]:
     return cases
 
 
+# §traceability.parse_requirements
 def parse_requirements(prd_dir: str) -> dict[str, dict]:
     """Extract REQ-* IDs and their story mappings from PRD reference files.
 
@@ -119,6 +125,7 @@ def parse_requirements(prd_dir: str) -> dict[str, dict]:
     return reqs
 
 
+# §traceability.build_traceability
 def build_traceability(
     epics_dir: str | None = None,
     test_plan_dir: str | None = None,
@@ -162,6 +169,7 @@ def build_traceability(
     }
 
 
+# §traceability.format_report
 def format_report(report: dict) -> str:
     """Produce a markdown traceability report."""
     lines = ["# Traceability Report", ""]
@@ -195,6 +203,7 @@ def format_report(report: dict) -> str:
     return "\n".join(lines)
 
 
+# §traceability.main
 def main() -> None:
     """CLI entry point: build and print traceability report."""
     try:

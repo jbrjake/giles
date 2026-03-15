@@ -9,6 +9,7 @@ See `persona-guide.md` for persona assignment and pairing rules.
 
 ---
 
+<!-- §story-execution.to_do_design -->
 ## TO-DO --> DESIGN
 
 The implementer persona reads the story requirements, relevant PRDs,
@@ -43,6 +44,7 @@ and acceptance criteria, then produces a design.
 The PR description carries full context because reviewers should never
 need to leave the PR to understand what they are reviewing.
 
+<!-- §story-execution.commit_convention -->
 ### Commit Convention
 
 All commits MUST use the conventional commit wrapper:
@@ -56,6 +58,7 @@ checks atomicity. See `scripts/commit.py --help` for flags.
 
 ---
 
+<!-- §story-execution.design_development_tdd_via_superpowers -->
 ## DESIGN --> DEVELOPMENT
 
 Dispatch the implementer as a subagent. Read `agents/implementer.md`
@@ -78,6 +81,7 @@ review style.
 
 ---
 
+<!-- §story-execution.development_review_pr_ready_dispatch_reviewer -->
 ## DEVELOPMENT --> REVIEW
 
 Dispatch the reviewer as a subagent. Read `agents/reviewer.md` for the
@@ -97,6 +101,7 @@ full agent protocol. The reviewer's persona file (from
    re-requests review. This loop repeats until approval.
 6. Update the GitHub issue label to `kanban:review`.
 
+<!-- §story-execution.pair_review_high_risk_stories -->
 ### Pair Review (High-Risk Stories)
 
 When a story meets BOTH of these criteria, dispatch two reviewer subagents:
@@ -117,6 +122,7 @@ before proceeding to integration.
 
 ---
 
+<!-- §story-execution.review_integration_ci_green_squash_merge -->
 ## REVIEW --> INTEGRATION
 
 1. Confirm CI is green:
@@ -143,6 +149,7 @@ before proceeding to integration.
 
 ---
 
+<!-- §story-execution.parallel_dispatch_for_independent_stories -->
 ## Parallel Dispatch
 
 Check the story dependency graph before dispatching. Stories with no

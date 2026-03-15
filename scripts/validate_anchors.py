@@ -179,20 +179,45 @@ def _find_symbol_line(file_path: Path, symbol: str) -> int | None:
 def _find_heading_line(file_path: Path, slug: str) -> int | None:
     """Find line number of a markdown heading matching a slug.
 
-    Slug matching: 'kickoff' matches '## Kickoff', '## Phase 1: Kickoff', etc.
-    Converts heading text to slug (lowercase, spaces/special chars -> underscore)
-    and checks if the heading slug ends with the target slug or matches exactly.
-    Suffix-only matching avoids false positives (e.g., 'check' won't match
-    'pre_flight_check_ci').
+    Slug matching uses multiple strategies in priority order:
+    1. Exact match: heading slug == target slug
+    2. Suffix match: heading slug ends with '_' + target slug
+    3. Containment: all target slug words appear in heading slug in order
+    This handles both short refs (phase_1_kickoff) and verbose refs
+    (phase_1_sprint_kickoff_interactive) against the same heading.
     """
     text = file_path.read_text(encoding="utf-8")
+    slug_parts = slug.split("_")
+
+    # Collect candidates with match quality
+    best: tuple[int, int] | None = None  # (priority, line)
+
     for i, line in enumerate(text.splitlines(), 1):
-        if line.startswith("#"):
-            heading_text = re.sub(r"^#+\s*", "", line).strip()
-            heading_slug = re.sub(r"[^a-z0-9]+", "_", heading_text.lower()).strip("_")
-            if heading_slug == slug or heading_slug.endswith("_" + slug):
-                return i
-    return None
+        if not line.startswith("#"):
+            continue
+        heading_text = re.sub(r"^#+\s*", "", line).strip()
+        heading_slug = re.sub(r"[^a-z0-9]+", "_", heading_text.lower()).strip("_")
+
+        if heading_slug == slug:
+            return i  # exact match, return immediately
+        if heading_slug.endswith("_" + slug):
+            if best is None or best[0] > 1:
+                best = (1, i)
+        # Prefix: heading slug is a prefix of target (verbose CHEATSHEET slugs)
+        elif slug.startswith(heading_slug + "_") or slug.startswith(heading_slug):
+            if best is None or best[0] > 2:
+                best = (2, i)
+        # Containment: all slug parts appear in heading slug in order
+        elif len(slug_parts) >= 2:
+            h_parts = heading_slug.split("_")
+            j = 0
+            for hp in h_parts:
+                if j < len(slug_parts) and hp == slug_parts[j]:
+                    j += 1
+            if j == len(slug_parts) and (best is None or best[0] > 3):
+                best = (3, i)
+
+    return best[1] if best else None
 
 
 def fix_missing_anchors(

@@ -33,10 +33,13 @@ except ImportError:
 
 # -- Constants ---------------------------------------------------------------
 
+# §sync_backlog.THROTTLE_FLOOR_SECONDS
 THROTTLE_FLOOR_SECONDS = 600  # 10 minutes
+# §sync_backlog.STATE_FILENAME
 STATE_FILENAME = ".sync-state.json"
 
 
+# §sync_backlog.hash_milestone_files
 def hash_milestone_files(file_paths: list[str]) -> dict[str, str]:
     """SHA-256 hash each milestone file. Returns {filename: hex_digest}."""
     result: dict[str, str] = {}
@@ -49,6 +52,7 @@ def hash_milestone_files(file_paths: list[str]) -> dict[str, str]:
     return result
 
 
+# §sync_backlog._default_state
 def _default_state() -> dict:
     """Return a fresh state dict."""
     return {
@@ -58,6 +62,7 @@ def _default_state() -> dict:
     }
 
 
+# §sync_backlog.load_state
 def load_state(config_dir: Path) -> dict:
     """Load sync state from .sync-state.json, or return defaults."""
     path = config_dir / STATE_FILENAME
@@ -77,6 +82,7 @@ def load_state(config_dir: Path) -> dict:
         return _default_state()
 
 
+# §sync_backlog.save_state
 def save_state(config_dir: Path, state: dict) -> None:
     """Write sync state to .sync-state.json."""
     path = config_dir / STATE_FILENAME
@@ -84,6 +90,7 @@ def save_state(config_dir: Path, state: dict) -> None:
 
 
 @dataclass
+# §sync_backlog.SyncResult
 class SyncResult:
     """Result of the sync scheduling decision."""
     status: str        # "no_changes", "debouncing", "throttled", "sync"
@@ -91,6 +98,7 @@ class SyncResult:
     message: str = ""
 
 
+# §sync_backlog._is_throttled
 def _is_throttled(state: dict, now: datetime) -> bool:
     """Check if last sync was within the throttle floor."""
     last = state.get("last_sync_at")
@@ -103,6 +111,7 @@ def _is_throttled(state: dict, now: datetime) -> bool:
         return False
 
 
+# §sync_backlog.check_sync
 def check_sync(
     current_hashes: dict[str, str],
     state: dict,
@@ -143,6 +152,7 @@ def check_sync(
     return SyncResult("sync", True, "files stabilized, syncing")
 
 
+# §sync_backlog.do_sync
 def do_sync(config: dict) -> dict[str, int]:
     """Run the idempotent milestone + issue creation. Return counts.
 
@@ -182,6 +192,7 @@ def do_sync(config: dict) -> dict[str, int]:
     return result
 
 
+# §sync_backlog.main
 def main() -> str:
     """Run one sync cycle. Returns status string.
 

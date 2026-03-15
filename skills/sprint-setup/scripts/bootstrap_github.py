@@ -41,6 +41,7 @@ def check_prerequisites() -> None:
     print("Prerequisites OK: gh installed, authenticated, remote configured.")
 
 
+# §bootstrap_github.create_label
 def create_label(name: str, color: str, description: str = "") -> None:
     """Create a label, skip if it already exists."""
     try:
@@ -61,6 +62,7 @@ _PERSONA_COLORS = [
 ]
 
 
+# §bootstrap_github.create_persona_labels
 def create_persona_labels(config: dict) -> None:
     """Create persona labels from team/INDEX.md."""
     personas = get_team_personas(config)
@@ -74,6 +76,7 @@ def create_persona_labels(config: dict) -> None:
         create_label(f"persona:{name}", color, f"Assigned to {persona['name']}")
 
 
+# §bootstrap_github._collect_sprint_numbers
 def _collect_sprint_numbers(milestone_files: list[str]) -> set[int]:
     """Scan milestone files for all sprint section numbers.
 
@@ -96,6 +99,7 @@ def _collect_sprint_numbers(milestone_files: list[str]) -> set[int]:
     return sprint_nums
 
 
+# §bootstrap_github.create_sprint_labels
 def create_sprint_labels(config: dict) -> None:
     """Create sprint labels -- one per sprint section found across all milestones."""
     milestone_files = get_milestones(config)
@@ -108,6 +112,7 @@ def create_sprint_labels(config: dict) -> None:
         create_label(f"sprint:{n}", "0075ca", f"Sprint {n}")
 
 
+# §bootstrap_github._parse_saga_labels_from_backlog
 def _parse_saga_labels_from_backlog(config: dict) -> list[tuple[str, str]]:
     """Parse saga labels from backlog/INDEX.md.
 
@@ -143,6 +148,7 @@ def _parse_saga_labels_from_backlog(config: dict) -> list[tuple[str, str]]:
     return sagas
 
 
+# §bootstrap_github.create_saga_labels
 def create_saga_labels(config: dict) -> None:
     """Create saga labels from backlog/INDEX.md."""
     sagas = _parse_saga_labels_from_backlog(config)
@@ -154,6 +160,7 @@ def create_saga_labels(config: dict) -> None:
         create_label(f"saga:{saga_id}", "0e8a16", saga_name)
 
 
+# §bootstrap_github.create_static_labels
 def create_static_labels() -> None:
     """Create labels that are project-agnostic (priorities, kanban, types)."""
     # Priority labels
@@ -183,6 +190,7 @@ def create_static_labels() -> None:
     create_label("type:chore", "ededed", "Maintenance task")
 
 
+# §bootstrap_github.create_epic_labels
 def create_epic_labels(epics_dir: Path) -> None:
     """Create epic: labels from epic filenames in epics_dir."""
     epic_re = re.compile(r"(E-\d{4})")
@@ -194,6 +202,7 @@ def create_epic_labels(epics_dir: Path) -> None:
             create_label(label, "0e8a16", f"Epic {epic_id}")
 
 
+# §bootstrap_github.create_milestones_on_github
 def create_milestones_on_github(config: dict) -> None:
     """Create sprint milestones from config milestone files."""
     milestone_files = get_milestones(config)
@@ -246,6 +255,7 @@ def create_milestones_on_github(config: dict) -> None:
                 print(f"  ! {title}: {msg}")
 
 
+# §bootstrap_github.main
 def main() -> None:
     """Run the full bootstrap using config."""
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):

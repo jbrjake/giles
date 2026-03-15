@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
 
+# §manage_sagas._safe_int
 def _safe_int(value: str) -> int:
     """Extract leading digits from a string, returning 0 if none found."""
     m = re.match(r'(\d+)', str(value).strip())
@@ -34,6 +35,7 @@ SPRINT_TABLE_ROW = re.compile(
 )
 
 
+# §manage_sagas.parse_saga
 def parse_saga(path: str) -> dict:
     """Parse a saga file into structured data.
 
@@ -63,6 +65,7 @@ def parse_saga(path: str) -> dict:
     }
 
 
+# §manage_sagas._parse_header_table
 def _parse_header_table(lines: list[str]) -> dict[str, str]:
     """Parse the saga-level metadata table."""
     metadata: dict[str, str] = {}
@@ -78,6 +81,7 @@ def _parse_header_table(lines: list[str]) -> dict[str, str]:
     return metadata
 
 
+# §manage_sagas._parse_epic_index
 def _parse_epic_index(lines: list[str]) -> list[dict]:
     """Parse the Epic Index table."""
     epics: list[dict] = []
@@ -100,6 +104,7 @@ def _parse_epic_index(lines: list[str]) -> list[dict]:
     return epics
 
 
+# §manage_sagas._parse_sprint_allocation
 def _parse_sprint_allocation(lines: list[str]) -> list[dict]:
     """Parse the Sprint Allocation table."""
     sprints: list[dict] = []
@@ -121,6 +126,7 @@ def _parse_sprint_allocation(lines: list[str]) -> list[dict]:
     return sprints
 
 
+# §manage_sagas._find_section_ranges
 def _find_section_ranges(lines: list[str]) -> dict[str, tuple[int, int]]:
     """Find line ranges for each ## section."""
     ranges: dict[str, tuple[int, int]] = {}
@@ -140,6 +146,7 @@ def _find_section_ranges(lines: list[str]) -> dict[str, tuple[int, int]]:
     return ranges
 
 
+# §manage_sagas.update_sprint_allocation
 def update_sprint_allocation(
     path: str,
     allocation: list[dict],
@@ -172,6 +179,7 @@ def update_sprint_allocation(
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_sagas.update_epic_index
 def update_epic_index(
     path: str,
     epics_dir: str,
@@ -227,6 +235,7 @@ def update_epic_index(
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_sagas.update_team_voices
 def update_team_voices(path: str, voices: dict[str, str]) -> None:
     """Update the Team Voices blockquote section.
 
@@ -250,6 +259,7 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_sagas.main
 def main() -> None:
     """CLI entry point with subcommands."""
     if len(sys.argv) < 3:

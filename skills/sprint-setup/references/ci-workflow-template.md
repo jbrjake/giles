@@ -4,6 +4,7 @@ GitHub Actions workflow template for continuous integration. Generated from
 project.toml `[ci]` section. The setup script reads `check_commands` and
 `build_command` to generate the CI YAML.
 
+<!-- §ci-workflow-template.workflow_template_yaml_skeleton -->
 ## Workflow Template
 
 ```yaml
@@ -39,6 +40,7 @@ jobs:
           echo "Run build command here"
 ```
 
+<!-- §ci-workflow-template.notes_customization_guidance -->
 ## Notes
 
 - `{base_branch}` is a placeholder replaced by the setup script. Comes from `project.toml [project] base_branch` (defaults to `main`)

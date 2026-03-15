@@ -28,12 +28,15 @@ Read `{team_dir}/{persona_file}` for your full character profile — voice, conc
 ### Related Stories
 {dependencies — current GitHub state of blocked_by/blocks stories: merged, in review, or in dev. Sprint-run checks `gh issue view` for each dependency and injects status.}
 
+<!-- §implementer.strategic_context -->
 ### Strategic Context
 {saga_context — saga goal and where this story fits in the larger initiative. Omitted if sagas not configured.}
 
+<!-- §implementer.test_plan_context -->
 ### Test Plan Context
 {test_plan_context — preconditions and expected results from referenced test cases. Omitted if test plan not configured.}
 
+<!-- §implementer.sprint_history -->
 ### Sprint History
 Read `{team_dir}/history/{persona_file_stem}.md` if it exists. This contains
 Giles's observations about your work in previous sprints — what you struggled
@@ -46,6 +49,7 @@ in Sprint 5. The reviewer will take your wariness seriously because it's earned.
 
 If the file doesn't exist (first sprint), skip this section.
 
+<!-- §implementer.motivation_context -->
 ### Motivation Context
 Read `{team_dir}/insights.md` if it exists. This contains Giles's observations
 about what drives each team member — their motivations, what they protect, and
@@ -54,6 +58,7 @@ your PR description. Do not quote the insights file directly. Internalize it.
 
 If the file doesn't exist (first sprint or insights not yet written), skip this.
 
+<!-- §implementer.context_management -->
 ## Context Management
 
 Large stories consume a lot of context. Manage it deliberately:
@@ -103,6 +108,8 @@ gh pr create --draft --base {base_branch} --head {branch_name} \
 ## Design Decisions
 (to be filled during design phase)
 
+<!-- §implementer.confidence -->
+<!-- §implementer.confidence_signals -->
 ## Confidence
 (Rate your confidence per area of the implementation.)
 - **{area 1}:** High / Medium / Low — {brief rationale}
@@ -121,10 +128,12 @@ The PR description is CRITICAL — the reviewer will work entirely from it. The 
 - Design decisions you made and why
 - Use the PR template from `skills/sprint-setup/references/github-conventions.md`
 
+<!-- §implementer.design -->
 ### 2. Design
 Write design notes in the story tracking file at `docs/dev-team/sprints/sprint-{N}/stories/{story_file}`.
 Think through the approach IN CHARACTER — what would {persona_name} prioritize? What concerns would they raise?
 
+<!-- §implementer.implement_with_tdd -->
 ### 3. Implement with TDD
 **REQUIRED:** Invoke `superpowers:test-driven-development`.
 - Write failing tests FIRST

@@ -27,6 +27,7 @@ class ConfigError(ValueError):
 # Shared GitHub CLI helpers
 # ---------------------------------------------------------------------------
 
+# §validate_config.gh
 def gh(args: list[str]) -> str:
     """Run a gh CLI command and return stdout. Raises RuntimeError on failure."""
     r = subprocess.run(
@@ -37,6 +38,7 @@ def gh(args: list[str]) -> str:
     return r.stdout.strip()
 
 
+# §validate_config.gh_json
 def gh_json(args: list[str]) -> list | dict:
     """Run a gh CLI command and parse JSON output.
 
@@ -52,6 +54,7 @@ def gh_json(args: list[str]) -> list | dict:
 # Minimal TOML parser (handles the subset used by project.toml)
 # ---------------------------------------------------------------------------
 
+# §validate_config.parse_simple_toml
 def parse_simple_toml(text: str) -> dict:
     """Parse a minimal TOML subset into a nested dict.
 
@@ -274,6 +277,7 @@ def _set_nested(root: dict, section_path: list[str], key: str, value) -> None:
 # Validation
 # ---------------------------------------------------------------------------
 
+# §validate_config._REQUIRED_FILES
 _REQUIRED_FILES = [
     ("{config_dir}/project.toml",
      "Master configuration (project name, repo, language, CI commands)"),
@@ -287,6 +291,7 @@ _REQUIRED_FILES = [
      "Development process guide"),
 ]
 
+# §validate_config._REQUIRED_TOML_KEYS
 _REQUIRED_TOML_KEYS: list[tuple[str, ...]] = [
     ("project", "name"),
     ("project", "repo"),
@@ -298,9 +303,11 @@ _REQUIRED_TOML_KEYS: list[tuple[str, ...]] = [
     ("ci", "build_command"),
 ]
 
+# §validate_config._REQUIRED_TOML_SECTIONS
 _REQUIRED_TOML_SECTIONS = ["project", "paths", "ci"]
 
 
+# §validate_config.validate_project
 def validate_project(
     config_dir: str = "sprint-config",
 ) -> tuple[bool, list[str]]:
@@ -410,6 +417,7 @@ def validate_project(
     return (len(errors) == 0, errors)
 
 
+# §validate_config._parse_team_index
 def _parse_team_index(index_path: Path) -> list[dict[str, str]]:
     """Parse the markdown table in team/INDEX.md.
 
@@ -481,6 +489,7 @@ def _print_errors(errors: list[str], config_dir: str) -> None:
 # Convenience: load_config
 # ---------------------------------------------------------------------------
 
+# §validate_config.load_config
 def load_config(config_dir: str = "sprint-config") -> dict:
     """Validate config, then return the parsed project.toml as a dict.
 
@@ -518,6 +527,7 @@ def load_config(config_dir: str = "sprint-config") -> dict:
 # Query helpers
 # ---------------------------------------------------------------------------
 
+# §validate_config.get_team_personas
 def get_team_personas(config: dict) -> list[dict[str, str]]:
     """Return a list of persona dicts from team/INDEX.md.
 
@@ -546,6 +556,7 @@ def get_team_personas(config: dict) -> list[dict[str, str]]:
     return result
 
 
+# §validate_config.get_milestones
 def get_milestones(config: dict) -> list[str]:
     """Return a sorted list of milestone file paths."""
     paths = config.get("paths", {})
@@ -561,6 +572,7 @@ def get_milestones(config: dict) -> list[str]:
     )
 
 
+# §validate_config.get_ci_commands
 def get_ci_commands(config: dict) -> list[str]:
     """Return the CI check commands list from [ci]."""
     ci = config.get("ci", {})
@@ -570,17 +582,20 @@ def get_ci_commands(config: dict) -> list[str]:
     return [str(commands)]
 
 
+# §validate_config.get_base_branch
 def get_base_branch(config: dict) -> str:
     """Return the base branch from config, defaulting to 'main'."""
     branch = config.get("project", {}).get("base_branch", "main")
     return branch if branch else "main"
 
 
+# §validate_config.get_sprints_dir
 def get_sprints_dir(config: dict) -> Path:
     """Return sprints directory path (required key, always present after validation)."""
     return Path(config.get("paths", {}).get("sprints_dir", "sprints"))
 
 
+# §validate_config.get_prd_dir
 def get_prd_dir(config: dict) -> Path | None:
     """Return PRD directory path, or None if not configured."""
     val = config.get("paths", {}).get("prd_dir")
@@ -590,6 +605,7 @@ def get_prd_dir(config: dict) -> Path | None:
     return p if p.is_dir() else None
 
 
+# §validate_config.get_test_plan_dir
 def get_test_plan_dir(config: dict) -> Path | None:
     """Return test plan directory path, or None if not configured."""
     val = config.get("paths", {}).get("test_plan_dir")
@@ -599,6 +615,7 @@ def get_test_plan_dir(config: dict) -> Path | None:
     return p if p.is_dir() else None
 
 
+# §validate_config.get_sagas_dir
 def get_sagas_dir(config: dict) -> Path | None:
     """Return sagas directory path, or None if not configured."""
     val = config.get("paths", {}).get("sagas_dir")
@@ -608,6 +625,7 @@ def get_sagas_dir(config: dict) -> Path | None:
     return p if p.is_dir() else None
 
 
+# §validate_config.get_epics_dir
 def get_epics_dir(config: dict) -> Path | None:
     """Return epics directory path, or None if not configured."""
     val = config.get("paths", {}).get("epics_dir")
@@ -617,6 +635,7 @@ def get_epics_dir(config: dict) -> Path | None:
     return p if p.is_dir() else None
 
 
+# §validate_config.extract_sp
 def extract_sp(issue: dict) -> int:
     """Extract story points from an issue's labels or body text.
 
@@ -650,6 +669,7 @@ def extract_sp(issue: dict) -> int:
     return 0
 
 
+# §validate_config.get_story_map
 def get_story_map(config: dict) -> Path | None:
     """Return story map index file path, or None if not configured."""
     val = config.get("paths", {}).get("story_map")
@@ -663,6 +683,7 @@ def get_story_map(config: dict) -> Path | None:
 # Sprint / story / kanban helpers (shared across skills)
 # ---------------------------------------------------------------------------
 
+# §validate_config.detect_sprint
 def detect_sprint(sprints_dir: Path) -> int | None:
     """Detect the current sprint number from SPRINT-STATUS.md."""
     status_file = sprints_dir / "SPRINT-STATUS.md"
@@ -675,6 +696,7 @@ def detect_sprint(sprints_dir: Path) -> int | None:
     return int(m.group(1)) if m else None
 
 
+# §validate_config.extract_story_id
 def extract_story_id(title: str) -> str:
     """Extract story ID (e.g. US-0001) from an issue title.
 
@@ -690,10 +712,12 @@ def extract_story_id(title: str) -> str:
     return slug[:40] if slug else "unknown"
 
 
+# §validate_config.KANBAN_STATES
 KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
 _KANBAN_STATES = KANBAN_STATES  # Backward compat alias
 
 
+# §validate_config.kanban_from_labels
 def kanban_from_labels(issue: dict) -> str:
     """Derive kanban status from an issue's labels.
 
@@ -709,6 +733,7 @@ def kanban_from_labels(issue: dict) -> str:
     return fallback
 
 
+# §validate_config.find_milestone
 def find_milestone(sprint_num: int) -> dict | None:
     """Find the GitHub milestone matching a sprint number.
 
@@ -728,6 +753,7 @@ def find_milestone(sprint_num: int) -> dict | None:
     return None
 
 
+# §validate_config.list_milestone_issues
 def list_milestone_issues(milestone_title: str) -> list[dict]:
     """Fetch all issues for a milestone (all states). Shared by sync/burndown."""
     raw = gh([
@@ -739,6 +765,7 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
     return issues
 
 
+# §validate_config.warn_if_at_limit
 def warn_if_at_limit(results: list, limit: int = 500) -> None:
     """Warn if API results hit the limit, suggesting data may be incomplete."""
     if len(results) >= limit:

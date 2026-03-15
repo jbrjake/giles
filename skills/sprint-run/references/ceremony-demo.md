@@ -8,6 +8,8 @@ Demonstrate working software to stakeholders. Every feature shown must produce
 REAL artifacts — actual build output, test results, logs, screenshots. No
 slideware. No mockups. No "imagine this works."
 
+<!-- §ceremony-demo.facilitation_giles_pm_split -->
+<!-- §ceremony-demo.facilitation -->
 ## Facilitation
 
 Giles opens the demo and manages presentation order. For each story, the
@@ -25,6 +27,7 @@ we'll walk the supporting work."
 For ensemble sprints, Giles walks stories in priority order with even time
 allocation.
 
+<!-- §ceremony-demo.for_each_story -->
 ## For Each Story
 
 ### 1. Context (implementer persona, in character)
@@ -34,6 +37,7 @@ allocation.
 - What design decisions were made and why?
 - What was surprising or harder than expected?
 
+<!-- §ceremony-demo.2_live_demonstration_must_produce_real_artifacts -->
 ### 2. Live Demonstration (MUST produce real artifacts)
 
 Run these steps and capture all output:
@@ -51,6 +55,7 @@ Save ALL artifacts to `{sprints_dir}/sprint-{N}/demo-artifacts/` (path from proj
 Use descriptive filenames: `US-XXXX-build-output.txt`,
 `US-XXXX-test-results.txt`, `US-XXXX-benchmark.txt`.
 
+<!-- §ceremony-demo.3_acceptance_verification -->
 ### 3. Acceptance Verification
 
 Walk through each acceptance criterion from the story:
@@ -62,6 +67,8 @@ Walk through each acceptance criterion from the story:
 If a criterion is not met, record it as a follow-up item with a clear
 description of what remains.
 
+<!-- §ceremony-demo.test_plan_verification_if_test_plan_configured -->
+<!-- §ceremony-demo.test_plan_verification -->
 ### 3.5. Test Plan Verification (if test plan configured)
 
 For each story demonstrated:
@@ -72,6 +79,7 @@ For each story demonstrated:
 This is not about whether tests pass (that's CI's job) — it's about
 whether the test COVERAGE matches what the test plan specified.
 
+<!-- §ceremony-demo.4_team_q_a_in_persona -->
 ### 4. Team Q&A (in-persona)
 
 Giles manages the Q&A flow. He ensures each persona gets a chance to comment
@@ -99,6 +107,7 @@ what might not have.
   memory implications, security implications, adversarial test scenarios,
   algorithmic complexity, deployment implications, regression coverage)
 
+<!-- §ceremony-demo.output_template_demo_md -->
 ## Output
 
 Write `{sprints_dir}/sprint-{N}/demo.md` (path from project.toml `[paths]`):
@@ -130,6 +139,7 @@ Write `{sprints_dir}/sprint-{N}/demo.md` (path from project.toml `[paths]`):
 |-------|------|--------------------|-----------------|
 ```
 
+<!-- §ceremony-demo.rules_no_incomplete_stories_artifact_links_required -->
 ## Rules
 
 - Do not demo a story that has not reached `kanban:done` status. If a story is

@@ -26,6 +26,7 @@ from validate_config import (
 # -- Metric computation -----------------------------------------------------
 
 
+# §sprint_analytics.extract_persona
 def extract_persona(issue: dict) -> str | None:
     """Extract persona name from labels (persona:name format)."""
     for label in issue.get("labels", []):
@@ -35,6 +36,7 @@ def extract_persona(issue: dict) -> str | None:
     return None
 
 
+# §sprint_analytics.compute_velocity
 def compute_velocity(
     milestone_title: str,
 ) -> dict:
@@ -73,6 +75,7 @@ def compute_velocity(
     }
 
 
+# §sprint_analytics.compute_review_rounds
 def compute_review_rounds(
     milestone_title: str,
 ) -> dict:
@@ -122,6 +125,7 @@ def compute_review_rounds(
     }
 
 
+# §sprint_analytics.compute_workload
 def compute_workload(
     milestone_title: str,
 ) -> dict[str, int]:
@@ -146,6 +150,7 @@ def compute_workload(
 
 # -- Report formatting -------------------------------------------------------
 
+# §sprint_analytics.format_report
 def format_report(
     sprint_num: int,
     sprint_theme: str,
@@ -181,6 +186,7 @@ def format_report(
 
 # -- Main --------------------------------------------------------------------
 
+# §sprint_analytics.main
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())

@@ -7,6 +7,7 @@ Load this reference when running the kickoff ceremony at the start of a sprint.
 Align the team on sprint goals, assign work, surface risks, and create shared
 understanding before development starts.
 
+<!-- §ceremony-kickoff.facilitation_giles_pm_split -->
 ## Facilitation
 
 Giles facilitates. The PM persona presents product context. These are distinct
@@ -17,6 +18,8 @@ roles:
 - **PM persona** presents the sprint goal, walks stories, answers product
   questions, and assesses story value during scope negotiation.
 
+<!-- §ceremony-kickoff.sprint_theme -->
+<!-- §ceremony-kickoff.sprint_theme_hardening_feature_star_vehicle_ensemble -->
 ## Sprint Theme
 
 After reading the milestone doc, Giles identifies the sprint's character and
@@ -31,6 +34,7 @@ names it. This frames the team's expectations:
 - An **ensemble sprint** spreads load evenly. "No headliners, no openers.
   Everyone carries equal weight this round."
 
+<!-- §ceremony-kickoff.agenda_opening_team_read_saga_context_goal_story_walk_risks_questions_commitment -->
 ## Agenda
 
 ### 1. Opening
@@ -38,6 +42,8 @@ names it. This frames the team's expectations:
 Giles opens the meeting. One sentence to set the tone: "Right then. Sprint {N}.
 Let's see what we're working with."
 
+<!-- §ceremony-kickoff.team_read -->
+<!-- §ceremony-kickoff.1_5_team_read_write_insights -->
 ### 1.5. Team Read (Write Insights)
 
 Giles reads all persona files from `{config [paths] team_dir}` and any history
@@ -58,6 +64,8 @@ Regenerate this file each sprint — it is a current snapshot, not an append-onl
 log. History files are the append-only record; insights are the distillation.
 This should be compact — roughly 400 tokens for a team of 5.
 
+<!-- §ceremony-kickoff.saga_context -->
+<!-- §ceremony-kickoff.1_7_saga_context_if_sagas_configured -->
 ### 1.7. Saga Context (if sagas configured)
 
 For each saga active in this sprint:
@@ -75,6 +83,8 @@ two sentences. Confirm the user agrees this is the right focus.
 
 Giles names the sprint theme (see Sprint Theme above).
 
+<!-- §ceremony-kickoff.process_context_analytics -->
+<!-- §ceremony-kickoff.2_5_process_context_if_analytics_exist -->
 ### 2.5. Process Context (if analytics exist)
 
 If `{sprints_dir}/analytics.md` exists, Giles reads it before the story walk.
@@ -87,6 +97,7 @@ He surfaces relevant patterns during persona assignment and story discussion:
 This is not a formal presentation — Giles weaves the data into his facilitation
 naturally. He's the one who remembers what happened last time.
 
+<!-- §ceremony-kickoff.3_story_walk -->
 ### 3. Story Walk
 
 For each story in the sprint backlog:
@@ -138,6 +149,8 @@ If `{team_dir}/insights.md` exists, name which personas will feel which risks
 most urgently. A risk that touches someone's core motivation is not just a
 technical concern — it will shape how they work the entire sprint.
 
+<!-- §ceremony-kickoff.confidence_check -->
+<!-- §ceremony-kickoff.4_5_confidence_check -->
 ### 4.5. Confidence Check
 
 After risks, Giles reads the room. If all personas expressed high confidence
@@ -158,6 +171,8 @@ Giles tracks the Q&A and ensures every question gets a resolution or an explicit
 "open" status with a due date. If a question cannot be answered immediately,
 mark it as open and assign responsibility.
 
+<!-- §ceremony-kickoff.scope_negotiation -->
+<!-- §ceremony-kickoff.5_5_scope_negotiation -->
 ### 5.5. Scope Negotiation
 
 When the sprint is over capacity (total SP exceeds team velocity or persona
@@ -195,6 +210,7 @@ Giles drives to commitment:
   single persona is overloaded, dependencies are sequenced.
 - If commitment cannot be reached, return to Scope Negotiation.
 
+<!-- §ceremony-kickoff.output_template_kickoff_md -->
 ## Output
 
 Write `{sprints_dir}/sprint-{N}/kickoff.md` (path from project.toml `[paths]`):
@@ -228,6 +244,7 @@ Write `{sprints_dir}/sprint-{N}/kickoff.md` (path from project.toml `[paths]`):
 {confirmed / adjusted scope with rationale}
 ```
 
+<!-- §ceremony-kickoff.exit_criteria -->
 ## Exit Criteria
 
 Do not proceed to development until:

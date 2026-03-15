@@ -18,6 +18,7 @@ from validate_config import load_config, ConfigError, get_ci_commands
 
 # -- Language-specific CI templates ------------------------------------------
 
+# §setup_ci._rust_setup_steps
 def _rust_setup_steps() -> str:
     """Rust toolchain setup steps."""
     return """\
@@ -27,6 +28,7 @@ def _rust_setup_steps() -> str:
       - uses: Swatinem/rust-cache@v2"""
 
 
+# §setup_ci._python_setup_steps
 def _python_setup_steps(version: str = "3.12") -> str:
     """Python setup steps."""
     return f"""\
@@ -39,6 +41,7 @@ def _python_setup_steps(version: str = "3.12") -> str:
           pip install -r requirements.txt || true"""
 
 
+# §setup_ci._node_setup_steps
 def _node_setup_steps(version: str = "22") -> str:
     """Node.js setup steps."""
     return f"""\
@@ -49,6 +52,7 @@ def _node_setup_steps(version: str = "22") -> str:
       - run: npm ci"""
 
 
+# §setup_ci._go_setup_steps
 def _go_setup_steps(version: str = "1.22") -> str:
     """Go setup steps."""
     return (
@@ -58,6 +62,7 @@ def _go_setup_steps(version: str = "1.22") -> str:
     )
 
 
+# §setup_ci._SETUP_REGISTRY
 _SETUP_REGISTRY: dict[str, Callable] = {
     "rust": _rust_setup_steps,
     "python": _python_setup_steps,
@@ -72,6 +77,7 @@ _SETUP_REGISTRY: dict[str, Callable] = {
 
 # -- Environment variables by language --------------------------------------
 
+# §setup_ci._ENV_BLOCKS
 _ENV_BLOCKS: dict[str, str] = {
     "rust": """\
 env:
@@ -158,6 +164,7 @@ def _generate_build_job(
 """
 
 
+# §setup_ci._LANG_EXTENSIONS
 _LANG_EXTENSIONS: dict[str, list[str]] = {
     "rust": [".md", ".rs"],
     "python": [".md", ".py"],
@@ -200,6 +207,7 @@ def _docs_lint_job(language: str = "") -> str:
 """
 
 
+# §setup_ci.generate_ci_yaml
 def generate_ci_yaml(config: dict) -> str:
     """Generate a complete CI workflow YAML from config."""
     language = config.get("project", {}).get("language", "").lower()

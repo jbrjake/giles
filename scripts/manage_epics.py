@@ -23,12 +23,14 @@ STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
 TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
 
+# §manage_epics._safe_int
 def _safe_int(value: str) -> int:
     """Extract leading digits from a string, returning 0 if none found."""
     m = re.match(r'(\d+)', str(value).strip())
     return int(m.group(1)) if m else 0
 
 
+# §manage_epics._parse_epic_from_lines
 def _parse_epic_from_lines(lines: list[str]) -> dict:
     """Parse pre-read lines into structured epic data (no file I/O)."""
     metadata = _parse_header_table(lines)
@@ -51,6 +53,7 @@ def _parse_epic_from_lines(lines: list[str]) -> dict:
     }
 
 
+# §manage_epics.parse_epic
 def parse_epic(path: str) -> dict:
     """Parse an epic file into structured data.
 
@@ -67,6 +70,7 @@ def parse_epic(path: str) -> dict:
     return _parse_epic_from_lines(lines)
 
 
+# §manage_epics._parse_header_table
 def _parse_header_table(lines: list[str]) -> dict[str, str]:
     """Parse the epic-level metadata table at the top of the file."""
     metadata: dict[str, str] = {}
@@ -86,6 +90,7 @@ def _parse_header_table(lines: list[str]) -> dict[str, str]:
     return metadata
 
 
+# §manage_epics._parse_stories
 def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
     """Parse all ### US-XXXX story sections from the file."""
     stories: list[dict] = []
@@ -162,6 +167,7 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
     return stories, raw_sections
 
 
+# §manage_epics._format_story_section
 def _format_story_section(story_data: dict) -> str:
     """Format a story data dict as a markdown section."""
     lines = [
@@ -214,6 +220,7 @@ def _format_story_section(story_data: dict) -> str:
     return "\n".join(lines)
 
 
+# §manage_epics.add_story
 def add_story(path: str, story_data: dict) -> None:
     """Append a new story section to an epic file."""
     content = Path(path).read_text(encoding="utf-8")
@@ -229,6 +236,7 @@ def add_story(path: str, story_data: dict) -> None:
     Path(path).write_text(content, encoding="utf-8")
 
 
+# §manage_epics.remove_story
 def remove_story(path: str, story_id: str) -> None:
     """Remove a story section from an epic file."""
     content = Path(path).read_text(encoding="utf-8")
@@ -263,6 +271,7 @@ def remove_story(path: str, story_id: str) -> None:
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_epics.reorder_stories
 def reorder_stories(path: str, story_ids: list[str]) -> None:
     """Reorder story sections to match the given ID list."""
     content = Path(path).read_text(encoding="utf-8")
@@ -324,6 +333,7 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_epics.renumber_stories
 def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     """Replace references to old_id with new_ids in metadata fields.
 
@@ -343,6 +353,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
+# §manage_epics.main
 def main() -> None:
     """CLI entry point with subcommands: add, remove, reorder, renumber."""
     if len(sys.argv) < 3:

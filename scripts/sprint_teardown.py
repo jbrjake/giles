@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 
+# §sprint_teardown.classify_entries
 def classify_entries(config_dir: Path) -> tuple[list[Path], list[Path], list[Path]]:
     """Walk config_dir and classify every entry.
 
@@ -82,6 +83,7 @@ def classify_entries(config_dir: Path) -> tuple[list[Path], list[Path], list[Pat
     return symlinks, generated, unknown
 
 
+# §sprint_teardown.collect_directories
 def collect_directories(config_dir: Path) -> list[Path]:
     """Return all real directories under config_dir, deepest first (for safe rmdir)."""
     dirs: list[Path] = []
@@ -210,6 +212,7 @@ def print_dry_run(
     print("\nNo changes made. Run without --dry-run to proceed.")
 
 
+# §sprint_teardown.remove_symlinks
 def remove_symlinks(symlinks: list[Path], project_root: Path) -> int:
     """Remove all symlinks. Returns count removed."""
     removed = 0
@@ -223,6 +226,7 @@ def remove_symlinks(symlinks: list[Path], project_root: Path) -> int:
     return removed
 
 
+# §sprint_teardown.remove_generated
 def remove_generated(generated: list[Path], project_root: Path, force: bool) -> int:
     """Remove generated files, prompting unless force=True. Returns count removed."""
     if not generated:
@@ -256,6 +260,7 @@ def remove_generated(generated: list[Path], project_root: Path, force: bool) -> 
     return removed
 
 
+# §sprint_teardown.remove_empty_dirs
 def remove_empty_dirs(directories: list[Path], project_root: Path) -> int:
     """Remove directories if empty, deepest first. Returns count removed."""
     removed = 0
@@ -270,6 +275,7 @@ def remove_empty_dirs(directories: list[Path], project_root: Path) -> int:
     return removed
 
 
+# §sprint_teardown.check_active_loops
 def check_active_loops() -> list[str]:
     """Detect active /loop commands related to sprint-monitor.
 
@@ -316,6 +322,7 @@ def print_loop_cleanup_hints(active_loops: list[str]) -> None:
         print("    /loop stop  (stops all loops)")
 
 
+# §sprint_teardown.print_github_cleanup_hints
 def print_github_cleanup_hints() -> None:
     """Print manual GitHub cleanup commands."""
     print("\nGitHub cleanup (manual — not executed):")
@@ -332,6 +339,7 @@ def print_github_cleanup_hints() -> None:
     print("    gh project delete {N} --owner {owner}")
 
 
+# §sprint_teardown.main
 def main() -> None:
     """Entry point."""
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):

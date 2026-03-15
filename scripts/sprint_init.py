@@ -33,6 +33,7 @@ EXCLUDED_DIRS = {
 PERSONA_HEADINGS = {"## Role", "## Voice", "## Domain", "## Background",
                     "## Review Focus"}
 
+# §sprint_init.RICH_PERSONA_HEADINGS
 RICH_PERSONA_HEADINGS = {"## Origin Story", "## Professional Identity",
                           "## Personality and Quirks", "## Improvisation Notes"}
 
@@ -58,6 +59,7 @@ class ScoredFile:
 
 
 @dataclass
+# §sprint_init.ScanResult
 class ScanResult:
     project_root: str
     language: Detection
@@ -87,6 +89,7 @@ class ScanResult:
 # ProjectScanner
 # ---------------------------------------------------------------------------
 
+# §sprint_init.ProjectScanner
 class ProjectScanner:
     """Detect project structure from a root directory."""
 
@@ -509,6 +512,7 @@ class ProjectScanner:
 # ConfigGenerator
 # ---------------------------------------------------------------------------
 
+# §sprint_init.ConfigGenerator
 class ConfigGenerator:
     """Generate sprint-config/ from scan results."""
 
@@ -834,6 +838,7 @@ class ConfigGenerator:
 # Display helpers
 # ---------------------------------------------------------------------------
 
+# §sprint_init._indicator
 def _indicator(confidence: float) -> str:
     if confidence >= 0.7:
         return "\u2713"   # checkmark
@@ -842,6 +847,7 @@ def _indicator(confidence: float) -> str:
     return "\u2717"        # ballot x
 
 
+# §sprint_init.print_scan_results
 def print_scan_results(scan: ScanResult) -> None:
     print("\n=== Project Scan Results ===\n")
     detections: list[tuple[str, Detection]] = [
@@ -878,6 +884,7 @@ def print_scan_results(scan: ScanResult) -> None:
         print("\n  \u2717 No backlog files detected")
 
 
+# §sprint_init.print_generation_summary
 def print_generation_summary(gen: ConfigGenerator) -> None:
     print("\n=== Generated sprint-config/ ===\n")
     for line in gen.created:
@@ -918,6 +925,7 @@ def print_generation_summary(gen: ConfigGenerator) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+# §sprint_init.main
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())

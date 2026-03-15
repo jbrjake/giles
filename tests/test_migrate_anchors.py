@@ -105,9 +105,9 @@ class TestRewriteClaudeMd(unittest.TestCase):
         self.assertNotIn(":44", result)
 
     def test_prose_file_ref(self):
-        line = "see `validate_config.py:304`"
+        line = "see `validate_config.py:311`"
         result = rewrite_claude_md_refs(line)
-        self.assertNotIn(":304", result)
+        self.assertNotIn(":311", result)
         self.assertIn("§validate_config.validate_project", result)
 
     def test_no_ref_unchanged(self):
@@ -147,6 +147,18 @@ class TestRewriteCheatsheet(unittest.TestCase):
         ]
         result = rewrite_cheatsheet_table(lines)
         self.assertIn("§github-conventions.label_taxonomy", result[3])
+
+    def test_skill_md_uses_skill_name_not_stem(self):
+        """SKILL.md namespace should be 'sprint-run', not 'SKILL'."""
+        lines = [
+            "### skills/sprint-run/SKILL.md",
+            "| Line | Section |",
+            "|------|---------|",
+            "| 29 | Phase detection |",
+        ]
+        result = rewrite_cheatsheet_table(lines)
+        self.assertIn("§sprint-run.phase_detection", result[3])
+        self.assertNotIn("§SKILL", result[3])
 
     def test_non_table_lines_unchanged(self):
         lines = [

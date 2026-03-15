@@ -140,7 +140,7 @@ def rewrite_claude_md_refs(line: str) -> str:
             section_text = m.group(1).strip()
             slug = _slug_from_text(section_text)
             return f"{m.group(1)} §{ref_stem}.{slug}"
-        line = re.sub(r"([A-Za-z][A-Za-z0-9 :()-]*?)\s+:(\d+)", repl_ref_section, line)
+        line = re.sub(r"(?:(?<=,\s)|(?<=\|\s))([A-Za-z][A-Za-z0-9 :()&/-]*?)\s+:(\d+)", repl_ref_section, line)
 
     # Pattern C: `file.py:NNN` inline refs (with or without path prefix)
     def _resolve_file_path(raw_path: str) -> str | None:
@@ -192,7 +192,12 @@ def rewrite_cheatsheet_table(lines: list[str]) -> list[str]:
     if not heading_match:
         return result
     file_path = heading_match.group(1).strip()
-    stem = Path(file_path).stem  # e.g., "validate_config" or "github-conventions"
+    # For SKILL.md files, use the parent dir name (e.g., "sprint-run") as namespace
+    # For other files, use the file stem (e.g., "validate_config", "github-conventions")
+    if Path(file_path).name == "SKILL.md":
+        stem = Path(file_path).parent.name  # e.g., "sprint-run"
+    else:
+        stem = Path(file_path).stem  # e.g., "validate_config" or "github-conventions"
 
     # Determine if this is a Python script or markdown reference file
     is_python = file_path.endswith(".py")

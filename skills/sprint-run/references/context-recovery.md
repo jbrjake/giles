@@ -1,3 +1,4 @@
+<!-- §context-recovery.context_recovery_6_step_state_reconstruction_after_context_loss -->
 # Context Recovery
 
 If Claude loses context mid-sprint (new conversation, context window

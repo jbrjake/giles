@@ -46,6 +46,8 @@ and stop.
 
 ---
 
+<!-- §sprint-release.step_1_gate_validation -->
+<!-- §sprint-release.gate_validation -->
 ## Step 1: Gate Validation
 
 Read `skills/sprint-release/references/release-checklist.md` and validate every gate for the target
@@ -78,6 +80,7 @@ If any row shows FAIL, stop and report. Do not proceed to tagging.
 
 ---
 
+<!-- §sprint-release.step_2_tag_and_release -->
 ## Step 2: Tag and Release
 
 Create an annotated tag and push it to origin.
@@ -99,6 +102,8 @@ Replace `{version}` and `{milestone name}` with the actual values (e.g.,
 
 ---
 
+<!-- §sprint-release.step_3_build_release_artifacts -->
+<!-- §sprint-release.build_artifacts -->
 ## Step 3: Build Release Artifacts
 
 Read build and test commands from `project.toml [ci]`. Run the build commands
@@ -121,6 +126,8 @@ ${sbom_command} 2>/dev/null && echo "SBOM generated" || echo "SBOM tool not avai
 
 ---
 
+<!-- §sprint-release.step_4_create_github_release -->
+<!-- §sprint-release.github_release -->
 ## Step 4: Create GitHub Release
 
 Generate release notes, then publish the release.
@@ -173,6 +180,7 @@ gh release view v{version} --json url --jq '.url'
 
 ---
 
+<!-- §sprint-release.step_5_post_release_close_milestone_update_tracking -->
 ## Step 5: Post-Release
 
 After the release is published, perform these housekeeping steps.
@@ -240,6 +248,8 @@ If CI fails during any step of the release process, follow this procedure.
 
 ---
 
+<!-- §sprint-release.rollback -->
+<!-- §sprint-release.rollback_procedure -->
 ## Rollback
 
 If a published release must be rolled back, execute these steps and document the

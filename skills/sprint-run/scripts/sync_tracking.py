@@ -28,11 +28,13 @@ from validate_config import (
 )
 
 
+# §sync_tracking.find_milestone_title
 def find_milestone_title(sprint_num: int) -> str | None:
     ms = find_milestone(sprint_num)
     return ms["title"] if ms else None
 
 
+# §sync_tracking._fetch_all_prs
 def _fetch_all_prs() -> list[dict]:
     """Fetch all PRs once for branch-based linkage (cached per sync run)."""
     try:
@@ -46,6 +48,7 @@ def _fetch_all_prs() -> list[dict]:
         return []
 
 
+# §sync_tracking.get_linked_pr
 def get_linked_pr(
     issue_num: int, story_id: str, all_prs: list[dict] | None = None,
 ) -> dict | None:
@@ -89,6 +92,7 @@ def get_linked_pr(
     return None
 
 
+# §sync_tracking.slug_from_title
 def slug_from_title(title: str) -> str:
     slug = re.sub(
         r"\s+", "-",
@@ -111,6 +115,7 @@ def _parse_closed(iso: str) -> str:
 # -- Tracking file dataclass and I/O ----------------------------------------
 
 @dataclass
+# §sync_tracking.TF
 class TF:
     path: Path
     story: str = ""
@@ -127,6 +132,7 @@ class TF:
     body_text: str = ""
 
 
+# §sync_tracking.read_tf
 def read_tf(path: Path) -> TF:
     tf = TF(path=path)
     content = path.read_text(encoding="utf-8")
@@ -173,6 +179,7 @@ def _yaml_safe(value: str) -> str:
     return value
 
 
+# §sync_tracking.write_tf
 def write_tf(tf: TF) -> None:
     lines = [
         "---",
@@ -198,6 +205,7 @@ def write_tf(tf: TF) -> None:
 
 # -- Sync logic --------------------------------------------------------------
 
+# §sync_tracking.sync_one
 def sync_one(
     tf: TF, issue: dict, pr: dict | None, sprint: int
 ) -> list[str]:
@@ -245,6 +253,7 @@ def sync_one(
     return changes
 
 
+# §sync_tracking.create_from_issue
 def create_from_issue(
     issue: dict, sprint: int, d: Path, pr: dict | None
 ) -> tuple[TF, list[str]]:

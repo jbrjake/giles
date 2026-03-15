@@ -18,6 +18,7 @@ from validate_config import load_config, ConfigError, get_milestones, gh, warn_i
 
 
 @dataclass
+# §populate_issues.Story
 class Story:
     story_id: str
     title: str
@@ -58,6 +59,7 @@ _SPRINT_HEADER_RE = re.compile(
 )
 
 
+# §populate_issues._build_row_regex
 def _build_row_regex(config: dict) -> re.Pattern:
     """Build a row regex from config, or use the default.
 
@@ -84,6 +86,7 @@ def _build_row_regex(config: dict) -> re.Pattern:
     return _DEFAULT_ROW_RE
 
 
+# §populate_issues.parse_milestone_stories
 def parse_milestone_stories(
     milestone_files: list[str], config: dict
 ) -> list[Story]:
@@ -126,6 +129,7 @@ def parse_milestone_stories(
     return stories
 
 
+# §populate_issues._infer_sprint_number
 def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
     """Infer sprint number from content headings first, then filename.
 
@@ -151,6 +155,7 @@ _DETAIL_BLOCK_RE = re.compile(r"^###\s+(US-\d{4}):\s+(.+)$", re.MULTILINE)
 _META_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$", re.MULTILINE)
 
 
+# §populate_issues.parse_detail_blocks
 def parse_detail_blocks(content: str, sprint: int, source_file: str) -> list[Story]:
     """Parse detail-block-format stories from epic/milestone content."""
     stories = []
@@ -201,6 +206,7 @@ def parse_detail_blocks(content: str, sprint: int, source_file: str) -> list[Sto
     return stories
 
 
+# §populate_issues.enrich_from_epics
 def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
     """Enrich stories with detail blocks from epic files, if available."""
     epics_dir = config.get("paths", {}).get("epics_dir")
@@ -247,6 +253,7 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
     return stories + new_stories
 
 
+# §populate_issues.get_existing_issues
 def get_existing_issues() -> set[str]:
     """Fetch existing issue title prefixes (story IDs) for idempotency."""
     try:
@@ -264,6 +271,7 @@ def get_existing_issues() -> set[str]:
     return existing
 
 
+# §populate_issues.get_milestone_numbers
 def get_milestone_numbers() -> dict[str, int]:
     """Fetch milestone title -> number mapping from GitHub."""
     try:
@@ -274,6 +282,7 @@ def get_milestone_numbers() -> dict[str, int]:
         raise
 
 
+# §populate_issues.build_milestone_title_map
 def build_milestone_title_map(
     milestone_files: list[str],
 ) -> dict[int, str]:
@@ -304,6 +313,7 @@ def build_milestone_title_map(
     return result
 
 
+# §populate_issues.format_issue_body
 def format_issue_body(story: Story) -> str:
     """Format enriched GitHub issue body from story."""
     lines = []
@@ -344,6 +354,7 @@ def format_issue_body(story: Story) -> str:
     return "\n".join(lines)
 
 
+# §populate_issues.create_issue
 def create_issue(
     story: Story,
     milestone_numbers: dict[str, int],

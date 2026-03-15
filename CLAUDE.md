@@ -36,48 +36,48 @@ see `CHEATSHEET.md`. The tables below are a summary.
 
 | Script | Purpose | Key functions |
 |--------|---------|---------------|
-| `scripts/validate_config.py` | Config validation + TOML parser + shared helpers | `parse_simple_toml()` :47, `validate_project()` :280, `load_config()` :457, `gh()` :22, `gh_json()` :32, `extract_sp()` :590, `get_team_personas()` :491, `get_milestones()` :519, `get_base_branch()` :543, `get_sprints_dir()` :549, `get_prd_dir()` :554, `get_test_plan_dir()` :563, `get_sagas_dir()` :572, `get_epics_dir()` :581, `get_story_map()` :623, `extract_story_id()` :648, `kanban_from_labels()` :667, `find_milestone()` :682, `warn_if_at_limit()` :712, `list_milestone_issues()` :701, `detect_sprint()` :636 |
-| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner` :90, `ConfigGenerator` :512, `main()` :922 |
-| `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` :20, `main()` :335 |
-| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` :64, `_collect_sprint_numbers()` :77, `create_static_labels()` :157, `create_epic_labels()` :186, `create_milestones_on_github()` :197, `main()` :249 |
+| `scripts/validate_config.py` | Config validation + TOML parser + shared helpers | `parse_simple_toml()` §validate_config.parse_simple_toml, `validate_project()` §validate_config.validate_project, `load_config()` §validate_config.load_config, `gh()` §validate_config.gh, `gh_json()` §validate_config.gh_json, `extract_sp()` §validate_config.extract_sp, `get_team_personas()` §validate_config.get_team_personas, `get_milestones()` §validate_config.get_milestones, `get_base_branch()` §validate_config.get_base_branch, `get_sprints_dir()` §validate_config.get_sprints_dir, `get_prd_dir()` §validate_config.get_prd_dir, `get_test_plan_dir()` §validate_config.get_test_plan_dir, `get_sagas_dir()` §validate_config.get_sagas_dir, `get_epics_dir()` §validate_config.get_epics_dir, `get_story_map()` §validate_config.get_story_map, `extract_story_id()` §validate_config.extract_story_id, `kanban_from_labels()` §validate_config.kanban_from_labels, `find_milestone()` §validate_config.find_milestone, `warn_if_at_limit()` §validate_config.warn_if_at_limit, `list_milestone_issues()` §validate_config.list_milestone_issues, `detect_sprint()` §validate_config.detect_sprint |
+| `scripts/sprint_init.py` | Auto-detect project → generate sprint-config/ | `ProjectScanner` §sprint_init.ProjectScanner, `ConfigGenerator` §sprint_init.ConfigGenerator, `main()` §sprint_init.main |
+| `scripts/sprint_teardown.py` | Safe removal of sprint-config/ | `classify_entries()` §sprint_teardown.classify_entries, `main()` §sprint_teardown.main |
+| `skills/sprint-setup/scripts/bootstrap_github.py` | Create labels/milestones on GitHub | `create_persona_labels()` §bootstrap_github.create_persona_labels, `_collect_sprint_numbers()` §bootstrap_github._collect_sprint_numbers, `create_static_labels()` §bootstrap_github.create_static_labels, `create_epic_labels()` §bootstrap_github.create_epic_labels, `create_milestones_on_github()` §bootstrap_github.create_milestones_on_github, `main()` §bootstrap_github.main |
 
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` :86, `parse_detail_blocks()` :152, `enrich_from_epics()` :202, `format_issue_body()` :306, `build_milestone_title_map()` :276, `create_issue()` :346 |
-| `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` :203, `_SETUP_REGISTRY` :61 (Rust/Python/Node/Go) |
-| `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` :179, `create_from_issue()` :226 |
-| `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` :43, `update_sprint_status()` :82 |
-| `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` :32, `check_sync()` :98, `do_sync()` :138, `main()` :181 |
-| `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` :38, `compute_review_rounds()` :76, `compute_workload()` :125, `format_report()` :149, `main()` :184 |
-| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` :35, `check_prs()` :91, `check_milestone()` :167, `check_branch_divergence()` :221, `check_direct_pushes()` :259 |
-| `scripts/team_voices.py` | Extract persona commentary from saga/epic files | `extract_voices()` :29, `VOICE_PATTERN` :24, `main()` :83 |
-| `scripts/traceability.py` | Bidirectional story/PRD/test mapping with gap detection | `parse_stories()` :29, `parse_test_cases()` :76, `parse_requirements()` :97, `build_traceability()` :122, `format_report()` :165 |
-| `scripts/test_coverage.py` | Compare planned test cases vs actual test files | `parse_planned_tests()` :40, `detect_test_functions()` :58, `scan_project_tests()` :66, `check_test_coverage()` :95, `_TEST_PATTERNS` :21 |
-| `scripts/manage_epics.py` | Epic CRUD: add, remove, reorder stories | `parse_epic()` :54, `add_story()` :217, `remove_story()` :232, `reorder_stories()` :263, `renumber_stories()` :327 |
-| `scripts/manage_sagas.py` | Saga management: allocation, index, voices | `parse_saga()` :37, `update_sprint_allocation()` :143, `update_epic_index()` :175, `update_team_voices()` :230 |
+| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestones → GitHub issues | `parse_milestone_stories()` §populate_issues.parse_milestone_stories, `parse_detail_blocks()` §populate_issues.parse_detail_blocks, `enrich_from_epics()` §populate_issues.enrich_from_epics, `format_issue_body()` §populate_issues.format_issue_body, `build_milestone_title_map()` §populate_issues.build_milestone_title_map, `create_issue()` §populate_issues.create_issue |
+| `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml | `generate_ci_yaml()` §setup_ci.generate_ci_yaml, `_SETUP_REGISTRY` §setup_ci._SETUP_REGISTRY (Rust/Python/Node/Go) |
+| `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking ↔ GitHub | `sync_one()` §sync_tracking.sync_one, `create_from_issue()` §sync_tracking.create_from_issue |
+| `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestones | `write_burndown()` §update_burndown.write_burndown, `update_sprint_status()` §update_burndown.update_sprint_status |
+| `scripts/sync_backlog.py` | Backlog auto-sync with debounce/throttle | `hash_milestone_files()` §sync_backlog.hash_milestone_files, `check_sync()` §sync_backlog.check_sync, `do_sync()` §sync_backlog.do_sync, `main()` §sync_backlog.main |
+| `scripts/sprint_analytics.py` | Sprint metrics (velocity, review rounds, workload) | `compute_velocity()` §sprint_analytics.compute_velocity, `compute_review_rounds()` §sprint_analytics.compute_review_rounds, `compute_workload()` §sprint_analytics.compute_workload, `format_report()` §sprint_analytics.format_report, `main()` §sprint_analytics.main |
+| `skills/sprint-monitor/scripts/check_status.py` | CI + PR + milestone + drift check | `check_ci()` §check_status.check_ci, `check_prs()` §check_status.check_prs, `check_milestone()` §check_status.check_milestone, `check_branch_divergence()` §check_status.check_branch_divergence, `check_direct_pushes()` §check_status.check_direct_pushes |
+| `scripts/team_voices.py` | Extract persona commentary from saga/epic files | `extract_voices()` §team_voices.extract_voices, `VOICE_PATTERN` §team_voices.VOICE_PATTERN, `main()` §team_voices.main |
+| `scripts/traceability.py` | Bidirectional story/PRD/test mapping with gap detection | `parse_stories()` §traceability.parse_stories, `parse_test_cases()` §traceability.parse_test_cases, `parse_requirements()` §traceability.parse_requirements, `build_traceability()` §traceability.build_traceability, `format_report()` §traceability.format_report |
+| `scripts/test_coverage.py` | Compare planned test cases vs actual test files | `parse_planned_tests()` §test_coverage.parse_planned_tests, `detect_test_functions()` §test_coverage.detect_test_functions, `scan_project_tests()` §test_coverage.scan_project_tests, `check_test_coverage()` §test_coverage.check_test_coverage, `_TEST_PATTERNS` §test_coverage._TEST_PATTERNS |
+| `scripts/manage_epics.py` | Epic CRUD: add, remove, reorder stories | `parse_epic()` §manage_epics.parse_epic, `add_story()` §manage_epics.add_story, `remove_story()` §manage_epics.remove_story, `reorder_stories()` §manage_epics.reorder_stories, `renumber_stories()` §manage_epics.renumber_stories |
+| `scripts/manage_sagas.py` | Saga management: allocation, index, voices | `parse_saga()` §manage_sagas.parse_saga, `update_sprint_allocation()` §manage_sagas.update_sprint_allocation, `update_epic_index()` §manage_sagas.update_epic_index, `update_team_voices()` §manage_sagas.update_team_voices |
 
 ### Skill Entry Points
 
 | Skill | SKILL.md | Key sections |
 |-------|----------|-------------|
-| sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init :22, Step 1: Prerequisites :32, Step 2: GitHub bootstrap :46 |
-| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44, Phase 2: Story execution :50, Mid-sprint check-in :54, Context Assembly :75, Phase 3: Demo :109, Phase 4: Retro :115 (Giles facilitates all ceremonies) |
-| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites :30, Backlog sync :48, CI check :71, Drift detection :105, PR check :135, Mid-sprint check-in :181, Check Sprint Status :222, Rate limiting :266 |
-| sprint-release | `skills/sprint-release/SKILL.md` | Gate validation :49, Tag+release :81, Build artifacts :102, GitHub Release :124, Rollback :243 |
-| sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles :14, Dry run :63, Execute :116 |
+| sprint-setup | `skills/sprint-setup/SKILL.md` | Phase 0: Config init §sprint-setup.phase_0_project_initialization, Step 1: Prerequisites §sprint-setup.step_1_check_prerequisites, Step 2: GitHub bootstrap §sprint-setup.step_2_github_bootstrap |
+| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection §sprint-run.phase_detection, Phase 1: Kickoff §sprint-run.phase_1_sprint_kickoff_interactive, Phase 2: Story execution §sprint-run.phase_2_story_execution_autonomous_per_story_interactive_at_gates, Mid-sprint check-in §sprint-run.mid_sprint_check_in, Context Assembly §sprint-run.context_assembly_for_agent_dispatch, Phase 3: Demo §sprint-run.phase_3_sprint_demo_interactive, Phase 4: Retro §sprint-run.phase_4_sprint_retro_interactive (Giles facilitates all ceremonies) |
+| sprint-monitor | `skills/sprint-monitor/SKILL.md` | Prerequisites §sprint-monitor.prerequisites, Backlog sync §sprint-monitor.step_0_sync_backlog, CI check §sprint-monitor.step_1_check_ci_status, Drift detection §sprint-monitor.step_1_5_drift_detection, PR check §sprint-monitor.step_2_check_open_prs, Mid-sprint check-in §sprint-monitor.step_2_5_mid_sprint_check_in, Check Sprint Status §sprint-monitor.step_3_check_sprint_status, Rate limiting §sprint-monitor.rate_limiting |
+| sprint-release | `skills/sprint-release/SKILL.md` | Gate validation §sprint-release.gate_validation, Tag+release :81, Build artifacts §sprint-release.build_artifacts, GitHub Release §sprint-release.github_release, Rollback §sprint-release.rollback |
+| sprint-teardown | `skills/sprint-teardown/SKILL.md` | Safety principles §sprint-teardown.safety_principles, Dry run §sprint-teardown.step_3_dry_run, Execute §sprint-teardown.step_4_execute_teardown |
 
 ### Reference Files
 
 | File | What to find there |
 |------|-------------------|
 | `skills/sprint-run/references/kanban-protocol.md` | State machine (6 states), transition rules, WIP limits |
-| `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format, Giles rules :48, PM role :60 |
-| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, team read :41, saga context :61, sprint theme :20, process context (analytics) :78, confidence check :141, scope negotiation :161, exit criteria :231 |
-| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing :17, artifact requirements, test plan verification :65, insights in Q&A :81, confidence probing :86, acceptance verification |
-| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety :25, insights in retro :30, Start/Stop/Continue, feedback distillation, sprint analytics :101, write sprint history :118, emotional shift :136, DoD review :141 |
+| `skills/sprint-run/references/persona-guide.md` | Persona assignment rules, voice guidelines, GitHub header format, Giles rules §persona-guide.giles_scrum_master, PM role §persona-guide.pm_persona |
+| `skills/sprint-run/references/ceremony-kickoff.md` | Giles/PM split, team read §ceremony-kickoff.team_read, saga context §ceremony-kickoff.saga_context, sprint theme §ceremony-kickoff.sprint_theme, process context (analytics) §ceremony-kickoff.process_context_analytics, confidence check §ceremony-kickoff.confidence_check, scope negotiation §ceremony-kickoff.scope_negotiation, exit criteria §ceremony-kickoff.exit_criteria |
+| `skills/sprint-run/references/ceremony-demo.md` | Giles/PM split, ensemble framing §ceremony-demo.facilitation, artifact requirements, test plan verification §ceremony-demo.test_plan_verification, insights in Q&A §ceremony-demo.4_team_q_a_in_persona, confidence probing §ceremony-demo.4_team_q_a_in_persona, acceptance verification |
+| `skills/sprint-run/references/ceremony-retro.md` | Giles/PM split, psychological safety §ceremony-retro.facilitation, insights in retro §ceremony-retro.facilitation, Start/Stop/Continue, feedback distillation, sprint analytics §ceremony-retro.5_sprint_analytics, write sprint history §ceremony-retro.6_write_sprint_history, emotional shift §ceremony-retro.6_write_sprint_history, DoD review §ceremony-retro.7_definition_of_done_review |
 | `skills/sprint-run/references/context-recovery.md` | State reconstruction after context loss: read status/burndown, sync tracking, query GitHub, resume phase |
 | `skills/sprint-run/references/story-execution.md` | Story lifecycle through kanban states, branch patterns, design/dev/review/integration transitions |
 | `skills/sprint-run/references/tracking-formats.md` | SPRINT-STATUS.md format, story tracking file YAML frontmatter, burndown format |
-| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, motivation context :49, context management :57, strategic context :31, test plan context :34, sprint history :37, confidence signals :106 |
-| `skills/sprint-run/agents/reviewer.md` | Subagent template: three-pass review (correctness/conventions/testing), confidence reading :41, sprint history callbacks :11, motivation insights :17, test coverage verification :84 |
+| `skills/sprint-run/agents/implementer.md` | Subagent template: TDD, PR creation, motivation context §implementer.motivation_context, context management §implementer.context_management, strategic context §implementer.strategic_context, test plan context §implementer.test_plan_context, sprint history §implementer.sprint_history, confidence signals §implementer.confidence_signals |
+| `skills/sprint-run/agents/reviewer.md` | Subagent template: three-pass review (correctness/conventions/testing), confidence reading §reviewer.review_process, sprint history callbacks §reviewer.review_process, motivation insights §reviewer.review_process, test coverage verification §reviewer.2_5_verify_test_coverage_if_test_plan_context_provided |
 | `skills/sprint-setup/references/github-conventions.md` | Label taxonomy, issue template, PR template, review template |
 | `skills/sprint-setup/references/ci-workflow-template.md` | CI YAML template structure |
 | `skills/sprint-release/references/release-checklist.md` | Per-milestone gate criteria template |
@@ -101,7 +101,7 @@ sprint-config/
 └── development.md         — dev process guide (symlink)
 ```
 
-Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command` (see `validate_config.py:260`).
+Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command` (see §validate_config.current).
 Optional: `project.base_branch` (defaults to `main` — branch PRs target and CI watches).
 Optional `[conventions]` keys (generated by `sprint_init.py:608-614`): `branch_pattern` (documents the branch naming convention), `commit_style` (documents the commit format convention). These are informational — referenced by humans and skill prompts but not read by scripts.
 Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`.
@@ -128,10 +128,10 @@ Template: `references/skeletons/project.toml.tmpl`
 | Task | What to do |
 |------|-----------|
 | Add a new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) |
-| Modify config validation | Edit `scripts/validate_config.py` — `_REQUIRED_FILES` :253, `_REQUIRED_TOML_KEYS` :266 |
-| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` :157 or create new function |
-| Add language support to CI | Edit `skills/sprint-setup/scripts/setup_ci.py` — add to `_SETUP_REGISTRY` :61 and `_ENV_BLOCKS` :75 |
+| Modify config validation | Edit `scripts/validate_config.py` — `_REQUIRED_FILES` §validate_config._REQUIRED_FILES, `_REQUIRED_TOML_KEYS` §validate_config._REQUIRED_TOML_KEYS |
+| Add a new label category | Edit `skills/sprint-setup/scripts/bootstrap_github.py` — add to `create_static_labels()` §bootstrap_github.create_static_labels or create new function |
+| Add language support to CI | Edit `skills/sprint-setup/scripts/setup_ci.py` — add to `_SETUP_REGISTRY` §setup_ci._SETUP_REGISTRY and `_ENV_BLOCKS` §setup_ci._ENV_BLOCKS |
 | Add a new kanban state | Update `skills/sprint-run/references/kanban-protocol.md` + `sync_tracking.py:29` `KANBAN_STATES` |
 | Change sprint tracking format | Edit `skills/sprint-run/references/tracking-formats.md` + update `sync_tracking.py` and `update_burndown.py` |
-| Add a skeleton template | Create `references/skeletons/<name>.tmpl`, wire it in `sprint_init.py:793` (ConfigGenerator.generate) |
+| Add a skeleton template | Create `references/skeletons/<name>.tmpl`, wire it in §sprint_init.ConfigGenerator (ConfigGenerator.generate) |
 | Add deep documentation support | Set optional TOML keys (`paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`, `paths.epics_dir`, `paths.story_map`, `paths.team_topology`). Sprint-run Context Assembly (:75 in SKILL.md) handles injection into agent prompts. |

@@ -1,5 +1,6 @@
 # Tracking File Formats
 
+<!-- §tracking-formats.sprint_status_md_format -->
 ## SPRINT-STATUS.md
 
 ```markdown
@@ -20,6 +21,7 @@
 |-------|--------|----------|----|
 ```
 
+<!-- §tracking-formats.story_file_yaml_frontmatter -->
 ## Story File (YAML frontmatter)
 
 ```yaml
@@ -43,6 +45,7 @@ The `status` field mirrors kanban states: `todo`, `design`, `dev`,
 `sync_tracking.py` updates local tracking files to match GitHub.
 If they diverge, GitHub wins.
 
+<!-- §tracking-formats.file_map_where_each_tracking_file_lives -->
 ## File Map
 
 Files this skill creates or updates during a sprint. All paths are

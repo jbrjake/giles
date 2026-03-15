@@ -22,11 +22,13 @@ from validate_config import load_config, ConfigError
 # Pattern: > **Name:** "text" or > **Name:** text
 # Note: colon is inside the bold markers: **Name:**
 # Uses explicit alternatives for quoted and unquoted text.
+# §team_voices.VOICE_PATTERN
 VOICE_PATTERN = re.compile(
     r'^>\s*\*\*([^*]+?):\*\*\s*(?:"(.+?)"|(.+?))\s*$'
 )
 
 
+# §team_voices.extract_voices
 def extract_voices(
     sagas_dir: str | None = None,
     epics_dir: str | None = None,
@@ -47,6 +49,7 @@ def extract_voices(
     return voices
 
 
+# §team_voices._extract_from_file
 def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
     """Extract voice blocks from a single markdown file."""
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -82,6 +85,7 @@ def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
         i += 1
 
 
+# §team_voices.main
 def main() -> None:
     """CLI entry point: extract and print voice index."""
     try:

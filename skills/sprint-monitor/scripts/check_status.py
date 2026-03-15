@@ -33,6 +33,7 @@ MAX_LOGS = 10
 
 # -- CI check ----------------------------------------------------------------
 
+# §check_status.check_ci
 def check_ci() -> tuple[list[str], list[str]]:
     runs = gh_json([
         "run", "list", "--limit", "5",
@@ -89,6 +90,7 @@ def _first_error(log: str) -> str:
 
 # -- PR check ----------------------------------------------------------------
 
+# §check_status.check_prs
 def check_prs() -> tuple[list[str], list[str]]:
     prs = gh_json([
         "pr", "list",
@@ -165,6 +167,7 @@ def _age(iso: str) -> str:
 
 # -- Milestone progress ------------------------------------------------------
 
+# §check_status.check_milestone
 def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
     try:
         milestones = gh_json([
@@ -219,6 +222,7 @@ def _count_sp(issues: list[dict]) -> tuple[int, int]:
 
 # -- Drift detection ---------------------------------------------------------
 
+# §check_status.check_branch_divergence
 def check_branch_divergence(
     repo: str, base_branch: str, sprint_branches: list[str],
 ) -> tuple[list[str], list[str]]:
@@ -257,6 +261,7 @@ def check_branch_divergence(
     return report, actions
 
 
+# §check_status.check_direct_pushes
 def check_direct_pushes(
     repo: str, base_branch: str, since: str,
 ) -> tuple[list[str], list[str]]:
@@ -296,6 +301,7 @@ def check_direct_pushes(
 
 # -- Log management ----------------------------------------------------------
 
+# §check_status.write_log
 def write_log(
     sprint_num: int, report: str, now: datetime, sprints_dir: Path
 ) -> Path:
@@ -311,6 +317,7 @@ def write_log(
 
 # -- Main --------------------------------------------------------------------
 
+# §check_status.main
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(__doc__.strip())

@@ -18,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from validate_config import load_config, ConfigError
 
 # Language-specific test function patterns
+# §test_coverage._TEST_PATTERNS
 _TEST_PATTERNS: dict[str, re.Pattern] = {
     "rust": re.compile(r'#\[test\]\s*(?:#\[.*\]\s*)*fn\s+(\w+)'),
     "python": re.compile(r'def\s+(test_\w+)'),
@@ -26,6 +27,7 @@ _TEST_PATTERNS: dict[str, re.Pattern] = {
 }
 
 # Language-specific test file glob patterns
+# §test_coverage._TEST_FILE_PATTERNS
 _TEST_FILE_PATTERNS: dict[str, list[str]] = {
     "rust": ["**/tests/**/*.rs", "**/src/**/*.rs"],
     "python": ["**/test_*.py", "**/*_test.py"],
@@ -37,6 +39,7 @@ _TEST_FILE_PATTERNS: dict[str, list[str]] = {
 _PLAN_TC_HEADING = re.compile(r'^###\s+((?:TC|GP)-[\w-]+):\s*(.+)')
 
 
+# §test_coverage.parse_planned_tests
 def parse_planned_tests(test_plan_dir: str) -> dict[str, str]:
     """Extract test case IDs and titles from test plan files.
 
@@ -55,6 +58,7 @@ def parse_planned_tests(test_plan_dir: str) -> dict[str, str]:
     return planned
 
 
+# §test_coverage.detect_test_functions
 def detect_test_functions(language: str, source: str) -> list[str]:
     """Find test function names in source code for a given language."""
     pattern = _TEST_PATTERNS.get(language.lower())
@@ -63,6 +67,7 @@ def detect_test_functions(language: str, source: str) -> list[str]:
     return pattern.findall(source)
 
 
+# §test_coverage.scan_project_tests
 def scan_project_tests(project_root: str, language: str) -> list[str]:
     """Walk the project tree, find all test files and extract function names."""
     root = Path(project_root)
@@ -92,6 +97,7 @@ def scan_project_tests(project_root: str, language: str) -> list[str]:
     return sorted(set(all_functions))
 
 
+# §test_coverage.check_test_coverage
 def check_test_coverage(
     test_plan_dir: str,
     project_root: str,
@@ -133,6 +139,7 @@ def check_test_coverage(
     }
 
 
+# §test_coverage.format_report
 def format_report(coverage: dict) -> str:
     """Produce a markdown coverage report."""
     lines = ["# Test Coverage Report", ""]
@@ -161,6 +168,7 @@ def format_report(coverage: dict) -> str:
     return "\n".join(lines)
 
 
+# §test_coverage.main
 def main() -> None:
     """CLI entry point: check test coverage and print report."""
     try:

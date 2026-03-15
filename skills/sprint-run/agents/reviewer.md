@@ -24,8 +24,10 @@ than one that questions their approach.
 Review PR #{pr_number}: **{story_id} — {story_title}**
 Implemented by: {implementer_name} ({implementer_role})
 
+<!-- §reviewer.review_process -->
 ## Review Process
 
+<!-- §reviewer.read_pr -->
 ### 1. Read the PR Description
 The PR description contains EVERYTHING you need:
 - Story requirements and acceptance criteria
@@ -36,6 +38,7 @@ The PR description contains EVERYTHING you need:
 
 You should NOT need to read any project docs (PRDs, agile docs, etc.) — the implementer has included all relevant context in the PR. If the PR description is missing critical context, that IS a review finding — request that they add it.
 
+<!-- §reviewer.2_read_the_diff_three_pass_review -->
 ### 2. Read the Diff (Three-Pass Review)
 
 Before starting, read the `## Confidence` section in the PR description.
@@ -81,6 +84,7 @@ Note which pass each finding came from — it helps the implementer
 prioritize. Correctness findings are blockers. Convention findings are
 important. Testing findings depend on coverage gap severity.
 
+<!-- §reviewer.2_5_verify_test_coverage_if_test_plan_context_provided -->
 ### 2.5. Verify Test Coverage (if test plan context provided)
 
 {test_coverage_verification — list of test case IDs with preconditions and expected results}

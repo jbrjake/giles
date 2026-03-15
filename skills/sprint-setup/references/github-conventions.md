@@ -2,6 +2,7 @@
 
 Standards for labels, issue templates, and PR templates used across sprints.
 
+<!-- §github-conventions.label_taxonomy_persona_sprint_saga_priority_kanban_type -->
 ## Label Taxonomy
 
 ### Persona Labels
@@ -41,6 +42,7 @@ Format: `type:{kind}`. Color: purple family.
 type:story  type:bug  type:spike  type:chore
 ```
 
+<!-- §github-conventions.issue_template -->
 ## Issue Template
 
 ```markdown
@@ -70,6 +72,7 @@ type:story  type:bug  type:spike  type:chore
 - **Reviewer:** {persona name}
 ```
 
+<!-- §github-conventions.pr_template -->
 ## PR Template
 
 ```markdown
@@ -105,6 +108,7 @@ Include enough that the reviewer NEVER needs to open a PRD.}
 Areas of uncertainty. Things you'd like a second opinion on.}
 ```
 
+<!-- §github-conventions.pr_review_template -->
 ## PR Review Template
 
 ```markdown
