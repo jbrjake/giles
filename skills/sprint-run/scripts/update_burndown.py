@@ -147,7 +147,13 @@ def load_tracking_metadata(
 
 def _fm_val(frontmatter: str, key: str) -> str | None:
     m = re.search(rf"^{key}:\s*(.+)", frontmatter, re.MULTILINE)
-    return m.group(1).strip() if m else None
+    if not m:
+        return None
+    val = m.group(1).strip()
+    # Strip surrounding quotes (matches sync_tracking.read_tf behavior)
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+        val = val[1:-1]
+    return val
 
 
 # -- Main --------------------------------------------------------------------

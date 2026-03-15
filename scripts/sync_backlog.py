@@ -207,9 +207,7 @@ def main() -> str:
         return "no_changes"
 
     # Determine config dir for state file
-    paths = config.get("paths", {})
-    backlog_dir = paths.get("backlog_dir", "sprint-config/backlog")
-    config_dir = Path(backlog_dir).parent  # sprint-config/
+    config_dir = Path(config.get("_config_dir", "sprint-config"))
 
     now = datetime.now(timezone.utc)
     current_hashes = hash_milestone_files(milestone_files)

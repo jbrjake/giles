@@ -101,9 +101,9 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
     while i < len(lines):
         m = STORY_HEADING.match(lines[i])
         if m:
-            # Close previous story section
+            # Close previous story section (end_line is exclusive / past-the-end)
             if current_story_start >= 0 and raw_sections:
-                raw_sections[-1]["end_line"] = i - 1
+                raw_sections[-1]["end_line"] = i
                 raw_sections[-1]["lines"] = lines[
                     raw_sections[-1]["start_line"]:i
                 ]

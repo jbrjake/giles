@@ -184,7 +184,7 @@ def _yaml_safe(value: str) -> str:
 def write_tf(tf: TF) -> None:
     lines = [
         "---",
-        f"story: {tf.story}",
+        f"story: {_yaml_safe(tf.story)}",
         f"title: {_yaml_safe(tf.title)}",
         f"sprint: {tf.sprint}",
         f"implementer: {tf.implementer}",

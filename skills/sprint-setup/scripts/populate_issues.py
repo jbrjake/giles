@@ -363,8 +363,11 @@ def create_issue(
 ) -> bool:
     """Create a single GitHub issue for a story. Return True if created."""
     title = f"{story.story_id}: {story.title}"
-    labels = [f"saga:{story.saga}", f"sprint:{story.sprint}",
-              f"priority:{story.priority}", "type:story", "kanban:todo"]
+    labels = [f"sprint:{story.sprint}", "type:story", "kanban:todo"]
+    if story.saga:
+        labels.append(f"saga:{story.saga}")
+    if story.priority:
+        labels.append(f"priority:{story.priority}")
     args = ["issue", "create", "--title", title,
             "--body", format_issue_body(story)]
     for label in labels:
