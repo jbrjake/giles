@@ -237,10 +237,15 @@ Run the status check script (path relative to skill install location):
 python3 skills/sprint-monitor/scripts/check_status.py
 ```
 
-This script:
-- Queries GitHub milestones for open/closed issue counts.
+This script runs all monitoring checks in one pass:
 - Checks CI status for the base branch.
-- Outputs a status summary to stdout.
+- Checks branch divergence from the base branch.
+- Checks open PRs for staleness or review status.
+- Detects direct pushes to the base branch.
+- Queries GitHub milestones for open/closed issue counts.
+
+Running `check_status.py` covers Steps 0-3, so the agent should NOT
+also run individual `gh` commands for the same checks.
 
 Note: `check_status.py` does not modify tracking or burndown files — it queries
 GitHub and reports to stdout. For actual burndown file updates, use

@@ -191,6 +191,7 @@ gh pr edit {pr_number} --add-reviewer {reviewer_github_handle}
 
 Update the PR description with what changed.
 
+<!-- §implementer.conventions_checklist -->
 ## Conventions Checklist
 Before marking ready for review, verify:
 - [ ] Run the CI check commands from `project.toml [ci] check_commands` — all must pass

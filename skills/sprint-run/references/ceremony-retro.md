@@ -109,15 +109,14 @@ limit.
 ### 5. Sprint Analytics
 
 Run `scripts/sprint_analytics.py` (path relative to plugin root) to compute
-sprint metrics. The script queries GitHub for review round counts, velocity,
-and cycle times. Giles reviews the numbers and adds qualitative commentary.
+sprint metrics. The script queries GitHub for review round counts and velocity.
+Giles reviews the numbers and adds qualitative commentary.
 
 Append findings to `{sprints_dir}/analytics.md`. Format:
 
     ### Sprint {N} — {theme}
     **Velocity:** {delivered_sp}/{planned_sp} SP ({percentage}%)
     **Review rounds:** avg {X} per story ({highest}: {story_id})
-    **Cycle time:** avg {X} hours from design to done
     **Giles notes:** {qualitative commentary — patterns, surprises, recommendations}
 
 If the analytics script is unavailable or fails, Giles writes observations

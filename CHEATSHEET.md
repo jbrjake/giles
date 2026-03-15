@@ -409,6 +409,9 @@ you need without reading entire files.
 | §github-conventions.pr_template | PR template |
 | §github-conventions.pr_review_template | PR review template |
 
+### skills/sprint-setup/references/prerequisites-checklist.md
+Prerequisites validation checklist for sprint-setup: gh CLI presence, auth status, superpowers plugin, git remote, toolchain detection, Python version checks.
+
 ### skills/sprint-setup/references/ci-workflow-template.md
 | Anchor | Section |
 |--------|---------|

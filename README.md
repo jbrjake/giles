@@ -221,7 +221,7 @@ files -- new anti-patterns for your rules, strengthened PR requirements,
 updated naming conventions, new DoD criteria, even changes to the plugin's
 own ceremony scripts. You approve each change before it's applied.
 
-Sprint analytics get computed: velocity, review round averages, cycle times.
+Sprint analytics get computed: velocity and review round averages.
 Giles reviews the numbers and adds qualitative commentary. The data makes it
 precise; Giles makes it useful.
 
@@ -286,7 +286,6 @@ When a milestone is complete, `/sprint-release` manages the full pipeline:
 - **Gate validation** -- milestone-specific criteria, configurable per release
 - **Versioning** -- conventional-commit-based version calculation
 - **Build artifacts** -- runs your build commands, records artifact sizes
-- **SBOM generation** -- if your toolchain supports it
 - **GitHub Release** -- assembled from sprint demo artifacts, closed issues,
   and commit history with highlights, features, breaking changes, and known
   limitations

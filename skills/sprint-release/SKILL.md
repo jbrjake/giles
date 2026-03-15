@@ -154,7 +154,6 @@ Assemble `release-notes.md` with these sections:
 - **Highlights** -- 3-5 bullet points covering the most important changes
 - **Features** -- complete list of user-facing features added
 - **Breaking Changes** -- any incompatible changes
-- **Known Limitations** -- documented constraints or missing functionality
 - **Full Changelog** -- link to the GitHub compare view
 
 ### Publish

@@ -71,6 +71,7 @@ Focus exclusively on whether the code follows the rules.
   (see `project.toml [paths] cheatsheet` and `architecture` if configured)
 - New modules referenced in appropriate index files
 
+<!-- §reviewer.pass_3_testing -->
 **Pass 3 — Testing:**
 Focus exclusively on whether the tests are adequate.
 - Tests exist for all acceptance criteria
@@ -124,6 +125,7 @@ Post a GitHub PR review in character:
 {Rationale for the verdict}
 ```
 
+<!-- §reviewer.commit_format -->
 #### Commit Format Enforcement
 When requesting changes, verify that all commits on the PR branch follow conventional
 commit format. If any commit messages are malformed, flag them in the review.
