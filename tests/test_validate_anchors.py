@@ -141,5 +141,69 @@ class TestFindAnchorRefs(unittest.TestCase):
         self.assertEqual(refs[0], ("foo.bar", 2))
 
 
+import os
+
+from validate_anchors import check_anchors
+
+
+class TestCheckAnchors(unittest.TestCase):
+    """End-to-end check mode."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        # Create a minimal source file with an anchor
+        src = self.tmpdir / "scripts"
+        src.mkdir()
+        (src / "mymod.py").write_text(
+            "# §mymod.my_func\ndef my_func():\n    pass\n"
+        )
+        # Create a doc file referencing it
+        (self.tmpdir / "DOC.md").write_text(
+            "| `scripts/mymod.py` | `my_func()` §mymod.my_func |\n"
+        )
+
+    def test_all_refs_resolve(self):
+        ns_map = {"mymod": "scripts/mymod.py"}
+        broken, unreferenced = check_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=ns_map,
+        )
+        self.assertEqual(broken, [])
+
+    def test_broken_ref_detected(self):
+        (self.tmpdir / "DOC.md").write_text("See §mymod.nonexistent\n")
+        ns_map = {"mymod": "scripts/mymod.py"}
+        broken, unreferenced = check_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=ns_map,
+        )
+        self.assertEqual(len(broken), 1)
+        self.assertIn("nonexistent", broken[0])
+
+    def test_unknown_namespace_is_broken(self):
+        (self.tmpdir / "DOC.md").write_text("See §typomod.func\n")
+        ns_map = {"mymod": "scripts/mymod.py"}
+        broken, _ = check_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=ns_map,
+        )
+        self.assertEqual(len(broken), 1)
+        self.assertIn("typomod", broken[0])
+
+    def test_unreferenced_anchor_reported(self):
+        (self.tmpdir / "DOC.md").write_text("No refs here.\n")
+        ns_map = {"mymod": "scripts/mymod.py"}
+        _, unreferenced = check_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=ns_map,
+        )
+        self.assertEqual(len(unreferenced), 1)
+        self.assertIn("mymod.my_func", unreferenced[0])
+
+
 if __name__ == "__main__":
     unittest.main()

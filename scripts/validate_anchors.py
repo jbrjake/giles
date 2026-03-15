@@ -99,3 +99,61 @@ def find_anchor_refs(doc_path: Path) -> list[tuple[str, int]]:
         for m in _REF_RE.finditer(line):
             refs.append((m.group(1), i))
     return refs
+
+
+DOC_FILES = ["CLAUDE.md", "CHEATSHEET.md"]
+
+
+def check_anchors(
+    root: Path | None = None,
+    doc_files: list[str] | None = None,
+    namespace_map: dict[str, str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Check all § references resolve to anchor definitions.
+
+    Returns (broken_messages, unreferenced_messages).
+    """
+    root = root or ROOT
+    doc_files = doc_files or DOC_FILES
+    namespace_map = namespace_map or NAMESPACE_MAP
+
+    # Collect all anchor definitions from all mapped files
+    all_defs: set[str] = set()
+    for ns, rel_path in namespace_map.items():
+        full = root / rel_path
+        if full.exists():
+            for anchor_name in find_anchor_defs(full):
+                all_defs.add(anchor_name)
+
+    # Collect all references from doc files
+    all_refs: list[tuple[str, str, int]] = []  # (anchor, doc_file, line)
+    for doc_name in doc_files:
+        doc_path = root / doc_name
+        if doc_path.exists():
+            for anchor_name, line_num in find_anchor_refs(doc_path):
+                all_refs.append((anchor_name, doc_name, line_num))
+
+    # Check each reference
+    broken: list[str] = []
+    referenced: set[str] = set()
+    for anchor_name, doc_name, line_num in all_refs:
+        ns = anchor_name.split(".")[0]
+        if ns not in namespace_map:
+            broken.append(
+                f"{doc_name}:{line_num} — §{anchor_name} — unknown namespace '{ns}'"
+            )
+            continue
+        referenced.add(anchor_name)
+        if anchor_name not in all_defs:
+            broken.append(
+                f"{doc_name}:{line_num} — §{anchor_name} — anchor not found in {namespace_map[ns]}"
+            )
+
+    # Find unreferenced anchors (info only)
+    unreferenced: list[str] = []
+    for anchor_name in sorted(all_defs - referenced):
+        ns = anchor_name.split(".")[0]
+        rel_path = namespace_map.get(ns, "?")
+        unreferenced.append(f"§{anchor_name} in {rel_path}")
+
+    return broken, unreferenced
