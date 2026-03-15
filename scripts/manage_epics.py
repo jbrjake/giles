@@ -324,14 +324,16 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
 
     # Reassemble in new order
     new_lines = list(header)
-    for i, sid in enumerate(story_ids):
+    stories_emitted = 0
+    for sid in story_ids:
         if sid not in section_map:
             continue
-        if i > 0 or new_lines:
+        if stories_emitted > 0:
             new_lines.append("")
             new_lines.append("---")
             new_lines.append("")
         new_lines.extend(section_map[sid])
+        stories_emitted += 1
 
     # Clean up trailing blank lines
     while new_lines and new_lines[-1].strip() == "":

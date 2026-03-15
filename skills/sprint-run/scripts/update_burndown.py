@@ -102,8 +102,10 @@ def update_sprint_status(
 
     new_table = "\n".join(table_lines) + "\n"
 
-    # Replace existing Active Stories section (up to next ## heading or EOF)
-    pattern = r"## Active Stories[^\n]*\n(?:\s*\n)*(?:\|[^\n]*\n)*"
+    # Replace existing Active Stories section (up to next ## heading or EOF).
+    # The regex skips any non-table content between the heading and the
+    # actual pipe-delimited rows, preventing orphaned old table rows.
+    pattern = r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*"
     if re.search(pattern, text):
         text = re.sub(pattern, new_table.rstrip() + "\n", text)
     else:
@@ -143,9 +145,9 @@ def _fm_val(frontmatter: str, key: str) -> str | None:
     if not m:
         return None
     val = m.group(1).strip()
-    # Strip surrounding quotes (matches sync_tracking.read_tf behavior)
+    # Strip surrounding quotes and unescape (matches sync_tracking.read_tf behavior)
     if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
-        val = val[1:-1]
+        val = val[1:-1].replace('\\"', '"')
     return val
 
 

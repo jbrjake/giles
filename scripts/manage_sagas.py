@@ -124,13 +124,18 @@ def _parse_sprint_allocation(lines: list[str]) -> list[dict]:
 
 # §manage_sagas._find_section_ranges
 def _find_section_ranges(lines: list[str]) -> dict[str, tuple[int, int]]:
-    """Find line ranges for each ## section."""
+    """Find line ranges for each ## section.
+
+    Only ``## `` headings (level 2) are treated as section boundaries.
+    Subsections (``### ``, ``#### ``, etc.) within a section are preserved
+    as part of that section's content.
+    """
     ranges: dict[str, tuple[int, int]] = {}
     current_section = ""
     current_start = 0
 
     for i, line in enumerate(lines):
-        if line.startswith("## "):
+        if line.startswith("## ") and not line.startswith("### "):
             if current_section:
                 ranges[current_section] = (current_start, i)
             current_section = line.lstrip("#").strip()

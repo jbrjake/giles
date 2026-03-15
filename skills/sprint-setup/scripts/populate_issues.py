@@ -229,7 +229,11 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
             for sid in re.findall(r"US-\d{4}", content)
             if sid in by_id
         ]
-        sprint = max(set(known_sprints), key=known_sprints.count) if known_sprints else 0
+        # Use most common sprint; break ties by picking the lowest number
+        sprint = min(
+            (s for s in set(known_sprints)
+             if known_sprints.count(s) == max(known_sprints.count(x) for x in set(known_sprints))),
+        ) if known_sprints else 0
         parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file))
         for ps in parsed:
             if ps.story_id in by_id:

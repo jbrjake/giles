@@ -84,7 +84,7 @@ def compute_review_rounds(
         "pr", "list", "--state", "all",
         "--json", "number,title,labels,milestone,reviews",
         "--limit", "500",
-        "--search", f"milestone:{milestone_title}",
+        "--search", f'milestone:"{milestone_title}"',
     ])
     if not isinstance(prs, list):
         prs = []

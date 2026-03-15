@@ -524,13 +524,15 @@ def do_release(
             _rollback_commit()
             return _fail("create-tag", f"Tag creation failed: {r.stderr.strip()}")
         completed_steps.append("create-tag")
+        # Push the version bump commit and the tag together
+        base_branch = get_base_branch(config)
         r = subprocess.run(
-            ["git", "push", "origin", f"v{new_ver}"],
+            ["git", "push", "origin", base_branch, f"v{new_ver}"],
             capture_output=True, text=True,
         )
         if r.returncode != 0:
             _rollback_commit()
-            return _fail("push-tag", f"Tag push failed: {r.stderr.strip()}")
+            return _fail("push-tag", f"Push failed: {r.stderr.strip()}")
         completed_steps.append("push-tag")
 
         def _rollback_tag() -> None:

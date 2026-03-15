@@ -143,6 +143,12 @@ class FakeGitHub:
             a = args[i]
             if a.startswith("--"):
                 key = a[2:]  # strip leading --
+                # Handle --flag=value syntax
+                if "=" in key:
+                    key, eq_val = key.split("=", 1)
+                    flags.setdefault(key, []).append(eq_val)
+                    i += 1
+                    continue
                 # Value-bearing flags always consume next arg regardless of prefix
                 if key in cls._VALUE_BEARING_FLAGS and i + 1 < len(args):
                     flags.setdefault(key, []).append(args[i + 1])
@@ -274,9 +280,26 @@ class FakeGitHub:
 
         # Commits endpoint: repos/{owner}/{repo}/commits
         if path.endswith("/commits"):
-            # Parse -f flags for sha= and since= (accepted but not used for filtering)
-            # Return all stored commits; production --jq filtering is a no-op here
-            return self._ok(json.dumps(self.commits_data))
+            # Filter by -f since= if provided
+            since_val = None
+            for fval in flags.get("f", []):
+                if fval.startswith("since="):
+                    since_val = fval[6:]
+            data = self.commits_data
+            if since_val:
+                from datetime import datetime as _dt
+                try:
+                    since_dt = _dt.fromisoformat(since_val.replace("Z", "+00:00"))
+                    data = [
+                        c for c in data
+                        if _dt.fromisoformat(
+                            c.get("commit", {}).get("author", {}).get("date", "9999-12-31")
+                            .replace("Z", "+00:00")
+                        ) >= since_dt
+                    ]
+                except (ValueError, TypeError):
+                    pass  # Unparseable date — return all
+            return self._ok(json.dumps(data))
 
         # Timeline endpoint: repos/{owner}/{repo}/issues/{N}/timeline
         # Production code uses --jq to filter to first linked PR.

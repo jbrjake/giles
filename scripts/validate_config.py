@@ -75,9 +75,38 @@ def gh_json(args: list[str]) -> list | dict:
     Returns [] (empty list) when the command produces no output, rather
     than attempting json.loads("") which would raise JSONDecodeError.
     Callers should handle both list and dict return types.
+
+    Handles ``gh api --paginate`` output, which concatenates raw JSON
+    arrays per page (``[...][...]``).  The standard ``json.loads`` would
+    fail or only parse the first page, so we use incremental decoding to
+    merge all pages into a single list.
     """
     raw = gh(args)
-    return json.loads(raw) if raw else []
+    if not raw:
+        return []
+    # Fast path: try normal JSON parse first
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    # Slow path: handle concatenated JSON arrays from --paginate
+    decoder = json.JSONDecoder()
+    parts: list = []
+    pos = 0
+    length = len(raw)
+    while pos < length:
+        # Skip whitespace between concatenated objects
+        while pos < length and raw[pos] in ' \n\r\t':
+            pos += 1
+        if pos >= length:
+            break
+        obj, end = decoder.raw_decode(raw, pos)
+        if isinstance(obj, list):
+            parts.extend(obj)
+        else:
+            parts.append(obj)
+        pos = end
+    return parts
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +167,7 @@ def parse_simple_toml(text: str) -> dict:
         # Key = value
         # Note: dotted keys (a.b = "value") are not supported. This project uses
         # section headers ([project], [paths]) rather than dotted keys.
-        kv_match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$", line)
+        kv_match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(.*)$", line)
         if kv_match:
             key = kv_match.group(1)
             raw_val = kv_match.group(2).strip()
@@ -268,17 +297,21 @@ def _parse_value(raw: str):
 
 
 def _split_array(inner: str) -> list[str]:
-    """Split array contents by commas, respecting quoted strings.
+    """Split array contents by commas, respecting quoted strings and nesting.
 
     Handles both single- and double-quoted strings as per the TOML spec.
     Handles escaped quotes (``\\"``) and escaped backslashes (``\\\\``).
     An even number of consecutive backslashes before a quote means the
     quote is real (ends/starts the string); an odd number means it's escaped.
+
+    Tracks bracket nesting depth so nested arrays like ``["a", "b"], ["c"]``
+    are split correctly at the top-level commas only.
     """
     parts: list[str] = []
     current = ""
     in_str = False
     quote_char = ""
+    depth = 0
     for ch in inner:
         if not in_str and ch in ('"', "'"):
             # Starting a new string — record which quote type
@@ -294,7 +327,13 @@ def _split_array(inner: str) -> list[str]:
                 in_str = False
                 quote_char = ""
             current += ch
-        elif ch == "," and not in_str:
+        elif not in_str and ch == "[":
+            depth += 1
+            current += ch
+        elif not in_str and ch == "]":
+            depth -= 1
+            current += ch
+        elif ch == "," and not in_str and depth == 0:
             parts.append(current)
             current = ""
         else:
@@ -696,7 +735,7 @@ def extract_sp(issue: dict) -> int:
             return int(m.group(1))
     body = issue.get("body", "") or ""
     if m := re.search(
-        r"(?:story\s*points?|\bsp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
+        r"(?:story\s*points?|(?<![a-zA-Z])sp)\s*[:=]\s*(\d+)", body, re.IGNORECASE
     ):
         return int(m.group(1))
     if m := re.search(r"\|\s*SP\s*\|\s*(\d+)\s*\|", body):
@@ -799,7 +838,14 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
         "issue", "list", "--milestone", milestone_title, "--state", "all",
         "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
     ])
-    issues = json.loads(raw) if raw else []
+    if not raw:
+        return []
+    try:
+        issues = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Warning: failed to parse issue list for milestone "
+              f"'{milestone_title}': {exc}", file=sys.stderr)
+        return []
     warn_if_at_limit(issues)
     return issues
 

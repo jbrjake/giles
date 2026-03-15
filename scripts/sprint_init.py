@@ -223,7 +223,8 @@ class ProjectScanner:
                             if re.match(r'^\s*- ', lines[i]):
                                 break
                             line_content = lines[i].strip()
-                            if line_content:
+                            # Skip YAML comments inside run blocks
+                            if line_content and not line_content.startswith("#"):
                                 multiline_cmds.append(line_content)
                             i += 1
                         if multiline_cmds:
@@ -459,7 +460,7 @@ class ProjectScanner:
         return self._find_first("CHEATSHEET.md", "docs/INDEX.md")
 
     def detect_story_id_pattern(self, backlog_files: list[ScoredFile]) -> Detection:
-        patterns = re.compile(r"(US-\d{4}|[A-Z]{2,10}-\d+|#\d+)")
+        patterns = re.compile(r"(US-\d{4}|[A-Z]{2,10}-\d+)")
         counts: dict[str, int] = {}
         for sf in backlog_files:
             try:

@@ -190,18 +190,16 @@ def print_dry_run(
             break
 
     # Symlink targets
-    targets_shown = 0
     for s in symlinks[:3]:
         target = resolve_symlink_target(s)
         if target:
             try:
                 rel = target.relative_to(project_root)
                 print(f"  {rel}  ✓ exists")
-                targets_shown += 1
             except ValueError:
                 pass
     if len(symlinks) > 3:
-        print(f"  ... ({len(symlinks) - targets_shown} more symlink targets)")
+        print(f"  ... ({len(symlinks) - 3} more symlink targets)")
 
     print("  GitHub labels, milestones, issues, PRs (use gh CLI to clean up)")
 

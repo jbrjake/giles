@@ -78,11 +78,12 @@ def check_ci() -> tuple[list[str], list[str]]:
 
 
 def _first_error(log: str) -> str:
+    _FALSE_POSITIVE = re.compile(r"\b(?:0|no)\s+(?:error|fail)", re.IGNORECASE)
     for line in log.splitlines():
-        if any(
-            kw in line.lower()
-            for kw in ("error", "failed", "panicked", "assert")
-        ):
+        lower = line.lower()
+        if any(kw in lower for kw in ("error", "failed", "panicked", "assert")):
+            if _FALSE_POSITIVE.search(lower):
+                continue
             cleaned = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
             return cleaned[:117] + "..." if len(cleaned) > 117 else cleaned
     return ""
@@ -107,10 +108,9 @@ def check_prs() -> tuple[list[str], list[str]]:
     for pr in prs:
         entry = f"#{pr.get('number', '?')}: {pr.get('title', '?')}"
         checks = pr.get("statusCheckRollup") or []
-        ci_ok = all(
-            c.get("conclusion") == "SUCCESS"
-            for c in checks
-            if c.get("status") == "COMPLETED"
+        completed = [c for c in checks if c.get("status") == "COMPLETED"]
+        ci_ok = len(completed) > 0 and all(
+            c.get("conclusion") == "SUCCESS" for c in completed
         )
         match pr.get("reviewDecision", ""):
             case "APPROVED":

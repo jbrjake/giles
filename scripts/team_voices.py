@@ -99,7 +99,9 @@ def main() -> None:
     for persona, quotes in sorted(voices.items()):
         print(f"\n## {persona} ({len(quotes)} quotes)")
         for q in quotes:
-            print(f"  - [{q['file']}:{q['section']}] {q['quote'][:80]}...")
+            text = q['quote']
+            display = text[:80] + "..." if len(text) > 80 else text
+            print(f"  - [{q['file']}:{q['section']}] {display}")
 
 
 if __name__ == "__main__":
