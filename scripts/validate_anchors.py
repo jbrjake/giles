@@ -32,6 +32,7 @@ NAMESPACE_MAP: dict[str, str] = {
     "test_coverage": "scripts/test_coverage.py",
     "manage_epics": "scripts/manage_epics.py",
     "manage_sagas": "scripts/manage_sagas.py",
+    "commit": "scripts/commit.py",
     # Skill scripts (nested under skills/)
     "bootstrap_github": "skills/sprint-setup/scripts/bootstrap_github.py",
     "populate_issues": "skills/sprint-setup/scripts/populate_issues.py",
@@ -66,6 +67,7 @@ NAMESPACE_MAP: dict[str, str] = {
 }
 
 
+# §validate_anchors.resolve_namespace
 def resolve_namespace(namespace: str) -> str:
     """Return the relative file path for a namespace, or raise KeyError."""
     return NAMESPACE_MAP[namespace]
@@ -76,6 +78,7 @@ _PY_ANCHOR_RE = re.compile(r"^# §([\w]+\.[\w]+)$")
 _MD_ANCHOR_RE = re.compile(r"^<!-- §([\w-]+\.[\w_]+) -->$")
 
 
+# §validate_anchors.find_anchor_defs
 def find_anchor_defs(file_path: Path) -> dict[str, int]:
     """Return {anchor_name: line_number} for all anchors defined in a file."""
     defs: dict[str, int] = {}
@@ -91,6 +94,7 @@ def find_anchor_defs(file_path: Path) -> dict[str, int]:
 _REF_RE = re.compile(r"§([\w-]+\.[\w_]+)(?=[\s,|]|$)")
 
 
+# §validate_anchors.find_anchor_refs
 def find_anchor_refs(doc_path: Path) -> list[tuple[str, int]]:
     """Return [(anchor_name, line_number), ...] for all § refs in a doc file."""
     refs: list[tuple[str, int]] = []
@@ -104,6 +108,7 @@ def find_anchor_refs(doc_path: Path) -> list[tuple[str, int]]:
 DOC_FILES = ["CLAUDE.md", "CHEATSHEET.md"]
 
 
+# §validate_anchors.check_anchors
 def check_anchors(
     root: Path | None = None,
     doc_files: list[str] | None = None,
@@ -220,6 +225,7 @@ def _find_heading_line(file_path: Path, slug: str) -> int | None:
     return best[1] if best else None
 
 
+# §validate_anchors.fix_missing_anchors
 def fix_missing_anchors(
     root: Path | None = None,
     doc_files: list[str] | None = None,
@@ -287,6 +293,7 @@ def fix_missing_anchors(
     return fixed_count
 
 
+# §validate_anchors.main
 def main() -> None:
     fix_mode = "--fix" in sys.argv
 

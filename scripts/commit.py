@@ -34,6 +34,7 @@ CC_RE = re.compile(
 )
 
 
+# §commit.validate_message
 def validate_message(message: str) -> tuple[bool, str]:
     """Validate a conventional commit message.
 
@@ -54,6 +55,7 @@ def validate_message(message: str) -> tuple[bool, str]:
     return True, ""
 
 
+# §commit.check_atomicity
 def check_atomicity(force: bool = False) -> tuple[bool, str]:
     """Check staged files don't span too many top-level directories.
 
@@ -87,6 +89,7 @@ def check_atomicity(force: bool = False) -> tuple[bool, str]:
     return True, ""
 
 
+# §commit.run_commit
 def run_commit(message: str, body: str = "") -> tuple[bool, str]:
     """Execute git commit. Returns (ok, output_or_error)."""
     args = ["git", "commit", "-m", message]
@@ -98,6 +101,7 @@ def run_commit(message: str, body: str = "") -> tuple[bool, str]:
     return True, r.stdout.strip()
 
 
+# §commit.main
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Conventional commit wrapper with atomicity enforcement",

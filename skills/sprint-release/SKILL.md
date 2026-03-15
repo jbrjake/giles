@@ -54,26 +54,28 @@ Read `skills/sprint-release/references/release-checklist.md` and validate every 
 milestone. Do not skip gates. If any gate fails, report exactly what failed and
 stop.
 
-### Milestone-Specific Gates
+### Gate Checks
 
-Read gate criteria from `project.toml [release] milestones` and the gate file
-specified by `project.toml [release] gate_file`. Each milestone defines its own
-gates — do not hardcode gate counts or test thresholds.
+The release script (`release_gate.py`) runs five hardcoded gates in sequence:
 
-For each gate defined in the gate file:
-1. Run the specified validation command.
-2. Capture the output and compare against the gate's pass criteria.
-3. Record PASS or FAIL with detail.
+1. **Stories** — all issues in the milestone must be closed
+2. **CI** — most recent CI run on base branch must pass
+3. **PRs** — no open PRs targeting the milestone
+4. **Tests** — all `check_commands` from `project.toml [ci]` must pass
+5. **Build** — `build_command` from `project.toml [ci]` must succeed
 
 ### Gate Summary
 
-Print a gate summary table before proceeding. The rows come from the gate file:
+Print a gate summary table before proceeding:
 
 ```
 Gate                    | Status | Detail
 ------------------------|--------|-------
-{gate_name}             | PASS   | {detail}
-...                     | ...    | ...
+Stories                 | PASS   | All issues closed
+CI                      | PASS   | CI: success
+PRs                     | PASS   | No open PRs for milestone
+Tests                   | PASS   | 3 command(s) passed
+Build                   | PASS   | Build succeeded
 ```
 
 If any row shows FAIL, stop and report. Do not proceed to tagging.
@@ -87,8 +89,9 @@ Create an annotated tag and push it to origin.
 
 ### Version Scheme
 
-Read the version scheme and milestone versions from `project.toml [release]`.
-Each milestone maps to a version and name defined in config.
+Version is calculated automatically from conventional commits since the last
+`vX.Y.Z` tag. Breaking changes bump major, features bump minor, fixes bump
+patch. Base version is `0.1.0` when no tags exist.
 
 ### Tag
 
@@ -106,22 +109,16 @@ Replace `{version}` and `{milestone name}` with the actual values (e.g.,
 <!-- §sprint-release.build_artifacts -->
 ## Step 3: Build Release Artifacts
 
-Read build and test commands from `project.toml [ci]`. Run the build commands
-for each target platform defined in config and record artifact sizes.
+Read `build_command` from `project.toml [ci]` and run it. If `binary_path` is
+configured, verify the binary exists and report its size.
 
 ```bash
-# Read build_command and binary_path from project.toml [ci]
+# Read build_command from project.toml [ci]
 ${build_command}
 
+# Verify binary if binary_path is configured
 binary_path="${binary_path}"
 [ -f "$binary_path" ] && echo "$binary_path: $(stat -f%z "$binary_path" 2>/dev/null || stat -c%s "$binary_path") bytes"
-```
-
-Generate a Software Bill of Materials if the project's SBOM tool is available:
-
-```bash
-# Use sbom_command from project.toml [ci] if defined
-${sbom_command} 2>/dev/null && echo "SBOM generated" || echo "SBOM tool not available, skipping"
 ```
 
 ---
@@ -171,8 +168,7 @@ gh release create v{version} \
   "${binary_path}"
 ```
 
-Attach all platform binaries and the SBOM (if generated). Confirm the release
-URL is returned:
+Attach the binary (if configured). Confirm the release URL is returned:
 
 ```bash
 gh release view v{version} --json url --jq '.url'
@@ -284,7 +280,5 @@ Validation). Increment the patch version (e.g., v0.1.0 becomes v0.1.1).
   test counts, and acceptance thresholds
 - `SPRINT-STATUS.md` (at `project.toml [paths] sprints_dir`) -- sprint
   completion status and velocity tracking
-- Milestone story definitions -- read milestone doc paths from `project.toml
-  [release] milestones`
-- Project navigation docs -- read from `project.toml [paths] cheatsheet` if
-  configured
+- `skills/sprint-release/scripts/release_gate.py` -- gate validation, version
+  calculation, release notes, and publishing automation

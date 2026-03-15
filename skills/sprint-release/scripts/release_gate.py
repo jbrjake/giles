@@ -36,6 +36,7 @@ COMMIT_PY = _SCRIPTS_DIR / "commit.py"
 _SEMVER_TAG_RE = re.compile(r"^v(\d+\.\d+\.\d+)$")
 
 
+# §release_gate.find_latest_semver_tag
 def find_latest_semver_tag() -> str | None:
     """Find the most recent vX.Y.Z tag, or None if no semver tags exist."""
     r = subprocess.run(
@@ -54,6 +55,7 @@ def find_latest_semver_tag() -> str | None:
 _COMMIT_DELIM = "\x00--END--\x00"
 
 
+# §release_gate.parse_commits_since
 def parse_commits_since(tag: str | None) -> list[dict]:
     """Parse commits since tag (or all commits). Returns [{subject, body}]."""
     fmt = f"%s%n%b{_COMMIT_DELIM}"
@@ -113,6 +115,7 @@ def bump_version(base: str, bump_type: str) -> str:
         return f"{major}.{minor}.{patch + 1}"
 
 
+# §release_gate.calculate_version
 def calculate_version() -> tuple[str, str, str, list[dict]]:
     """Calculate next semantic version from commit log.
 
@@ -132,6 +135,7 @@ def calculate_version() -> tuple[str, str, str, list[dict]]:
 # -- Gate validation ---------------------------------------------------------
 
 
+# §release_gate.gate_stories
 def gate_stories(milestone_title: str) -> tuple[bool, str]:
     """Gate: all issues in the milestone must be closed."""
     issues = gh_json([
@@ -145,6 +149,7 @@ def gate_stories(milestone_title: str) -> tuple[bool, str]:
     return False, f"{len(issues)} open: {', '.join(titles)}"
 
 
+# §release_gate.gate_ci
 def gate_ci(config: dict) -> tuple[bool, str]:
     """Gate: most recent CI run on the base branch must be successful."""
     base_branch = get_base_branch(config)
@@ -163,6 +168,7 @@ def gate_ci(config: dict) -> tuple[bool, str]:
     )
 
 
+# §release_gate.gate_prs
 def gate_prs(milestone_title: str) -> tuple[bool, str]:
     """Gate: no open PRs should target this milestone."""
     prs = gh_json([
@@ -187,6 +193,7 @@ def gate_prs(milestone_title: str) -> tuple[bool, str]:
     return False, f"{len(matching)} open PR(s): {', '.join(titles)}"
 
 
+# §release_gate.gate_tests
 def gate_tests(config: dict) -> tuple[bool, str]:
     """Gate: all check_commands from config must pass."""
     commands = config.get("ci", {}).get("check_commands", [])
@@ -203,6 +210,7 @@ def gate_tests(config: dict) -> tuple[bool, str]:
     return True, f"{len(commands)} command(s) passed"
 
 
+# §release_gate.gate_build
 def gate_build(config: dict) -> tuple[bool, str]:
     """Gate: build_command must succeed and produce binary if configured."""
     build_cmd = config.get("ci", {}).get("build_command", "")
@@ -221,6 +229,7 @@ def gate_build(config: dict) -> tuple[bool, str]:
     return True, "Build succeeded"
 
 
+# §release_gate.validate_gates
 def validate_gates(
     milestone_title: str, config: dict,
 ) -> tuple[bool, list[tuple[str, bool, str]]]:
@@ -259,6 +268,7 @@ def print_gate_summary(results: list[tuple[str, bool, str]]) -> None:
 # -- TOML version writer -----------------------------------------------------
 
 
+# §release_gate.write_version_to_toml
 def write_version_to_toml(version: str, toml_path: Path) -> None:
     """Write version to [release] section in project.toml.
 
@@ -297,6 +307,7 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
 # -- Release notes -----------------------------------------------------------
 
 
+# §release_gate.generate_release_notes
 def generate_release_notes(
     version: str,
     prev_version: str,
@@ -403,6 +414,7 @@ def find_milestone_number(milestone_title: str) -> int | None:
     return None
 
 
+# §release_gate.do_release
 def do_release(
     milestone_title: str, config: dict, dry_run: bool = False,
 ) -> bool:
@@ -618,6 +630,7 @@ def do_release(
 # -- CLI ---------------------------------------------------------------------
 
 
+# §release_gate.main
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Release gate validation and automation",

@@ -228,6 +228,41 @@ you need without reading entire files.
 | §manage_sagas.update_team_voices | `update_team_voices()` | Update Team Voices blockquote section |
 | §manage_sagas.main | `main()` | CLI: update-allocation, update-index, update-voices |
 
+### scripts/commit.py
+| Anchor | Function | Purpose |
+|--------|----------|---------|
+| §commit.validate_message | `validate_message()` | Validate conventional commit format |
+| §commit.check_atomicity | `check_atomicity()` | Check staged files don't span too many directories |
+| §commit.run_commit | `run_commit()` | Execute git commit with message/body |
+| §commit.main | `main()` | CLI: parse args, validate, commit |
+
+### scripts/validate_anchors.py
+| Anchor | Function | Purpose |
+|--------|----------|---------|
+| §validate_anchors.resolve_namespace | `resolve_namespace()` | Map namespace to file path via NAMESPACE_MAP |
+| §validate_anchors.find_anchor_defs | `find_anchor_defs()` | Find all § anchor comments in a source file |
+| §validate_anchors.find_anchor_refs | `find_anchor_refs()` | Find all § references in a doc file |
+| §validate_anchors.check_anchors | `check_anchors()` | Verify all refs resolve to anchor defs |
+| §validate_anchors.fix_missing_anchors | `fix_missing_anchors()` | Auto-insert missing anchor comments |
+| §validate_anchors.main | `main()` | CLI: check or --fix mode |
+
+### skills/sprint-release/scripts/release_gate.py
+| Anchor | Function | Purpose |
+|--------|----------|---------|
+| §release_gate.find_latest_semver_tag | `find_latest_semver_tag()` | Find most recent vX.Y.Z tag |
+| §release_gate.parse_commits_since | `parse_commits_since()` | Parse commits since tag (or all) |
+| §release_gate.calculate_version | `calculate_version()` | Calculate next semver from commit log |
+| §release_gate.gate_stories | `gate_stories()` | Gate: all milestone issues must be closed |
+| §release_gate.gate_ci | `gate_ci()` | Gate: CI must pass on base branch |
+| §release_gate.gate_prs | `gate_prs()` | Gate: no open PRs targeting milestone |
+| §release_gate.gate_tests | `gate_tests()` | Gate: all check_commands must pass |
+| §release_gate.gate_build | `gate_build()` | Gate: build_command must succeed |
+| §release_gate.validate_gates | `validate_gates()` | Run all gates sequentially |
+| §release_gate.write_version_to_toml | `write_version_to_toml()` | Write version to [release] section |
+| §release_gate.generate_release_notes | `generate_release_notes()` | Generate markdown release notes |
+| §release_gate.do_release | `do_release()` | Full release flow: gates, version, tag, publish |
+| §release_gate.main | `main()` | CLI: --dry-run, --milestone args |
+
 ## Skill entry points -- section index
 
 ### skills/sprint-setup/SKILL.md

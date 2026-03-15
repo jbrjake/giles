@@ -194,7 +194,13 @@ class ProjectScanner:
         return Detection([], "no CI detected", 0.0)
 
     def _parse_workflow_runs(self, yml_path: Path) -> list[str]:
-        """Extract 'run:' values from a workflow YAML (simple line parser)."""
+        """Extract 'run:' values from a workflow YAML (simple line parser).
+
+        Uses an indentation heuristic to detect multiline ``run: |`` blocks:
+        any subsequent line starting with 2+ spaces is treated as continuation.
+        Known limitation: ``run: >`` and ``run: >-`` (YAML folded style) are
+        NOT detected — only literal block style (``|``) is supported.
+        """
         runs: list[str] = []
         try:
             with open(yml_path, encoding="utf-8") as f:
