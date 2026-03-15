@@ -1,38 +1,33 @@
-# Bug Hunter Status — Pass 9 (Fresh Adversarial Legacy Review)
+# Bug Hunter Status — Pass 10 (Fresh Adversarial Legacy Review)
 
-## Current State: ALL RESOLVED — 27/27 items fixed
+## Current State: Phase 4 Complete — All 28 Items Resolved
 ## Started: 2026-03-15
 
 ---
 
 ## Completed Steps
-- [x] Archived pass 8 artifacts to bug-hunter-prior-pass8/
-- [x] 0a: Project overview → `recon/0a-project-overview.md`
-- [x] 0b: Test infrastructure → `recon/0b-test-infra.md`
-- [x] 0c: Test baseline (508 pass, 0 fail, 3.0s) → `recon/0c-test-baseline.md`
-- [x] 0d: Lint/type check — none configured
-- [x] 0e: Git churn analysis → `recon/0e-churn.md`
-- [x] 0f: Skipped/disabled tests → `recon/0f-skipped-tests.md` (none found)
-- [x] 0g: Recon summary → `recon/0g-recon-summary.md`
-- [x] Phase 1: Doc-to-implementation audit → `audit/1-doc-claims-raw.md` (7 findings)
-- [x] Phase 2: Test quality audit → `audit/2-test-quality-raw.md` (4 critical, 14 high, 31 medium)
-- [x] Phase 3: Adversarial code audit → `audit/3-code-audit-raw.md` (1 high, 16 medium, 25 low)
-- [x] Top 15 findings verified against actual source code
-- [x] Punchlist compiled → `BUG-HUNTER-PUNCHLIST.md` (27 items)
-- [x] Phase 4: Fix loop — all 27 items resolved in 3 commits
+- [x] Archived pass 9 artifacts to bug-hunter-prior-pass9/
+- [x] Phase 0a-0g: Recon (baseline 520 pass, 0 fail)
+- [x] Phase 1: Doc-to-implementation audit → `audit/1-doc-claims-raw.md`
+- [x] Phase 2: Test quality audit → `audit/2-test-quality-raw.md`
+- [x] Phase 3: Adversarial code audit → `audit/3-code-audit-raw.md`
+- [x] Compiled punchlist → `BUG-HUNTER-PUNCHLIST.md` (28 items)
+- [x] Phase 4a: Fix 20 code bugs (BH-001 through BH-025)
+- [x] Phase 4b: Add 26 regression tests (546 pass, 0 fail)
+- [x] Phase 4c: Fix test quality (BH-002, BH-006, BH-007, BH-019)
+- [x] Phase 4d: Fix doc drift (BH-026, BH-027, BH-028)
 
-## Fix Summary
-| Commit | Items | Description |
-|--------|-------|-------------|
-| `fix: code bugs` | 14 | BH-003,004,005,009,010,011,012,013,014,016,023,024,025,026 |
-| `fix: test quality` | 6 | BH-001,002,007,008,015 (+9 new tests, -7 duplicates) |
-| `docs: fix doc-code drift` | 7 | BH-006,017,018,019,020,021,027 |
+## Punchlist Summary
+| Severity | Resolved |
+|----------|----------|
+| CRITICAL | 1 |
+| HIGH | 9 |
+| MEDIUM | 12 |
+| LOW | 6 |
+| **Total** | **28** |
 
-## Final Baseline
-510 tests, 0 failures (was 508 at start of pass 9)
-
-## Patterns Addressed
-- **PAT-001: Tests That Verify The Mock** — 3 items fixed (golden skip, tautology, rename)
-- **PAT-002: Missing Input Validation** — 5 items fixed (defaults, guards, EOFError)
-- **PAT-003: Doc Claims Without Code** — 7 items fixed (paths, descriptions, missing entries)
-- **PAT-004: Regex Under/Over-Match** — 4 items fixed (word boundaries, greedy, async patterns)
+## Patterns Fixed
+- **PAT-001**: gh_json now handles concatenated paginated JSON via incremental decoding
+- **PAT-002**: FakeGitHub --flag=value parsing, /commits since-filtering, test data fidelity
+- **PAT-003**: main() integration tests added for sprint_analytics
+- **PAT-004**: extract_sp, test_coverage, _first_error all use proper word boundaries
