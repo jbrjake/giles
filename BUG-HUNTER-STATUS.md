@@ -1,33 +1,36 @@
-# Bug Hunter Status — Pass 10 (Fresh Adversarial Legacy Review)
+# Bug Hunter Status — Pass 11 (Fresh Adversarial Legacy Review)
 
-## Current State: Phase 4 Complete — All 28 Items Resolved
+## Current State: ALL 39 ITEMS RESOLVED
 ## Started: 2026-03-15
+## Completed: 2026-03-15
 
 ---
 
 ## Completed Steps
-- [x] Archived pass 9 artifacts to bug-hunter-prior-pass9/
-- [x] Phase 0a-0g: Recon (baseline 520 pass, 0 fail)
-- [x] Phase 1: Doc-to-implementation audit → `audit/1-doc-claims-raw.md`
-- [x] Phase 2: Test quality audit → `audit/2-test-quality-raw.md`
-- [x] Phase 3: Adversarial code audit → `audit/3-code-audit-raw.md`
-- [x] Compiled punchlist → `BUG-HUNTER-PUNCHLIST.md` (28 items)
-- [x] Phase 4a: Fix 20 code bugs (BH-001 through BH-025)
-- [x] Phase 4b: Add 26 regression tests (546 pass, 0 fail)
-- [x] Phase 4c: Fix test quality (BH-002, BH-006, BH-007, BH-019)
-- [x] Phase 4d: Fix doc drift (BH-026, BH-027, BH-028)
+- [x] Archived pass 10 artifacts to bug-hunter-prior-pass10/
+- [x] Phase 0a: Project overview
+- [x] Phase 0b: Test infra
+- [x] Phase 0c: Test baseline (546 tests, all pass, 2.7s)
+- [x] Phase 0d: Lint results (clean, 477 anchors resolved)
+- [x] Phase 0e: Git churn
+- [x] Phase 0f: Skipped tests
+- [x] Phase 0g: Recon summary
+- [x] Phase 1: Doc-to-implementation audit (10 findings)
+- [x] Phase 2: Test quality audit (14 findings)
+- [x] Phase 3: Adversarial code audit (15 findings)
+- [x] Phase 4: All 39 punchlist items resolved (6 commits)
 
-## Punchlist Summary
-| Severity | Resolved |
-|----------|----------|
-| CRITICAL | 1 |
-| HIGH | 9 |
-| MEDIUM | 12 |
-| LOW | 6 |
-| **Total** | **28** |
+## Resolution Summary
+- Tests before: 546 pass | Tests after: 586 pass (+40 new tests)
+- 6 commits across 5 batches
+- Batch 1: Quick wins — doc clarification, assertion fixes, analytics, parsing (7 items)
+- Batch 2: gh_json migration — 3 call sites using raw json.loads (3 items)
+- Batch 3: Test quality — call_args assertions + main() integration tests (7 items)
+- Batch 4: Code fixes — rollback, PR selection, yaml, regex, blockquotes (6 items)
+- Batch 5a: Missing tests — idempotency, symlinks, KANBAN_STATES (7 items)
+- Batch 5b: Small fixes — format injection, git check, documentation (4 items)
+- Batch 5c+d: Test infra — FakeGitHub fidelity, teardown tests, MockProject dedup (5 items)
 
-## Patterns Fixed
-- **PAT-001**: gh_json now handles concatenated paginated JSON via incremental decoding
-- **PAT-002**: FakeGitHub --flag=value parsing, /commits since-filtering, test data fidelity
-- **PAT-003**: main() integration tests added for sprint_analytics
-- **PAT-004**: extract_sp, test_coverage, _first_error all use proper word boundaries
+## Totals
+- 39 items: 6 High, 17 Medium, 16 Low — ALL RESOLVED
+- Top themes: mock abuse (7), missing tests (8), logic bugs (8), doc drift (3)
