@@ -174,3 +174,64 @@ def rewrite_claude_md_refs(line: str) -> str:
     line = re.sub(r"(?<!\`)(\w[\w/.-]*\.py):(\d+)(?:-\d+)?(?![\d`])", repl_inline, line)
 
     return line
+
+
+def rewrite_cheatsheet_table(lines: list[str]) -> list[str]:
+    """Rewrite a CHEATSHEET.md section's tables from Line-based to Anchor-based.
+
+    Input is a list of lines for one ### section (starting with the ### heading).
+    """
+    if not lines:
+        return lines
+
+    result = list(lines)  # copy
+
+    # Extract namespace from heading: ### path/to/file.ext
+    heading = lines[0]
+    heading_match = re.match(r"^###\s+(.+)$", heading)
+    if not heading_match:
+        return result
+    file_path = heading_match.group(1).strip()
+    stem = Path(file_path).stem  # e.g., "validate_config" or "github-conventions"
+
+    # Determine if this is a Python script or markdown reference file
+    is_python = file_path.endswith(".py")
+
+    for i in range(1, len(result)):
+        line = result[i]
+
+        # Rewrite header row
+        if re.match(r"\|\s*Line\s*\|", line):
+            result[i] = line.replace("Line", "Anchor", 1)
+            continue
+
+        # Rewrite separator row (widen for anchor column)
+        if re.match(r"\|\s*-+\s*\|", line):
+            result[i] = re.sub(r"\|(\s*-+\s*)\|", "|--------|", line, count=1)
+            continue
+
+        # Rewrite data rows: | NNN | content... |
+        row_match = re.match(r"\|\s*(\d+)\s*\|\s*(.+)", line)
+        if row_match:
+            rest = row_match.group(2)
+
+            if is_python:
+                # Extract function/constant name from backticks
+                sym_match = re.search(r"`([A-Za-z_]\w*(?:\(\))?)`", rest)
+                if sym_match:
+                    symbol = sym_match.group(1).strip("()")
+                    anchor = f"§{stem}.{symbol}"
+                else:
+                    # Constant or non-backtick name
+                    word_match = re.search(r"([A-Z_][A-Z0-9_]+)", rest)
+                    symbol = word_match.group(1) if word_match else row_match.group(1)
+                    anchor = f"§{stem}.{symbol}"
+            else:
+                # Markdown section — derive slug from section name
+                section_text = rest.split("|")[0].strip()
+                slug = _slug_from_text(section_text)
+                anchor = f"§{stem}.{slug}"
+
+            result[i] = f"| {anchor} | {rest}"
+
+    return result

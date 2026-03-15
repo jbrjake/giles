@@ -116,5 +116,46 @@ class TestRewriteClaudeMd(unittest.TestCase):
         self.assertEqual(result, line)
 
 
+from migrate_to_anchors import rewrite_cheatsheet_table
+
+
+class TestRewriteCheatsheet(unittest.TestCase):
+    """Rewrite CHEATSHEET.md Line-based tables to Anchor-based."""
+
+    def test_script_function_table(self):
+        """| Line | Function | → | Anchor | Function |"""
+        lines = [
+            "### scripts/validate_config.py",
+            "| Line | Function | Purpose |",
+            "|------|----------|---------|",
+            "| 22 | `gh()` | Shared GitHub CLI wrapper |",
+            "| 47 | `parse_simple_toml()` | Custom TOML parser |",
+        ]
+        result = rewrite_cheatsheet_table(lines)
+        self.assertIn("| Anchor |", result[1])
+        self.assertIn("§validate_config.gh", result[3])
+        self.assertIn("§validate_config.parse_simple_toml", result[4])
+        self.assertNotIn("| 22 |", result[3])
+
+    def test_section_table(self):
+        """| Line | Section | → | Anchor | Section |"""
+        lines = [
+            "### skills/sprint-setup/references/github-conventions.md",
+            "| Line | Section |",
+            "|------|---------|",
+            "| 5 | Label taxonomy |",
+        ]
+        result = rewrite_cheatsheet_table(lines)
+        self.assertIn("§github-conventions.label_taxonomy", result[3])
+
+    def test_non_table_lines_unchanged(self):
+        lines = [
+            "### scripts/validate_config.py",
+            "Some prose text.",
+        ]
+        result = rewrite_cheatsheet_table(lines)
+        self.assertEqual(result[1], "Some prose text.")
+
+
 if __name__ == "__main__":
     unittest.main()
