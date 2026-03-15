@@ -30,9 +30,14 @@ class ConfigError(ValueError):
 # §validate_config.gh
 def gh(args: list[str]) -> str:
     """Run a gh CLI command and return stdout. Raises RuntimeError on failure."""
-    r = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, timeout=30,
-    )
+    try:
+        r = subprocess.run(
+            ["gh", *args], capture_output=True, text=True, timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"gh {' '.join(args)}: timed out after 30s"
+        ) from None
     if r.returncode != 0:
         raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
     return r.stdout.strip()

@@ -91,7 +91,7 @@ def find_anchor_defs(file_path: Path) -> dict[str, int]:
     return defs
 
 
-_REF_RE = re.compile(r"§([\w-]+\.[\w_]+)(?=[\s,|]|$)")
+_REF_RE = re.compile(r"§([\w-]+\.[\w_]+)(?=[\s,|.;:)\]!?'\"]|$)")
 
 
 # §validate_anchors.find_anchor_refs
