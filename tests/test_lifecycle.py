@@ -14,7 +14,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -27,6 +26,7 @@ from validate_config import parse_simple_toml, validate_project
 from sprint_init import ProjectScanner, ConfigGenerator
 from commit import validate_message, check_atomicity
 from fake_github import FakeGitHub, make_patched_subprocess
+from mock_project import MockProject
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 from release_gate import (
@@ -47,101 +47,6 @@ import check_status
 
 
 # ---------------------------------------------------------------------------
-# MockProject: create a temp Rust project for testing
-# ---------------------------------------------------------------------------
-
-class MockProject:
-    """Create a minimal mock Rust project in a temp directory."""
-
-    def __init__(self, root: Path):
-        self.root = root
-
-    def create(self) -> None:
-        # Cargo.toml (language detection)
-        (self.root / "Cargo.toml").write_text(textwrap.dedent("""\
-            [package]
-            name = "test-project"
-            version = "0.1.0"
-            edition = "2021"
-        """))
-
-        # Real git repo
-        subprocess.run(
-            ["git", "init"], cwd=str(self.root),
-            capture_output=True, text=True,
-        )
-        subprocess.run(
-            ["git", "remote", "add", "origin",
-             "https://github.com/testowner/testrepo.git"],
-            cwd=str(self.root), capture_output=True, text=True,
-        )
-        # Initial commit so git log doesn't fail
-        subprocess.run(
-            ["git", "add", "."], cwd=str(self.root),
-            capture_output=True, text=True,
-        )
-        subprocess.run(
-            ["git", "-c", "user.name=Test", "-c", "user.email=test@test.com",
-             "commit", "-m", "feat: initial project setup"],
-            cwd=str(self.root), capture_output=True, text=True,
-        )
-
-        # Persona files
-        docs = self.root / "docs" / "dev-team"
-        docs.mkdir(parents=True)
-        for name, role in [("alice", "Senior Engineer"),
-                           ("bob", "Systems Architect")]:
-            (docs / f"{name}.md").write_text(textwrap.dedent(f"""\
-                # {name.title()}
-
-                ## Role
-                {role}
-
-                ## Voice
-                Direct and technical.
-
-                ## Domain
-                Backend systems.
-
-                ## Background
-                10 years experience.
-
-                ## Review Focus
-                Performance and correctness.
-            """))
-
-        # Backlog with milestone
-        backlog = self.root / "docs" / "backlog"
-        backlog.mkdir(parents=True)
-        milestones = backlog / "milestones"
-        milestones.mkdir()
-        (milestones / "milestone-1.md").write_text(textwrap.dedent("""\
-            # Sprint 1: Walking Skeleton
-
-            ### Sprint 1: Foundation
-
-            | US-0101 | Basic setup | S01 | 3 | P0 |
-            | US-0102 | Core feature | S01 | 5 | P1 |
-        """))
-
-        # Rules and dev guide
-        (self.root / "RULES.md").write_text("# Rules\nNo panics in production.\n")
-        (self.root / "DEVELOPMENT.md").write_text("# Development\nUse TDD.\n")
-
-    def add_and_commit(self, msg: str) -> None:
-        """Stage all and commit in the temp repo."""
-        subprocess.run(
-            ["git", "add", "-A"], cwd=str(self.root),
-            capture_output=True, text=True,
-        )
-        subprocess.run(
-            ["git", "-c", "user.name=Test", "-c", "user.email=test@test.com",
-             "commit", "-m", msg, "--allow-empty"],
-            cwd=str(self.root), capture_output=True, text=True,
-        )
-
-
-# ---------------------------------------------------------------------------
 # Lifecycle tests
 # ---------------------------------------------------------------------------
 
@@ -151,7 +56,7 @@ class TestLifecycle(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="giles-lifecycle-")
         self.root = Path(self.tmpdir)
-        self.mock = MockProject(self.root)
+        self.mock = MockProject(self.root, real_git=True)
         self.mock.create()
         self.fake_gh = FakeGitHub()
         self._saved_cwd = os.getcwd()

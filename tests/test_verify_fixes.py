@@ -10,7 +10,6 @@ Run: python -m unittest tests.test_verify_fixes -v
 import os
 import sys
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 
@@ -18,93 +17,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+sys.path.insert(0, str(ROOT / "tests"))
+
 from validate_config import parse_simple_toml, validate_project, _parse_team_index, ConfigError, load_config
 from sprint_init import ProjectScanner, ConfigGenerator
-
-
-class MockProject:
-    """Create a minimal mock Rust project for testing."""
-
-    def __init__(self, root: Path):
-        self.root = root
-
-    def create(self) -> None:
-        # Cargo.toml (language detection)
-        (self.root / "Cargo.toml").write_text(textwrap.dedent("""\
-            [package]
-            name = "test-project"
-            version = "0.1.0"
-            edition = "2021"
-        """))
-
-        # Git remote (repo detection)
-        (self.root / ".git").mkdir()
-        (self.root / ".git" / "config").write_text(textwrap.dedent("""\
-            [remote "origin"]
-                url = https://github.com/testowner/testrepo.git
-                fetch = +refs/heads/*:refs/remotes/origin/*
-        """))
-
-        # Persona files — alice and bob use next-line role format
-        docs = self.root / "docs" / "dev-team"
-        docs.mkdir(parents=True)
-        for name, role in [("alice", "Senior Engineer"),
-                           ("bob", "Systems Architect")]:
-            (docs / f"{name}.md").write_text(textwrap.dedent(f"""\
-                # {name.title()}
-
-                ## Role
-                {role}
-
-                ## Voice
-                Direct and technical.
-
-                ## Domain
-                Backend systems.
-
-                ## Background
-                10 years experience.
-
-                ## Review Focus
-                Performance and correctness.
-            """))
-
-        # carol uses inline role format: "## Role: QA Lead"
-        (docs / "carol.md").write_text(textwrap.dedent("""\
-            # Carol
-
-            ## Role: QA Lead
-
-            ## Voice
-            Thorough and cautious.
-
-            ## Domain
-            Testing and validation.
-
-            ## Background
-            8 years in QA.
-
-            ## Review Focus
-            Test coverage and edge cases.
-        """))
-
-        # Backlog with milestone
-        backlog = self.root / "docs" / "backlog"
-        backlog.mkdir(parents=True)
-        milestones = backlog / "milestones"
-        milestones.mkdir()
-        (milestones / "milestone-1.md").write_text(textwrap.dedent("""\
-            # Sprint 1: Walking Skeleton
-
-            ### Sprint 1: Foundation
-
-            | US-0101 | Basic setup | S01 | 3 | P0 |
-            | US-0102 | Core feature | S01 | 5 | P1 |
-        """))
-
-        # Rules and dev guide
-        (self.root / "RULES.md").write_text("# Rules\nNo panics in production.\n")
-        (self.root / "DEVELOPMENT.md").write_text("# Development\nUse TDD.\n")
+from mock_project import MockProject
 
 
 class TestConfigGeneration(unittest.TestCase):
@@ -113,7 +30,7 @@ class TestConfigGeneration(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="giles-verify-")
         self.root = Path(self.tmpdir)
-        mock = MockProject(self.root)
+        mock = MockProject(self.root, extra_personas=True)
         mock.create()
 
     def tearDown(self):
@@ -705,7 +622,7 @@ class TestSprintInitSymlinks(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="giles-p11-008-")
         self.root = Path(self.tmpdir)
-        mock = MockProject(self.root)
+        mock = MockProject(self.root, extra_personas=True)
         mock.create()
 
     def tearDown(self):
@@ -759,7 +676,7 @@ class TestValidateProjectMissingKey(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="giles-p11-009-")
         self.root = Path(self.tmpdir)
-        mock = MockProject(self.root)
+        mock = MockProject(self.root, extra_personas=True)
         mock.create()
         # Generate valid config first
         scanner = ProjectScanner(self.root)
@@ -829,6 +746,105 @@ class TestKanbanStatesConstant(unittest.TestCase):
             len(KANBAN_STATES), 6,
             f"Expected 6 kanban states, got {len(KANBAN_STATES)}",
         )
+
+
+# ---------------------------------------------------------------------------
+# BH-P11-061: sprint_teardown interactive confirmation (no --force / --dry-run)
+# ---------------------------------------------------------------------------
+
+import sprint_teardown
+
+
+class TestTeardownInteractiveConfirmation(unittest.TestCase):
+    """BH-P11-061: Test the interactive prompt path in sprint_teardown.main().
+
+    When neither --force nor --dry-run is passed, remove_generated() prompts
+    the user via input() for each generated file.  These tests patch input()
+    to exercise the "y", "n", and "a" (all) responses.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="giles-p11-061-")
+        self.project_root = Path(self.tmpdir)
+        self.config_dir = self.project_root / "sprint-config"
+        self.config_dir.mkdir()
+        # Create two generated files
+        (self.config_dir / "project.toml").write_text(
+            '[project]\nname = "test"', encoding="utf-8",
+        )
+        (self.config_dir / "definition-of-done.md").write_text(
+            "# DoD\n", encoding="utf-8",
+        )
+        # Create RULES.md and DEVELOPMENT.md to satisfy verification
+        (self.project_root / "RULES.md").write_text("# Rules\n")
+        (self.project_root / "DEVELOPMENT.md").write_text("# Dev\n")
+        self._saved_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+    def tearDown(self):
+        os.chdir(self._saved_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_interactive_yes_removes_file(self):
+        """Answering 'y' to each prompt removes each generated file."""
+        with (
+            patch("sys.argv", ["teardown"]),
+            patch("builtins.input", side_effect=["y", "y"]),
+            patch("sprint_teardown.check_active_loops", return_value=[]),
+        ):
+            sprint_teardown.main()
+        self.assertFalse((self.config_dir / "project.toml").exists())
+        self.assertFalse((self.config_dir / "definition-of-done.md").exists())
+
+    def test_interactive_no_skips_file(self):
+        """Answering 'n' to each prompt skips each generated file."""
+        with (
+            patch("sys.argv", ["teardown"]),
+            patch("builtins.input", side_effect=["n", "n"]),
+            patch("sprint_teardown.check_active_loops", return_value=[]),
+        ):
+            sprint_teardown.main()
+        # Both files should still exist (skipped)
+        self.assertTrue((self.config_dir / "project.toml").exists())
+        self.assertTrue((self.config_dir / "definition-of-done.md").exists())
+
+    def test_interactive_empty_input_skips_file(self):
+        """Pressing Enter (empty string) is treated as 'n' — file is skipped."""
+        with (
+            patch("sys.argv", ["teardown"]),
+            patch("builtins.input", side_effect=["", ""]),
+            patch("sprint_teardown.check_active_loops", return_value=[]),
+        ):
+            sprint_teardown.main()
+        self.assertTrue((self.config_dir / "project.toml").exists())
+        self.assertTrue((self.config_dir / "definition-of-done.md").exists())
+
+    def test_interactive_all_removes_remaining(self):
+        """Answering 'a' on first prompt removes all remaining files."""
+        with (
+            patch("sys.argv", ["teardown"]),
+            patch("builtins.input", side_effect=["a"]),
+            patch("sprint_teardown.check_active_loops", return_value=[]),
+        ):
+            sprint_teardown.main()
+        self.assertFalse((self.config_dir / "project.toml").exists())
+        self.assertFalse((self.config_dir / "definition-of-done.md").exists())
+
+    def test_interactive_mixed_yes_no(self):
+        """Answering 'y' then 'n' removes only the first file."""
+        with (
+            patch("sys.argv", ["teardown"]),
+            patch("builtins.input", side_effect=["y", "n"]),
+            patch("sprint_teardown.check_active_loops", return_value=[]),
+        ):
+            sprint_teardown.main()
+        # One file removed, one skipped — we don't know the order so check count
+        exists_count = sum(1 for f in [
+            self.config_dir / "project.toml",
+            self.config_dir / "definition-of-done.md",
+        ] if f.exists())
+        self.assertEqual(exists_count, 1, "Exactly one file should be skipped")
 
 
 if __name__ == "__main__":

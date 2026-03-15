@@ -484,7 +484,17 @@ def _make_subprocess_side_effect(
 
 
 class TestDoRelease(unittest.TestCase):
-    """Tests for do_release() — the full release orchestration flow."""
+    """Tests for do_release() — the full release orchestration flow.
+
+    BH-P11-060: These tests intentionally patch subprocess.run globally rather
+    than using FakeGitHub.  This is a deliberate trade-off: unit tests here
+    verify the *call sequence* (correct git commands in the right order with
+    the right arguments) without needing a real git repo.  Integration tests
+    in TestDoReleaseDryRunIntegration and the golden-run suite exercise real
+    git operations through FakeGitHub.  Changing these to use real git would
+    make them slower and more brittle without improving coverage of the
+    release orchestration logic.
+    """
 
     def setUp(self):
         """Create a temp dir with sprint-config/project.toml and sprints/SPRINT-STATUS.md."""

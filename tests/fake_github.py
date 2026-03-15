@@ -88,6 +88,23 @@ class FakeGitHub:
             return items
         return [{k: item.get(k) for k in keys} for item in items]
 
+    @staticmethod
+    def _extract_search_milestone(search: str) -> str | None:
+        """Extract milestone title from a --search string like 'milestone:"Sprint 1"'.
+
+        Returns the milestone title if found, or None.  Only handles the most
+        common production pattern (sprint_analytics.compute_review_rounds).
+        """
+        if not search:
+            return None
+        import re as _re
+        m = _re.search(r'milestone:"([^"]+)"', search)
+        if m:
+            return m.group(1)
+        # Also handle unquoted single-word milestone names
+        m = _re.search(r"milestone:(\S+)", search)
+        return m.group(1) if m else None
+
     # Flags that are accepted but ignored (no-op in test context).
     # --paginate: FakeGitHub returns all data, so pagination is implicit.
     # --jq: FakeGitHub returns full JSON; callers must handle both formats.
@@ -99,7 +116,7 @@ class FakeGitHub:
     # Anything else raises NotImplementedError.
     _KNOWN_FLAGS: dict[str, frozenset[str]] = {
         "issue_create": frozenset(("title", "body", "label", "milestone")),
-        "issue_list": frozenset(("state", "milestone", "json", "limit", "label")),
+        "issue_list": frozenset(("state", "milestone", "json", "limit", "label", "search")),
         "issue_edit": frozenset(("add-label", "remove-label", "milestone")),
         "issue_close": frozenset(),
         "run_list": frozenset(("branch", "json", "limit", "status")),
@@ -113,9 +130,12 @@ class FakeGitHub:
         # NOTE: --jq is accepted but NOT evaluated. FakeGitHub returns
         # pre-shaped data that matches what production jq filters would produce.
         # Tests using jq-dependent endpoints verify the fixture shape, not jq
-        # filter correctness. Endpoints that rely on jq filtering:
-        #   - /issues/{N}/timeline (| first) → returns first linked PR
-        #   - /commits (.[].sha, .[].commit.message) → returns commits_data
+        # filter correctness. Each handler documents its assumed jq shape inline.
+        # Endpoints that rely on jq filtering:
+        #   - /issues/{N}/timeline: '[... | select(.source.issue.pull_request)
+        #     | .source.issue] | first' → returns first linked PR object
+        #   - /commits: '.[].sha', '.[].commit.message' → returns full objects
+        #   - release view: '.url' → returns {url: ...} object
         # If jq fidelity becomes critical, implement pyjq or basic expression eval.
         "api": frozenset(("paginate", "f", "X", "jq")),
     }
@@ -126,7 +146,7 @@ class FakeGitHub:
         "title", "body", "milestone", "jq", "json", "label", "state",
         "limit", "branch", "base", "head", "notes", "notes-file",
         "tag", "target", "color", "description", "add-label",
-        "remove-label", "status",
+        "remove-label", "status", "search",
     ))
 
     @classmethod
@@ -279,6 +299,9 @@ class FakeGitHub:
             return self._fail(f"FakeGitHub: malformed compare path: {path}")
 
         # Commits endpoint: repos/{owner}/{repo}/commits
+        # --jq filter shape assumed (from release_gate.py parse_commits_since):
+        #   --jq '.[].sha' or --jq '.[].commit.message'
+        # FakeGitHub returns the full commit objects; callers extract fields.
         if path.endswith("/commits"):
             # Filter by -f since= if provided
             since_val = None
@@ -302,7 +325,9 @@ class FakeGitHub:
             return self._ok(json.dumps(data))
 
         # Timeline endpoint: repos/{owner}/{repo}/issues/{N}/timeline
-        # Production code uses --jq to filter to first linked PR.
+        # --jq filter shape assumed (from sync_tracking.py):
+        #   --jq '[.[] | select(.source.issue.pull_request != null)
+        #          | .source.issue] | first'
         # FakeGitHub returns the pre-filtered single object (what jq | first
         # would produce) so callers can json.loads() directly.
         if "/timeline" in path:
@@ -395,6 +420,7 @@ class FakeGitHub:
         state_filter = "open"
         milestone_filter = ""
         label_filter = ""
+        search_filter = ""
         json_fields: str | None = None
         limit: int | None = None
         i = 1
@@ -407,6 +433,9 @@ class FakeGitHub:
                 i += 2
             elif args[i] == "--label" and i + 1 < len(args):
                 label_filter = args[i + 1]
+                i += 2
+            elif args[i] == "--search" and i + 1 < len(args):
+                search_filter = args[i + 1]
                 i += 2
             elif args[i] == "--json" and i + 1 < len(args):
                 json_fields = args[i + 1]
@@ -426,6 +455,13 @@ class FakeGitHub:
             filtered = [
                 iss for iss in filtered
                 if (iss.get("milestone") or {}).get("title") == milestone_filter
+            ]
+        # --search milestone:"X" support (same as _pr_list)
+        ms_from_search = self._extract_search_milestone(search_filter)
+        if ms_from_search:
+            filtered = [
+                iss for iss in filtered
+                if (iss.get("milestone") or {}).get("title") == ms_from_search
             ]
         if label_filter:
             filtered = [
@@ -562,11 +598,12 @@ class FakeGitHub:
         return self._fail(f"pr {sub} not supported")
 
     def _pr_list(self, args: list[str]) -> subprocess.CompletedProcess:
-        """Handle: gh pr list [--json ...] [--state ...] [--limit ...]."""
+        """Handle: gh pr list [--json ...] [--state ...] [--limit ...] [--search ...]."""
         flags = self._parse_flags(args, start=1)
         self._check_flags("pr_list", flags)
         json_fields: str | None = None
         state_filter = "open"
+        search_filter = ""
         limit: int | None = None
         i = 1
         while i < len(args):
@@ -575,6 +612,9 @@ class FakeGitHub:
                 i += 2
             elif args[i] == "--state" and i + 1 < len(args):
                 state_filter = args[i + 1]
+                i += 2
+            elif args[i] == "--search" and i + 1 < len(args):
+                search_filter = args[i + 1]
                 i += 2
             elif args[i] == "--limit" and i + 1 < len(args):
                 limit = int(args[i + 1])
@@ -586,6 +626,15 @@ class FakeGitHub:
             filtered = [
                 pr for pr in filtered
                 if pr.get("state") == state_filter
+            ]
+        # Basic --search support: filter by milestone title when the search
+        # string contains milestone:"X".  This handles the sprint_analytics
+        # use case (compute_review_rounds) without needing full search parsing.
+        ms_title = self._extract_search_milestone(search_filter)
+        if ms_title:
+            filtered = [
+                pr for pr in filtered
+                if (pr.get("milestone") or {}).get("title") == ms_title
             ]
         if limit is not None:
             filtered = filtered[:limit]
@@ -693,6 +742,8 @@ class FakeGitHub:
         if sub == "create":
             return self._release_create(args)
         elif sub == "view":
+            # --jq filter shape assumed (from release_gate.py do_release):
+            #   --jq '.url' — FakeGitHub returns the full {url: ...} object.
             tag = args[1] if len(args) > 1 else ""
             return self._ok(json.dumps({
                 "url": f"https://github.com/testowner/testrepo/releases/tag/{tag}"
