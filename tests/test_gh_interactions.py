@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,6 +28,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from fake_github import FakeGitHub, make_patched_subprocess
+from gh_test_helpers import MonitoredMock, patch_gh
 
 import commit
 from commit import validate_message, check_atomicity
@@ -2973,6 +2975,85 @@ class TestFakeGitHubStrictMode(unittest.TestCase):
             fake.handle(["api", "repos/o/r/milestones", "--jq", ".[].title"])
             fake.handle(["release", "view", "v1.0", "--jq", ".url"])
         self.assertEqual(len(fake._strict_warnings), 2)
+
+
+class TestPatchGhHelper(unittest.TestCase):
+    """BH-P11-201: Tests for the call-args audit helper."""
+
+    def test_warns_when_call_args_not_checked(self):
+        """patch_gh warns if mock was called but call_args never inspected."""
+        with self.assertWarns(UserWarning) as cm:
+            with patch_gh("release_gate.gh_json", return_value=[]) as mock:
+                # Call the mock but don't inspect call_args
+                gate_prs("Sprint 1")
+        self.assertIn("call_args was never inspected", str(cm.warning))
+
+    def test_no_warning_when_call_args_checked(self):
+        """patch_gh does not warn when call_args is inspected."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with patch_gh("release_gate.gh_json", return_value=[]) as mock:
+                gate_prs("Sprint 1")
+                _ = mock.call_args  # inspect call_args
+
+    def test_no_warning_when_assert_called_with_used(self):
+        """patch_gh recognizes assert_called_with as verification."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with patch_gh("release_gate.gh_json", return_value=[]) as mock:
+                gate_prs("Sprint 1")
+                mock.assert_called_once_with(mock.call_args[0][0])
+
+    def test_no_warning_when_mock_not_called(self):
+        """patch_gh does not warn if mock was never called."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with patch_gh("release_gate.gh_json", return_value=[]):
+                pass  # never call the mock
+
+    def test_monitored_mock_delegates_return_value(self):
+        """MonitoredMock proxies return_value correctly."""
+        from unittest.mock import MagicMock
+        inner = MagicMock(return_value=42)
+        proxy = MonitoredMock(inner)
+        result = proxy(1, 2, key="val")
+        self.assertEqual(result, 42)
+        self.assertTrue(inner.called)
+
+    def test_monitored_mock_tracks_call_args_list(self):
+        """Accessing call_args_list sets args_checked."""
+        from unittest.mock import MagicMock
+        inner = MagicMock(return_value="ok")
+        proxy = MonitoredMock(inner)
+        proxy("arg1")
+        self.assertFalse(proxy.args_checked)
+        _ = proxy.call_args_list
+        self.assertTrue(proxy.args_checked)
+
+
+class TestGatePRsWithPatchGh(unittest.TestCase):
+    """BH-P11-201: Demo — existing gate_prs tests rewritten with patch_gh."""
+
+    def test_no_prs_verifies_query(self):
+        """gate_prs with no open PRs — verifies the query includes json fields."""
+        with patch_gh("release_gate.gh_json", return_value=[]) as mock:
+            ok, _ = gate_prs("Sprint 1")
+            self.assertTrue(ok)
+            # Verify the query parameters
+            call_args = mock.call_args[0][0]
+            self.assertIn("--json", call_args)
+
+    def test_open_pr_for_milestone_verifies_query(self):
+        """gate_prs with open PRs — verifies milestone filter."""
+        with patch_gh("release_gate.gh_json", return_value=[
+            {"number": 10, "title": "feat: thing",
+             "milestone": {"title": "Sprint 1"}},
+        ]) as mock:
+            ok, detail = gate_prs("Sprint 1")
+            self.assertFalse(ok)
+            # Verify the query parameters
+            call_args = mock.call_args[0][0]
+            self.assertIn("--json", call_args)
 
 
 if __name__ == "__main__":
