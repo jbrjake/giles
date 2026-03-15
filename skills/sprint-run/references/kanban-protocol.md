@@ -4,6 +4,7 @@ Load this reference when transitioning stories between states or updating
 tracking artifacts.
 
 <!-- §kanban-protocol.states_6_todo_design_dev_review_integration_done -->
+<!-- §kanban-protocol.states -->
 ## States
 
 | State | Label | Description |

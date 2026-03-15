@@ -1,6 +1,7 @@
 # Tracking File Formats
 
 <!-- §tracking-formats.sprint_status_md_format -->
+<!-- §tracking-formats.sprint_status_md -->
 ## SPRINT-STATUS.md
 
 ```markdown

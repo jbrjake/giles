@@ -43,8 +43,8 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile skills/sprint-run/scripts/update_burndown.py
 	$(PYTHON) -m py_compile skills/sprint-monitor/scripts/check_status.py
 	$(PYTHON) -m py_compile skills/sprint-release/scripts/release_gate.py
-	$(PYTHON) -m py_compile scripts/verify_line_refs.py
-	$(PYTHON) scripts/verify_line_refs.py
+	$(PYTHON) -m py_compile scripts/validate_anchors.py
+	$(PYTHON) scripts/validate_anchors.py
 
 clean:  ## Remove venv and __pycache__
 	rm -rf $(VENV) **/__pycache__

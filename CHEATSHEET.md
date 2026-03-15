@@ -396,9 +396,9 @@ you need without reading entire files.
 Dispatched per story. Receives: persona context, story assignment, requirements,
 PRD context. Follows TDD, creates PR with self-contained description, stays in
 character. Sections: Strategic Context §implementer.strategic_context, Test Plan Context §implementer.test_plan_context, Sprint History §implementer.sprint_history,
-Motivation Context :49 (insights.md distillation), Context Management §implementer.context_management
+Motivation Context §implementer.motivation_context (insights.md distillation), Context Management §implementer.context_management
 (budget guidance for large stories), Design §implementer.design, Implement with TDD §implementer.implement_with_tdd,
-Progressive Disclosure Docs :139, Confidence §implementer.confidence (self-rated per area in PR
+Progressive Disclosure Docs, Confidence §implementer.confidence (self-rated per area in PR
 template), Conventions Checklist §implementer.conventions_checklist.
 
 ### skills/sprint-run/agents/reviewer.md
@@ -407,9 +407,9 @@ review: correctness, conventions, testing (each pass focused, not all-at-once).
 Reads confidence section from PR to prioritize scrutiny. Posts review via
 `gh pr review` with persona header. Reads own + implementer's Sprint History
 for callbacks. Sections: Sprint History §reviewer.review_process, Motivation insights §reviewer.review_process, Read PR §reviewer.read_pr,
-Three-Pass Review :39 (confidence reading :41, Pass 1 correctness §reviewer.2_read_the_diff_three_pass_review, Pass 2
-conventions :61, Pass 3 testing §reviewer.pass_3_testing), Test Coverage Verification §reviewer.2_5_verify_test_coverage_if_test_plan_context_provided, Post
-Review :95, Commit Format §reviewer.commit_format.
+Three-Pass Review §reviewer.2_read_the_diff_three_pass_review (confidence reading, Pass 1 correctness, Pass 2
+conventions, Pass 3 testing §reviewer.pass_3_testing), Test Coverage Verification §reviewer.2_5_verify_test_coverage_if_test_plan_context_provided, Post
+Review, Commit Format §reviewer.commit_format.
 
 ## Skeleton templates
 
@@ -461,18 +461,18 @@ Required TOML keys: `project.name`, `project.repo`, `project.language`,
 Optional deep-doc keys: `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`,
 `paths.epics_dir`, `paths.story_map`, `paths.team_topology`.
 
-See `validate_config.py:266` for the full list.
+See §validate_config._REQUIRED_TOML_KEYS for the full list.
 
 ## Common modifications
 
 | Want to... | Edit |
 |--------|------|
 | Add new skill | Create `skills/<name>/SKILL.md` with YAML frontmatter |
-| Change config validation | `scripts/validate_config.py:253` (_REQUIRED_FILES), `:266` (_REQUIRED_TOML_KEYS) |
-| Add label category | `bootstrap_github.py:157` (create_static_labels) |
-| Add language to CI gen | `setup_ci.py:61` (_SETUP_REGISTRY), `:75` (_ENV_BLOCKS) |
-| Add kanban state | `kanban-protocol.md:6`, `sync_tracking.py:29` (KANBAN_STATES) |
-| Change tracking format | `tracking-formats.md:3`, `sync_tracking.py:115` (TF), `update_burndown.py:43` |
-| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in `sprint_init.py:512` (ConfigGenerator) |
-| Change story ID pattern | `populate_issues.py:60` (_build_row_regex), or set [backlog] story_id_pattern in TOML |
-| Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). Context Assembly in sprint-run SKILL.md:75 handles injection. |
+| Change config validation | §validate_config._REQUIRED_FILES, §validate_config._REQUIRED_TOML_KEYS |
+| Add label category | §bootstrap_github.create_static_labels |
+| Add language to CI gen | §setup_ci._SETUP_REGISTRY, §setup_ci._ENV_BLOCKS |
+| Add kanban state | §kanban-protocol.states, §validate_config.KANBAN_STATES |
+| Change tracking format | §tracking-formats.sprint_status_md, §sync_tracking.sync_one, §update_burndown.write_burndown |
+| Add skeleton template | `references/skeletons/<name>.tmpl`, wire in §sprint_init.ConfigGenerator |
+| Change story ID pattern | §populate_issues.parse_milestone_stories, or set [backlog] story_id_pattern in TOML |
+| Add deep doc support | Set optional paths in TOML (`prd_dir`, `test_plan_dir`, `sagas_dir`, `epics_dir`, `story_map`, `team_topology`). §sprint-run.context_assembly_for_agent_dispatch handles injection. |
