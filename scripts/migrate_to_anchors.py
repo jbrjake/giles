@@ -89,3 +89,88 @@ def insert_source_anchors(
         full.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     return total
+
+
+def _symbol_to_anchor(file_path: str, symbol: str) -> str:
+    """Convert a file path + symbol into a §anchor reference."""
+    stem = Path(file_path).stem
+    clean = symbol.strip("()*")
+    return f"§{stem}.{clean}"
+
+
+def _slug_from_text(text: str) -> str:
+    """Convert heading/section text to a snake_case slug."""
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def rewrite_claude_md_refs(line: str) -> str:
+    """Rewrite a single line of CLAUDE.md, replacing :NN refs with § anchors.
+
+    Handles:
+    - `symbol()` :NNN in table rows with a file path
+    - `file.py:NNN` inline refs
+    - bare Section Name :NNN in skill entry point tables
+    """
+    # Pattern A: table row with file path and `symbol()` :NNN
+    file_match = re.search(r"`((?:scripts|skills)/[^`]+\.py)`", line)
+    if file_match:
+        file_path = file_match.group(1)
+        # Replace `symbol()` :NNN -> `symbol()` §ns.symbol
+        def repl_symbol(m):
+            symbol = m.group(1).strip("()")
+            return f"`{m.group(1)}` {_symbol_to_anchor(file_path, symbol)}"
+        line = re.sub(r"`([A-Za-z_][A-Za-z0-9_.*()]*)`\s*:(\d+)", repl_symbol, line)
+
+    # Pattern A2: SKILL.md entry point table — Section Name :NNN
+    skill_match = re.search(r"`(skills/([^/]+)/SKILL\.md)`", line)
+    if skill_match:
+        skill_name = skill_match.group(2)  # e.g., "sprint-run"
+        # Replace Section Name :NNN -> Section Name §skill.slug
+        def repl_section(m):
+            section_text = m.group(1).strip()
+            slug = _slug_from_text(section_text)
+            return f"{m.group(1)} §{skill_name}.{slug}"
+        line = re.sub(r"(?:(?<=,\s)|(?<=\|\s))([A-Za-z][A-Za-z0-9 :()-]*?)\s+:(\d+)", repl_section, line)
+
+    # Pattern B: reference .md table — Section Name :NNN
+    ref_match = re.search(r"`(skills/[^`]+/(?:references|agents)/([^`]+)\.md)`", line)
+    if ref_match and not file_match and not skill_match:
+        ref_stem = ref_match.group(2)  # e.g., "ceremony-kickoff"
+        def repl_ref_section(m):
+            section_text = m.group(1).strip()
+            slug = _slug_from_text(section_text)
+            return f"{m.group(1)} §{ref_stem}.{slug}"
+        line = re.sub(r"([A-Za-z][A-Za-z0-9 :()-]*?)\s+:(\d+)", repl_ref_section, line)
+
+    # Pattern C: `file.py:NNN` inline refs (with or without path prefix)
+    def _resolve_file_path(raw_path: str) -> str | None:
+        """Resolve a possibly-bare filename to its full relative path."""
+        if raw_path.startswith(("scripts/", "skills/")):
+            if (ROOT / raw_path).exists():
+                return raw_path
+        stem = Path(raw_path).stem
+        return _STEM_TO_PATH.get(stem)
+
+    def repl_inline(m):
+        raw_path = m.group(1)
+        claimed = int(m.group(2))
+        file_path = _resolve_file_path(raw_path)
+        if not file_path:
+            return m.group(0)
+        full = ROOT / file_path
+        if full.exists():
+            lines = full.read_text(encoding="utf-8").splitlines()
+            if 0 < claimed <= len(lines):
+                target = lines[claimed - 1]
+                sym_m = re.match(r"(?:def|class)\s+(\w+)|(\w+)\s*[:=]", target.strip())
+                if sym_m:
+                    symbol = sym_m.group(1) or sym_m.group(2)
+                    return _symbol_to_anchor(file_path, symbol)
+        return m.group(0)  # fallback: leave unchanged
+
+    # Backtick-wrapped refs (with or without path prefix)
+    line = re.sub(r"`([^`]+\.py):(\d+)(?:-\d+)?`", repl_inline, line)
+    # Bare refs (no backticks, with or without path prefix)
+    line = re.sub(r"(?<!\`)(\w[\w/.-]*\.py):(\d+)(?:-\d+)?(?![\d`])", repl_inline, line)
+
+    return line

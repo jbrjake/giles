@@ -84,5 +84,37 @@ class TestInsertSourceAnchors(unittest.TestCase):
         self.assertIn("# §mymod.MY_CONST", content)
 
 
+from migrate_to_anchors import rewrite_claude_md_refs
+
+
+class TestRewriteClaudeMd(unittest.TestCase):
+    """Rewrite :NN refs in CLAUDE.md-style tables."""
+
+    def test_table_symbol_ref(self):
+        line = "| `scripts/validate_config.py` | desc | `parse_simple_toml()` :47, `load_config()` :457 |"
+        result = rewrite_claude_md_refs(line)
+        self.assertIn("§validate_config.parse_simple_toml", result)
+        self.assertIn("§validate_config.load_config", result)
+        self.assertNotIn(":47", result)
+        self.assertNotIn(":457", result)
+
+    def test_skill_entry_point_ref(self):
+        line = "| sprint-run | `skills/sprint-run/SKILL.md` | Phase detection :29, Phase 1: Kickoff :44 |"
+        result = rewrite_claude_md_refs(line)
+        self.assertNotIn(":29", result)
+        self.assertNotIn(":44", result)
+
+    def test_prose_file_ref(self):
+        line = "see `validate_config.py:304`"
+        result = rewrite_claude_md_refs(line)
+        self.assertNotIn(":304", result)
+        self.assertIn("§validate_config.validate_project", result)
+
+    def test_no_ref_unchanged(self):
+        line = "This line has no references."
+        result = rewrite_claude_md_refs(line)
+        self.assertEqual(result, line)
+
+
 if __name__ == "__main__":
     unittest.main()
