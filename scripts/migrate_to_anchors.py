@@ -235,3 +235,117 @@ def rewrite_cheatsheet_table(lines: list[str]) -> list[str]:
             result[i] = f"| {anchor} | {rest}"
 
     return result
+
+
+def rewrite_cheatsheet_file(cheatsheet_path: Path) -> str:
+    """Rewrite entire CHEATSHEET.md file. Returns new content."""
+    text = cheatsheet_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    # Split into sections by ### headings
+    sections: list[list[str]] = []
+    current: list[str] = []
+    for line in lines:
+        if line.startswith("### ") and current:
+            sections.append(current)
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        sections.append(current)
+
+    # Rewrite sections that have ### file-path headings
+    result_lines: list[str] = []
+    for section in sections:
+        if section and re.match(r"^###\s+(scripts|skills)/", section[0]):
+            section = rewrite_cheatsheet_table(section)
+        heading_file = None
+        if section and re.match(r"^###\s+(skills/\S+\.md)", section[0]):
+            heading_file = re.match(r"^###\s+(skills/\S+\.md)", section[0]).group(1)
+        rewritten = []
+        for line in section:
+            if heading_file and re.search(r":\d+", line) and not line.startswith("###"):
+                ref_stem = Path(heading_file).stem
+                def repl_prose_ref(m):
+                    section_text = m.group(1).strip()
+                    slug = _slug_from_text(section_text)
+                    return f"{m.group(1)} §{ref_stem}.{slug}"
+                line = re.sub(
+                    r"(?:(?<=,\s)|(?<=:\s)|(?<=\|\s))([A-Za-z][A-Za-z0-9 ()-]*?)\s+:(\d+)",
+                    repl_prose_ref, line,
+                )
+            else:
+                line = rewrite_claude_md_refs(line)
+            rewritten.append(line)
+        result_lines.extend(rewritten)
+
+    return "\n".join(result_lines) + "\n"
+
+
+def main() -> None:
+    from verify_line_refs import extract_refs
+
+    apply = "--apply" in sys.argv
+
+    # Pass 1: Extract old refs
+    doc_files = [ROOT / "CLAUDE.md", ROOT / "CHEATSHEET.md"]
+    all_refs: list[tuple[str, str, int, int]] = []
+    for doc in doc_files:
+        if doc.exists():
+            all_refs.extend(extract_refs(doc))
+
+    print(f"Found {len(all_refs)} old :NN references.")
+
+    if not all_refs:
+        print("Nothing to migrate.")
+        return
+
+    # Pass 1b: Insert anchors into source files
+    if apply:
+        count = insert_source_anchors(all_refs)
+        print(f"Inserted {count} anchor(s) into source files.")
+    else:
+        print("[Dry run] Would insert anchors into source files.")
+
+    # Pass 2: Rewrite CLAUDE.md
+    claude_md = ROOT / "CLAUDE.md"
+    if claude_md.exists():
+        original = claude_md.read_text(encoding="utf-8")
+        rewritten_lines = [rewrite_claude_md_refs(line) for line in original.splitlines()]
+        new_content = "\n".join(rewritten_lines) + "\n"
+        changes = sum(1 for a, b in zip(original.splitlines(), new_content.splitlines()) if a != b)
+        if apply:
+            claude_md.write_text(new_content, encoding="utf-8")
+            print(f"Rewrote {changes} line(s) in CLAUDE.md.")
+        else:
+            print(f"[Dry run] Would rewrite {changes} line(s) in CLAUDE.md.")
+
+    # Pass 2b: Rewrite CHEATSHEET.md
+    cheatsheet = ROOT / "CHEATSHEET.md"
+    if cheatsheet.exists():
+        original = cheatsheet.read_text(encoding="utf-8")
+        new_content = rewrite_cheatsheet_file(cheatsheet)
+        changes = sum(1 for a, b in zip(original.splitlines(), new_content.splitlines()) if a != b)
+        if apply:
+            cheatsheet.write_text(new_content, encoding="utf-8")
+            print(f"Rewrote {changes} line(s) in CHEATSHEET.md.")
+        else:
+            print(f"[Dry run] Would rewrite {changes} line(s) in CHEATSHEET.md.")
+
+    # Pass 3: Validate
+    if apply:
+        print("\nRunning validation...")
+        from validate_anchors import check_anchors
+        broken, unreferenced = check_anchors()
+        if broken:
+            print(f"\n{len(broken)} broken reference(s) — manual fix needed:")
+            for msg in broken:
+                print(f"  {msg}")
+        else:
+            print("All references resolved.")
+    else:
+        print("\n[Dry run] No changes made. Run with --apply to execute.")
+
+
+if __name__ == "__main__":
+    main()
