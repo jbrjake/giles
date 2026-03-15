@@ -215,6 +215,105 @@ class TestValidateGates(unittest.TestCase):
         self.assertFalse(results[2][1])
         self.assertIn("open PR", results[2][2])
 
+    def test_all_pass_with_real_commands(self):
+        """BH-007: All gates pass including gate_tests and gate_build with
+        non-empty commands (not the trivial auto-pass empty-list case).
+
+        Uses a subprocess mock that routes gh calls to FakeGitHub and
+        simulates success for shell commands (check_commands, build_command).
+        """
+        self._add_closed_milestone()
+        self.fake.runs.append({
+            "name": "CI", "status": "completed",
+            "conclusion": "success", "headBranch": "main",
+        })
+        # Stop the default patcher — we need a combined mock
+        self.patcher.stop()
+
+        fake_gh = self.fake
+        _real_patched = make_patched_subprocess(fake_gh)
+
+        def _combined_run(args, *a, **kw):
+            # Shell commands (gate_tests, gate_build) pass shell=True with a string
+            if kw.get("shell"):
+                return subprocess.CompletedProcess(
+                    args=args, returncode=0, stdout="ok\n", stderr="",
+                )
+            return _real_patched(args, *a, **kw)
+
+        with patch("subprocess.run", _combined_run):
+            config = {
+                "project": {"base_branch": "main"},
+                "ci": {
+                    "check_commands": ["python -m pytest", "python -m flake8"],
+                    "build_command": "make build",
+                },
+            }
+            passed, results = validate_gates("Sprint 1", config)
+
+        self.assertTrue(passed, f"All gates should pass, got: {results}")
+        self.assertEqual(len(results), 5)
+        # Verify Tests and Build gates actually ran with detail messages
+        tests_result = results[3]  # (name, passed, detail)
+        self.assertEqual(tests_result[0], "Tests")
+        self.assertTrue(tests_result[1])
+        self.assertIn("2 command(s) passed", tests_result[2])
+        build_result = results[4]
+        self.assertEqual(build_result[0], "Build")
+        self.assertTrue(build_result[1])
+        self.assertIn("succeeded", build_result[2])
+
+        # Restart the default patcher for tearDown
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
+    def test_test_gate_failure_stops_before_build(self):
+        """BH-007: When gate_tests fails, gate_build does not run.
+
+        Verifies that validate_gates short-circuits on test failure.
+        """
+        self._add_closed_milestone()
+        self.fake.runs.append({
+            "name": "CI", "status": "completed",
+            "conclusion": "success", "headBranch": "main",
+        })
+        self.patcher.stop()
+
+        fake_gh = self.fake
+        _real_patched = make_patched_subprocess(fake_gh)
+        shell_call_count = 0
+
+        def _combined_run(args, *a, **kw):
+            nonlocal shell_call_count
+            if kw.get("shell"):
+                shell_call_count += 1
+                # First shell command (check_command) fails
+                return subprocess.CompletedProcess(
+                    args=args, returncode=1, stdout="", stderr="test failed",
+                )
+            return _real_patched(args, *a, **kw)
+
+        with patch("subprocess.run", _combined_run):
+            config = {
+                "project": {"base_branch": "main"},
+                "ci": {
+                    "check_commands": ["python -m pytest"],
+                    "build_command": "make build",
+                },
+            }
+            passed, results = validate_gates("Sprint 1", config)
+
+        self.assertFalse(passed)
+        # Stories, CI, PRs pass; Tests fails; Build never runs
+        self.assertEqual(len(results), 4)
+        self.assertFalse(results[3][1])
+        self.assertIn("failed", results[3][2])
+        # Only one shell command should have been invoked (the failing test)
+        self.assertEqual(shell_call_count, 1)
+
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
 
 # ---------------------------------------------------------------------------
 # gate_tests tests
