@@ -147,8 +147,9 @@ def _fm_val(frontmatter: str, key: str) -> str | None:
         return None
     val = m.group(1).strip()
     # Strip surrounding quotes and unescape (matches sync_tracking.read_tf behavior)
+    # BH-007/P15: unescape quotes then backslashes (same order as read_tf)
     if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
-        val = val[1:-1].replace('\\"', '"')
+        val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
     return val
 
 

@@ -442,7 +442,9 @@ def validate_project(
         except Exception as exc:
             errors.append(f"Failed to parse {toml_path}: {exc}")
 
-        # Required sections
+    # Required sections (must run regardless of whether _config was provided,
+    # and even when config is empty — an empty dict IS a validation failure)
+    if toml_path.is_file() or _config is not None:
         for section in _REQUIRED_TOML_SECTIONS:
             if section not in config:
                 errors.append(
