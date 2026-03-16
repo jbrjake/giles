@@ -190,15 +190,24 @@ class TestGoldenRun(unittest.TestCase):
         )
 
         # Phase 5: CI workflow generation
+        # BH-004: Write CI file to disk in BOTH modes so file-tree snapshot
+        # catches content regressions (previously only written in RECORD_MODE).
         yaml_content = setup_ci.generate_ci_yaml(config)
         self.assertIn("cargo test", yaml_content)
         self.assertIn("cargo clippy", yaml_content)
+        self.assertIn("permissions:", yaml_content)
+        self.assertIn("actions/checkout@v6", yaml_content)
+
+        ci_path = self.project / ".github" / "workflows" / "ci.yml"
+        ci_path.parent.mkdir(parents=True, exist_ok=True)
+        ci_path.write_text(yaml_content)
+
+        self._check_or_record(
+            recorder, replayer, "05-setup-ci",
+            lambda snap: replayer.assert_files_match(snap, self.project),
+        )
 
         if RECORD_MODE:
-            ci_path = self.project / ".github" / "workflows" / "ci.yml"
-            ci_path.parent.mkdir(parents=True, exist_ok=True)
-            ci_path.write_text(yaml_content)
-            recorder.snapshot("05-setup-ci")
             recorder.write_manifest()
             print("\n=== Golden run recorded. Review tests/golden/recordings/ ===")
 
