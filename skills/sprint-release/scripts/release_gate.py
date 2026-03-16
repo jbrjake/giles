@@ -205,9 +205,12 @@ def gate_tests(config: dict) -> tuple[bool, str]:
     for cmd in commands:
         # shell=True is intentional — commands are user-configured shell
         # expressions (e.g. "cargo test", "npm run lint") from project.toml.
-        r = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=300,
-        )
+        try:
+            r = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            return False, f"'{cmd}' timed out after 300s"
         if r.returncode != 0:
             return False, f"'{cmd}' failed (exit {r.returncode})"
     return True, f"{len(commands)} command(s) passed"
@@ -221,9 +224,12 @@ def gate_build(config: dict) -> tuple[bool, str]:
         return True, "No build_command configured"
     # shell=True is intentional — build_command is a user-configured shell
     # expression (e.g. "make build", "cargo build --release") from project.toml.
-    r = subprocess.run(
-        build_cmd, shell=True, capture_output=True, text=True, timeout=300,
-    )
+    try:
+        r = subprocess.run(
+            build_cmd, shell=True, capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "Build timed out after 300s"
     if r.returncode != 0:
         return False, f"Build failed (exit {r.returncode})"
     binary = config.get("ci", {}).get("binary_path", "")

@@ -245,6 +245,20 @@ def _unescape_toml_string(s: str) -> str:
                 result.append('\\')
             elif nxt == '"':
                 result.append('"')
+            elif nxt == 'u' and i + 6 <= len(s):
+                try:
+                    result.append(chr(int(s[i + 2:i + 6], 16)))
+                    i += 6
+                    continue
+                except (ValueError, OverflowError):
+                    result.append(s[i:i + 2])
+            elif nxt == 'U' and i + 10 <= len(s):
+                try:
+                    result.append(chr(int(s[i + 2:i + 10], 16)))
+                    i += 10
+                    continue
+                except (ValueError, OverflowError):
+                    result.append(s[i:i + 2])
             else:
                 result.append(s[i:i + 2])  # Unknown escape, keep as-is
             i += 2

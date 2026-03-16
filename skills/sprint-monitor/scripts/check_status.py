@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 import sys
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
@@ -384,7 +384,10 @@ def main() -> None:
 
     # Sprint start date from milestone created_at (not filesystem mtime,
     # which resets every time SPRINT-STATUS.md is rewritten — BH-014)
-    since = now.strftime("%Y-%m-%dT00:00:00Z")
+    # Fallback to 14 days ago (typical sprint length) instead of just today,
+    # so direct push detection covers a meaningful window (P13-011).
+    since = (now - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00Z")
+    since_from_milestone = False
     try:
         milestones = gh_json([
             "api", "repos/{owner}/{repo}/milestones", "--paginate",
@@ -397,8 +400,13 @@ def main() -> None:
             )
             if ms and ms.get("created_at"):
                 since = ms["created_at"]
+                since_from_milestone = True
     except RuntimeError:
         pass
+    if not since_from_milestone:
+        report_lines.append(
+            "Drift: milestone date unavailable, checking last 14 days"
+        )
 
     # Steps 1, 1.5, 2, 2.5, 3: CI → drift → PRs → direct pushes → milestone
     checks = [

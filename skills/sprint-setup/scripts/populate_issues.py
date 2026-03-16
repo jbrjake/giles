@@ -102,10 +102,10 @@ def parse_milestone_stories(
 
         content = mf.read_text(encoding="utf-8")
 
-        def _add_story(row: re.Match, sprint_num: int) -> None:
+        def _add_story(row: re.Match, sprint_num: int, source: Path) -> None:
             sid = row.group(1)
             if sid in seen_ids:
-                print(f"  Warning: duplicate story ID {sid} in {mf.name}",
+                print(f"  Warning: duplicate story ID {sid} in {source.name}",
                       file=sys.stderr)
                 return
             seen_ids.add(sid)
@@ -113,7 +113,7 @@ def parse_milestone_stories(
                 story_id=sid, title=row.group(2).strip(),
                 epic=row.group(3) or "", saga=row.group(4),
                 sp=int(row.group(5)), priority=row.group(6),
-                sprint=sprint_num, source_file=str(mf),
+                sprint=sprint_num, source_file=str(source),
             ))
 
         # Try structured sprint sections first
@@ -122,13 +122,13 @@ def parse_milestone_stories(
             found_sections = True
             sprint_num = int(m.group(1))
             for row in row_re.finditer(m.group(2)):
-                _add_story(row, sprint_num)
+                _add_story(row, sprint_num, mf)
 
         # If no sprint sections, scan the whole file for story rows
         if not found_sections:
             sprint_num = _infer_sprint_number(mf, content)
             for row in row_re.finditer(content):
-                _add_story(row, sprint_num)
+                _add_story(row, sprint_num, mf)
 
     return stories
 
@@ -211,6 +211,21 @@ def parse_detail_blocks(content: str, sprint: int, source_file: str) -> list[Sto
     return stories
 
 
+# §populate_issues._most_common_sprint
+def _most_common_sprint(known_sprints: list[int]) -> int:
+    """Return the most common sprint number. Ties broken by lowest number.
+
+    Returns 0 if the list is empty.
+    """
+    if not known_sprints:
+        return 0
+    counts: dict[int, int] = {}
+    for s in known_sprints:
+        counts[s] = counts.get(s, 0) + 1
+    max_count = max(counts.values())
+    return min(s for s, c in counts.items() if c == max_count)
+
+
 # §populate_issues.enrich_from_epics
 def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
     """Enrich stories with detail blocks from epic files, if available."""
@@ -233,11 +248,7 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
             for sid in re.findall(r"US-\d{4}", content)
             if sid in by_id
         ]
-        # Use most common sprint; break ties by picking the lowest number
-        sprint = min(
-            (s for s in set(known_sprints)
-             if known_sprints.count(s) == max(known_sprints.count(x) for x in set(known_sprints))),
-        ) if known_sprints else 0
+        sprint = _most_common_sprint(known_sprints)
         parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file))
         for ps in parsed:
             if ps.story_id in by_id:

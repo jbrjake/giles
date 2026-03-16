@@ -361,6 +361,26 @@ class TestParseSimpleToml:
         """Comment-only input produces empty dict."""
         assert parse_simple_toml("# just a comment\n# another") == {}
 
+    def test_unicode_escape_4digit(self):
+        """P13-017: \\uXXXX produces correct unicode character."""
+        result = parse_simple_toml('name = "caf\\u00e9"')
+        assert result["name"] == "café"
+
+    def test_unicode_escape_8digit(self):
+        """P13-017: \\UXXXXXXXX produces correct unicode character."""
+        result = parse_simple_toml('emoji = "\\U0001F600"')
+        assert result["emoji"] == "\U0001F600"
+
+    def test_unicode_escape_basic_latin(self):
+        """P13-017: \\u0041 produces 'A'."""
+        result = parse_simple_toml('letter = "\\u0041"')
+        assert result["letter"] == "A"
+
+    def test_invalid_unicode_escape_preserved(self):
+        """P13-017: Invalid hex digits are kept as-is."""
+        result = parse_simple_toml('bad = "\\uZZZZ"')
+        assert result["bad"] == "\\uZZZZ"
+
     @given(
         key=_toml_key,
         items=st.lists(_toml_string_val, min_size=1, max_size=4),

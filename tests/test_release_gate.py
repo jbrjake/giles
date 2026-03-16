@@ -347,6 +347,15 @@ class TestGateTests(unittest.TestCase):
         self.assertTrue(passed)
         self.assertIn("No check_commands", detail)
 
+    @patch("release_gate.subprocess.run")
+    def test_timeout_returns_failure(self, mock_run):
+        """P13-014: TimeoutExpired is caught and returns clean failure."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="sleep 999", timeout=300)
+        config = {"ci": {"check_commands": ["sleep 999"]}}
+        passed, detail = gate_tests(config)
+        self.assertFalse(passed)
+        self.assertIn("timed out", detail)
+
 
 # ---------------------------------------------------------------------------
 # gate_build tests
@@ -392,6 +401,15 @@ class TestGateBuild(unittest.TestCase):
         passed, detail = gate_build(config)
         self.assertFalse(passed)
         self.assertIn("not found", detail)
+
+    @patch("release_gate.subprocess.run")
+    def test_build_timeout(self, mock_run):
+        """P13-014: Build timeout returns clean failure."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="make build", timeout=300)
+        config = {"ci": {"build_command": "make build"}}
+        passed, detail = gate_build(config)
+        self.assertFalse(passed)
+        self.assertIn("timed out", detail)
 
 
 # ---------------------------------------------------------------------------
