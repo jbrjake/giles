@@ -14,25 +14,12 @@ Targets:
 from __future__ import annotations
 
 import re
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 from hypothesis import given, assume, settings, example
 from hypothesis import strategies as st
-
-# -- Path setup so imports resolve -------------------------------------------
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-sys.path.insert(
-    0,
-    str(
-        Path(__file__).resolve().parent.parent
-        / "skills"
-        / "sprint-run"
-        / "scripts"
-    ),
-)
 
 from validate_config import (
     extract_story_id,

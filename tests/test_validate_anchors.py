@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Tests for validate_anchors.py."""
-import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
 
 from validate_anchors import resolve_namespace, NAMESPACE_MAP
 

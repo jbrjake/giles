@@ -12,15 +12,10 @@ import io
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "tests"))
 
 import sprint_analytics
 from fake_github import FakeGitHub, make_patched_subprocess

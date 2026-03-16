@@ -10,15 +10,11 @@ Run: python -m unittest tests.test_sprint_teardown -v
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
 
 import sprint_teardown
 
