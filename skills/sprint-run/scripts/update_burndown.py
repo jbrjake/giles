@@ -11,7 +11,6 @@ burndown.md plus SPRINT-STATUS.md. Idempotent -- safe to run repeatedly.
 """
 from __future__ import annotations
 
-import json
 import re
 import sys
 from datetime import datetime, timezone

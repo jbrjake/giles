@@ -22,7 +22,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts"))
-from validate_config import load_config, ConfigError, get_milestones
+from validate_config import load_config, get_milestones
 
 try:
     import bootstrap_github

@@ -15,7 +15,6 @@ Exit codes: 0 = success, 1 = gate failure, 2 = usage error
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys

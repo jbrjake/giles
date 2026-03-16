@@ -15,14 +15,13 @@ from __future__ import annotations
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
-    load_config, ConfigError, gh, gh_json, extract_story_id, get_sprints_dir,
-    kanban_from_labels, find_milestone, warn_if_at_limit,
+    load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
+    kanban_from_labels, find_milestone,
     list_milestone_issues, parse_iso_date, KANBAN_STATES,
 )
 

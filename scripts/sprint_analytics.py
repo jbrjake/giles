@@ -18,7 +18,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import (
-    load_config, ConfigError, extract_sp, gh, gh_json,
+    load_config, ConfigError, extract_sp, gh_json,
     detect_sprint, find_milestone, get_sprints_dir, warn_if_at_limit,
 )
 

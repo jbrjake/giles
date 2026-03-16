@@ -71,8 +71,8 @@ def _build_row_regex(config: dict) -> re.Pattern:
     if pattern:
         # Reject patterns with unescaped capturing groups
         if re.search(r'(?<!\\)\((?!\?)', pattern):
-            print(f"Warning: story_id_pattern contains capturing groups, "
-                  f"using default pattern", file=sys.stderr)
+            print("Warning: story_id_pattern contains capturing groups, "
+                  "using default pattern", file=sys.stderr)
             return _DEFAULT_ROW_RE
         try:
             return re.compile(

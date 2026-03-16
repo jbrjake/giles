@@ -20,7 +20,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit, parse_iso_date
+from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -384,7 +384,6 @@ def main() -> None:
 
     # Sprint start date from milestone created_at (not filesystem mtime,
     # which resets every time SPRINT-STATUS.md is rewritten — BH-014)
-    sprint_dir = sprints_dir / f"sprint-{sprint_num}"
     since = now.strftime("%Y-%m-%dT00:00:00Z")
     try:
         milestones = gh_json([
