@@ -163,5 +163,74 @@ class TestSearchPredicateWarning(unittest.TestCase):
                                 f"Expected warning about extra predicates, got: {[str(x.message) for x in w]}")
 
 
+# ---------------------------------------------------------------------------
+# BH-002: Milestone issue counters track create/close
+# ---------------------------------------------------------------------------
+
+
+class TestMilestoneCounters(unittest.TestCase):
+    """BH-002: Milestone open_issues/closed_issues must update on issue lifecycle."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+        # Create a milestone
+        self.fake.handle([
+            "api", "repos/owner/repo/milestones",
+            "-f", "title=Sprint 1", "-f", "description=test",
+        ])
+
+    def test_create_increments_open(self):
+        """Creating an issue with a milestone increments open_issues."""
+        self.fake.handle([
+            "issue", "create", "--title", "US-0001: Story",
+            "--body", "body", "--milestone", "Sprint 1",
+        ])
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["open_issues"], 1)
+        self.assertEqual(ms["closed_issues"], 0)
+
+    def test_close_moves_counter(self):
+        """Closing an issue decrements open_issues and increments closed_issues."""
+        self.fake.handle([
+            "issue", "create", "--title", "US-0001: Story",
+            "--body", "body", "--milestone", "Sprint 1",
+        ])
+        self.fake.handle([
+            "issue", "create", "--title", "US-0002: Story 2",
+            "--body", "body", "--milestone", "Sprint 1",
+        ])
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["open_issues"], 2)
+
+        self.fake.handle(["issue", "close", "1"])
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["open_issues"], 1)
+        self.assertEqual(ms["closed_issues"], 1)
+
+    def test_full_lifecycle(self):
+        """Create 3 issues, close 2 — counters should be 1 open, 2 closed."""
+        for i in range(3):
+            self.fake.handle([
+                "issue", "create", "--title", f"US-{i:04d}: Story {i}",
+                "--body", "body", "--milestone", "Sprint 1",
+            ])
+        self.fake.handle(["issue", "close", "1"])
+        self.fake.handle(["issue", "close", "2"])
+
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["open_issues"], 1)
+        self.assertEqual(ms["closed_issues"], 2)
+
+    def test_no_milestone_no_update(self):
+        """Issue without milestone doesn't affect any counters."""
+        self.fake.handle([
+            "issue", "create", "--title", "US-9999: No milestone",
+            "--body", "body",
+        ])
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["open_issues"], 0)
+        self.assertEqual(ms["closed_issues"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

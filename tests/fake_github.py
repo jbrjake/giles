@@ -531,6 +531,12 @@ class FakeGitHub:
         }
         self._next_issue += 1
         self.issues.append(issue)
+        # BH-002: Update milestone open_issues counter
+        if milestone:
+            for ms in self.milestones:
+                if ms["title"] == milestone:
+                    ms["open_issues"] = ms.get("open_issues", 0) + 1
+                    break
         url = f"https://github.com/testowner/testrepo/issues/{issue['number']}"
         return self._ok(url)
 
@@ -640,6 +646,14 @@ class FakeGitHub:
 
         issue["state"] = "closed"
         issue["closedAt"] = datetime.now(timezone.utc).isoformat()
+        # BH-002: Update milestone counters
+        ms_title = (issue.get("milestone") or {}).get("title")
+        if ms_title:
+            for ms in self.milestones:
+                if ms["title"] == ms_title:
+                    ms["open_issues"] = max(0, ms.get("open_issues", 0) - 1)
+                    ms["closed_issues"] = ms.get("closed_issues", 0) + 1
+                    break
         return self._ok("")
 
     def _find_issue(self, number: int) -> dict | None:
