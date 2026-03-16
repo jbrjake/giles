@@ -64,6 +64,10 @@ class TestLifecycle(unittest.TestCase):
         self.addCleanup(os.chdir, self._saved_cwd)
 
     def tearDown(self):
+        # BH-011: Verify FakeGitHub didn't silently ignore any flags
+        if hasattr(self, 'fake_gh') and self.fake_gh._strict_warnings:
+            print(f"FakeGitHub strict warnings: {self.fake_gh._strict_warnings}",
+                  file=sys.stderr)
         os.chdir(self._saved_cwd)
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 

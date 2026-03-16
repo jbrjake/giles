@@ -295,13 +295,30 @@ class TestParseSimpleToml:
 
     @given(st.text(max_size=500))
     @settings(max_examples=300)
-    def test_returns_dict_or_raises_valueerror(self, text: str):
-        """parse_simple_toml either returns a dict or raises ValueError."""
+    def test_random_text_returns_dict_or_raises_valueerror(self, text: str):
+        """Random text either returns a dict or raises ValueError (fuzz test)."""
         try:
             result = parse_simple_toml(text)
             assert isinstance(result, dict)
         except ValueError:
             pass  # Unterminated multiline arrays raise ValueError — that's fine
+
+    @given(
+        key=_toml_key,
+        value=st.one_of(_toml_string_val, _toml_int_val, _toml_bool_val),
+    )
+    @settings(max_examples=300)
+    def test_valid_toml_never_raises(self, key: str, value):
+        """BH-012: Well-formed TOML must parse without ValueError.
+
+        Separate from the random-text fuzz test: this generates only valid
+        TOML lines and asserts they NEVER raise, closing the gap where
+        the fuzz test accepted ValueError on valid input.
+        """
+        line = _toml_line(key, value)
+        result = parse_simple_toml(line)
+        assert isinstance(result, dict), f"Expected dict from valid TOML: {line!r}"
+        assert key in result, f"Key {key!r} missing from parsed result"
 
     @given(
         key=_toml_key,

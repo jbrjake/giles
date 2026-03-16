@@ -302,26 +302,24 @@ class TestBH001PaginatedJson(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
     def test_concatenated_json_arrays(self):
-        """Concatenated arrays [a][b] are merged into one list."""
-        # Directly test the parsing logic
-        import json
-        raw = '[{"a":1},{"a":2}][{"a":3}]'
-        decoder = json.JSONDecoder()
-        parts = []
-        pos = 0
-        while pos < len(raw):
-            while pos < len(raw) and raw[pos] in ' \n\r\t':
-                pos += 1
-            if pos >= len(raw):
-                break
-            obj, end = decoder.raw_decode(raw, pos)
-            if isinstance(obj, list):
-                parts.extend(obj)
-            else:
-                parts.append(obj)
-            pos = end
-        self.assertEqual(len(parts), 3)
-        self.assertEqual(parts[2]["a"], 3)
+        """BH-010: Concatenated arrays [a][b] are merged into one list.
+
+        Tests the actual gh_json function via mock subprocess (not a
+        reimplementation of the decode loop).
+        """
+        concatenated_output = '[{"a":1},{"a":2}][{"a":3}]'
+
+        def _mock_run(cmd, **kw):
+            import subprocess as _sp
+            return _sp.CompletedProcess(
+                args=cmd, returncode=0, stdout=concatenated_output, stderr="",
+            )
+
+        with patch("validate_config.subprocess.run", side_effect=_mock_run):
+            result = validate_config.gh_json(["api", "repos/o/r/milestones", "--paginate"])
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]["a"], 1)
+        self.assertEqual(result[2]["a"], 3)
 
 
 class TestBH004VacuousTruth(unittest.TestCase):
