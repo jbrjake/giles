@@ -1571,6 +1571,24 @@ class TestKanbanFromLabels(unittest.TestCase):
         issue = {"labels": [], "state": "closed"}
         self.assertEqual(validate_config.kanban_from_labels(issue), "done")
 
+    def test_none_label_does_not_crash(self):
+        """BH19-003: None in labels list must not raise AttributeError."""
+        issue = {"labels": [None, {"name": "kanban:dev"}], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "dev")
+
+    def test_non_dict_non_str_labels_skipped(self):
+        """BH19-003: int/bool/None labels are silently skipped."""
+        issue = {"labels": [42, True, None], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "todo")
+
+    def test_closed_with_stale_kanban_label(self):
+        """BH19-dataflow: build_rows must override stale kanban for closed issues."""
+        # This tests that kanban_from_labels returns "dev" (it doesn't override)
+        # but callers (build_rows, create_from_issue) must override to "done"
+        issue = {"labels": [{"name": "kanban:dev"}], "state": "closed"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "dev",
+                         "kanban_from_labels itself does NOT override for closed")
+
 
 # ---------------------------------------------------------------------------
 # P5-17: check_status helper tests (_first_error, _hours, _age)

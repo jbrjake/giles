@@ -22,9 +22,19 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 sys.path.insert(0, str(ROOT / "tests"))
 
+import validate_config
 from validate_config import parse_simple_toml, validate_project, _parse_team_index, ConfigError, load_config
 from sprint_init import ProjectScanner, ConfigGenerator
 from mock_project import MockProject
+
+sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
+import populate_issues
+
+sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
+import sync_tracking
+import update_burndown
+
+import manage_epics
 
 
 class TestConfigGeneration(unittest.TestCase):
@@ -1565,6 +1575,164 @@ class TestBH025BuildRowRegexSafety(unittest.TestCase):
             populate_issues._safe_compile_pattern("PROJ-\\d{4}"),
             "Simple pattern should be accepted",
         )
+
+
+# ---------------------------------------------------------------------------
+# BH19: Additional regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestBH19GhJsonGarbage(unittest.TestCase):
+    """BH19-011: gh_json must handle garbage non-JSON output."""
+
+    def test_garbage_html_raises_runtime_error(self):
+        """Garbage HTML input should raise RuntimeError, not JSONDecodeError."""
+        with patch("validate_config.gh", return_value="<html>404 Not Found</html>"):
+            with self.assertRaises(RuntimeError) as ctx:
+                validate_config.gh_json(["api", "test"])
+            self.assertIn("non-JSON", str(ctx.exception))
+
+    def test_concatenated_arrays_still_work(self):
+        """Paginated concatenated JSON arrays should still parse correctly."""
+        with patch("validate_config.gh", return_value='[{"a":1}][{"b":2}]'):
+            result = validate_config.gh_json(["api", "test"])
+        self.assertEqual(result, [{"a": 1}, {"b": 2}])
+
+
+class TestBH19BurndownClosedOverride(unittest.TestCase):
+    """BH19-dataflow: build_rows must override kanban for closed issues."""
+
+    def test_closed_issue_with_stale_kanban_shows_done(self):
+        """A closed issue with kanban:dev label must appear as 'done' in burndown."""
+        issues = [{
+            "title": "US-0001: Test",
+            "state": "closed",
+            "labels": [{"name": "kanban:dev"}, {"name": "sp:3"}],
+            "body": "",
+            "closedAt": "2026-03-16T00:00:00Z",
+        }]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "done",
+                         "Closed issue with stale kanban:dev must show 'done'")
+
+    def test_open_issue_with_kanban_label_unchanged(self):
+        """An open issue with kanban:dev should keep 'dev' status."""
+        issues = [{
+            "title": "US-0002: Test",
+            "state": "open",
+            "labels": [{"name": "kanban:dev"}],
+            "body": "",
+            "closedAt": None,
+        }]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["status"], "dev")
+
+
+class TestBH19CreateFromIssueClosedOverride(unittest.TestCase):
+    """BH19-dataflow: create_from_issue must override kanban for closed issues."""
+
+    def test_closed_issue_gets_done_status(self):
+        """A closed issue with kanban:dev must get status=done on creation."""
+        issue = {
+            "number": 1,
+            "title": "US-0001: Test",
+            "state": "closed",
+            "labels": [{"name": "kanban:dev"}],
+            "closedAt": "2026-03-16T00:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            tf, changes = sync_tracking.create_from_issue(
+                issue, sprint=1, d=Path(td), pr=None,
+            )
+        self.assertEqual(tf.status, "done",
+                         "Closed issue must have status=done, not kanban label")
+        self.assertNotEqual(tf.completed, "",
+                            "Closed issue must have a completed date")
+
+
+class TestBH19PipeInTitle(unittest.TestCase):
+    """BH19-010: Pipe chars in titles must not corrupt markdown tables."""
+
+    def test_pipe_in_title_sanitized(self):
+        """Pipe character in title should be replaced in formatted output."""
+        result = manage_epics._format_story_section({
+            "id": "US-0001",
+            "title": "Auth | OAuth flow",
+            "story_points": 3,
+            "priority": "P1",
+        })
+        # The heading should NOT have bare pipe that corrupts the table
+        # The title pipe should be replaced with dash
+        self.assertIn("Auth - OAuth flow", result)
+        # The table rows should still be valid
+        lines = result.split("\n")
+        table_lines = [l for l in lines if l.startswith("|")]
+        for line in table_lines:
+            # Each table line should have exactly 3 pipes (| field | value |)
+            cells = line.strip().strip("|").split("|")
+            self.assertEqual(len(cells), 2,
+                             f"Corrupt table row: {line!r}")
+
+
+class TestBH19SpRoundtrip(unittest.TestCase):
+    """BH19-008: format_issue_body -> extract_sp must roundtrip correctly."""
+
+    def test_sp_roundtrip_various_values(self):
+        """SP values must survive the format_issue_body -> extract_sp roundtrip."""
+        for sp_val in (0, 1, 3, 5, 8, 13, 21, 100):
+            story = populate_issues.Story(
+                story_id="US-0001", title="Test", saga="S01",
+                sp=sp_val, priority="P1", sprint=1,
+            )
+            body = populate_issues.format_issue_body(story)
+            extracted = validate_config.extract_sp({"body": body, "labels": []})
+            self.assertEqual(extracted, sp_val,
+                             f"SP={sp_val} failed roundtrip: "
+                             f"format produced body, extract returned {extracted}")
+
+
+class TestBH19SymlinkTraversal(unittest.TestCase):
+    """BH19-004: _symlink must reject targets outside project root."""
+
+    def test_path_traversal_rejected(self):
+        """A target like '../../etc/passwd' must be rejected."""
+        from sprint_init import ProjectScanner, ConfigGenerator, ScanResult, Detection
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # Create a minimal ScanResult
+            scan = ScanResult(
+                project_root=str(root),
+                language=Detection("Python", "test", 1.0),
+                repo=Detection("o/r", "test", 1.0),
+                ci_commands=Detection(["pytest"], "test", 1.0),
+                build_command=Detection("pip install", "test", 0.5),
+                project_name=Detection("test", "test", 1.0),
+                persona_files=[],
+                team_index=Detection(None, "none", 0.0),
+                backlog_files=[],
+                rules_file=Detection(None, "none", 0.0),
+                dev_guide=Detection(None, "none", 0.0),
+                architecture=Detection(None, "none", 0.0),
+                cheatsheet=Detection(None, "none", 0.0),
+                story_id_pattern=Detection(None, "none", 0.0),
+                binary_path=Detection(None, "none", 0.0),
+            )
+            gen = ConfigGenerator(scan)
+            # Create a file outside project root to target
+            outside = root.parent / "outside-file.md"
+            outside.write_text("secret")
+            try:
+                gen._symlink("link.md", f"../{outside.name}")
+                # Symlink should NOT exist
+                link = gen.config_dir / "link.md"
+                self.assertFalse(link.exists(),
+                                 "Symlink to outside-project target should be rejected")
+                self.assertTrue(
+                    any("REJECTED" in s for s in gen.skipped),
+                    f"Expected REJECTED in skipped list, got: {gen.skipped}")
+            finally:
+                outside.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

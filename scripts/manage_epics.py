@@ -149,8 +149,9 @@ def _format_story_section(story_data: dict) -> str:
     sid = story_data.get("id", "US-XXXX")
     title = story_data.get("title", "Untitled")
     # P15: Sanitize newlines in heading fields to prevent file corruption
-    sid = sid.replace("\n", " ").replace("\r", " ")
-    title = title.replace("\n", " ").replace("\r", " ")
+    # BH19-010: Also sanitize pipe chars to prevent markdown table corruption
+    sid = sid.replace("\n", " ").replace("\r", " ").replace("|", "-")
+    title = title.replace("\n", " ").replace("\r", " ").replace("|", "-")
     sp = story_data.get("story_points", 0)
     priority = story_data.get("priority", "medium")
     lines = [

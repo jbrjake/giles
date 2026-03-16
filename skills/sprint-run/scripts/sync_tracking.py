@@ -284,7 +284,12 @@ def create_from_issue(
 ) -> tuple[TF, list[str]]:
     sid = extract_story_id(issue["title"])
     slug = slug_from_title(issue["title"])
+    # BH19-dataflow: Override kanban label for closed issues, matching
+    # sync_one behavior (line 241). Without this, a closed issue with
+    # stale kanban:dev label gets status="dev" on first tracking file creation.
     status = kanban_from_labels(issue)
+    if issue.get("state") == "closed" and status != "done":
+        status = "done"
     short = (
         issue["title"].split(":", 1)[-1].strip()
         if ":" in issue["title"]

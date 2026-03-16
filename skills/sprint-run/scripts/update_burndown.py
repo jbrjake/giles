@@ -162,11 +162,18 @@ def build_rows(
             else issue["title"]
         )
         t = tracking.get(sid, {})
+        # BH19-dataflow: Override kanban label for closed issues, matching
+        # sync_one behavior. kanban_from_labels only falls back to "done"
+        # when NO kanban labels exist; closed issues with stale labels
+        # (e.g., kanban:dev) would otherwise show wrong status in burndown.
+        status = kanban_from_labels(issue)
+        if issue.get("state") == "closed" and status != "done":
+            status = "done"
         rows.append({
             "story_id": sid,
             "short_title": short_title,
             "sp": extract_sp(issue),
-            "status": kanban_from_labels(issue),
+            "status": status,
             "closed": closed_date(issue),
             "assignee": t.get("assignee", "\u2014"),
             "pr": t.get("pr", "\u2014"),

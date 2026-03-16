@@ -89,24 +89,32 @@ def gh_json(args: list[str]) -> list | dict:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
-    # Slow path: handle concatenated JSON arrays from --paginate
-    decoder = json.JSONDecoder()
-    parts: list = []
-    pos = 0
-    length = len(raw)
-    while pos < length:
-        # Skip whitespace between concatenated objects
-        while pos < length and raw[pos] in ' \n\r\t':
-            pos += 1
-        if pos >= length:
-            break
-        obj, end = decoder.raw_decode(raw, pos)
-        if isinstance(obj, list):
-            parts.extend(obj)
-        else:
-            parts.append(obj)
-        pos = end
-    return parts
+    # Slow path: handle concatenated JSON arrays from --paginate.
+    # BH19-011: Wrap in try/except — truly garbage data (e.g., HTML error
+    # pages) would raise JSONDecodeError from raw_decode with no handler.
+    try:
+        decoder = json.JSONDecoder()
+        parts: list = []
+        pos = 0
+        length = len(raw)
+        while pos < length:
+            # Skip whitespace between concatenated objects
+            while pos < length and raw[pos] in ' \n\r\t':
+                pos += 1
+            if pos >= length:
+                break
+            obj, end = decoder.raw_decode(raw, pos)
+            if isinstance(obj, list):
+                parts.extend(obj)
+            else:
+                parts.append(obj)
+            pos = end
+        return parts
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            f"gh returned non-JSON output ({len(raw)} bytes): "
+            f"{raw[:80]!r}{'...' if len(raw) > 80 else ''}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -929,7 +937,13 @@ def kanban_from_labels(issue: dict) -> str:
     fallback = "done" if issue.get("state") == "closed" else "todo"
     best = -1
     for label in issue.get("labels", []):
-        name = label if isinstance(label, str) else label.get("name", "")
+        # BH19-003: Handle None/int/bool labels safely (malformed API responses)
+        if isinstance(label, str):
+            name = label
+        elif isinstance(label, dict):
+            name = label.get("name", "")
+        else:
+            continue
         if name.startswith("kanban:"):
             state = name.split(":", 1)[1]
             if state in KANBAN_STATES:

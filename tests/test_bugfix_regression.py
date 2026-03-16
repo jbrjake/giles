@@ -1167,16 +1167,70 @@ class TestBH021SyncBacklogPartialFailure(unittest.TestCase):
     """BH-021: do_sync failure must NOT update file_hashes in state."""
 
     def test_state_not_updated_on_do_sync_failure(self):
-        """If do_sync raises, file_hashes should remain unchanged."""
+        """BH19-002: Actually call main() with do_sync failing.
+
+        Previous version was test theater: saved/loaded state without calling
+        main(). This version triggers the real failure path in sync_backlog.main().
+        """
+        import sync_backlog
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "sprint-config"
+            cfg.mkdir()
+            backlog = cfg / "backlog"
+            backlog.mkdir()
+            ms_dir = backlog / "milestones"
+            ms_dir.mkdir()
+            (ms_dir / "m1.md").write_text("# Sprint 1\n### Sprint 1: X\n| US-0001 | T | S01 | 3 | P1 |\n")
+            (backlog / "INDEX.md").write_text("# Backlog\n")
+            (cfg / "rules.md").write_text("# Rules\n")
+            (cfg / "development.md").write_text("# Dev\n")
+            (cfg / "definition-of-done.md").write_text("# DoD\n")
+            team = cfg / "team"
+            team.mkdir()
+            (team / "INDEX.md").write_text(
+                "| Name | Role | File |\n|---|---|---|\n"
+                "| A | Dev | a.md |\n| B | Rev | b.md |\n"
+            )
+            (team / "a.md").write_text("# A\n")
+            (team / "b.md").write_text("# B\n")
+            (cfg / "project.toml").write_text(
+                f'[project]\nname = "test"\nrepo = "o/r"\nlanguage = "py"\n\n'
+                f'[paths]\nteam_dir = "{team}"\nbacklog_dir = "{backlog}"\n'
+                f'sprints_dir = "{root / "sprints"}"\n\n'
+                f'[ci]\ncheck_commands = ["true"]\nbuild_command = "true"\n'
+            )
+            # Seed state with old hashes so check_sync returns "sync"
+            old_hashes = sync_backlog.hash_milestone_files([str(ms_dir / "m1.md")])
+            state = {
+                "file_hashes": {"different": "hash"},
+                "pending_hashes": old_hashes,
+                "last_sync_at": None,
+            }
+            sync_backlog.save_state(cfg, state)
+            # Mock do_sync to raise
+            with patch.object(sync_backlog, "do_sync", side_effect=RuntimeError("boom")), \
+                 patch("os.getcwd", return_value=str(root)), \
+                 patch.object(sync_backlog, "load_config",
+                              return_value=sync_backlog.load_config(str(cfg))):
+                result = sync_backlog.main()
+            self.assertEqual(result, "error")
+            # Key assertion: file_hashes must NOT be updated to current hashes
+            loaded = sync_backlog.load_state(cfg)
+            self.assertNotEqual(loaded["file_hashes"], old_hashes,
+                                "State should not be updated when do_sync fails")
+            self.assertEqual(loaded["file_hashes"], {"different": "hash"},
+                             "file_hashes should retain pre-failure value")
+
+    def test_state_file_roundtrip(self):
+        """State file save/load roundtrip (separated from failure test)."""
         import sync_backlog
         with tempfile.TemporaryDirectory() as td:
             cfg = Path(td) / "sprint-config"
             cfg.mkdir()
-            state_before = {"file_hashes": {"old": "hash"}, "pending_hashes": None,
-                            "last_sync_at": "2026-01-01T00:00:00+00:00"}
-            # Save initial state
-            sync_backlog.save_state(cfg, state_before)
-            # Load and verify the state roundtrips correctly
+            state = {"file_hashes": {"old": "hash"}, "pending_hashes": None,
+                     "last_sync_at": "2026-01-01T00:00:00+00:00"}
+            sync_backlog.save_state(cfg, state)
             loaded = sync_backlog.load_state(cfg)
             self.assertEqual(loaded["file_hashes"], {"old": "hash"})
 
