@@ -1242,6 +1242,27 @@ class TestSyncOne(unittest.TestCase):
         changes = sync_tracking.sync_one(tf, issue, None, 1)
         self.assertEqual(changes, [])
 
+    def test_closed_issue_sets_completed_date(self):
+        """P15: sync_one must populate tf.completed from closedAt."""
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0002",
+            status="dev", sprint=1,
+        )
+        issue = {"state": "closed", "labels": [], "closedAt": "2026-03-10T12:00:00Z", "number": 2}
+        sync_tracking.sync_one(tf, issue, None, 1)
+        self.assertEqual(tf.completed, "2026-03-10")
+
+    def test_sprint_mismatch_updates_sprint(self):
+        """P15: sync_one must update tf.sprint when it disagrees with passed sprint."""
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0003",
+            status="todo", sprint=1, issue_number="3",
+        )
+        issue = {"state": "open", "labels": [], "number": 3}
+        changes = sync_tracking.sync_one(tf, issue, None, sprint=2)
+        self.assertEqual(tf.sprint, 2)
+        self.assertTrue(any("sprint" in c for c in changes))
+
 
 class TestSyncOneGitHubAuthoritative(unittest.TestCase):
     """BH-P11-007: sync_one() must NOT push local state back to GitHub.

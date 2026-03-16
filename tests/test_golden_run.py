@@ -212,5 +212,61 @@ class TestGoldenRun(unittest.TestCase):
             print("\n=== Golden run recorded. Review tests/golden/recordings/ ===")
 
 
+class TestAssertFilesMatchAdversarial(unittest.TestCase):
+    """P15: assert_files_match must actually detect content mismatches."""
+
+    def test_content_mismatch_detected(self):
+        """A file with changed content must produce a diff."""
+        replayer = GoldenReplayer()
+        snapshot = {
+            "file_tree": {
+                "sprint-config/project.toml": 'name = "original"',
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sc = root / "sprint-config"
+            sc.mkdir()
+            (sc / "project.toml").write_text('name = "modified"')
+            diffs = replayer.assert_files_match(snapshot, root)
+        self.assertTrue(
+            any("Content mismatch" in d for d in diffs),
+            f"Expected content mismatch diff, got: {diffs}",
+        )
+
+    def test_identical_content_no_diff(self):
+        """Identical content produces no diffs."""
+        replayer = GoldenReplayer()
+        snapshot = {
+            "file_tree": {
+                "sprint-config/project.toml": 'name = "same"',
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            sc = root / "sprint-config"
+            sc.mkdir()
+            (sc / "project.toml").write_text('name = "same"')
+            diffs = replayer.assert_files_match(snapshot, root)
+        self.assertEqual(diffs, [])
+
+    def test_missing_file_detected(self):
+        """A recorded file that doesn't exist on disk must produce a diff."""
+        replayer = GoldenReplayer()
+        snapshot = {
+            "file_tree": {
+                "sprint-config/gone.md": "content",
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "sprint-config").mkdir()
+            diffs = replayer.assert_files_match(snapshot, root)
+        self.assertTrue(
+            any("recording but not on disk" in d for d in diffs),
+            f"Expected missing-file diff, got: {diffs}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

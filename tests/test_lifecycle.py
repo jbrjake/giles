@@ -178,6 +178,15 @@ class TestLifecycle(unittest.TestCase):
             any("US-0101" in t for t in issue_titles),
             f"US-0101 not found in {issue_titles}",
         )
+        # P15: Verify issue bodies contain story metadata (not empty)
+        for iss in self.fake_gh.issues:
+            self.assertTrue(
+                len(iss.get("body", "")) > 20,
+                f"Issue '{iss['title']}' has empty/short body — "
+                f"format_issue_body() may not be called",
+            )
+            self.assertIn("Story", iss["body"],
+                          f"Issue body should contain '## Story' section")
 
     # -- Test 07: idempotent issue creation ----------------------------------
 
