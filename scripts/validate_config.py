@@ -406,11 +406,15 @@ _REQUIRED_TOML_SECTIONS = ["project", "paths", "ci"]
 # §validate_config.validate_project
 def validate_project(
     config_dir: str = "sprint-config",
+    _config: dict | None = None,
 ) -> tuple[bool, list[str]]:
     """Validate the sprint config directory.
 
     Returns (success, errors) where errors is a list of human-readable
     strings describing what is wrong.
+
+    If *_config* is provided (pre-parsed TOML dict), skip re-reading
+    project.toml from disk (BH-014: avoids double-parse in load_config).
     """
     errors: list[str] = []
     config_path = Path(config_dir)
@@ -431,8 +435,8 @@ def validate_project(
     # 2. project.toml parses and has required sections/keys
     # ------------------------------------------------------------------
     toml_path = config_path / "project.toml"
-    config: dict = {}
-    if toml_path.is_file():
+    config: dict = _config if _config is not None else {}
+    if _config is None and toml_path.is_file():
         try:
             config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
         except Exception as exc:
@@ -598,16 +602,23 @@ def load_config(config_dir: str = "sprint-config") -> dict:
 
     Raises ConfigError if validation fails.
     """
-    ok, errors = validate_project(config_dir)
+    # BH-014: Parse TOML once and pass to validate_project to avoid
+    # double-read (previously parsed in validate_project AND here).
+    toml_path = Path(config_dir) / "project.toml"
+    config: dict = {}
+    if toml_path.is_file():
+        try:
+            config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass  # validate_project will report the parse error
+
+    ok, errors = validate_project(config_dir, _config=config)
     if not ok:
         _print_errors(errors, config_dir)
         raise ConfigError(
             f"Config validation failed ({len(errors)} error(s)): "
             + "; ".join(errors)
         )
-
-    toml_path = Path(config_dir) / "project.toml"
-    config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
 
     # Store config_dir so downstream code can derive file paths
     config["_config_dir"] = config_dir
