@@ -146,18 +146,31 @@ class FakeGitHub:
     def _extract_search_milestone(search: str) -> str | None:
         """Extract milestone title from a --search string like 'milestone:"Sprint 1"'.
 
-        Returns the milestone title if found, or None.  Only handles the most
-        common production pattern (sprint_analytics.compute_review_rounds).
+        Returns the milestone title if found, or None.  Only handles the
+        ``milestone:`` predicate (sprint_analytics.compute_review_rounds).
+        Warns if other predicates are present so test authors know their
+        search filters aren't being exercised (P13-019).
         """
         if not search:
             return None
         import re as _re
+        # Extract and remove milestone predicate
         m = _re.search(r'milestone:"([^"]+)"', search)
-        if m:
-            return m.group(1)
-        # Also handle unquoted single-word milestone names
-        m = _re.search(r"milestone:(\S+)", search)
-        return m.group(1) if m else None
+        milestone = m.group(1) if m else None
+        if not milestone:
+            m = _re.search(r"milestone:(\S+)", search)
+            milestone = m.group(1) if m else None
+        # Check for other predicates beyond milestone
+        remaining = _re.sub(r'milestone:"[^"]+"', '', search)
+        remaining = _re.sub(r'milestone:\S+', '', remaining).strip()
+        if remaining:
+            warnings.warn(
+                f"FakeGitHub: search predicate(s) beyond milestone are "
+                f"silently ignored: '{remaining}'. Only milestone: is "
+                f"evaluated. (P13-019)",
+                stacklevel=3,
+            )
+        return milestone
 
     # Flags that are accepted but ignored (no-op in test context).
     # --paginate: FakeGitHub returns all data, so pagination is implicit.
