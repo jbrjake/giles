@@ -32,9 +32,10 @@ class FakeGitHub:
         self.commits_data: list[dict] = []       # commit objects for /commits endpoint
         self.strict = strict
         self._strict_warnings: list[str] = []    # collected warnings
-        self._next_issue = 1
+        # BH19-007: Shared counter for issues and PRs (matches real GitHub
+        # where issues and PRs share the same number sequence).
+        self._next_number = 1
         self._next_ms = 1
-        self._next_pr = 1
 
     # -- Dispatch ------------------------------------------------------------
 
@@ -530,7 +531,7 @@ class FakeGitHub:
                     "name": label_name, "color": "ededed", "description": "",
                 }
         issue = {
-            "number": self._next_issue,
+            "number": self._next_number,
             "title": title,
             "body": body,
             "state": "open",
@@ -538,7 +539,7 @@ class FakeGitHub:
             "milestone": {"title": milestone} if milestone else None,
             "closedAt": None,
         }
-        self._next_issue += 1
+        self._next_number += 1
         self.issues.append(issue)
         # BH-002: Update milestone open_issues counter
         if milestone:
@@ -636,6 +637,19 @@ class FakeGitHub:
 
         if "milestone" in flags:
             ms_title = flags["milestone"][0]
+            # BH19-006: Update milestone counters on reassignment
+            old_ms = (issue.get("milestone") or {}).get("title")
+            new_ms = ms_title if ms_title else None
+            if old_ms and old_ms != new_ms:
+                for ms in self.milestones:
+                    if ms["title"] == old_ms:
+                        ms["open_issues"] = max(0, ms.get("open_issues", 0) - 1)
+                        break
+            if new_ms and new_ms != old_ms:
+                for ms in self.milestones:
+                    if ms["title"] == new_ms:
+                        ms["open_issues"] = ms.get("open_issues", 0) + 1
+                        break
             issue["milestone"] = {"title": ms_title} if ms_title else None
 
         return self._ok("")
@@ -766,9 +780,12 @@ class FakeGitHub:
                 i += 1
         filtered = list(self.prs)
         if state_filter != "all":
+            # BH19-005: Case-insensitive comparison — real gh accepts lowercase
+            # filter values ("open") but returns uppercase state ("OPEN").
+            sf = state_filter.upper()
             filtered = [
                 pr for pr in filtered
-                if pr.get("state") == state_filter
+                if pr.get("state", "").upper() == sf
             ]
         # Basic --search support: filter by milestone title when the search
         # string contains milestone:"X".  This handles the sprint_analytics
@@ -797,10 +814,11 @@ class FakeGitHub:
         milestone = flags.get("milestone", [""])[0]
 
         pr = {
-            "number": self._next_pr,
+            "number": self._next_number,
             "title": title,
             "body": body,
-            "state": "open",
+            # BH19-005: Real gh returns uppercase PR state values
+            "state": "OPEN",
             "baseRefName": base,
             "headRefName": head,
             "labels": [{"name": l} for l in labels],
@@ -810,7 +828,7 @@ class FakeGitHub:
             "reviewDecision": "",
             "closedAt": None,
         }
-        self._next_pr += 1
+        self._next_number += 1
         self.prs.append(pr)
         url = f"https://github.com/testowner/testrepo/pull/{pr['number']}"
         return self._ok(url)
@@ -864,7 +882,8 @@ class FakeGitHub:
             return self._fail(f"PR {pr_num} not found")
 
         now = datetime.now(timezone.utc).isoformat()
-        pr["state"] = "closed"
+        # BH19-005: Real gh uses uppercase; merged PRs show as "MERGED"
+        pr["state"] = "MERGED"
         pr["merged"] = True
         pr["mergedAt"] = now
         pr["closedAt"] = now

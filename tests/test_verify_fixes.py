@@ -1735,6 +1735,39 @@ class TestBH19SymlinkTraversal(unittest.TestCase):
                 outside.unlink(missing_ok=True)
 
 
+class TestBH19BuildMilestoneTitleMap(unittest.TestCase):
+    """BH19-009: build_milestone_title_map direct unit tests."""
+
+    def test_multi_sprint_file(self):
+        """File with multiple ### Sprint N: sections maps all of them."""
+        with tempfile.TemporaryDirectory() as td:
+            mf = Path(td) / "milestone-1.md"
+            mf.write_text(
+                "# Alpha Release\n\n"
+                "### Sprint 1: Foundation\n| US-0001 | Setup | S01 | 3 | P1 |\n\n"
+                "### Sprint 2: Features\n| US-0002 | Core | S01 | 5 | P0 |\n"
+            )
+            result = populate_issues.build_milestone_title_map([str(mf)])
+        self.assertEqual(result[1], "Alpha Release")
+        self.assertEqual(result[2], "Alpha Release")
+
+    def test_filename_fallback(self):
+        """File without sprint sections falls back to filename number."""
+        with tempfile.TemporaryDirectory() as td:
+            mf = Path(td) / "milestone-3.md"
+            mf.write_text("# Beta Release\n\nSome content.\n")
+            result = populate_issues.build_milestone_title_map([str(mf)])
+        self.assertEqual(result[3], "Beta Release")
+
+    def test_heading_used_as_title(self):
+        """The # heading is used as the milestone title, not the filename."""
+        with tempfile.TemporaryDirectory() as td:
+            mf = Path(td) / "milestone-1.md"
+            mf.write_text("# Sprint 1: Walking Skeleton\n\n### Sprint 1: Stuff\n")
+            result = populate_issues.build_milestone_title_map([str(mf)])
+        self.assertEqual(result[1], "Sprint 1: Walking Skeleton")
+
+
 # ---------------------------------------------------------------------------
 # BH-010: populate_issues.main() — no milestones exits 1
 # ---------------------------------------------------------------------------
