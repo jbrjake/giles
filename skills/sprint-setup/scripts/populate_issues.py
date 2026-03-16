@@ -329,10 +329,19 @@ def build_milestone_title_map(
         sprint_nums = re.findall(r"### Sprint (\d+):", text)
         if sprint_nums:
             for n in sprint_nums:
-                result[int(n)] = title
+                sn = int(n)
+                if sn in result and result[sn] != title:
+                    print(f"Warning: Sprint {sn} mapped to '{result[sn]}' "
+                          f"and '{title}' — using '{title}' (from {mf.name})",
+                          file=sys.stderr)
+                result[sn] = title
         else:
             # Infer sprint number from filename
             num = _infer_sprint_number(mf)
+            if num in result and result[num] != title:
+                print(f"Warning: Sprint {num} mapped to '{result[num]}' "
+                      f"and '{title}' — using '{title}' (from {mf.name})",
+                      file=sys.stderr)
             result[num] = title
     return result
 

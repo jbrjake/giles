@@ -98,8 +98,12 @@ def _yaml_safe_command(command: str) -> str:
     and quotes commands containing YAML-sensitive characters.
     """
     if "\n" in command or "\r" in command:
-        # Strip injected content — only keep the first line
-        command = command.split("\n")[0].split("\r")[0]
+        # Strip injected content — only keep the first line (BH-008: warn)
+        first_line = command.split("\n")[0].split("\r")[0]
+        print(f"Warning: CI command truncated to first line: {first_line!r} "
+              f"(original had {command.count(chr(10)) + 1} lines)",
+              file=sys.stderr)
+        command = first_line
     # Quote if it contains characters that could break YAML
     if any(c in command for c in ":{}[]|>&*!%@`#,"):
         return f'"{command}"'
