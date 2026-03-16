@@ -326,7 +326,26 @@ class FakeGitHub:
         # Validate known flags (api uses -f and -X as short flags)
         flags = self._parse_flags(args, start=1)
         self._check_flags("api", flags)
-        # Create milestone
+        # PATCH milestone (update state) — check before CREATE since both have -f
+        if "milestones" in path and "-X" in args:
+            import re as _re
+            # Extract milestone number from path
+            ms_match = _re.search(r"/milestones/(\d+)", path)
+            if ms_match:
+                ms_num = int(ms_match.group(1))
+                for ms in self.milestones:
+                    if ms.get("number") == ms_num:
+                        # Apply field updates from -f flags
+                        for fval in flags.get("f", []):
+                            if "=" in fval:
+                                key, val = fval.split("=", 1)
+                                ms[key] = val
+                        if ms.get("state") == "closed" and not ms.get("closed_at"):
+                            ms["closed_at"] = "2026-01-01T00:00:00Z"
+                        return self._ok(json.dumps(ms))
+            return self._ok("{}")
+
+        # Create milestone (POST with -f title=...)
         if "milestones" in path and "-f" in args:
             title = ""
             description = ""
@@ -356,27 +375,9 @@ class FakeGitHub:
             return self._ok(json.dumps(ms))
 
         # List milestones
-        if "milestones" in path and "-f" not in args and "-X" not in args:
+        if "milestones" in path:
             json_str = json.dumps(self.milestones)
             return self._ok(self._maybe_apply_jq(json_str, flags))
-
-        # PATCH milestone (update state)
-        if "milestones" in path and "-X" in args:
-            # Extract milestone number from path
-            ms_match = re.search(r"/milestones/(\d+)", path)
-            if ms_match:
-                ms_num = int(ms_match.group(1))
-                for ms in self.milestones:
-                    if ms.get("number") == ms_num:
-                        # Apply field updates from -f flags
-                        for fval in flags.get("f", []):
-                            if "=" in fval:
-                                key, val = fval.split("=", 1)
-                                ms[key] = val
-                        if ms.get("state") == "closed" and not ms.get("closed_at"):
-                            ms["closed_at"] = "2026-01-01T00:00:00Z"
-                        return self._ok(json.dumps(ms))
-            return self._ok("{}")
 
         # Compare endpoint: repos/{owner}/{repo}/compare/{base}...{branch}
         if "/compare/" in path:

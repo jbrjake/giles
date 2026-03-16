@@ -1501,10 +1501,8 @@ class TestCheckDirectPushesFakeGH(unittest.TestCase):
     def tearDown(self):
         self.patcher.stop()
 
-    def test_direct_pushes_detected(self):
-        """Commits with 1 parent (direct pushes) are reported."""
-        # Use real GitHub API commit shape — jq evaluates the production
-        # filter: select(.parents | length == 1) | {sha, message, author, date}
+    def _setup_mixed_commits(self):
+        """Set up commits with both direct pushes and merges."""
         self.fake.commits_data = [
             {
                 "sha": "abc12345full",
@@ -1531,6 +1529,12 @@ class TestCheckDirectPushesFakeGH(unittest.TestCase):
                 },
             },
         ]
+
+    def test_jq_filters_merge_commits(self):
+        """With jq available, merge commits (2+ parents) are excluded."""
+        if not FakeGitHub._check_jq():
+            self.skipTest("jq package not installed")
+        self._setup_mixed_commits()
         report, actions = check_status.check_direct_pushes(
             "owner/repo", "main", "2026-03-01T00:00:00Z",
         )
@@ -1538,6 +1542,23 @@ class TestCheckDirectPushesFakeGH(unittest.TestCase):
         self.assertIn("2 direct push", report[0])
         self.assertEqual(len(actions), 1)
         self.assertIn("pushed directly", actions[0])
+
+    def test_no_jq_returns_all_commits(self):
+        """Without jq, all commits (including merges) are returned."""
+        self._setup_mixed_commits()
+        # Force jq unavailable
+        saved = FakeGitHub._jq_available
+        FakeGitHub._jq_available = False
+        try:
+            report, actions = check_status.check_direct_pushes(
+                "owner/repo", "main", "2026-03-01T00:00:00Z",
+            )
+        finally:
+            FakeGitHub._jq_available = saved
+        # Without jq filtering, all 3 commits are counted (including merge)
+        self.assertTrue(len(report) >= 1)
+        self.assertIn("3 direct push", report[0])
+        self.assertEqual(len(actions), 1)
 
     def test_no_direct_pushes(self):
         """Empty commits list produces no report."""

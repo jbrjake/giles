@@ -996,6 +996,109 @@ class TestDoRelease(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# P12-008: do_release happy path via FakeGitHub — verifies actual state changes
+# ---------------------------------------------------------------------------
+
+
+class TestDoReleaseFakeGH(unittest.TestCase):
+    """P12-008: do_release happy path with FakeGitHub for gh calls.
+
+    Unlike TestDoRelease (which patches gh globally and checks call sequences),
+    this test routes gh calls through FakeGitHub and verifies actual state:
+    release created, milestone closed, status file updated.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+        # Create sprint-config/project.toml
+        sc_dir = Path(self.tmpdir) / "sprint-config"
+        sc_dir.mkdir()
+        (sc_dir / "project.toml").write_text(_MINIMAL_TOML, encoding="utf-8")
+
+        # Create sprints/SPRINT-STATUS.md
+        sprints_dir = Path(self.tmpdir) / "sprints"
+        sprints_dir.mkdir()
+        (sprints_dir / "SPRINT-STATUS.md").write_text(
+            "| Sprint | Status | Date | Notes | Version |\n"
+            "|--------|--------|------|-------|---------|\n",
+            encoding="utf-8",
+        )
+
+        # Set up FakeGitHub with a milestone
+        self.fake = FakeGitHub()
+        self.fake.milestones = [
+            {"number": 1, "title": "Sprint 1: Walking Skeleton", "state": "open"},
+        ]
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    def _make_combined_side_effect(self):
+        """Route gh calls to FakeGitHub, fake git commands."""
+        def _side_effect(cmd, **kwargs):
+            if isinstance(cmd, list) and cmd and cmd[0] == "gh":
+                return self.fake.handle(cmd[1:])
+            # git rev-parse HEAD
+            if (isinstance(cmd, list) and len(cmd) >= 3
+                    and cmd[0] == "git" and cmd[1] == "rev-parse"):
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=0, stdout="pre123", stderr="",
+                )
+            # All other git commands succeed
+            return subprocess.CompletedProcess(
+                args=cmd if isinstance(cmd, list) else [cmd],
+                returncode=0, stdout="", stderr="",
+            )
+        return _side_effect
+
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    @patch("release_gate.subprocess.run")
+    def test_happy_path_state_changes(self, mock_run, mock_calc, mock_write):
+        """Verify actual state changes: release created, milestone closed, status updated."""
+        mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
+            {"subject": "feat: add dashboard", "body": ""},
+        ])
+        mock_write.return_value = None
+        mock_run.side_effect = self._make_combined_side_effect()
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+            "_config_dir": "sprint-config",
+        }
+        result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertTrue(result, "do_release should return True on success")
+
+        # Verify FakeGitHub state: release was created
+        self.assertTrue(
+            len(self.fake.releases) >= 1,
+            f"Expected at least 1 release, got {len(self.fake.releases)}",
+        )
+        release = self.fake.releases[0]
+        self.assertEqual(release["tag_name"], "v1.1.0")
+
+        # Verify FakeGitHub state: milestone was closed
+        ms = self.fake.milestones[0]
+        self.assertEqual(ms["state"], "closed",
+                         f"Milestone state should be 'closed', got '{ms['state']}'")
+
+        # Verify SPRINT-STATUS.md was updated
+        status = (Path(self.tmpdir) / "sprints" / "SPRINT-STATUS.md").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn("v1.1.0", status)
+        self.assertIn("Released", status)
+
+
+# ---------------------------------------------------------------------------
 # P6-20: do_release pre-flight distinguishes git errors from dirty tree
 # ---------------------------------------------------------------------------
 
