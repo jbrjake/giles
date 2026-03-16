@@ -1630,24 +1630,15 @@ class TestAge(unittest.TestCase):
 
 
 class TestCheckMilestone(unittest.TestCase):
-    """P5-10: check_milestone with mocked gh_json."""
+    """P5-10: check_milestone with mocked find_milestone + gh_json.
 
-    def _mock_gh_json(self, milestones=None, issues=None):
-        """Return a side_effect that dispatches by argument content, not call order."""
-        def _side_effect(args):
-            # Milestone query contains "milestones" in the API path
-            if any("milestones" in str(a) for a in args):
-                return milestones if milestones is not None else []
-            # Issue query uses "issue" subcommand
-            if args and args[0] == "issue":
-                return issues if issues is not None else []
-            return []
-        return _side_effect
+    BH18-001/002: check_milestone now uses find_milestone() from validate_config
+    for milestone lookup (handles leading zeros, avoids redundant API calls).
+    Tests mock find_milestone for the lookup and gh_json for the issue SP query.
+    """
 
     def test_happy_path_with_sp(self):
-        milestones = [
-            {"title": "Sprint 1", "open_issues": 2, "closed_issues": 3},
-        ]
+        ms = {"title": "Sprint 1", "open_issues": 2, "closed_issues": 3}
         issues = [
             {"state": "closed", "labels": [{"name": "sp:3"}], "body": ""},
             {"state": "closed", "labels": [{"name": "sp:5"}], "body": ""},
@@ -1655,39 +1646,59 @@ class TestCheckMilestone(unittest.TestCase):
             {"state": "open", "labels": [{"name": "sp:8"}], "body": ""},
             {"state": "open", "labels": [{"name": "sp:5"}], "body": ""},
         ]
-        with patch.object(
-            check_status, "gh_json",
-            side_effect=self._mock_gh_json(milestones, issues),
-        ):
+        with patch.object(check_status, "find_milestone", return_value=ms), \
+             patch.object(check_status, "gh_json", return_value=issues):
             report, actions = check_status.check_milestone(1)
         self.assertTrue(any("3/5" in line for line in report))
         self.assertTrue(any("SP" in line for line in report))
 
     def test_no_milestone_found(self):
-        with patch.object(
-            check_status, "gh_json", return_value=[],
-        ):
+        with patch.object(check_status, "find_milestone", return_value=None):
             report, actions = check_status.check_milestone(99)
         self.assertTrue(any("no milestone" in line for line in report))
 
     def test_zero_total_stories(self):
-        milestones = [
-            {"title": "Sprint 1", "open_issues": 0, "closed_issues": 0},
-        ]
-        with patch.object(
-            check_status, "gh_json",
-            side_effect=self._mock_gh_json(milestones, []),
-        ):
+        ms = {"title": "Sprint 1", "open_issues": 0, "closed_issues": 0}
+        with patch.object(check_status, "find_milestone", return_value=ms), \
+             patch.object(check_status, "gh_json", return_value=[]):
             report, actions = check_status.check_milestone(1)
         self.assertTrue(any("0/0" in line for line in report))
         self.assertTrue(any("0%" in line for line in report))
 
     def test_api_error_graceful(self):
         with patch.object(
-            check_status, "gh_json", side_effect=RuntimeError("oops"),
+            check_status, "find_milestone", side_effect=RuntimeError("oops"),
         ):
             report, actions = check_status.check_milestone(1)
         self.assertTrue(any("could not query" in line for line in report))
+
+    def test_leading_zero_milestone_found(self):
+        """BH18-001: check_milestone must find 'Sprint 07' when asked for sprint 7."""
+        ms = {"title": "Sprint 07: Walking Skeleton",
+              "open_issues": 1, "closed_issues": 2}
+        issues = [
+            {"state": "closed", "labels": [{"name": "sp:3"}], "body": ""},
+            {"state": "closed", "labels": [{"name": "sp:5"}], "body": ""},
+            {"state": "open", "labels": [{"name": "sp:2"}], "body": ""},
+        ]
+        with patch.object(check_status, "find_milestone", return_value=ms), \
+             patch.object(check_status, "gh_json", return_value=issues):
+            report, actions = check_status.check_milestone(7)
+        report_text = "\n".join(report)
+        self.assertNotIn("no milestone", report_text,
+                         "check_milestone(7) should find 'Sprint 07:' milestone")
+        self.assertIn("2/3", report_text)
+
+    def test_leading_zero_and_plain_both_work(self):
+        """BH18-001: Both 'Sprint 7' and 'Sprint 07' must match sprint 7."""
+        for title in ("Sprint 7: Plain", "Sprint 07: Leading Zero"):
+            ms = {"title": title, "open_issues": 0, "closed_issues": 1}
+            with patch.object(check_status, "find_milestone", return_value=ms), \
+                 patch.object(check_status, "gh_json", return_value=[]):
+                report, _ = check_status.check_milestone(7)
+            report_text = "\n".join(report)
+            self.assertNotIn("no milestone", report_text,
+                             f"check_milestone(7) should find '{title}'")
 
 
 # ---------------------------------------------------------------------------

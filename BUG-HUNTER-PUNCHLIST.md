@@ -1,200 +1,205 @@
-# Bug Hunter Punchlist — Pass 17
+# Bug Hunter Punchlist — Pass 18
 
-> Generated: 2026-03-16 | Project: giles | Baseline: 739 pass, 0 fail, 0 skip | Coverage: 85%
-> Method: Mutation testing (40 mutations across 12 files) + cross-module flow tracing + assertion quality audit
+> Generated: 2026-03-16 | Project: giles | Baseline: 750 pass, 0 fail, 0 skip | Coverage: 85%
+> Method: Adversarial legacy-code review — cross-module analysis, security audit, duplication scan, test quality deep-read, doc-code drift
 
 ## Summary
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
-| CRITICAL | 0    | 1        | 0        |
-| HIGH     | 0    | 5        | 0        |
-| MEDIUM   | 1    | 9        | 0        |
-| LOW      | 0    | 0        | 0        |
+| CRITICAL | 0    | 2        | 0        |
+| HIGH     | 2    | 2        | 0        |
+| MEDIUM   | 7    | 1        | 0        |
+| LOW      | 2    | 2        | 0        |
 
 ## Patterns
 
-## Pattern: PAT-001: Mutation survivors — tests check structure not values
-**Instances:** BH-001, BH-002, BH-005, BH-006, BH-007
-**Root Cause:** Tests assert presence/length/type but not computed values
-**Systemic Fix:** For each surviving mutation, add an assertion that checks the exact value the mutation would corrupt
-**Detection Rule:** Run mutation testing; any survivor indicates a test gap
+### PAT-001: check_status.py builds its own milestone logic instead of reusing validate_config helpers
+**Instances:** BH18-001, BH18-002, BH18-009
+**Root Cause:** check_status.py was written before find_milestone() was hardened (BH-001 leading-zero fix). It duplicates milestone querying and regex matching without benefiting from shared fixes.
+**Systemic Fix:** Refactor check_status.py to use find_milestone() and list_milestone_issues() from validate_config.py
+**Detection Rule:** `grep -n 'rf"\\^Sprint' skills/sprint-monitor/scripts/check_status.py` — any regex matching sprint titles should use the 0* pattern
 
-## Pattern: PAT-002: FakeGitHub diverges from real API in undetected ways
-**Instances:** BH-009, BH-010, BH-011
-**Root Cause:** FakeGitHub was built incrementally; no systematic comparison against real API behavior
-**Systemic Fix:** Add fidelity tests that compare FakeGitHub output format against documented GitHub API schemas
-**Detection Rule:** `grep -n 'self\._ok\|self\._fail' tests/fake_github.py` and verify each response matches GitHub API format
+### PAT-002: Duplicated frontmatter/table parsing logic across modules
+**Instances:** BH18-007, BH18-012, BH18-013
+**Root Cause:** Multiple scripts independently parse markdown tables and YAML frontmatter instead of sharing a parser from validate_config.py
+**Systemic Fix:** Extract TABLE_ROW regex and _parse_header_table into validate_config.py as shared helpers
+**Detection Rule:** `grep -rn 'TABLE_ROW.*compile' scripts/ skills/` — should return exactly 1 hit
 
-## Pattern: PAT-003: Existence assertions mask value bugs
-**Instances:** BH-012, BH-013
-**Root Cause:** Tests written to "make CI green" rather than to catch regressions
-**Systemic Fix:** Replace assertIsNotNone with assertEqual where expected value is knowable
-**Detection Rule:** `grep -rn 'assertIsNotNone\|assertTrue(len' tests/`
+### PAT-003: User-controlled TOML values flow into dangerous operations without guardrails
+**Instances:** BH18-003, BH18-004
+**Root Cause:** project.toml is treated as trusted input even though it could be modified by a malicious contributor in a shared repo
+**Systemic Fix:** Add documentation of the trust model; consider confirmation prompt for shell execution
+**Detection Rule:** `grep -n 'shell=True' skills/ scripts/` — each hit should have a justification comment
 
 ## Items
 
-### BH-001: Leading zeros in sprint headings cause silent milestone lookup failure
+### BH18-001: check_status.py milestone regex missing leading-zero tolerance — real functional bug
 **Severity:** CRITICAL
 **Category:** `bug/logic`
-**Location:** `scripts/validate_config.py:892` (find_milestone), `skills/sprint-setup/scripts/bootstrap_github.py:256` (create_milestones_on_github)
-**Status:** 🔴 OPEN
-**Pattern:** —
+**Location:** `skills/sprint-monitor/scripts/check_status.py:184` (check_milestone), `skills/sprint-monitor/scripts/check_status.py:398` (main)
+**Status:** ✅ RESOLVED
+**Pattern:** PAT-001
 
-**Problem:** `### Sprint 07: Walking Skeleton` creates a milestone titled "Sprint 07: Walking Skeleton". But `find_milestone(7)` generates regex `^Sprint 7\b` which does NOT match "Sprint 07:...". All downstream consumers (sync_tracking, update_burndown, check_status, sprint_analytics) fail to find the milestone silently.
+**Problem:** `check_status.py` builds its own milestone-matching regex `^Sprint {sprint_num}\b` in two places. This was hardened in `validate_config.find_milestone()` (BH-001 fix: `^Sprint 0*{num}\b`) but the fix was never propagated to check_status.py. When a milestone is titled "Sprint 07: Walking Skeleton", `check_milestone(7)` silently returns "no milestone for Sprint 7" and `main()` uses the 14-day fallback for drift detection instead of the milestone start date.
 
-**Evidence:** Cross-module flow audit Finding #6. `int("07")` = 7, but the milestone title preserves "07". `re.match(r"^Sprint 7\b", "Sprint 07: Walking Skeleton")` returns None.
+**Evidence:**
+```python
+# validate_config.py:896 (FIXED):
+re.match(rf"^Sprint 0*{num}\b", title)
+
+# check_status.py:184 (BROKEN):
+re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))
+
+# check_status.py:398 (BROKEN):
+re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))
+```
 
 **Acceptance Criteria:**
-- [ ] `find_milestone()` matches sprint numbers with optional leading zeros (e.g., `^Sprint 0*{num}\b`)
-- [ ] A test creates a milestone with "Sprint 07:" and verifies find_milestone(7) finds it
-- [ ] A test creates "Sprint 7:" and verifies find_milestone(7) also finds it
+- [ ] Both regex patterns in check_status.py include `0*` for leading-zero tolerance
+- [ ] OR: refactor check_status.py to call `find_milestone()` instead of inline regex
+- [ ] A test creates a milestone "Sprint 07: Test" and calls check_milestone(7) — must find it
+- [ ] A test creates "Sprint 7: Test" and calls check_milestone(7) — must also find it
 
 **Validation Command:**
 ```bash
 python -c "
 import re
-# Current regex fails:
-assert re.match(r'^Sprint 7\b', 'Sprint 07: Walk') is None, 'Bug exists'
-# Fixed regex should pass:
-assert re.match(r'^Sprint 0*7\b', 'Sprint 07: Walk'), 'Fix works for 07'
-assert re.match(r'^Sprint 0*7\b', 'Sprint 7: Walk'), 'Fix works for 7'
-print('PASS')
+# Current broken pattern:
+assert re.match(rf'^Sprint {7}\b', 'Sprint 07: Walking Skeleton') is None, 'Bug confirmed'
+# Fixed pattern:
+assert re.match(rf'^Sprint 0*{7}\b', 'Sprint 07: Walking Skeleton'), 'Fix works'
+assert re.match(rf'^Sprint 0*{7}\b', 'Sprint 7: Walking Skeleton'), 'Fix works for plain'
+print('PASS: check_status milestone regex bug confirmed')
 "
 ```
 
 ---
 
-### BH-002: sync_tracking main() write guard is untested — mutation survives
-**Severity:** HIGH
-**Category:** `test/missing`
-**Location:** `skills/sprint-run/scripts/sync_tracking.py` (main loop)
-**Status:** 🔴 OPEN
+### BH18-002: check_status.py makes redundant milestone API calls — should reuse find_milestone()
+**Severity:** CRITICAL
+**Category:** `design/duplication`
+**Location:** `skills/sprint-monitor/scripts/check_status.py:174-184` (check_milestone), `skills/sprint-monitor/scripts/check_status.py:392-404` (main)
+**Status:** ✅ RESOLVED
 **Pattern:** PAT-001
 
-**Problem:** Flipping `if dirty:` to `if not dirty:` in sync_tracking's main write loop (meaning changed files are NOT written to disk) does NOT cause any test to fail. The mutation survived because unit tests check in-memory TF objects and the integration test doesn't verify file-on-disk state after sync.
-
-**Evidence:** Mutation test sync-tracking #1: SURVIVED.
+**Problem:** check_status.py queries the milestones API independently in two places (check_milestone at :174 and main at :392) instead of calling `find_milestone()` from validate_config.py. This causes: (a) 2 extra API calls per monitoring cycle, (b) the leading-zero bug in BH18-001, (c) divergent behavior when find_milestone gets future fixes. The main() function also queries milestones AGAIN for the sprint start date (`created_at`), when find_milestone() already returns the full milestone dict including created_at.
 
 **Acceptance Criteria:**
-- [ ] An integration test runs sync_tracking.main() with a status change (e.g., issue closed)
-- [ ] The test reads the tracking file from disk afterward
-- [ ] The test asserts the file reflects the updated status
-- [ ] Flipping the write guard causes the test to fail
+- [ ] check_milestone() calls find_milestone(sprint_num) instead of querying milestones API directly
+- [ ] main() calls find_milestone() once and reuses the result for both milestone progress and created_at
+- [ ] Total milestone API calls reduced from 3 to 1 per monitoring cycle
+- [ ] All existing check_status tests still pass
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "sync_tracking" -v 2>&1 | tail -10
+python -m pytest tests/ -k "check_status or check_milestone" -v 2>&1 | tail -10
 ```
 
 ---
 
-### BH-003: write_tf _yaml_safe() removal survives mutation — no adversarial round-trip test
+### BH18-003: gate_tests and gate_build use shell=True with TOML-sourced commands — supply chain risk
 **Severity:** HIGH
-**Category:** `test/shallow`
-**Location:** `skills/sprint-run/scripts/sync_tracking.py` (write_tf)
+**Category:** `security/injection`
+**Location:** `skills/sprint-release/scripts/release_gate.py:209` (gate_tests), `skills/sprint-release/scripts/release_gate.py:229` (gate_build)
 **Status:** 🔴 OPEN
-**Pattern:** PAT-001
+**Pattern:** PAT-003
 
-**Problem:** Removing `_yaml_safe()` from the title field in `write_tf()` does not cause any test to fail. Tests use simple titles that round-trip without quoting. Adversarial titles (starting with `---`, containing newlines, YAML-sensitive chars like `: `) are never tested.
+**Problem:** `gate_tests()` passes `config["ci"]["check_commands"]` to `subprocess.run(cmd, shell=True)`. These strings come from project.toml via the custom TOML parser. A malicious PR that modifies project.toml can execute arbitrary shell commands on any developer who runs `sprint-release`. The code has a justification comment, but no guardrails (no confirmation prompt, no allowlist, no sandboxing).
 
-**Evidence:** Mutation test sync-tracking #3: SURVIVED.
+**Evidence:** Security audit finding S1. Real-world vector: attacker modifies project.toml in a PR, reviewer runs sprint-release to validate gates before merge, attacker's commands execute.
 
 **Acceptance Criteria:**
-- [ ] A test writes and reads a tracking file with a title containing `: ` and `#`
-- [ ] A test writes and reads a tracking file with a title starting with `---`
-- [ ] Both tests assert the round-tripped title matches the original exactly
-- [ ] Removing `_yaml_safe()` causes at least one test to fail
+- [ ] Document the trust model for project.toml in SKILL.md or the release flow
+- [ ] Add a confirmation prompt showing the exact commands before executing them (unless --yes flag)
+- [ ] OR: Add a `[ci] trusted = true` flag that must be set manually (not by sprint-init) to enable shell execution
+- [ ] A test verifies that gate_tests refuses to execute if the trust mechanism is missing
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "yaml_safe or roundtrip" -v 2>&1 | tail -10
+grep -n 'shell=True' skills/sprint-release/scripts/release_gate.py
+# Should be accompanied by trust/confirmation mechanism
 ```
 
 ---
 
-### BH-004: update_burndown table header removal survives mutation
+### BH18-004: _build_row_regex accepts user regex pattern without ReDoS protection
 **Severity:** HIGH
-**Category:** `test/shallow`
-**Location:** `skills/sprint-run/scripts/update_burndown.py` (write_burndown)
+**Category:** `security/redos`
+**Location:** `skills/sprint-setup/scripts/populate_issues.py:78` (_build_row_regex)
 **Status:** 🔴 OPEN
-**Pattern:** PAT-001
+**Pattern:** PAT-003
 
-**Problem:** Removing the markdown table header row (`| Story | SP | Status | Completed |`) from the burndown output does NOT cause any test to fail. Tests check the summary section (SP counts, progress) but never verify the table header.
-
-**Evidence:** Mutation test sync-tracking #7: SURVIVED.
+**Problem:** `_build_row_regex()` compiles `config["backlog"]["story_id_pattern"]` into a regex. It rejects capturing groups but does NOT check for catastrophic backtracking patterns (e.g., `(?:a+)+b`). A malicious story_id_pattern in project.toml could cause exponential backtracking when applied to milestone files, hanging CI or developer machines.
 
 **Acceptance Criteria:**
-- [ ] A test asserts that burndown output contains `"| Story | SP | Status |"` (or equivalent header)
-- [ ] Removing the table header line causes the test to fail
+- [ ] Add a timeout or complexity check on the compiled pattern (e.g., test it against a 1000-char string with 1-second timeout)
+- [ ] OR: Restrict the pattern to a safe subset (e.g., only allow `\d`, `\w`, `[A-Z]`, `+`, `{n,m}`, literal chars)
+- [ ] A test verifies that a known ReDoS pattern like `(?:a+)+b` is rejected or doesn't hang
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "burndown" -v 2>&1 | tail -10
+python -c "
+import re, signal
+
+def timeout_handler(signum, frame):
+    raise TimeoutError('ReDoS detected')
+
+# This is the kind of pattern that should be rejected:
+pattern = r'(?:a+)+b'
+signal.signal(signal.SIGALRM, timeout_handler)
+signal.alarm(2)
+try:
+    compiled = re.compile(rf'\|\s*({pattern})\s*\|')
+    compiled.search('| ' + 'a' * 30 + ' |')
+    print('Pattern completed (safe or not checked)')
+except TimeoutError:
+    print('CONFIRMED: ReDoS pattern hangs without protection')
+finally:
+    signal.alarm(0)
+"
 ```
 
 ---
 
-### BH-005: format_issue_body SP field removal survives mutation
+### BH18-005: _fm_val in update_burndown.py duplicates sync_tracking frontmatter parsing — coupling hazard
 **Severity:** HIGH
-**Category:** `test/shallow`
-**Location:** `skills/sprint-setup/scripts/populate_issues.py` (format_issue_body)
-**Status:** 🔴 OPEN
-**Pattern:** PAT-001
+**Category:** `design/coupling`
+**Location:** `skills/sprint-run/scripts/update_burndown.py:144-153` (_fm_val), `skills/sprint-run/scripts/sync_tracking.py:162-171` (v() closure)
+**Status:** ✅ RESOLVED — extracted frontmatter_value() into validate_config.py
+**Pattern:** PAT-002
 
-**Problem:** Removing the story-point information from the issue body does NOT cause any test to fail. No test asserts "SP" content in `format_issue_body()` output.
-
-**Evidence:** Mutation test populate-bootstrap #3: SURVIVED.
+**Problem:** `update_burndown._fm_val()` and `sync_tracking.read_tf.v()` both parse YAML-ish frontmatter with identical regex and quote-stripping logic. The escape/unescape convention must stay synchronized: `_yaml_safe` escapes backslashes then quotes, and both readers must unescape in reverse order. A comment in update_burndown.py:149 says "matches sync_tracking.read_tf behavior" but there is no enforcement — if either changes, the other silently produces wrong values.
 
 **Acceptance Criteria:**
-- [ ] A test asserts `f"{story.sp} SP"` appears in `format_issue_body()` output
-- [ ] Removing the SP line causes the test to fail
+- [ ] Extract `_fm_val` logic into validate_config.py or sync_tracking.py as a shared function
+- [ ] Both update_burndown and sync_tracking import and use the shared function
+- [ ] A round-trip test writes a tracking file with adversarial content (backslashes, quotes, colons) via write_tf, then reads it with both _fm_val and read_tf, and asserts both produce identical results
+- [ ] Removing _yaml_safe from write_tf causes the shared test to fail
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "format_issue_body" -v 2>&1 | tail -10
+python -m pytest tests/ -k "roundtrip or yaml_safe or fm_val" -v 2>&1 | tail -10
 ```
 
 ---
 
-### BH-006: setup_ci Python version "2.7" mutation survives — no version assertion
+### BH18-006: compute_review_rounds counts COMMENTED reviews as 1 round via fallback
 **Severity:** HIGH
-**Category:** `test/shallow`
-**Location:** `skills/sprint-setup/scripts/setup_ci.py` (_python_setup_steps)
-**Status:** 🔴 OPEN
-**Pattern:** PAT-001
+**Category:** `bug/logic`
+**Location:** `scripts/sprint_analytics.py:107-113` (compute_review_rounds)
+**Status:** ✅ RESOLVED — removed COMMENTED fallback, added test
+**Pattern:** —
 
-**Problem:** Changing the default Python version from "3.12" to "2.7" in CI generation does NOT cause any test to fail. Tests check for `setup-python@v6` presence but not the version string.
+**Problem:** The review round counting has a "minimum 1 round" fallback at line 112: `if reviews and round_count == 0: round_count = 1`. This means a PR with only COMMENTED reviews (no APPROVED/CHANGES_REQUESTED) gets counted as 1 review round. The docstring says "each CHANGES_REQUESTED or APPROVED counts as a round" — COMMENTED should not count. This inflates review round metrics for PRs that only have comment-only reviews.
 
-**Evidence:** Mutation test populate-bootstrap #9: SURVIVED.
-
-**Acceptance Criteria:**
-- [ ] A test generates CI YAML for a Python project and asserts `python-version: "3.` (prefix)
-- [ ] The test also asserts `"2.7"` does NOT appear in the output
-- [ ] Changing the version causes the test to fail
-
-**Validation Command:**
-```bash
-python -m pytest tests/ -k "ci" -v 2>&1 | tail -10
-```
-
----
-
-### BH-007: compute_review_rounds COMMENTED reviews are not excluded in test
-**Severity:** MEDIUM
-**Category:** `test/shallow`
-**Location:** `scripts/sprint_analytics.py` (compute_review_rounds)
-**Status:** 🔴 OPEN
-**Pattern:** PAT-001
-
-**Problem:** Counting ALL reviews as rounds (instead of just CHANGES_REQUESTED/APPROVED) produces identical results because tests only create APPROVED/CHANGES_REQUESTED reviews. No test creates a COMMENTED review to verify it's excluded.
-
-**Evidence:** Mutation test release-analytics #7: SURVIVED.
+**Evidence:** Pass 17 identified this (BH-007) as test/shallow. But it's actually a logic bug: the fallback conflates "has reviews" with "has review rounds." A PR with 5 COMMENTED reviews should show 0 rounds, not 1.
 
 **Acceptance Criteria:**
-- [ ] A test creates a PR with reviews including COMMENTED, APPROVED, CHANGES_REQUESTED
-- [ ] The test asserts COMMENTED is NOT counted as a round
-- [ ] Counting all reviews would produce a different (wrong) result
+- [ ] Remove the `if reviews and round_count == 0: round_count = 1` fallback
+- [ ] OR: Change to only count as 1 round if there's at least one APPROVED or CHANGES_REQUESTED
+- [ ] A test creates a PR with only COMMENTED reviews and asserts round_count == 0
+- [ ] A test creates a PR with COMMENTED + APPROVED and asserts round_count == 1 (not 2)
 
 **Validation Command:**
 ```bash
@@ -203,87 +208,68 @@ python -m pytest tests/ -k "review_rounds" -v 2>&1 | tail -10
 
 ---
 
-### BH-008: add_story separator omission survives mutation
+### BH18-007: validate_project does not check for definition-of-done.md — doc-code drift
 **Severity:** MEDIUM
-**Category:** `test/shallow`
-**Location:** `scripts/manage_epics.py` (add_story)
+**Category:** `design/gap`
+**Location:** `scripts/validate_config.py:392-403` (_REQUIRED_FILES)
+**Status:** ✅ RESOLVED — added to _REQUIRED_FILES, updated test fixtures
+**Pattern:** —
+
+**Problem:** CLAUDE.md documents `definition-of-done.md` as part of the sprint-config structure. sprint_init.py generates it. Ceremony references (retro, demo) depend on it. But `_REQUIRED_FILES` does not include it, so `validate_project()` won't catch a missing definition-of-done.md. A user who deletes it won't get a validation error.
+
+**Acceptance Criteria:**
+- [ ] Add `("{config_dir}/definition-of-done.md", "Definition of Done (baseline + retro additions)")` to _REQUIRED_FILES
+- [ ] A test verifies that removing definition-of-done.md causes validate_project to fail
+- [ ] Existing tests still pass (sprint_init generates the file, so fixtures should have it)
+
+**Validation Command:**
+```bash
+python -c "
+import sys; sys.path.insert(0, 'scripts')
+from validate_config import _REQUIRED_FILES
+dod = any('definition-of-done' in f for f, _ in _REQUIRED_FILES)
+print(f'definition-of-done.md in _REQUIRED_FILES: {dod}')
+assert dod, 'FAIL: definition-of-done.md should be required'
+"
+```
+
+---
+
+### BH18-008: validate_project requires "at least 2 personas" but should require 2+ non-Giles personas
+**Severity:** MEDIUM
+**Category:** `bug/logic`
+**Location:** `scripts/validate_config.py:492-496` (validate_project persona check)
+**Status:** 🔴 OPEN
+**Pattern:** —
+
+**Problem:** validate_project checks `len(persona_rows) < 2` but sprint_init always injects Giles (scrum master). A project with only 1 human persona + Giles has 2 rows and passes validation. But sprint-run requires at least 2 different personas for implementer/reviewer assignment. With only 1 non-Giles persona, the same person would implement and review their own code.
+
+**Acceptance Criteria:**
+- [ ] Either: require `len(persona_rows) >= 3` (2 devs + Giles)
+- [ ] OR: require at least 2 persona rows whose name is NOT "Giles" (case-insensitive)
+- [ ] A test with exactly 1 persona + Giles fails validation with a clear error message
+- [ ] A test with 2 personas + Giles passes validation
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "validate_project or persona" -v 2>&1 | tail -10
+```
+
+---
+
+### BH18-009: check_status.main() queries milestones 3 times per monitoring cycle
+**Severity:** MEDIUM
+**Category:** `design/performance`
+**Location:** `skills/sprint-monitor/scripts/check_status.py:174,392,417`
 **Status:** 🔴 OPEN
 **Pattern:** PAT-001
 
-**Problem:** Omitting the `---` separator before a newly added story section does NOT cause any test to fail. The parser finds stories by `### US-XXXX:` headings, not by separators.
-
-**Evidence:** Mutation test release-analytics #9: SURVIVED.
+**Problem:** In a single monitoring cycle, check_status.main() makes 3 separate milestones API calls: (1) in check_milestone:174 to find the milestone, (2) in main:392 to get created_at for drift detection, (3) implicitly via check_milestone's issue query. With rate-limited GitHub APIs and the monitor running every 5 minutes, this wastes 2 API calls per cycle.
 
 **Acceptance Criteria:**
-- [ ] A test adds a story and asserts `"---\n\n### US-"` appears in the raw file content before the new story
-- [ ] Removing the separator causes the test to fail
-
-**Validation Command:**
-```bash
-python -m pytest tests/ -k "add_story" -v 2>&1 | tail -10
-```
-
----
-
-### BH-009: FakeGitHub does not validate label existence on issue create
-**Severity:** MEDIUM
-**Category:** `design/inconsistency`
-**Location:** `tests/fake_github.py:494` (_issue_create)
-**Status:** 🔴 OPEN
-**Pattern:** PAT-002
-
-**Problem:** Real `gh issue create --label nonexistent` auto-creates the label. FakeGitHub accepts any label without validation. Tests never catch the case where `populate_issues` uses labels that `bootstrap_github` hasn't created yet.
-
-**Evidence:** Cross-module flow audit Finding #16.
-
-**Acceptance Criteria:**
-- [ ] FakeGitHub._issue_create validates that each --label exists in self.labels OR auto-creates it (matching real gh behavior)
-- [ ] A test verifies that creating an issue with a label that doesn't exist in strict mode produces a warning
-
-**Validation Command:**
-```bash
-python -m pytest tests/test_fakegithub_fidelity.py -v 2>&1 | tail -10
-```
-
----
-
-### BH-010: FakeGitHub milestone error format doesn't match real API
-**Severity:** MEDIUM
-**Category:** `design/inconsistency`
-**Location:** `tests/fake_github.py:387`, `skills/sprint-setup/scripts/bootstrap_github.py:287`
-**Status:** 🔴 OPEN
-**Pattern:** PAT-002
-
-**Problem:** FakeGitHub returns `"Validation Failed: milestone title 'X' already exists"` while real GitHub API returns structured JSON `{"message":"Validation Failed","errors":[{"code":"already_exists"}]}`. The `"already_exists" in msg` check works by string-matching coincidence. If gh CLI changes its error format, milestone idempotency breaks.
-
-**Evidence:** Cross-module flow audit Finding #17.
-
-**Acceptance Criteria:**
-- [ ] Document the expected error format with a comment
-- [ ] Add a FakeGitHub fidelity test that asserts the error message contains "already_exists"
-- [ ] Consider using error code instead of string matching
-
-**Validation Command:**
-```bash
-python -m pytest tests/test_fakegithub_fidelity.py -v 2>&1 | tail -10
-```
-
----
-
-### BH-011: FakeGitHub milestones lack created_at — check_status date path untested
-**Severity:** MEDIUM
-**Category:** `test/missing`
-**Location:** `tests/fake_github.py:389`, `skills/sprint-monitor/scripts/check_status.py:401`
-**Status:** 🔴 OPEN
-**Pattern:** PAT-002
-
-**Problem:** `check_status.py` reads `ms.get("created_at")` from milestones to determine the "since" date for direct push detection. FakeGitHub's milestone dicts don't include `created_at`. Tests always exercise the 14-day fallback, never the milestone-date code path.
-
-**Evidence:** Cross-module flow audit Finding #18.
-
-**Acceptance Criteria:**
-- [ ] FakeGitHub milestone dicts include `created_at` field (ISO 8601 format)
-- [ ] A test exercises check_status with a milestone that has created_at set
+- [ ] main() calls find_milestone() once and passes the result to check_milestone() and uses created_at from it
+- [ ] Total milestones API calls per monitoring cycle reduced from 3 to 1
+- [ ] check_milestone() accepts an optional pre-fetched milestone dict
 
 **Validation Command:**
 ```bash
@@ -292,110 +278,193 @@ python -m pytest tests/ -k "check_status" -v 2>&1 | tail -10
 
 ---
 
-### BH-012: detect_sprint regex is too permissive — mutation survives
+### BH18-010: get_linked_pr branch-name fallback is overly broad
 **Severity:** MEDIUM
-**Category:** `test/shallow`
-**Location:** `scripts/validate_config.py:827` (detect_sprint)
+**Category:** `bug/edge-case`
+**Location:** `skills/sprint-run/scripts/sync_tracking.py:106`
 **Status:** 🔴 OPEN
-**Pattern:** PAT-003
+**Pattern:** —
 
-**Problem:** Changing `r"Current Sprint:\s*(\d+)"` to `r"Sprint:\s*(\d+)"` (less specific) does NOT cause any test to fail. No test has a SPRINT-STATUS.md containing both "Sprint N" (in narrative text) and "Current Sprint: M" where the two numbers differ.
-
-**Evidence:** Mutation test validate-config #9: SURVIVED.
+**Problem:** `get_linked_pr()` fallback searches pre-fetched PRs by `re.search(rf"\b{re.escape(story_id)}\b", branch, re.IGNORECASE)`. Story ID "US-0001" would match branch `sprint-2/us-0001-follow-up` even if that branch belongs to a different sprint's issue. The branch-name convention is `sprint-{N}/US-{ID}-{slug}`, but the search ignores the sprint prefix.
 
 **Acceptance Criteria:**
-- [ ] A test has a status file with `"Sprint 2 recap\nCurrent Sprint: 3"` and verifies detect_sprint returns 3, not 2
-- [ ] The less-specific regex would return 2 (wrong), failing the test
+- [ ] Fallback search also checks that the branch matches the expected sprint pattern (e.g., `sprint-{current}/`)
+- [ ] OR: match only at the beginning of the slug portion (after the last `/`)
+- [ ] A test creates two PRs with branches `sprint-1/us-0001-setup` and `sprint-2/us-0001-follow-up`, and verifies that sync_tracking for sprint 1 only links the first PR
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "detect_sprint" -v 2>&1 | tail -10
+python -m pytest tests/ -k "linked_pr" -v 2>&1 | tail -10
 ```
 
 ---
 
-### BH-013: Scanner deep-doc detection uses assertIsNotNone instead of value checks
+### BH18-011: No test exercises check_milestone with leading-zero milestone title
 **Severity:** MEDIUM
-**Category:** `test/shallow`
-**Location:** `tests/test_hexwise_setup.py` (multiple assertions)
+**Category:** `test/missing`
+**Location:** `tests/test_sprint_runtime.py:1647-1664` (TestCheckMilestone)
 **Status:** 🔴 OPEN
-**Pattern:** PAT-003
+**Pattern:** PAT-001
 
-**Problem:** 12+ assertions use `assertIsNotNone(result.prd_dir)` etc. without checking the actual path. If the scanner confused `prd_dir` with `sagas_dir`, no test would catch it.
-
-**Evidence:** Assertion quality audit findings 1.1-1.4.
+**Problem:** All TestCheckMilestone tests use "Sprint 1" (no leading zero). No test verifies check_milestone(7) finds "Sprint 07: Walking Skeleton". This is why BH18-001 survived 17 audit passes — the bug is never exercised.
 
 **Acceptance Criteria:**
-- [ ] Each assertIsNotNone for deep-doc paths is supplemented with a path-content check (e.g., `self.assertTrue(str(result.prd_dir).endswith("docs/prd"))`)
-- [ ] Scanner returning the wrong directory for any field causes a test failure
+- [ ] A test creates milestone titled "Sprint 07: Leading Zero Test"
+- [ ] Calls check_milestone(7) and asserts it finds the milestone (not "no milestone")
+- [ ] Report includes milestone progress, not the "no milestone" fallback message
 
 **Validation Command:**
 ```bash
-python -m pytest tests/test_hexwise_setup.py -v 2>&1 | tail -10
+python -m pytest tests/ -k "leading_zero and check_milestone" -v 2>&1 | tail -10
 ```
 
 ---
 
-### BH-014: SP labels are dead code in the automated flow
+### BH18-012: TABLE_ROW regex defined identically in 3 separate files
 **Severity:** MEDIUM
+**Category:** `design/duplication`
+**Location:** `scripts/manage_epics.py:23`, `scripts/manage_sagas.py:22`, `scripts/traceability.py:24`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-002
+
+**Problem:** `TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')` is copy-pasted into three files. If the pattern needs updating (e.g., to handle escaped pipes), all three must change in sync.
+
+**Acceptance Criteria:**
+- [ ] Move TABLE_ROW to validate_config.py as a shared constant
+- [ ] All 3 files import it from validate_config
+- [ ] `grep -rn 'TABLE_ROW.*compile' scripts/` returns exactly 1 hit (in validate_config.py)
+
+**Validation Command:**
+```bash
+grep -rn 'TABLE_ROW.*compile' scripts/ skills/ | wc -l
+# Should be 1 after fix
+```
+
+---
+
+### BH18-013: _parse_header_table duplicated between manage_epics.py and manage_sagas.py
+**Severity:** MEDIUM
+**Category:** `design/duplication`
+**Location:** `scripts/manage_epics.py:70`, `scripts/manage_sagas.py:65`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-002
+
+**Problem:** Both files define `_parse_header_table(lines)` with nearly identical logic. The only difference is the stop condition (`###` in epics vs `##` in sagas). This could be parameterized.
+
+**Acceptance Criteria:**
+- [ ] Extract a shared `parse_header_table(lines, stop_heading="###")` function
+- [ ] Both manage_epics and manage_sagas call it with their respective stop heading
+- [ ] Both existing test suites pass unchanged
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_pipeline_scripts.py -k "epic or saga" -v 2>&1 | tail -10
+```
+
+---
+
+### BH18-014: symlink targets in sprint_init.py not validated against project root
+**Severity:** MEDIUM
+**Category:** `security/path-traversal`
+**Location:** `scripts/sprint_init.py:549-561` (_symlink)
+**Status:** 🔴 OPEN
+**Pattern:** —
+
+**Problem:** `ConfigGenerator._symlink()` creates symlinks from sprint-config/ to targets without validating the resolved target is within the project root. While targets come from scanner detections (not directly from TOML), a future change to accept TOML-sourced paths could introduce path traversal. Defense in depth says validate now.
+
+**Acceptance Criteria:**
+- [ ] `_symlink()` resolves target_abs and asserts it starts with self.root
+- [ ] If target is outside project root, skip with a warning
+- [ ] A test attempts to create a symlink targeting `../../etc/passwd` and verifies it's rejected
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "sprint_init or symlink" -v 2>&1 | tail -10
+```
+
+---
+
+### BH18-015: sync_backlog.py catches Exception instead of ConfigError
+**Severity:** LOW
+**Category:** `design/error-handling`
+**Location:** `scripts/sync_backlog.py:246-250`
+**Status:** ✅ RESOLVED — narrowed to ConfigError, RuntimeError, ImportError
+**Pattern:** —
+
+**Problem:** The main() `except Exception` block catches everything including KeyboardInterrupt, MemoryError, and unexpected bugs. Every other script catches `ConfigError` specifically. This inconsistency could swallow bugs.
+
+**Acceptance Criteria:**
+- [ ] Change `except Exception` to `except (ConfigError, RuntimeError)` or similar specific exceptions
+- [ ] Add a comment explaining why broader exception handling is needed (if it is)
+- [ ] Existing sync_backlog tests pass
+
+**Validation Command:**
+```bash
+grep -n 'except Exception' scripts/sync_backlog.py
+# Should be 0 after fix (or have a justification comment)
+```
+
+---
+
+### BH18-016: _KANBAN_STATES backward-compat alias is unused externally
+**Severity:** LOW
 **Category:** `design/dead-code`
-**Location:** `scripts/validate_config.py:790` (extract_sp label path)
-**Status:** 🔴 OPEN
+**Location:** `scripts/validate_config.py:853`
+**Status:** ✅ RESOLVED — alias removed, direct reference used
 **Pattern:** —
 
-**Problem:** `extract_sp()` checks for `sp:N` labels first, then falls back to body text. But `bootstrap_github` never creates `sp:N` labels, and `populate_issues.create_issue()` never adds them. The label path is dead code in the automated flow.
-
-**Evidence:** Cross-module flow audit Finding #12.
+**Problem:** `_KANBAN_STATES = KANBAN_STATES  # Backward compat alias` is only used internally in `kanban_from_labels()` at line 872. No external script imports `_KANBAN_STATES`. The alias adds confusion without value.
 
 **Acceptance Criteria:**
-- [ ] Either: add sp:N label creation to bootstrap_github + create_issue, OR: document the label path as "for manual use" and add a comment
-- [ ] If adding label creation: a test verifies sp labels are created and applied
+- [ ] Replace `_KANBAN_STATES` usage at line 872 with `KANBAN_STATES`
+- [ ] Remove the `_KANBAN_STATES` alias line
+- [ ] All tests pass
 
 **Validation Command:**
 ```bash
-grep -n 'sp:' scripts/validate_config.py skills/sprint-setup/scripts/populate_issues.py skills/sprint-setup/scripts/bootstrap_github.py
+grep -rn '_KANBAN_STATES' scripts/ skills/ tests/
+# Should be 0 after fix
 ```
 
 ---
 
-### BH-015: gate_prs and gate_ci detail messages ignored in tests
-**Severity:** MEDIUM
-**Category:** `test/shallow`
-**Location:** `tests/test_gh_interactions.py` (multiple test methods)
+### BH18-017: test_coverage.py (the coverage checker) has the lowest test coverage at 68%
+**Severity:** LOW
+**Category:** `test/gap`
+**Location:** `scripts/test_coverage.py`
 **Status:** 🔴 OPEN
-**Pattern:** PAT-003
+**Pattern:** —
 
-**Problem:** 4+ tests discard the `detail` return value from gate functions (`ok, _ = gate_prs(...)`). If the function returned `(True, "ERROR: something broke")`, these tests would still pass.
-
-**Evidence:** Assertion quality audit findings 4.7, 4.8.
+**Problem:** The script whose job is to check test coverage has the lowest coverage of any module at 68%. Missing coverage: `scan_project_tests()` main loop, `check_test_coverage()` report formatting, several edge-case paths. This is both ironic and a real gap — if the coverage checker itself has bugs, it could miss gaps in the project it's monitoring.
 
 **Acceptance Criteria:**
-- [ ] Tests that check gate function return values also assert on the detail message content
-- [ ] `detail` is never ignored with `_` in gate tests
+- [ ] Add tests for `scan_project_tests()` with a mock project directory
+- [ ] Add tests for `check_test_coverage()` report output format
+- [ ] Coverage for test_coverage.py reaches at least 85%
 
 **Validation Command:**
 ```bash
-grep -n 'ok, _' tests/test_gh_interactions.py
+python -m pytest tests/ --cov=scripts/test_coverage --cov-report=term-missing 2>&1 | grep test_coverage
 ```
 
 ---
 
-### BH-016: Tracking file slug collisions for similar titles
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `skills/sprint-run/scripts/sync_tracking.py` (create_from_issue / slug_from_title)
+### BH18-018: CHEATSHEET.md line numbers likely stale after 17 bug-hunter passes
+**Severity:** LOW
+**Category:** `docs/drift`
+**Location:** `CHEATSHEET.md`
 **Status:** 🔴 OPEN
 **Pattern:** —
 
-**Problem:** `slug_from_title` strips non-alphanumeric characters and lowercases. Two stories like "US-0001: Add Auth" and "US-0001 - Add Auth!" produce the same slug `"us-0001-add-auth"`, silently clobbering tracking files.
-
-**Evidence:** Cross-module flow audit Finding #4.
+**Problem:** CHEATSHEET.md contains line-number indices for all functions and sections. After 279 commits (44% of which are fixes that change line numbers), many of these references are likely stale. The project has validate_anchors.py for §-anchor validation but no automated check for line-number accuracy.
 
 **Acceptance Criteria:**
-- [ ] create_from_issue checks if a tracking file already exists with a different issue number before writing
-- [ ] A test creates two issues with similar titles and verifies both get unique tracking files
+- [ ] Run a verification pass: for each `line N` reference in CHEATSHEET.md, check if the referenced function/section still exists at that line
+- [ ] Update stale line numbers
+- [ ] OR: Consider switching from line numbers to §-anchors (which don't drift)
 
 **Validation Command:**
 ```bash
-python -m pytest tests/ -k "create_from_issue" -v 2>&1 | tail -10
+python scripts/validate_anchors.py 2>&1 | tail -5
+# Only checks §-anchors, not line numbers — this is the gap
 ```

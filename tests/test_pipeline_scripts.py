@@ -1272,6 +1272,9 @@ class TestValidateProjectNegative(unittest.TestCase):
         ms_dir = backlog / "milestones"
         ms_dir.mkdir()
         (ms_dir / "m1.md").write_text("# Sprint 1\n", encoding="utf-8")
+        (self.config_dir / "definition-of-done.md").write_text(
+            "# Definition of Done\n- Tests pass\n", encoding="utf-8",
+        )
 
     def test_missing_required_file(self):
         """Missing project.toml causes validation failure."""

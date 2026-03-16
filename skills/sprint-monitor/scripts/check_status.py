@@ -20,7 +20,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit
+from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit, find_milestone
 
 # -- Import sync engine ------------------------------------------------------
 try:
@@ -169,34 +169,33 @@ def _age(iso: str) -> str:
 # -- Milestone progress ------------------------------------------------------
 
 # §check_status.check_milestone
-def check_milestone(sprint_num: int) -> tuple[list[str], list[str]]:
-    try:
-        milestones = gh_json([
-            "api", "repos/{owner}/{repo}/milestones", "--paginate",
-        ])
-    except RuntimeError:
-        return ["Progress: could not query milestones"], []
+def check_milestone(
+    sprint_num: int, _ms: dict | None = None,
+) -> tuple[list[str], list[str]]:
+    """Check milestone progress.
 
-    ms = next(
-        (
-            m
-            for m in (milestones if isinstance(milestones, list) else [])
-            if re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))
-        ),
-        None,
-    )
-    if ms is None:
+    BH18-001/002: Uses find_milestone() from validate_config for consistent
+    leading-zero handling and to avoid redundant API calls. Accepts an optional
+    pre-fetched milestone dict to eliminate duplicate queries in main().
+    """
+    if _ms is None:
+        try:
+            _ms = find_milestone(sprint_num)
+        except RuntimeError:
+            return ["Progress: could not query milestones"], []
+
+    if _ms is None:
         return [f"Progress: no milestone for Sprint {sprint_num}"], []
 
-    opened = ms.get("open_issues", 0)
-    closed = ms.get("closed_issues", 0)
+    opened = _ms.get("open_issues", 0)
+    closed = _ms.get("closed_issues", 0)
     total = opened + closed
     pct = round(closed / total * 100) if total else 0
 
     sp_part = ""
     try:
         issues = gh_json([
-            "issue", "list", "--milestone", ms["title"],
+            "issue", "list", "--milestone", _ms["title"],
             "--state", "all",
             "--json", "state,labels,body", "--limit", "500",
         ])
@@ -382,25 +381,16 @@ def main() -> None:
     except RuntimeError:
         pass
 
-    # Sprint start date from milestone created_at (not filesystem mtime,
-    # which resets every time SPRINT-STATUS.md is rewritten — BH-014)
-    # Fallback to 14 days ago (typical sprint length) instead of just today,
-    # so direct push detection covers a meaningful window (P13-011).
+    # BH18-001/002: Query milestone once via find_milestone() (handles leading
+    # zeros) and reuse for both created_at drift detection and check_milestone.
     since = (now - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00Z")
     since_from_milestone = False
+    cached_ms = None
     try:
-        milestones = gh_json([
-            "api", "repos/{owner}/{repo}/milestones", "--paginate",
-        ])
-        if isinstance(milestones, list):
-            ms = next(
-                (m for m in milestones
-                 if re.match(rf"^Sprint {sprint_num}\b", m.get("title", ""))),
-                None,
-            )
-            if ms and ms.get("created_at"):
-                since = ms["created_at"]
-                since_from_milestone = True
+        cached_ms = find_milestone(sprint_num)
+        if cached_ms and cached_ms.get("created_at"):
+            since = cached_ms["created_at"]
+            since_from_milestone = True
     except RuntimeError:
         pass
     if not since_from_milestone:
@@ -414,7 +404,7 @@ def main() -> None:
         lambda: check_branch_divergence(repo, base_branch, sprint_branches),
         check_prs,
         lambda: check_direct_pushes(repo, base_branch, since),
-        lambda: check_milestone(sprint_num),
+        lambda: check_milestone(sprint_num, _ms=cached_ms),
     ]
     for fn in checks:
         try:

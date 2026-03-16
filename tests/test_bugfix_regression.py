@@ -1368,6 +1368,27 @@ class TestP17ReviewRoundsExcludesCommented(unittest.TestCase):
         self.assertEqual(result["avg_rounds"], 1.0,
                          "COMMENTED reviews must not count as rounds")
 
+    def test_commented_only_reviews_zero_rounds(self):
+        """BH18-006: PR with only COMMENTED reviews should show 0 rounds."""
+        fake = FakeGitHub()
+        fake.handle(["api", "repos/o/r/milestones", "-f", "title=Sprint 1"])
+        fake.handle([
+            "pr", "create", "--title", "feat: thing",
+            "--head", "feat-thing", "--milestone", "Sprint 1",
+        ])
+        # Add only COMMENTED reviews — no APPROVED or CHANGES_REQUESTED
+        pr = fake.prs[0]
+        pr["reviews"] = [
+            {"pr_number": 1, "state": "COMMENTED", "body": "Looks interesting"},
+            {"pr_number": 1, "state": "COMMENTED", "body": "Have you considered..."},
+        ]
+        with patch("subprocess.run", make_patched_subprocess(fake)):
+            result = sprint_analytics.compute_review_rounds("Sprint 1")
+        # COMMENTED-only PRs should NOT count as having review rounds
+        self.assertEqual(result["avg_rounds"], 0.0,
+                         "COMMENTED-only reviews must not count as review rounds")
+        self.assertEqual(result["max_rounds"], 0)
+
 
 class TestP17AddStorySeparator(unittest.TestCase):
     """BH-008: add_story must include --- separator before new story."""

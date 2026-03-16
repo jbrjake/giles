@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, extract_sp, get_sprints_dir,
     find_milestone, extract_story_id, kanban_from_labels,
-    list_milestone_issues, parse_iso_date,
+    list_milestone_issues, parse_iso_date, frontmatter_value,
 )
 
 
@@ -142,15 +142,8 @@ def load_tracking_metadata(
 
 
 def _fm_val(frontmatter: str, key: str) -> str | None:
-    m = re.search(rf"^{key}:\s*(.+)", frontmatter, re.MULTILINE)
-    if not m:
-        return None
-    val = m.group(1).strip()
-    # Strip surrounding quotes and unescape (matches sync_tracking.read_tf behavior)
-    # BH-007/P15: unescape quotes then backslashes (same order as read_tf)
-    if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
-        val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
-    return val
+    # BH18-005: Delegate to shared frontmatter_value in validate_config.
+    return frontmatter_value(frontmatter, key)
 
 
 # §update_burndown.build_rows

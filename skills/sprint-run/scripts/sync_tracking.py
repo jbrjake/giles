@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
     load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
-    kanban_from_labels, find_milestone,
+    kanban_from_labels, find_milestone, frontmatter_value,
     list_milestone_issues, parse_iso_date, KANBAN_STATES, warn_if_at_limit,
 )
 
@@ -160,15 +160,9 @@ def read_tf(path: Path) -> TF:
     raw, tf.body_text = fm.group(1), fm.group(2)
 
     def v(k: str) -> str:
-        m = re.search(rf"^{k}:\s*(.+)", raw, re.MULTILINE)
-        if not m:
-            return ""
-        val = m.group(1).strip()
-        # Strip surrounding quotes added by _yaml_safe
-        # BH-007: unescape quotes first, then backslashes (reverse of _yaml_safe order)
-        if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
-            val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
-        return val
+        # BH18-005: Use shared frontmatter_value to stay in sync with
+        # update_burndown._fm_val (both parse _yaml_safe output).
+        return frontmatter_value(raw, k) or ""
 
     tf.story, tf.title = v("story"), v("title")
     tf.sprint = int(v("sprint") or "0")

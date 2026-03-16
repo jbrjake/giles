@@ -103,14 +103,13 @@ def compute_review_rounds(
     rounds_per_pr: list[tuple[str, int]] = []
     for pr in sprint_prs:
         reviews = pr.get("reviews") or []
-        # Count review rounds: each CHANGES_REQUESTED or APPROVED counts as a round
+        # Count review rounds: each CHANGES_REQUESTED or APPROVED counts as a round.
+        # BH18-006: COMMENTED-only reviews are NOT counted — they represent
+        # discussion, not formal review decisions.
         round_count = sum(
             1 for r in reviews
             if r.get("state") in ("CHANGES_REQUESTED", "APPROVED")
         )
-        # At minimum 1 round if there are any reviews
-        if reviews and round_count == 0:
-            round_count = 1
         title = pr.get("title", "?")
         rounds_per_pr.append((title, round_count))
 

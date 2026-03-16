@@ -400,6 +400,8 @@ _REQUIRED_FILES = [
      "Project conventions and constraints"),
     ("{config_dir}/development.md",
      "Development process guide"),
+    ("{config_dir}/definition-of-done.md",
+     "Definition of Done (baseline + retro-driven additions)"),
 ]
 
 # §validate_config._REQUIRED_TOML_KEYS
@@ -816,6 +818,29 @@ def get_story_map(config: dict) -> Path | None:
 
 
 # ---------------------------------------------------------------------------
+# Frontmatter parsing helper (shared by sync_tracking and update_burndown)
+# ---------------------------------------------------------------------------
+
+# §validate_config.frontmatter_value
+def frontmatter_value(frontmatter: str, key: str) -> str | None:
+    """Extract a value from YAML-ish frontmatter text.
+
+    BH18-005: Shared implementation — sync_tracking.read_tf and
+    update_burndown._fm_val previously had independent copies of this logic.
+    The unescape order (quotes then backslashes) must match _yaml_safe()
+    in sync_tracking.py.
+    """
+    m = re.search(rf"^{key}:\s*(.+)", frontmatter, re.MULTILINE)
+    if not m:
+        return None
+    val = m.group(1).strip()
+    # Strip surrounding double quotes and unescape (reverse of _yaml_safe)
+    if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
+        val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
+    return val
+
+
+# ---------------------------------------------------------------------------
 # Sprint / story / kanban helpers (shared across skills)
 # ---------------------------------------------------------------------------
 
@@ -850,7 +875,6 @@ def extract_story_id(title: str) -> str:
 
 # §validate_config.KANBAN_STATES
 KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
-_KANBAN_STATES = KANBAN_STATES  # Backward compat alias
 
 # BH-016: Ordered progression for picking most advanced state
 _KANBAN_ORDER = ("todo", "design", "dev", "review", "integration", "done")
@@ -869,7 +893,7 @@ def kanban_from_labels(issue: dict) -> str:
         name = label if isinstance(label, str) else label.get("name", "")
         if name.startswith("kanban:"):
             state = name.split(":", 1)[1]
-            if state in _KANBAN_STATES:
+            if state in KANBAN_STATES:
                 idx = _KANBAN_ORDER.index(state)
                 if idx > best:
                     best = idx

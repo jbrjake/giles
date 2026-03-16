@@ -239,6 +239,9 @@ class TestMain(unittest.TestCase):
             f'sprints_dir = "{root / "sprints"}"\n\n'
             '[ci]\ncheck_commands = ["pytest"]\nbuild_command = "echo ok"\n'
         )
+        (config_dir / "definition-of-done.md").write_text(
+            "# Definition of Done\n- Tests pass\n", encoding="utf-8",
+        )
         return config_dir
 
     def test_first_run_debounces(self):

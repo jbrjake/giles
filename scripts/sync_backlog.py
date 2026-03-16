@@ -22,7 +22,7 @@ from pathlib import Path
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts"))
-from validate_config import load_config, get_milestones
+from validate_config import load_config, get_milestones, ConfigError
 
 try:
     import bootstrap_github
@@ -245,6 +245,8 @@ def main() -> str:
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
+    except (ConfigError, RuntimeError, ImportError) as exc:
+        # BH18-015: Catch specific exceptions instead of bare Exception
+        # to avoid swallowing unexpected bugs (KeyboardInterrupt, etc.)
         print(f"sync: error — {exc}", file=sys.stderr)
         sys.exit(1)
