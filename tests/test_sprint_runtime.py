@@ -531,6 +531,25 @@ class TestFindMilestoneBoundary(unittest.TestCase):
         result = validate_config.find_milestone(1)
         self.assertIsNone(result)
 
+    @patch("validate_config.gh_json")
+    def test_leading_zero_sprint_07_matches_find_7(self, mock_gh):
+        """BH-001: 'Sprint 07:' must be found by find_milestone(7)."""
+        mock_gh.return_value = [
+            {"title": "Sprint 07: Walking Skeleton", "number": 1},
+        ]
+        result = validate_config.find_milestone(7)
+        self.assertIsNotNone(result, "find_milestone(7) must match 'Sprint 07:'")
+        self.assertEqual(result["title"], "Sprint 07: Walking Skeleton")
+
+    @patch("validate_config.gh_json")
+    def test_sprint_7_still_matches_without_leading_zero(self, mock_gh):
+        """BH-001: 'Sprint 7:' must still be found by find_milestone(7)."""
+        mock_gh.return_value = [
+            {"title": "Sprint 7: Walking Skeleton", "number": 1},
+        ]
+        result = validate_config.find_milestone(7)
+        self.assertIsNotNone(result)
+
 
 class TestGetLinkedPR(unittest.TestCase):
     """P1-02: Test get_linked_pr matches correct story ID."""

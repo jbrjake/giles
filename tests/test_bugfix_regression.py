@@ -1212,5 +1212,183 @@ class TestBH017ProjectTomlPreserved(unittest.TestCase):
                           "project.toml should preserve user edits on re-run")
 
 
+# ---------------------------------------------------------------------------
+# P17 Mutation killers — tests that prevent surviving mutations
+# ---------------------------------------------------------------------------
+
+
+class TestP17SyncTrackingWritePersistence(unittest.TestCase):
+    """BH-002: sync_one changes MUST be written to disk, not just in memory."""
+
+    def test_sync_writes_status_change_to_disk(self):
+        """After syncing a closed issue, the tracking file on disk must reflect 'done'."""
+        with tempfile.TemporaryDirectory() as td:
+            stories_dir = Path(td) / "sprint-1"
+            stories_dir.mkdir()
+            # Create a tracking file with status: dev
+            tf_path = stories_dir / "us-0001-setup.md"
+            tf_path.write_text(
+                "---\nstory: US-0001\ntitle: Setup\nstatus: dev\n"
+                "sprint: 1\nissue_number: 1\n---\nBody text.\n"
+            )
+            # Simulate a closed issue
+            issue = {
+                "number": 1, "title": "US-0001: Setup", "state": "closed",
+                "labels": [{"name": "kanban:done"}],
+                "closedAt": "2026-03-15T12:00:00Z", "body": "",
+            }
+            tf = sync_tracking.read_tf(tf_path)
+            changes = sync_tracking.sync_one(tf, issue, pr=None, sprint=1)
+            if changes:
+                sync_tracking.write_tf(tf)
+            # Read back from DISK — the whole point of this test
+            disk_content = tf_path.read_text()
+            self.assertIn("status: done", disk_content,
+                          "Status change must be persisted to disk")
+
+
+class TestP17YamlSafeRoundtrip(unittest.TestCase):
+    """BH-003: _yaml_safe must be exercised by adversarial titles."""
+
+    def test_title_with_colon_roundtrips(self):
+        """A title containing ': ' must survive write→read via TF."""
+        with tempfile.TemporaryDirectory() as td:
+            tf_path = Path(td) / "test.md"
+            title = "US-0001: Fix the thing: edge case"
+            tf = sync_tracking.TF(path=tf_path, story="US-0001",
+                                  title=title, status="todo", sprint=1)
+            sync_tracking.write_tf(tf)
+            recovered = sync_tracking.read_tf(tf_path)
+            self.assertEqual(recovered.title, title,
+                             "Title with colons must roundtrip through write/read")
+
+    def test_title_with_hash_roundtrips(self):
+        """A title containing '#' must survive write→read via TF."""
+        with tempfile.TemporaryDirectory() as td:
+            tf_path = Path(td) / "test.md"
+            title = "Fix #42 bug in parser"
+            tf = sync_tracking.TF(path=tf_path, story="US-0042",
+                                  title=title, status="dev", sprint=1)
+            sync_tracking.write_tf(tf)
+            recovered = sync_tracking.read_tf(tf_path)
+            self.assertEqual(recovered.title, title)
+
+
+class TestP17BurndownTableHeader(unittest.TestCase):
+    """BH-004: Burndown output must contain the table header row."""
+
+    def test_burndown_contains_table_header(self):
+        """write_burndown output must include column headers."""
+        rows = [
+            {"story_id": "US-0001", "short_title": "Setup", "sp": 3,
+             "status": "done", "closed": "2026-03-15", "assignee": "—",
+             "pr": "—"},
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td)
+            now = datetime(2026, 3, 16, tzinfo=timezone.utc)
+            update_burndown.write_burndown(1, rows, now, sprints_dir)
+            content = (sprints_dir / "sprint-1" / "burndown.md").read_text()
+            self.assertIn("| Story ", content,
+                          "Burndown must contain table header row")
+            self.assertIn("| SP ", content)
+
+
+class TestP17FormatIssueBodySP(unittest.TestCase):
+    """BH-005: format_issue_body must include story points."""
+
+    def test_sp_present_in_body(self):
+        """Issue body must contain the SP value."""
+        import populate_issues
+        story = populate_issues.Story(
+            story_id="US-0001", title="Test story", saga="S01",
+            sprint=1, sp=5, priority="P0",
+        )
+        body = populate_issues.format_issue_body(story)
+        self.assertIn("5 SP", body,
+                      "Issue body must contain story points")
+
+
+class TestP17CIPythonVersion(unittest.TestCase):
+    """BH-006: Generated CI must use Python 3.x, not 2.7."""
+
+    def test_python_ci_uses_python3(self):
+        """Python project CI must specify a Python 3.x version."""
+        from setup_ci import generate_ci_yaml
+        config = {
+            "project": {"language": "python", "name": "test"},
+            "ci": {"check_commands": ["pytest"], "build_command": ""},
+        }
+        yaml = generate_ci_yaml(config)
+        self.assertIn("python-version", yaml)
+        self.assertNotIn("2.7", yaml, "CI must not use Python 2.7")
+        # Must reference Python 3.x
+        self.assertRegex(yaml, r'python-version.*3\.',
+                         "CI must use Python 3.x")
+
+
+class TestP17DetectSprintSpecificity(unittest.TestCase):
+    """BH-012: detect_sprint must match 'Current Sprint:' not just 'Sprint:'."""
+
+    def test_current_sprint_not_confused_with_narrative(self):
+        """Status file with 'Sprint 2 recap' and 'Current Sprint: 3' returns 3."""
+        with tempfile.TemporaryDirectory() as td:
+            status = Path(td) / "SPRINT-STATUS.md"
+            status.write_text(
+                "# Sprint 2 Recap\n\nGood sprint.\n\nCurrent Sprint: 3\n"
+            )
+            result = validate_config.detect_sprint(Path(td))
+            self.assertEqual(result, 3,
+                             "Must return Current Sprint value, not narrative Sprint mention")
+
+
+class TestP17ReviewRoundsExcludesCommented(unittest.TestCase):
+    """BH-007: compute_review_rounds must not count COMMENTED reviews."""
+
+    def test_commented_review_not_counted(self):
+        """COMMENTED reviews should not count as review rounds."""
+        fake = FakeGitHub()
+        # Create milestone and PR
+        fake.handle(["api", "repos/o/r/milestones", "-f", "title=Sprint 1"])
+        fake.handle([
+            "pr", "create", "--title", "feat: thing",
+            "--head", "feat-thing", "--milestone", "Sprint 1",
+        ])
+        # Add reviews: 1 APPROVED, 1 COMMENTED (should not count)
+        fake.handle(["pr", "review", "1", "--approve", "--body", "LGTM"])
+        # Manually add a COMMENTED review (FakeGitHub doesn't have a flag for this)
+        pr = fake.prs[0]
+        pr.setdefault("reviews", []).append({
+            "pr_number": 1, "state": "COMMENTED", "body": "Just a note",
+        })
+        # compute_review_rounds filters: only APPROVED + CHANGES_REQUESTED
+        # With the mutation (count all), rounds = 2. Correct: rounds = 1.
+        with patch("subprocess.run", make_patched_subprocess(fake)):
+            result = sprint_analytics.compute_review_rounds("Sprint 1")
+        self.assertEqual(result["avg_rounds"], 1.0,
+                         "COMMENTED reviews must not count as rounds")
+
+
+class TestP17AddStorySeparator(unittest.TestCase):
+    """BH-008: add_story must include --- separator before new story."""
+
+    def test_separator_before_new_story(self):
+        """New story must be preceded by a --- separator."""
+        with tempfile.TemporaryDirectory() as td:
+            epic_path = os.path.join(td, "epic.md")
+            Path(epic_path).write_text(
+                "# Epic: Test\n\n| Field | Value |\n|---|---|\n| Sprints | 1 |\n\n"
+                "---\n\n### US-0001: First\n\nBody.\n"
+            )
+            story_data = {
+                "id": "US-0002", "title": "Second story",
+                "sp": 3, "priority": "P1",
+            }
+            manage_epics.add_story(epic_path, story_data)
+            content = Path(epic_path).read_text()
+            self.assertIn("---\n\n### US-0002:", content,
+                          "New story must be preceded by --- separator")
+
+
 if __name__ == "__main__":
     unittest.main()

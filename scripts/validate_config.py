@@ -889,7 +889,9 @@ def find_milestone(sprint_num: int) -> dict | None:
         return None
     for ms in milestones:
         title = ms.get("title", "")
-        if re.match(rf"^Sprint {num}\b", title):
+        # BH-001: Match sprint numbers with optional leading zeros
+        # (e.g., "Sprint 07:" matches find_milestone(7))
+        if re.match(rf"^Sprint 0*{num}\b", title):
             return ms
     return None
 
