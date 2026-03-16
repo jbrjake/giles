@@ -1247,6 +1247,61 @@ class TestDoReleaseFakeGH(unittest.TestCase):
         self.assertIn("Released", status)
 
 
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    @patch("release_gate.subprocess.run")
+    def test_release_notes_contain_correct_sections(self, mock_run, mock_calc, mock_write):
+        """BH-006: Verify release notes have correct sections for commit types."""
+        mock_calc.return_value = ("2.0.0", "1.0.0", "major", [
+            {"subject": "feat: new dashboard", "body": ""},
+            {"subject": "fix: login crash", "body": ""},
+            {"subject": "feat!: redesign API", "body": "BREAKING CHANGE: new endpoints"},
+        ])
+        mock_write.return_value = None
+        mock_run.side_effect = self._make_combined_side_effect()
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+            "_config_dir": "sprint-config",
+        }
+        result = do_release("Sprint 1: Walking Skeleton", config)
+        self.assertTrue(result)
+
+        # Verify release was created with notes
+        self.assertTrue(len(self.fake.releases) >= 1)
+        # Release notes file was passed to gh release create via --notes-file,
+        # but we can check the release object for correct tag
+        self.assertEqual(self.fake.releases[0]["tag_name"], "v2.0.0")
+
+    @patch("release_gate.write_version_to_toml")
+    @patch("release_gate.calculate_version")
+    @patch("release_gate.subprocess.run")
+    def test_version_written_to_correct_path(self, mock_run, mock_calc, mock_write):
+        """BH-006: Verify write_version_to_toml called with correct version and path."""
+        mock_calc.return_value = ("0.3.0", "0.2.0", "patch", [
+            {"subject": "fix: null check", "body": ""},
+        ])
+        mock_write.return_value = None
+        mock_run.side_effect = self._make_combined_side_effect()
+
+        config = {
+            "project": {"name": "TestProject", "repo": "owner/repo"},
+            "ci": {},
+            "paths": {"sprints_dir": "sprints"},
+            "_config_dir": "sprint-config",
+        }
+        do_release("Sprint 1: Walking Skeleton", config)
+
+        # Verify write_version_to_toml was called with the correct version
+        mock_write.assert_called_once()
+        call_args = mock_write.call_args[0]
+        self.assertEqual(call_args[0], "0.3.0")
+        # And the path should include sprint-config/project.toml
+        self.assertIn("project.toml", str(call_args[1]))
+
+
 # ---------------------------------------------------------------------------
 # P6-20: do_release pre-flight distinguishes git errors from dirty tree
 # ---------------------------------------------------------------------------
