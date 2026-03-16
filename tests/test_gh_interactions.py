@@ -352,8 +352,10 @@ class TestGatePRs(unittest.TestCase):
     @patch("release_gate.gh_json")
     def test_no_prs(self, mock_gh):
         mock_gh.return_value = []
-        ok, _ = gate_prs("Sprint 1")
+        ok, detail = gate_prs("Sprint 1")
         self.assertTrue(ok)
+        # BH-015: Detail must be meaningful
+        self.assertTrue(len(detail) > 0, "Detail must not be empty")
 
     @patch("release_gate.gh_json")
     def test_open_pr_for_milestone(self, mock_gh):
@@ -363,6 +365,7 @@ class TestGatePRs(unittest.TestCase):
         ]
         ok, detail = gate_prs("Sprint 1")
         self.assertFalse(ok)
+        self.assertIn("open", detail.lower())
 
     @patch("release_gate.gh_json")
     def test_pr_for_different_milestone(self, mock_gh):
@@ -370,8 +373,9 @@ class TestGatePRs(unittest.TestCase):
             {"number": 10, "title": "feat: thing",
              "milestone": {"title": "Sprint 2"}},
         ]
-        ok, _ = gate_prs("Sprint 1")
+        ok, detail = gate_prs("Sprint 1")
         self.assertTrue(ok)
+        self.assertTrue(len(detail) > 0, "Detail must not be empty")
 
     @patch("release_gate.gh_json")
     @patch("release_gate.warn_if_at_limit")

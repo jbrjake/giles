@@ -774,11 +774,13 @@ def extract_sp(issue: dict) -> int:
     """Extract story points from an issue's labels or body text.
 
     Checks (in order):
-      1. Labels matching sp:N
+      1. Labels matching sp:N (manual use — bootstrap does not create sp: labels)
       2. Body text with "story points: N" or "sp = N" (case-insensitive)
       3. Body table format | SP | N | or | Story Points | N |
       4. Body table format | N SP | (analytics-style)
     Returns 0 if no story points found.
+    Note: In the automated flow, SP comes from the issue body (populated by
+    format_issue_body). The label path exists for manual sp:N label use.
     """
     for label in issue.get("labels", []):
         if isinstance(label, str):

@@ -102,6 +102,9 @@ class TestHexwiseSetup(unittest.TestCase):
     def test_scanner_finds_rules_and_dev(self):
         self.assertIsNotNone(self.scan.rules_file.value)
         self.assertIsNotNone(self.scan.dev_guide.value)
+        # BH-013: Verify actual path content, not just existence
+        self.assertIn("RULES", self.scan.rules_file.value.upper())
+        self.assertIn("DEVELOPMENT", self.scan.dev_guide.value.upper())
 
     # ------------------------------------------------------------------
     # ConfigGenerator / validate tests
@@ -165,6 +168,10 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertIsNotNone(result.sagas_dir)
         self.assertIsNotNone(result.epics_dir)
         self.assertIsNotNone(result.story_map)
+        # BH-013: Verify paths point to correct directories, not just exist
+        self.assertIn("prd", result.prd_dir.value.lower())
+        self.assertIn("sagas", result.sagas_dir.value.lower())
+        self.assertIn("epics", result.epics_dir.value.lower())
 
     def test_config_generator_includes_optional_paths(self):
         """Generated project.toml includes optional paths when deep docs detected."""

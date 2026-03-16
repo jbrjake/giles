@@ -393,6 +393,8 @@ class FakeGitHub:
                 "state": "open",
                 "open_issues": 0,
                 "closed_issues": 0,
+                # BH-011: Include created_at for check_status milestone-date path
+                "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
             self._next_ms += 1
             self.milestones.append(ms)
