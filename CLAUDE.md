@@ -126,6 +126,7 @@ Template: `references/skeletons/project.toml.tmpl`
 - **Scripts import chain**: All skill scripts do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up.
 - **GitHub as source of truth**: `sync_tracking.py` treats GitHub issue/PR state as authoritative and updates local tracking files to match.
 - **Idempotent scripts**: All bootstrap and monitoring scripts skip resources that already exist.
+- **Cross-skill dependency**: `scripts/sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/` for backlog auto-sync. This is an intentional coupling — sync_backlog reuses the idempotent creation functions rather than duplicating them.
 
 ## Common Tasks
 

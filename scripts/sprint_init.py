@@ -198,8 +198,8 @@ class ProjectScanner:
 
         Uses an indentation heuristic to detect multiline ``run: |`` blocks:
         any subsequent line starting with 2+ spaces is treated as continuation.
-        Known limitation: ``run: >`` and ``run: >-`` (YAML folded style) are
-        NOT detected — only literal block style (``|``) is supported.
+        Handles both literal (``|``) and folded (``>``, ``>-``) block styles
+        by collecting subsequent indented lines.
         """
         runs: list[str] = []
         try:
@@ -214,7 +214,11 @@ class ProjectScanner:
                     run_line = run_line[2:].strip()
                 if run_line.startswith("run:"):
                     cmd = run_line[4:].strip()
-                    if cmd == "|" or cmd == "":
+                    if cmd in (">", ">-"):
+                        # Folded YAML style — not fully supported, but collect
+                        # the block the same way as literal style (P13-021).
+                        pass  # fall through to multiline collection below
+                    if cmd in ("|", "", ">", ">-"):
                         # Multiline run block: collect subsequent indented lines
                         multiline_cmds: list[str] = []
                         i += 1
