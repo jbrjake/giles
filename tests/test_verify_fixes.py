@@ -8,10 +8,13 @@ Run: python -m unittest tests.test_verify_fixes -v
 """
 
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Ensure scripts/ is on the path
 ROOT = Path(__file__).resolve().parent.parent
@@ -1117,6 +1120,112 @@ class TestSetupCiMain(unittest.TestCase):
         finally:
             os.chdir(orig)
             import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-005: Happy-path main() tests — exercise real work, not just argparse
+# ---------------------------------------------------------------------------
+
+
+class _HappyPathBase(unittest.TestCase):
+    """BH-005: Shared setup for happy-path main() tests."""
+
+    def _make_project_with_config(self) -> tuple[str, Path]:
+        """Create a mock project with valid sprint-config/."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-hp-")
+        root = Path(tmpdir)
+        mock = MockProject(root, real_git=True)
+        mock.create()
+        # Generate sprint-config via ConfigGenerator
+        scanner = ProjectScanner(root)
+        scan = scanner.scan()
+        gen = ConfigGenerator(scan)
+        gen.generate()
+        return tmpdir, root
+
+
+class TestSetupCiMainHappyPath(_HappyPathBase):
+    """BH-005: setup_ci.main() generates a CI workflow with valid config."""
+
+    def test_generates_ci_yaml(self):
+        tmpdir, root = self._make_project_with_config()
+        orig = os.getcwd()
+        try:
+            os.chdir(root)
+            with patch("sys.argv", ["setup_ci"]):
+                from setup_ci import main as sc_main
+                sc_main()
+            ci_path = root / ".github" / "workflows" / "ci.yml"
+            self.assertTrue(ci_path.exists(), "CI workflow file not created")
+            content = ci_path.read_text()
+            self.assertIn("cargo test", content)
+            self.assertIn("permissions:", content)
+        finally:
+            os.chdir(orig)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestSprintInitMainHappyPath(unittest.TestCase):
+    """BH-005: sprint_init.main() generates valid sprint-config."""
+
+    def test_generates_valid_config(self):
+        tmpdir = tempfile.mkdtemp(prefix="giles-init-hp-")
+        orig = os.getcwd()
+        try:
+            mock = MockProject(Path(tmpdir), real_git=True)
+            mock.create()
+            with patch("sys.argv", ["sprint_init", tmpdir]):
+                from sprint_init import main as si_main
+                si_main()
+            config_dir = Path(tmpdir) / "sprint-config"
+            self.assertTrue(config_dir.is_dir(), "sprint-config/ not created")
+            toml_path = config_dir / "project.toml"
+            self.assertTrue(toml_path.exists(), "project.toml not created")
+            content = toml_path.read_text()
+            self.assertIn("[project]", content)
+            self.assertIn("language", content)
+        finally:
+            os.chdir(orig)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestTeamVoicesMainHappyPath(_HappyPathBase):
+    """BH-005: team_voices.main() runs with valid config."""
+
+    def test_runs_with_no_voices(self):
+        """With no sagas/epics dirs, main() runs without error."""
+        tmpdir, root = self._make_project_with_config()
+        orig = os.getcwd()
+        try:
+            os.chdir(root)
+            with patch("sys.argv", ["team_voices"]):
+                from team_voices import main as tv_main
+                tv_main()
+        finally:
+            os.chdir(orig)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestTraceabilityMainHappyPath(_HappyPathBase):
+    """BH-005: traceability.main() runs and produces report."""
+
+    def test_runs_produces_report(self):
+        tmpdir, root = self._make_project_with_config()
+        orig = os.getcwd()
+        try:
+            os.chdir(root)
+            with patch("sys.argv", ["traceability"]):
+                import io
+                from contextlib import redirect_stdout
+                buf = io.StringIO()
+                from traceability import main as tr_main
+                with redirect_stdout(buf):
+                    tr_main()
+                output = buf.getvalue()
+                self.assertIn("Traceability Report", output)
+        finally:
+            os.chdir(orig)
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
