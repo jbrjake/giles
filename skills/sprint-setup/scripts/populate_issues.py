@@ -58,21 +58,56 @@ _SPRINT_HEADER_RE = re.compile(
 )
 
 
+# §populate_issues._safe_compile_pattern
+def _safe_compile_pattern(pattern: str) -> bool:
+    """Validate a user-supplied regex pattern is safe to compile and use.
+
+    BH18-004: Rejects patterns with capturing groups (group-number shifts)
+    and patterns that exhibit catastrophic backtracking (ReDoS). The
+    backtracking check compiles the pattern and tests it against a
+    moderate-length non-matching string — if it takes more than 0.5s,
+    the pattern is rejected.
+    """
+    # Reject unescaped capturing groups
+    if re.search(r'(?<!\\)\((?!\?)', pattern):
+        print("Warning: story_id_pattern contains capturing groups, "
+              "using default pattern", file=sys.stderr)
+        return False
+    try:
+        compiled = re.compile(pattern)
+    except re.error as exc:
+        print(f"Warning: invalid story_id_pattern '{pattern}': {exc}, "
+              f"using default", file=sys.stderr)
+        return False
+    # BH18-004 ReDoS safety: test the pattern against a short non-matching
+    # string. 25 chars is enough to detect catastrophic backtracking
+    # (2^25 ≈ 33M steps) while completing in under 1s for safe patterns.
+    import time
+    test_input = "a" * 25
+    start = time.monotonic()
+    compiled.search(test_input)
+    elapsed = time.monotonic() - start
+    if elapsed > 0.5:
+        print(f"Warning: story_id_pattern '{pattern}' is too slow "
+              f"({elapsed:.1f}s on 25-char input), using default pattern. "
+              f"Avoid nested quantifiers like (?:a+)+.",
+              file=sys.stderr)
+        return False
+    return True
+
+
 # §populate_issues._build_row_regex
 def _build_row_regex(config: dict) -> re.Pattern:
     """Build a row regex from config, or use the default.
 
     Config can specify [backlog] story_id_pattern for the ID column
     (e.g. "PROJ-\\d{4}"). Invalid patterns fall back to the default.
-    Patterns with capturing groups are rejected to prevent group-number shifts.
+    BH18-004: Patterns are validated for safety (capturing groups, ReDoS).
     """
     backlog = config.get("backlog", {})
     pattern = backlog.get("story_id_pattern", "")
     if pattern:
-        # Reject patterns with unescaped capturing groups
-        if re.search(r'(?<!\\)\((?!\?)', pattern):
-            print("Warning: story_id_pattern contains capturing groups, "
-                  "using default pattern", file=sys.stderr)
+        if not _safe_compile_pattern(pattern):
             return _DEFAULT_ROW_RE
         try:
             return re.compile(
@@ -162,9 +197,12 @@ _META_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$", re.MULTILINE)
 
 
 def _build_detail_block_re(config: dict) -> re.Pattern:
-    """Build detail block regex, respecting custom story_id_pattern (BH-005)."""
+    """Build detail block regex, respecting custom story_id_pattern (BH-005).
+
+    BH18-004: Uses _safe_compile_pattern for ReDoS protection.
+    """
     pattern = config.get("backlog", {}).get("story_id_pattern", "")
-    if pattern and not re.search(r'(?<!\\)\((?!\?)', pattern):
+    if pattern and _safe_compile_pattern(pattern):
         try:
             return re.compile(rf"^###\s+({pattern}):\s+(.+)$", re.MULTILINE)
         except re.error:

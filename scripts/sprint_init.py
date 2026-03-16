@@ -547,10 +547,23 @@ class ConfigGenerator:
         self.created.append(f"  generated  {rel_path}")
 
     def _symlink(self, link_rel: str, target_rel: str) -> None:
-        """Create a relative symlink from sprint-config/link_rel -> target."""
+        """Create a relative symlink from sprint-config/link_rel -> target.
+
+        BH18-014: Validates the resolved target is within the project root
+        to prevent path traversal (e.g., ../../etc/passwd).
+        """
         link_path = self.config_dir / link_rel
         self._ensure_dir(link_path.parent)
-        target_abs = self.root / target_rel
+        target_abs = (self.root / target_rel).resolve()
+        # BH18-014: Defense-in-depth — reject targets outside project root
+        try:
+            target_abs.relative_to(self.root.resolve())
+        except ValueError:
+            self.skipped.append(
+                f"  REJECTED  {link_rel} -> {target_rel} "
+                f"(target is outside project root)"
+            )
+            return
         if not target_abs.exists():
             self.skipped.append(f"  target missing: {target_rel}")
             return

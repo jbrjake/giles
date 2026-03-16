@@ -1542,6 +1542,30 @@ class TestBH025BuildRowRegexSafety(unittest.TestCase):
         self.assertIsNotNone(result.search(test_row),
                              "Compiled regex should match a valid row")
 
+    def test_redos_pattern_falls_back(self):
+        """BH18-004: A ReDoS-prone pattern must fall back to default."""
+        # This pattern has catastrophic backtracking: (a+)+ causes
+        # exponential time on non-matching input like "aaa...b"
+        config = {"backlog": {"story_id_pattern": "(?:a+)+b"}}
+        result = populate_issues._build_row_regex(config)
+        self.assertIs(result, populate_issues._DEFAULT_ROW_RE,
+                      "ReDoS-prone pattern should fall back to default")
+
+    def test_safe_compile_rejects_nested_quantifiers(self):
+        """BH18-004: _safe_compile_pattern catches exponential backtracking."""
+        # This should either be caught as slow or fall through safely
+        self.assertFalse(
+            populate_issues._safe_compile_pattern("(?:a+)+b"),
+            "Nested quantifier pattern should be rejected",
+        )
+
+    def test_safe_compile_accepts_safe_pattern(self):
+        """BH18-004: _safe_compile_pattern accepts normal patterns."""
+        self.assertTrue(
+            populate_issues._safe_compile_pattern("PROJ-\\d{4}"),
+            "Simple pattern should be accepted",
+        )
+
 
 # ---------------------------------------------------------------------------
 # BH-010: populate_issues.main() — no milestones exits 1

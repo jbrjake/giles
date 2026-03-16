@@ -1294,7 +1294,7 @@ class TestValidateProjectNegative(unittest.TestCase):
         self.assertTrue(any("missing required" in e.lower() for e in errors))
 
     def test_too_few_personas(self):
-        """Fewer than 2 personas triggers validation error."""
+        """Fewer than 2 non-Giles personas triggers validation error."""
         self._write_minimal_config()
         (self.config_dir / "team" / "INDEX.md").write_text(
             "| Name | Role | File |\n|---|---|---|\n| Solo | Dev | solo.md |\n",
@@ -1303,7 +1303,22 @@ class TestValidateProjectNegative(unittest.TestCase):
         (self.config_dir / "team" / "solo.md").write_text("# Solo\n", encoding="utf-8")
         valid, errors = validate_project(str(self.config_dir))
         self.assertFalse(valid)
-        self.assertTrue(any("at least 2 personas" in e for e in errors))
+        self.assertTrue(any("at least 2 non-Giles personas" in e for e in errors))
+
+    def test_one_persona_plus_giles_still_fails(self):
+        """BH18-008: 1 dev + Giles (2 rows total) should fail validation."""
+        self._write_minimal_config()
+        (self.config_dir / "team" / "INDEX.md").write_text(
+            "| Name | Role | File |\n|---|---|---|\n"
+            "| Solo | Dev | solo.md |\n"
+            "| Giles | Scrum Master | giles.md |\n",
+            encoding="utf-8",
+        )
+        (self.config_dir / "team" / "solo.md").write_text("# Solo\n", encoding="utf-8")
+        (self.config_dir / "team" / "giles.md").write_text("# Giles\n", encoding="utf-8")
+        valid, errors = validate_project(str(self.config_dir))
+        self.assertFalse(valid, "1 dev + Giles should fail: need 2+ non-Giles")
+        self.assertTrue(any("non-Giles" in e for e in errors))
 
     def test_missing_persona_file(self):
         """Referenced persona file not on disk triggers error."""

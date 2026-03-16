@@ -20,16 +20,15 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
-TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
 
-
-from validate_config import safe_int as _safe_int
+# BH18-012: TABLE_ROW imported from validate_config (single source of truth)
+from validate_config import safe_int as _safe_int, TABLE_ROW, parse_header_table
 
 
 # §manage_epics._parse_epic_from_lines
 def _parse_epic_from_lines(lines: list[str]) -> dict:
     """Parse pre-read lines into structured epic data (no file I/O)."""
-    metadata = _parse_header_table(lines)
+    metadata = parse_header_table(lines, stop_heading="###")
     stories, raw_sections = _parse_stories(lines)
 
     # Extract title: strip leading "# " prefix (not individual chars)
@@ -65,25 +64,6 @@ def parse_epic(path: str) -> dict:
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     return _parse_epic_from_lines(lines)
 
-
-# §manage_epics._parse_header_table
-def _parse_header_table(lines: list[str]) -> dict[str, str]:
-    """Parse the epic-level metadata table at the top of the file."""
-    metadata: dict[str, str] = {}
-    in_table = False
-    for line in lines:
-        if line.startswith("###"):
-            break  # Hit first story
-        row = TABLE_ROW.match(line)
-        if row:
-            field = row.group(1).strip()
-            value = row.group(2).strip()
-            if field not in ("Field", "---", "") and field.strip("-") != "":
-                metadata[field] = value
-                in_table = True
-        elif in_table and line.strip() == "":
-            break
-    return metadata
 
 
 # §manage_epics._parse_stories

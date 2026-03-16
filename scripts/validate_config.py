@@ -485,16 +485,22 @@ def validate_project(
                 )
 
     # ------------------------------------------------------------------
-    # 3. team/INDEX.md has at least 2 personas
+    # 3. team/INDEX.md has at least 2 non-Giles personas
     # ------------------------------------------------------------------
+    # BH18-008: Sprint-run requires at least 2 personas for implementer/
+    # reviewer assignment. Giles (scrum master) doesn't count — he
+    # facilitates but doesn't implement or review code.
     team_index = config_path / "team" / "INDEX.md"
     persona_rows: list[dict[str, str]] = []
     if team_index.is_file():
         persona_rows = _parse_team_index(team_index)
-        if len(persona_rows) < 2:
+        non_giles = [r for r in persona_rows
+                     if r.get("name", "").lower() != "giles"]
+        if len(non_giles) < 2:
             errors.append(
-                f"team/INDEX.md must list at least 2 personas "
-                f"(found {len(persona_rows)})"
+                f"team/INDEX.md must list at least 2 non-Giles personas "
+                f"for implementer/reviewer assignment "
+                f"(found {len(non_giles)})"
             )
 
     # ------------------------------------------------------------------
@@ -815,6 +821,39 @@ def get_story_map(config: dict) -> Path | None:
         return None
     p = Path(val)
     return p if p.is_file() else None
+
+
+# ---------------------------------------------------------------------------
+# Shared markdown table helpers (BH18-012/013)
+# ---------------------------------------------------------------------------
+
+# §validate_config.TABLE_ROW
+TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
+
+
+# §validate_config.parse_header_table
+def parse_header_table(lines: list[str], stop_heading: str = "###") -> dict[str, str]:
+    """Parse a markdown metadata table at the top of a structured file.
+
+    BH18-013: Shared implementation — manage_epics and manage_sagas
+    previously had independent copies. The stop_heading parameter
+    controls where to stop scanning (### for epics, ## for sagas).
+    """
+    metadata: dict[str, str] = {}
+    in_table = False
+    for line in lines:
+        if line.startswith(stop_heading):
+            break
+        row = TABLE_ROW.match(line)
+        if row:
+            field = row.group(1).strip()
+            value = row.group(2).strip()
+            if field not in ("Field", "---", "") and field.strip("-") != "":
+                metadata[field] = value
+                in_table = True
+        elif in_table and line.strip() == "":
+            break
+    return metadata
 
 
 # ---------------------------------------------------------------------------

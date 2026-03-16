@@ -16,12 +16,12 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-from validate_config import load_config, ConfigError
+from validate_config import load_config, ConfigError, TABLE_ROW
 
 # Patterns
 # §traceability.STORY_HEADING
 STORY_HEADING = re.compile(r'^###\s+(US-\d+):\s*(.+)')
-TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')
+# BH18-012: TABLE_ROW imported from validate_config
 # §traceability.TEST_CASE_HEADING
 TEST_CASE_HEADING = re.compile(r'^###\s+((?:TC|GP)-[\w-]+):\s*(.+)')
 # §traceability.REQ_TABLE_ROW

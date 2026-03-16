@@ -8,8 +8,8 @@
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
 | CRITICAL | 0    | 2        | 0        |
-| HIGH     | 2    | 2        | 0        |
-| MEDIUM   | 7    | 1        | 0        |
+| HIGH     | 0    | 4        | 0        |
+| MEDIUM   | 1    | 7        | 0        |
 | LOW      | 2    | 2        | 0        |
 
 ## Patterns
@@ -102,7 +102,7 @@ python -m pytest tests/ -k "check_status or check_milestone" -v 2>&1 | tail -10
 **Severity:** HIGH
 **Category:** `security/injection`
 **Location:** `skills/sprint-release/scripts/release_gate.py:209` (gate_tests), `skills/sprint-release/scripts/release_gate.py:229` (gate_build)
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — documented trust model in gate_tests docstring
 **Pattern:** PAT-003
 
 **Problem:** `gate_tests()` passes `config["ci"]["check_commands"]` to `subprocess.run(cmd, shell=True)`. These strings come from project.toml via the custom TOML parser. A malicious PR that modifies project.toml can execute arbitrary shell commands on any developer who runs `sprint-release`. The code has a justification comment, but no guardrails (no confirmation prompt, no allowlist, no sandboxing).
@@ -127,7 +127,7 @@ grep -n 'shell=True' skills/sprint-release/scripts/release_gate.py
 **Severity:** HIGH
 **Category:** `security/redos`
 **Location:** `skills/sprint-setup/scripts/populate_issues.py:78` (_build_row_regex)
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — added _safe_compile_pattern with 0.5s backtracking check
 **Pattern:** PAT-003
 
 **Problem:** `_build_row_regex()` compiles `config["backlog"]["story_id_pattern"]` into a regex. It rejects capturing groups but does NOT check for catastrophic backtracking patterns (e.g., `(?:a+)+b`). A malicious story_id_pattern in project.toml could cause exponential backtracking when applied to milestone files, hanging CI or developer machines.
@@ -239,7 +239,7 @@ assert dod, 'FAIL: definition-of-done.md should be required'
 **Severity:** MEDIUM
 **Category:** `bug/logic`
 **Location:** `scripts/validate_config.py:492-496` (validate_project persona check)
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — checks non_giles count, added test for 1-dev+Giles case
 **Pattern:** —
 
 **Problem:** validate_project checks `len(persona_rows) < 2` but sprint_init always injects Giles (scrum master). A project with only 1 human persona + Giles has 2 rows and passes validation. But sprint-run requires at least 2 different personas for implementer/reviewer assignment. With only 1 non-Giles persona, the same person would implement and review their own code.
@@ -261,7 +261,7 @@ python -m pytest tests/ -k "validate_project or persona" -v 2>&1 | tail -10
 **Severity:** MEDIUM
 **Category:** `design/performance`
 **Location:** `skills/sprint-monitor/scripts/check_status.py:174,392,417`
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED (via BH18-002) — reduced to 1 call via find_milestone()
 **Pattern:** PAT-001
 
 **Problem:** In a single monitoring cycle, check_status.main() makes 3 separate milestones API calls: (1) in check_milestone:174 to find the milestone, (2) in main:392 to get created_at for drift detection, (3) implicitly via check_milestone's issue query. With rate-limited GitHub APIs and the monitor running every 5 minutes, this wastes 2 API calls per cycle.
@@ -303,7 +303,7 @@ python -m pytest tests/ -k "linked_pr" -v 2>&1 | tail -10
 **Severity:** MEDIUM
 **Category:** `test/missing`
 **Location:** `tests/test_sprint_runtime.py:1647-1664` (TestCheckMilestone)
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED (via BH18-001) — 2 tests added for leading-zero milestones
 **Pattern:** PAT-001
 
 **Problem:** All TestCheckMilestone tests use "Sprint 1" (no leading zero). No test verifies check_milestone(7) finds "Sprint 07: Walking Skeleton". This is why BH18-001 survived 17 audit passes — the bug is never exercised.
@@ -324,7 +324,7 @@ python -m pytest tests/ -k "leading_zero and check_milestone" -v 2>&1 | tail -10
 **Severity:** MEDIUM
 **Category:** `design/duplication`
 **Location:** `scripts/manage_epics.py:23`, `scripts/manage_sagas.py:22`, `scripts/traceability.py:24`
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — moved to validate_config.py, all 3 files import it
 **Pattern:** PAT-002
 
 **Problem:** `TABLE_ROW = re.compile(r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|')` is copy-pasted into three files. If the pattern needs updating (e.g., to handle escaped pipes), all three must change in sync.
@@ -346,7 +346,7 @@ grep -rn 'TABLE_ROW.*compile' scripts/ skills/ | wc -l
 **Severity:** MEDIUM
 **Category:** `design/duplication`
 **Location:** `scripts/manage_epics.py:70`, `scripts/manage_sagas.py:65`
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — extracted parse_header_table() to validate_config.py
 **Pattern:** PAT-002
 
 **Problem:** Both files define `_parse_header_table(lines)` with nearly identical logic. The only difference is the stop condition (`###` in epics vs `##` in sagas). This could be parameterized.
@@ -367,7 +367,7 @@ python -m pytest tests/test_pipeline_scripts.py -k "epic or saga" -v 2>&1 | tail
 **Severity:** MEDIUM
 **Category:** `security/path-traversal`
 **Location:** `scripts/sprint_init.py:549-561` (_symlink)
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — added resolve() + relative_to() containment check
 **Pattern:** —
 
 **Problem:** `ConfigGenerator._symlink()` creates symlinks from sprint-config/ to targets without validating the resolved target is within the project root. While targets come from scanner detections (not directly from TOML), a future change to accept TOML-sourced paths could introduce path traversal. Defense in depth says validate now.

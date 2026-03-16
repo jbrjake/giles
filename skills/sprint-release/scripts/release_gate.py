@@ -198,13 +198,20 @@ def gate_prs(milestone_title: str) -> tuple[bool, str]:
 
 # §release_gate.gate_tests
 def gate_tests(config: dict) -> tuple[bool, str]:
-    """Gate: all check_commands from config must pass."""
+    """Gate: all check_commands from config must pass.
+
+    TRUST MODEL (BH18-003): Commands are executed with shell=True because they
+    are user-configured shell expressions from project.toml (e.g., "cargo test",
+    "npm run lint && npm run build"). This means project.toml is a trusted input:
+    only run release gates on branches you trust. A malicious project.toml
+    modification in a PR could execute arbitrary commands. Review project.toml
+    changes in PRs with the same scrutiny as CI workflow changes.
+    """
     commands = config.get("ci", {}).get("check_commands", [])
     if not commands:
         return True, "No check_commands configured"
     for cmd in commands:
-        # shell=True is intentional — commands are user-configured shell
-        # expressions (e.g. "cargo test", "npm run lint") from project.toml.
+        # shell=True is intentional — see docstring trust model.
         try:
             r = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True, timeout=300,
@@ -222,8 +229,7 @@ def gate_build(config: dict) -> tuple[bool, str]:
     build_cmd = config.get("ci", {}).get("build_command", "")
     if not build_cmd:
         return True, "No build_command configured"
-    # shell=True is intentional — build_command is a user-configured shell
-    # expression (e.g. "make build", "cargo build --release") from project.toml.
+    # shell=True is intentional — see gate_tests docstring for trust model.
     try:
         r = subprocess.run(
             build_cmd, shell=True, capture_output=True, text=True, timeout=300,
