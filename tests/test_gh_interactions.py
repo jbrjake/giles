@@ -1135,6 +1135,29 @@ class TestGetLinkedPrWordBoundary(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestGetLinkedPrWarning(unittest.TestCase):
+    """P13-010: get_linked_pr should warn when timeline API fails."""
+
+    def test_timeline_api_failure_emits_warning(self):
+        """P13-010: get_linked_pr logs warning when timeline API fails."""
+        buf = io.StringIO()
+        from contextlib import redirect_stderr
+
+        def failing_gh_json(args):
+            if "timeline" in str(args):
+                raise RuntimeError("API timeout")
+            return []
+
+        with redirect_stderr(buf):
+            with patch("sync_tracking.gh_json", side_effect=failing_gh_json):
+                result = sync_tracking.get_linked_pr(1, "US-0101", all_prs=[])
+
+        self.assertIsNone(result)
+        warning_text = buf.getvalue()
+        self.assertIn("timeline", warning_text.lower())
+        self.assertIn("API timeout", warning_text)
+
+
 # ---------------------------------------------------------------------------
 # update_burndown.py tests -- extract_sp
 # ---------------------------------------------------------------------------
@@ -1817,6 +1840,49 @@ class TestUpdateSprintStatus(unittest.TestCase):
             content = status_file.read_text()
             self.assertIn("## Active Stories", content)
             self.assertIn("US-0001", content)
+
+    def test_active_stories_is_last_section(self):
+        """P13-018: Replacement works when Active Stories is the final section."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_file = Path(tmpdir) / "SPRINT-STATUS.md"
+            status_file.write_text(
+                "# Sprint Status\n\n## Active Stories\n\n"
+                "| Story | Status | Assignee | PR |\n"
+                "|-------|--------|----------|----|"
+                "\n| old | old | old | old |\n",
+                encoding="utf-8",
+            )
+            rows = [
+                {"story_id": "US-0099", "short_title": "Final", "sp": 2,
+                 "status": "dev", "closed": "\u2014",
+                 "assignee": "Alice", "pr": "#5"},
+            ]
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            content = status_file.read_text()
+            self.assertIn("US-0099", content)
+            self.assertNotIn("old", content)
+
+    def test_no_trailing_newline(self):
+        """P13-018: File without trailing newline is handled correctly."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            status_file = Path(tmpdir) / "SPRINT-STATUS.md"
+            status_file.write_text(
+                "# Sprint Status\n\n## Active Stories\n\n"
+                "| Story | Status | Assignee | PR |\n"
+                "|-------|--------|----------|----|"
+                "\n| old | old | old | old |",  # no trailing \n
+                encoding="utf-8",
+            )
+            rows = [
+                {"story_id": "US-0050", "short_title": "Mid", "sp": 1,
+                 "status": "todo", "closed": "\u2014"},
+            ]
+            update_burndown.update_sprint_status(1, rows, Path(tmpdir))
+            content = status_file.read_text()
+            self.assertIn("US-0050", content)
+            self.assertNotIn("old", content)
 
     def test_skips_missing_file(self):
         """BH-P11-050: Assert no file is created when SPRINT-STATUS.md is missing."""

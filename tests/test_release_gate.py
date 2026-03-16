@@ -417,6 +417,102 @@ class TestFindMilestoneNumber(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# P13-016: write_version_to_toml code path tests
+# ---------------------------------------------------------------------------
+
+from release_gate import write_version_to_toml
+
+
+class TestWriteVersionToToml(unittest.TestCase):
+    """P13-016: Cover all 3 code paths in write_version_to_toml."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.toml_path = Path(self._tmpdir.name) / "project.toml"
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_replace_existing_version(self):
+        """Path 1: [release] exists with version= key — replaces it."""
+        self.toml_path.write_text(
+            '[project]\nname = "test"\n\n'
+            '[release]\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        write_version_to_toml("0.2.0", self.toml_path)
+        text = self.toml_path.read_text(encoding="utf-8")
+        self.assertIn('version = "0.2.0"', text)
+        self.assertNotIn('version = "0.1.0"', text)
+        self.assertIn('[project]', text)
+
+    def test_insert_into_existing_section(self):
+        """Path 2: [release] exists but no version key — inserts it."""
+        self.toml_path.write_text(
+            '[project]\nname = "test"\n\n'
+            '[release]\nnotes = "some notes"\n',
+            encoding="utf-8",
+        )
+        write_version_to_toml("1.0.0", self.toml_path)
+        text = self.toml_path.read_text(encoding="utf-8")
+        self.assertIn('version = "1.0.0"', text)
+        self.assertIn('notes = "some notes"', text)
+        self.assertIn('[project]', text)
+
+    def test_append_new_section(self):
+        """Path 3: No [release] section — appends it."""
+        self.toml_path.write_text(
+            '[project]\nname = "test"\n\n'
+            '[ci]\nbuild_command = "make"\n',
+            encoding="utf-8",
+        )
+        write_version_to_toml("0.5.0", self.toml_path)
+        text = self.toml_path.read_text(encoding="utf-8")
+        self.assertIn('[release]', text)
+        self.assertIn('version = "0.5.0"', text)
+        # Original content preserved
+        self.assertIn('[project]', text)
+        self.assertIn('[ci]', text)
+        self.assertIn('build_command = "make"', text)
+
+    def test_comment_not_treated_as_section(self):
+        """Edge: '# [release]' comment should NOT match as a section header."""
+        self.toml_path.write_text(
+            '[project]\nname = "test"\n\n'
+            '# [release]\n'
+            '# placeholder for future release config\n',
+            encoding="utf-8",
+        )
+        write_version_to_toml("2.0.0", self.toml_path)
+        text = self.toml_path.read_text(encoding="utf-8")
+        # Should append a real [release] section, not modify the comment
+        self.assertIn('# [release]', text)  # comment preserved
+        # Count real [release] sections — should have exactly 1
+        lines = [l for l in text.splitlines() if l.strip() == '[release]']
+        self.assertEqual(len(lines), 1, f"Expected 1 real [release] section, found {len(lines)}")
+        self.assertIn('version = "2.0.0"', text)
+
+    def test_other_sections_preserved(self):
+        """All other TOML content is preserved after version write."""
+        original = (
+            '[project]\nname = "MyProject"\nrepo = "owner/repo"\n\n'
+            '[paths]\nsprints_dir = "sprints"\n\n'
+            '[ci]\ncheck_commands = ["pytest"]\nbuild_command = "make"\n\n'
+            '[release]\nversion = "0.1.0"\n'
+        )
+        self.toml_path.write_text(original, encoding="utf-8")
+        write_version_to_toml("0.2.0", self.toml_path)
+        text = self.toml_path.read_text(encoding="utf-8")
+        # Version updated
+        self.assertIn('version = "0.2.0"', text)
+        # All other sections intact
+        self.assertIn('name = "MyProject"', text)
+        self.assertIn('repo = "owner/repo"', text)
+        self.assertIn('sprints_dir = "sprints"', text)
+        self.assertIn('check_commands = ["pytest"]', text)
+
+
+# ---------------------------------------------------------------------------
 # do_release tests
 # ---------------------------------------------------------------------------
 
@@ -829,7 +925,7 @@ class TestDoRelease(unittest.TestCase):
         # The sha should be the pre-release sha
         self.assertEqual(reset_hard_calls[0][3], "deadbeef")
 
-    # -- Test 7: P5-01 — gh release failure also resets commit -----------------
+    # -- Test 7: P5-01 — gh release failure also resets commit + deletes tag ---
 
     @patch("release_gate.subprocess.run")
     @patch("release_gate.write_version_to_toml")
@@ -837,7 +933,8 @@ class TestDoRelease(unittest.TestCase):
     def test_gh_release_failure_resets_commit(
         self, mock_calc, mock_write_toml, mock_run,
     ):
-        """P5-01: When GitHub release creation fails, commit is also undone."""
+        """P5-01 + P13-001: When GitHub release creation fails, commit is undone
+        AND tag is deleted from both local and remote."""
         mock_calc.return_value = ("1.1.0", "1.0.0", "minor", [
             {"subject": "feat: dashboard", "body": ""},
         ])
@@ -875,6 +972,26 @@ class TestDoRelease(unittest.TestCase):
         self.assertGreaterEqual(
             len(revert_calls), 1,
             f"Expected 'git revert' after release failure (commit already pushed), got: {run_cmds}",
+        )
+
+        # P13-001: Tag should be deleted from local AND remote
+        tag_delete_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "tag" and c[2] == "-d"
+        ]
+        self.assertGreaterEqual(
+            len(tag_delete_calls), 1,
+            f"Expected 'git tag -d' to delete local tag, got: {run_cmds}",
+        )
+        push_delete_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "push" and "--delete" in c
+        ]
+        self.assertGreaterEqual(
+            len(push_delete_calls), 1,
+            f"Expected 'git push --delete' to remove remote tag, got: {run_cmds}",
         )
 
     # -- Test 8: P6-03 — gh release failure cleans up notes temp file ----------

@@ -94,8 +94,9 @@ def get_linked_pr(
                         is not None
                     ),
                 }
-    except RuntimeError:
-        pass
+    except RuntimeError as exc:
+        print(f"Warning: timeline API failed for issue {issue_num}: {exc}",
+              file=sys.stderr)
     # Fallback: search pre-fetched PRs by branch name
     for pr in (all_prs or []):
         branch = pr.get("headRefName", "")
