@@ -111,7 +111,7 @@ def parse_requirements(prd_dir: str) -> dict[str, dict]:
     if not prd_path.is_dir():
         return reqs
 
-    for md_file in sorted(prd_path.rglob("reference.md")):
+    for md_file in sorted(prd_path.rglob("*.md")):
         for line in md_file.read_text(encoding="utf-8").splitlines():
             m = REQ_TABLE_ROW.match(line)
             if m:

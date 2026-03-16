@@ -91,6 +91,21 @@ env:
 }
 
 
+def _yaml_safe_command(command: str) -> str:
+    """Sanitize a command for safe YAML interpolation.
+
+    Rejects commands containing newlines (which could inject YAML structure)
+    and quotes commands containing YAML-sensitive characters.
+    """
+    if "\n" in command or "\r" in command:
+        # Strip injected content — only keep the first line
+        command = command.split("\n")[0].split("\r")[0]
+    # Quote if it contains characters that could break YAML
+    if any(c in command for c in ":{}[]|>&*!%@`#,"):
+        return f'"{command}"'
+    return command
+
+
 def _generate_check_job(
     name: str, command: str, setup: str, needs: list[str] | None = None
 ) -> str:
@@ -101,6 +116,7 @@ def _generate_check_job(
         needs_list = ", ".join(needs)
         needs_line = f"\n    needs: [{needs_list}]"
 
+    safe_cmd = _yaml_safe_command(command)
     return f"""\
   {slug}:
     name: {name}
@@ -109,7 +125,7 @@ def _generate_check_job(
       - uses: actions/checkout@v6
 {setup}
       - name: {name}
-        run: {command}
+        run: {safe_cmd}
 """
 
 
@@ -117,6 +133,7 @@ def _generate_test_job(
     command: str, setup: str, multi_os: bool = True
 ) -> str:
     """Generate a test job, optionally with OS matrix."""
+    safe_cmd = _yaml_safe_command(command)
     if multi_os:
         return f"""\
   test:
@@ -129,7 +146,7 @@ def _generate_test_job(
       - uses: actions/checkout@v6
 {setup}
       - name: Test
-        run: {command}
+        run: {safe_cmd}
 """
     return f"""\
   test:
@@ -139,7 +156,7 @@ def _generate_test_job(
       - uses: actions/checkout@v6
 {setup}
       - name: Test
-        run: {command}
+        run: {safe_cmd}
 """
 
 
@@ -152,6 +169,7 @@ def _generate_build_job(
         needs_list = ", ".join(needs)
         needs_line = f"\n    needs: [{needs_list}]"
 
+    safe_cmd = _yaml_safe_command(command)
     return f"""\
   build:
     name: Build
@@ -160,7 +178,7 @@ def _generate_build_job(
       - uses: actions/checkout@v6
 {setup}
       - name: Build
-        run: {command}
+        run: {safe_cmd}
 """
 
 

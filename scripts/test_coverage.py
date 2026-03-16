@@ -124,12 +124,21 @@ def check_test_coverage(
         # Also try just the slug portion (e.g., "par_001" from "tc_par_001")
         parts = normalized.split("_", 1)
         slug = parts[1] if len(parts) > 1 else normalized
-        # Use word-boundary matching to avoid false positives with short slugs
-        # e.g., slug "a_1" should not match "test_data_1_validation"
-        slug_re = re.compile(r"(?:^|_)" + re.escape(slug) + r"(?:$|_)")
+        # Use word-boundary matching to avoid false positives with short slugs.
+        # Only use slug matching if the slug is long enough to be meaningful
+        # (at least 4 chars), otherwise short slugs like "e_1" match unrelated
+        # functions like "test_type_e_1_setup".
         norm_re = re.compile(r"(?:^|_)" + re.escape(normalized) + r"(?:$|_)")
+        slug_re = (
+            re.compile(r"(?:^|_)" + re.escape(slug) + r"(?:$|_)")
+            if len(slug) >= 4
+            else None
+        )
         for impl_name in impl_lower:
-            if norm_re.search(impl_name) or slug_re.search(impl_name):
+            if norm_re.search(impl_name):
+                matched.add(tc_id)
+                break
+            if slug_re and slug_re.search(impl_name):
                 matched.add(tc_id)
                 break
     missing = sorted(set(planned.keys()) - matched)

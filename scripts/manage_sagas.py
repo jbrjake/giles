@@ -72,7 +72,7 @@ def _parse_header_table(lines: list[str]) -> dict[str, str]:
         if row:
             field = row.group(1).strip()
             value = row.group(2).strip()
-            if field not in ("Field", "---", ""):
+            if field not in ("Field", "---", "") and field.strip("-") != "":
                 metadata[field] = value
     return metadata
 
@@ -138,7 +138,14 @@ def _find_section_ranges(lines: list[str]) -> dict[str, tuple[int, int]]:
         if line.startswith("## ") and not line.startswith("### "):
             if current_section:
                 ranges[current_section] = (current_start, i)
-            current_section = line.lstrip("#").strip()
+            heading = line.lstrip("#").strip()
+            # Deduplicate: append a counter suffix if heading already seen
+            if heading in ranges:
+                n = 2
+                while f"{heading} ({n})" in ranges:
+                    n += 1
+                heading = f"{heading} ({n})"
+            current_section = heading
             current_start = i
 
     if current_section:

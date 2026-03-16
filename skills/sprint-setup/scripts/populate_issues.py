@@ -92,6 +92,7 @@ def parse_milestone_stories(
     """Parse sprint tables from milestone files to extract stories."""
     row_re = _build_row_regex(config)
     stories: list[Story] = []
+    seen_ids: set[str] = set()
 
     for mf_path in milestone_files:
         mf = Path(mf_path)
@@ -101,29 +102,33 @@ def parse_milestone_stories(
 
         content = mf.read_text(encoding="utf-8")
 
+        def _add_story(row: re.Match, sprint_num: int) -> None:
+            sid = row.group(1)
+            if sid in seen_ids:
+                print(f"  Warning: duplicate story ID {sid} in {mf.name}",
+                      file=sys.stderr)
+                return
+            seen_ids.add(sid)
+            stories.append(Story(
+                story_id=sid, title=row.group(2).strip(),
+                epic=row.group(3) or "", saga=row.group(4),
+                sp=int(row.group(5)), priority=row.group(6),
+                sprint=sprint_num, source_file=str(mf),
+            ))
+
         # Try structured sprint sections first
         found_sections = False
         for m in _SPRINT_HEADER_RE.finditer(content):
             found_sections = True
             sprint_num = int(m.group(1))
             for row in row_re.finditer(m.group(2)):
-                stories.append(Story(
-                    story_id=row.group(1), title=row.group(2).strip(),
-                    epic=row.group(3) or "", saga=row.group(4),
-                    sp=int(row.group(5)), priority=row.group(6),
-                    sprint=sprint_num, source_file=str(mf),
-                ))
+                _add_story(row, sprint_num)
 
         # If no sprint sections, scan the whole file for story rows
         if not found_sections:
             sprint_num = _infer_sprint_number(mf, content)
             for row in row_re.finditer(content):
-                stories.append(Story(
-                    story_id=row.group(1), title=row.group(2).strip(),
-                    epic=row.group(3) or "", saga=row.group(4),
-                    sp=int(row.group(5)), priority=row.group(6),
-                    sprint=sprint_num, source_file=str(mf),
-                ))
+                _add_story(row, sprint_num)
 
     return stories
 

@@ -78,7 +78,7 @@ def _parse_header_table(lines: list[str]) -> dict[str, str]:
         if row:
             field = row.group(1).strip()
             value = row.group(2).strip()
-            if field not in ("Field", "---", ""):
+            if field not in ("Field", "---", "") and field.strip("-") != "":
                 metadata[field] = value
                 in_table = True
         elif in_table and line.strip() == "":
@@ -118,7 +118,7 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
                 if row:
                     field = row.group(1).strip()
                     value = row.group(2).strip()
-                    if field not in ("Field", "---", ""):
+                    if field not in ("Field", "---", "") and field.strip("-") != "":
                         story_meta[field] = value
                     in_meta_table = True
                 elif lines[j].startswith("###"):
@@ -359,7 +359,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
             # Preserve headings — don't corrupt ### US-XXXX: Title
             new_lines.append(line)
         else:
-            new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', replacement, line))
+            new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', lambda m: replacement, line))
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 

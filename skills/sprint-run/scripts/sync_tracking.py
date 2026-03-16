@@ -171,6 +171,11 @@ def _yaml_safe(value: str) -> str:
     """Quote a value if it contains YAML-sensitive characters."""
     if not value:
         return value
+    # YAML boolean keywords (case-insensitive) must be quoted to avoid
+    # being parsed as booleans/null when the file is read back.
+    _YAML_BOOL_KEYWORDS = {
+        "true", "false", "yes", "no", "on", "off", "null",
+    }
     needs_quoting = (
         ': ' in value
         or value.endswith(':')
@@ -178,6 +183,7 @@ def _yaml_safe(value: str) -> str:
         or '#' in value
         or value.startswith('- ')
         or value.startswith('? ')
+        or value.lower() in _YAML_BOOL_KEYWORDS
     )
     if needs_quoting:
         escaped = value.replace('"', '\\"')

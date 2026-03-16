@@ -141,6 +141,8 @@ def gate_stories(milestone_title: str) -> tuple[bool, str]:
         "issue", "list", "--milestone", milestone_title,
         "--state", "open", "--json", "number,title", "--limit", "500",
     ])
+    if not isinstance(issues, list):
+        return False, f"Unexpected response type: {type(issues).__name__}"
     warn_if_at_limit(issues, 500)
     if not issues:
         return True, "All issues closed"
@@ -174,6 +176,8 @@ def gate_prs(milestone_title: str) -> tuple[bool, str]:
         "pr", "list",
         "--json", "number,title,milestone", "--limit", "500",
     ])
+    if not isinstance(prs, list):
+        return False, f"Unexpected response type: {type(prs).__name__}"
     warn_if_at_limit(prs, 500)
     # If we hit the limit, we can't guarantee all PRs were checked —
     # fail the gate rather than risk a false pass.
@@ -276,7 +280,8 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
     """
     text = toml_path.read_text(encoding="utf-8")
 
-    release_section = re.search(r"^\[release\]", text, re.MULTILINE)
+    # Match [release] only on non-comment lines (# [release] is not a section)
+    release_section = re.search(r"^(?!#)\[release\]", text, re.MULTILINE)
     if release_section:
         start = release_section.start()
         # Match section headers like [other] but not array-of-tables [[x]] or ["a"]
