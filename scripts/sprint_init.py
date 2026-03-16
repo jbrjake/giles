@@ -214,10 +214,8 @@ class ProjectScanner:
                     run_line = run_line[2:].strip()
                 if run_line.startswith("run:"):
                     cmd = run_line[4:].strip()
-                    if cmd in (">", ">-"):
-                        # Folded YAML style — not fully supported, but collect
-                        # the block the same way as literal style (P13-021).
-                        pass  # fall through to multiline collection below
+                    # Handles literal (|), folded (>, >-), and empty run:
+                    # blocks by collecting subsequent indented lines (P13-021).
                     if cmd in ("|", "", ">", ">-"):
                         # Multiline run block: collect subsequent indented lines
                         multiline_cmds: list[str] = []
@@ -583,6 +581,7 @@ class ConfigGenerator:
                 .replace('\\', '\\\\')
                 .replace('"', '\\"')
                 .replace('\n', '\\n')
+                .replace('\r', '\\r')
                 .replace('\t', '\\t'))
 
     def generate_project_toml(self) -> None:

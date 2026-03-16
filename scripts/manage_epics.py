@@ -168,6 +168,9 @@ def _format_story_section(story_data: dict) -> str:
     """Format a story data dict as a markdown section."""
     sid = story_data.get("id", "US-XXXX")
     title = story_data.get("title", "Untitled")
+    # P15: Sanitize newlines in heading fields to prevent file corruption
+    sid = sid.replace("\n", " ").replace("\r", " ")
+    title = title.replace("\n", " ").replace("\r", " ")
     sp = story_data.get("story_points", 0)
     priority = story_data.get("priority", "medium")
     lines = [
@@ -322,17 +325,23 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
         print(f"Warning: IDs not found in {path}: {sorted(not_in_file)}",
               file=sys.stderr)
 
-    # Reassemble in new order
+    # Reassemble in new order.
+    # P15: Strip trailing blank/separator lines from each section to prevent
+    # separator duplication on repeated reorders.
     new_lines = list(header)
     stories_emitted = 0
     for sid in story_ids:
         if sid not in section_map:
             continue
+        section_lines = list(section_map[sid])
+        # Strip trailing blank lines and --- separators from section
+        while section_lines and section_lines[-1].strip() in ("", "---"):
+            section_lines.pop()
         if stories_emitted > 0:
             new_lines.append("")
             new_lines.append("---")
             new_lines.append("")
-        new_lines.extend(section_map[sid])
+        new_lines.extend(section_lines)
         stories_emitted += 1
 
     # Clean up trailing blank lines
