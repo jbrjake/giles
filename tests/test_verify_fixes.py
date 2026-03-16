@@ -970,6 +970,156 @@ class TestPopulateIssuesMain(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 0)
 
 
+# ---------------------------------------------------------------------------
+# P13-003: main() tests for previously untested scripts
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
+import update_burndown
+import team_voices
+import traceability
+import test_coverage as test_coverage_mod
+import manage_epics
+import manage_sagas
+
+
+class TestUpdateBurndownMain(unittest.TestCase):
+    """P13-004: update_burndown.main() integration tests."""
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["update_burndown", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                update_burndown.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+    def test_bad_args_exits_2(self):
+        with patch("sys.argv", ["update_burndown", "notanumber"]):
+            with self.assertRaises(SystemExit) as ctx:
+                update_burndown.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+    def test_no_args_exits_2(self):
+        with patch("sys.argv", ["update_burndown"]):
+            with self.assertRaises(SystemExit) as ctx:
+                update_burndown.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+
+class TestTeamVoicesMain(unittest.TestCase):
+    """P13-003: team_voices.main() integration test."""
+
+    def test_missing_config_exits_1(self):
+        tmpdir = tempfile.mkdtemp(prefix="giles-tv-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                team_voices.main()
+            self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestSprintInitMain(unittest.TestCase):
+    """P13-003: sprint_init.main() integration test."""
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["sprint_init", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                from sprint_init import main as si_main
+                si_main()
+            self.assertEqual(ctx.exception.code, 0)
+
+    def test_nonexistent_dir_exits_1(self):
+        with patch("sys.argv", ["sprint_init", "/nonexistent/dir"]):
+            with self.assertRaises(SystemExit) as ctx:
+                from sprint_init import main as si_main
+                si_main()
+            self.assertEqual(ctx.exception.code, 1)
+
+
+class TestTraceabilityMain(unittest.TestCase):
+    """P13-003: traceability.main() integration test."""
+
+    def test_missing_config_exits_1(self):
+        tmpdir = tempfile.mkdtemp(prefix="giles-tr-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                traceability.main()
+            self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestManageEpicsMain(unittest.TestCase):
+    """P13-003: manage_epics.main() integration test."""
+
+    def test_no_args_exits_1(self):
+        with patch("sys.argv", ["manage_epics"]):
+            with self.assertRaises(SystemExit) as ctx:
+                manage_epics.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+
+class TestManageSagasMain(unittest.TestCase):
+    """P13-003: manage_sagas.main() integration test."""
+
+    def test_no_args_exits_1(self):
+        with patch("sys.argv", ["manage_sagas"]):
+            with self.assertRaises(SystemExit) as ctx:
+                manage_sagas.main()
+            self.assertEqual(ctx.exception.code, 1)
+
+
+class TestTestCoverageMain(unittest.TestCase):
+    """P13-003: test_coverage.main() integration test."""
+
+    def test_missing_config_exits_1(self):
+        tmpdir = tempfile.mkdtemp(prefix="giles-tc-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                test_coverage_mod.main()
+            self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestSetupCiMain(unittest.TestCase):
+    """P13-003: setup_ci.main() integration test."""
+
+    def test_help_exits_0(self):
+        with patch("sys.argv", ["setup_ci", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                from setup_ci import main as sc_main
+                sc_main()
+            self.assertEqual(ctx.exception.code, 0)
+
+    def test_missing_config_exits_1(self):
+        tmpdir = tempfile.mkdtemp(prefix="giles-sc-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with patch("sys.argv", ["setup_ci"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    from setup_ci import main as sc_main
+                    sc_main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 class TestEveryScriptMainCovered(unittest.TestCase):
     """BH-P11-202: Gate test — every script with def main() must have a test.
 
@@ -977,23 +1127,11 @@ class TestEveryScriptMainCovered(unittest.TestCase):
     define a main() function, then scans test files for calls to
     <module>.main().  Scripts without main() tests are reported as failures
     so new scripts can't slip through CI without orchestration coverage.
-
-    Existing untested scripts are listed in _KNOWN_UNTESTED.  As tests
-    are added, entries should be removed.  The set should eventually be empty.
     """
 
-    # Scripts that predate this gate and don't yet have main() tests.
-    # Remove entries as tests are added; the goal is an empty set.
-    _KNOWN_UNTESTED = frozenset((
-        "team_voices",
-        "sprint_init",
-        "traceability",
-        "manage_sagas",
-        "manage_epics",
-        "test_coverage",
-        "setup_ci",
-        "update_burndown",
-    ))
+    # All previously untested scripts now have main() tests.
+    # This set should remain empty going forward.
+    _KNOWN_UNTESTED = frozenset()
 
     def test_every_script_main_has_test(self):
         """Every script with def main() should have a test calling module.main()."""
