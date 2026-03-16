@@ -1543,5 +1543,299 @@ class TestBH025BuildRowRegexSafety(unittest.TestCase):
                              "Compiled regex should match a valid row")
 
 
+# ---------------------------------------------------------------------------
+# BH-010: populate_issues.main() — no milestones exits 1
+# ---------------------------------------------------------------------------
+
+
+class TestPopulateIssuesMainNoMilestones(unittest.TestCase):
+    """BH-010: populate_issues.main() exits 1 when milestones dir is empty."""
+
+    def test_no_milestones_exits_1(self):
+        """main() with valid config but empty milestones dir exits 1."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-pi-nomile-")
+        root = Path(tmpdir)
+        try:
+            # Create a minimal valid sprint-config with empty milestones dir
+            config_dir = root / "sprint-config"
+            config_dir.mkdir()
+            backlog_dir = config_dir / "backlog"
+            backlog_dir.mkdir()
+            (backlog_dir / "milestones").mkdir()
+            # Write a minimal project.toml that passes load_config
+            (config_dir / "project.toml").write_text(
+                '[project]\n'
+                'name = "test"\n'
+                'repo = "owner/repo"\n'
+                'language = "python"\n'
+                '\n'
+                '[paths]\n'
+                f'team_dir = "{config_dir / "team"}"\n'
+                f'backlog_dir = "{backlog_dir}"\n'
+                f'sprints_dir = "{root / "sprints"}"\n'
+                '\n'
+                '[ci]\n'
+                'check_commands = ["echo ok"]\n'
+                'build_command = "echo build"\n'
+            )
+            # Create team dir with INDEX.md so load_config doesn't complain
+            team_dir = config_dir / "team"
+            team_dir.mkdir()
+            (team_dir / "INDEX.md").write_text(
+                "| Name | Role | File |\n"
+                "|------|------|------|\n"
+                "| Alice | Dev | alice.md |\n"
+            )
+            (team_dir / "alice.md").write_text("# Alice\n")
+            (team_dir / "giles.md").write_text("# Giles\n")
+            # Create definition-of-done.md
+            (config_dir / "definition-of-done.md").write_text("# DoD\n")
+            # Create backlog INDEX.md
+            (backlog_dir / "INDEX.md").write_text("# Backlog\n")
+            # Create sprints dir
+            (root / "sprints").mkdir()
+
+            orig = os.getcwd()
+            os.chdir(root)
+            try:
+                with patch("sys.argv", ["populate_issues"]):
+                    # Patch check_prerequisites to skip gh auth check
+                    with patch.object(populate_issues, "check_prerequisites"):
+                        with self.assertRaises(SystemExit) as ctx:
+                            populate_issues.main()
+                        self.assertEqual(ctx.exception.code, 1)
+            finally:
+                os.chdir(orig)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-013: sprint_teardown print_dry_run coverage
+# ---------------------------------------------------------------------------
+
+
+class TestTeardownDryRunOutput(unittest.TestCase):
+    """BH-013: print_dry_run() does not crash and produces output."""
+
+    def test_dry_run_with_symlinks_and_generated(self):
+        """print_dry_run() handles a mix of symlinks and generated files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-dryrun-")
+        root = Path(tmpdir)
+        try:
+            config_dir = root / "sprint-config"
+            config_dir.mkdir()
+            team_dir = config_dir / "team"
+            team_dir.mkdir()
+
+            # Create a real file that will be a symlink target
+            real_file = root / "RULES.md"
+            real_file.write_text("# Rules\n")
+
+            # Create a symlink inside sprint-config
+            symlink = config_dir / "rules.md"
+            symlink.symlink_to(real_file)
+
+            # Create a generated file
+            (config_dir / "project.toml").write_text('[project]\nname = "test"\n')
+            (config_dir / "definition-of-done.md").write_text("# DoD\n")
+
+            symlinks, generated, unknown = sprint_teardown.classify_entries(config_dir)
+            directories = sprint_teardown.collect_directories(config_dir)
+
+            # Patch check_active_loops to avoid subprocess calls
+            with patch.object(sprint_teardown, "check_active_loops", return_value=[]):
+                sprint_teardown.print_dry_run(
+                    config_dir, root, symlinks, generated, unknown, directories,
+                )
+            # If we get here without exception, the test passes
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_dry_run_empty_lists(self):
+        """print_dry_run() handles empty symlink/generated/unknown lists."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-dryrun-empty-")
+        root = Path(tmpdir)
+        try:
+            config_dir = root / "sprint-config"
+            config_dir.mkdir()
+
+            with patch.object(sprint_teardown, "check_active_loops", return_value=[]):
+                sprint_teardown.print_dry_run(
+                    config_dir, root, [], [], [], [],
+                )
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_dry_run_with_unknown_files(self):
+        """print_dry_run() reports unknown files that would be skipped."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-dryrun-unk-")
+        root = Path(tmpdir)
+        try:
+            config_dir = root / "sprint-config"
+            config_dir.mkdir()
+
+            # Create an unknown file (not in generated_names, not a symlink)
+            unknown_file = config_dir / "mystery.txt"
+            unknown_file.write_text("what is this\n")
+
+            symlinks, generated, unknown = sprint_teardown.classify_entries(config_dir)
+            directories = sprint_teardown.collect_directories(config_dir)
+
+            self.assertEqual(len(unknown), 1)
+            with patch.object(sprint_teardown, "check_active_loops", return_value=[]):
+                sprint_teardown.print_dry_run(
+                    config_dir, root, symlinks, generated, unknown, directories,
+                )
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-023: test_coverage.py unit tests for detect/scan functions
+# ---------------------------------------------------------------------------
+
+
+class TestTestCoverageScanProject(unittest.TestCase):
+    """BH-023: test_coverage detect_test_functions and scan_project_tests."""
+
+    def test_detect_python_test_functions(self):
+        """detect_test_functions finds Python test functions."""
+        source = (
+            "import unittest\n"
+            "\n"
+            "class TestFoo(unittest.TestCase):\n"
+            "    def test_basic(self):\n"
+            "        pass\n"
+            "\n"
+            "    def test_edge_case(self):\n"
+            "        pass\n"
+            "\n"
+            "    def helper_method(self):\n"
+            "        pass\n"
+        )
+        result = test_coverage_mod.detect_test_functions("python", source)
+        self.assertIn("test_basic", result)
+        self.assertIn("test_edge_case", result)
+        self.assertNotIn("helper_method", result)
+
+    def test_detect_rust_test_functions(self):
+        """detect_test_functions finds Rust #[test] functions."""
+        source = (
+            "#[test]\n"
+            "fn test_add() {\n"
+            "    assert_eq!(2 + 2, 4);\n"
+            "}\n"
+            "\n"
+            "#[tokio::test]\n"
+            "async fn test_async_op() {\n"
+            "    assert!(true);\n"
+            "}\n"
+            "\n"
+            "fn helper() {}\n"
+        )
+        result = test_coverage_mod.detect_test_functions("rust", source)
+        self.assertIn("test_add", result)
+        self.assertIn("test_async_op", result)
+        self.assertNotIn("helper", result)
+
+    def test_detect_javascript_test_functions(self):
+        """detect_test_functions finds JS it/test blocks."""
+        source = (
+            "describe('math', () => {\n"
+            "  it('should add numbers', () => {\n"
+            "    expect(1 + 1).toBe(2);\n"
+            "  });\n"
+            "  test('should subtract', () => {\n"
+            "    expect(3 - 1).toBe(2);\n"
+            "  });\n"
+            "});\n"
+        )
+        result = test_coverage_mod.detect_test_functions("javascript", source)
+        self.assertIn("should add numbers", result)
+        self.assertIn("should subtract", result)
+
+    def test_detect_go_test_functions(self):
+        """detect_test_functions finds Go Test* functions."""
+        source = (
+            "package main\n"
+            "\n"
+            "func TestAdd(t *testing.T) {\n"
+            "}\n"
+            "\n"
+            "func TestSubtract(t *testing.T) {\n"
+            "}\n"
+            "\n"
+            "func helperFunc() {}\n"
+        )
+        result = test_coverage_mod.detect_test_functions("go", source)
+        self.assertIn("TestAdd", result)
+        self.assertIn("TestSubtract", result)
+        self.assertNotIn("helperFunc", result)
+
+    def test_detect_unknown_language(self):
+        """detect_test_functions returns empty list for unknown language."""
+        result = test_coverage_mod.detect_test_functions("cobol", "PERFORM TEST-PARA.")
+        self.assertEqual(result, [])
+
+    def test_scan_project_tests_python(self):
+        """scan_project_tests finds test functions in a temp directory."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-scan-")
+        try:
+            root = Path(tmpdir)
+            # Create a Python test file
+            test_file = root / "test_math.py"
+            test_file.write_text(
+                "def test_addition():\n"
+                "    assert 1 + 1 == 2\n"
+                "\n"
+                "def test_subtraction():\n"
+                "    assert 3 - 1 == 2\n"
+                "\n"
+                "def helper():\n"
+                "    pass\n"
+            )
+            # Create a non-test file (should be ignored)
+            (root / "math_utils.py").write_text("def add(a, b): return a + b\n")
+
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_addition", result)
+            self.assertIn("test_subtraction", result)
+            self.assertNotIn("helper", result)
+            self.assertNotIn("add", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_project_tests_skips_excluded_dirs(self):
+        """scan_project_tests skips node_modules, __pycache__, etc."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-scan-skip-")
+        try:
+            root = Path(tmpdir)
+            # Create a test file inside node_modules (should be skipped)
+            nm = root / "node_modules" / "pkg"
+            nm.mkdir(parents=True)
+            (nm / "test_internal.py").write_text("def test_hidden(): pass\n")
+
+            # Create a test file in __pycache__ (should be skipped)
+            pc = root / "__pycache__"
+            pc.mkdir()
+            (pc / "test_cached.py").write_text("def test_cached(): pass\n")
+
+            # Create a valid test file at the root
+            (root / "test_real.py").write_text("def test_visible(): pass\n")
+
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_visible", result)
+            self.assertNotIn("test_hidden", result)
+            self.assertNotIn("test_cached", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_nonexistent_dir(self):
+        """scan_project_tests returns empty list for nonexistent directory."""
+        result = test_coverage_mod.scan_project_tests("/nonexistent/path", "python")
+        self.assertEqual(result, [])
+
+
 if __name__ == "__main__":
     unittest.main()

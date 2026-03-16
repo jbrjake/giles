@@ -896,11 +896,14 @@ def find_milestone(sprint_num: int) -> dict | None:
 
 # §validate_config.list_milestone_issues
 def list_milestone_issues(milestone_title: str) -> list[dict]:
-    """Fetch all issues for a milestone (all states). Shared by sync/burndown."""
+    """Fetch all issues for a milestone (all states). Shared by sync/burndown.
+
+    BH-014: Uses --limit 1000 and warns loudly when limit is hit.
+    """
     try:
         issues = gh_json([
             "issue", "list", "--milestone", milestone_title, "--state", "all",
-            "--json", "number,title,state,labels,closedAt,body", "--limit", "500",
+            "--json", "number,title,state,labels,closedAt,body", "--limit", "1000",
         ])
     except RuntimeError as exc:
         print(f"Warning: failed to fetch issues for milestone "
@@ -908,17 +911,22 @@ def list_milestone_issues(milestone_title: str) -> list[dict]:
         return []
     if not isinstance(issues, list):
         return []
-    warn_if_at_limit(issues)
+    warn_if_at_limit(issues, 1000)
     return issues
 
 
 # §validate_config.warn_if_at_limit
-def warn_if_at_limit(results: list, limit: int = 500) -> None:
-    """Warn if API results hit the limit, suggesting data may be incomplete."""
+def warn_if_at_limit(results: list, limit: int = 500) -> bool:
+    """Warn if API results hit the limit, suggesting data may be incomplete.
+
+    Returns True if the limit was hit, False otherwise.
+    """
     if len(results) >= limit:
         print(f"Warning: query returned {limit} results (the limit). "
               f"Data may be incomplete for projects with more items.",
               file=sys.stderr)
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
