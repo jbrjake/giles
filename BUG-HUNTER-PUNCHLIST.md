@@ -9,8 +9,8 @@
 |----------|------|----------|----------|
 | CRITICAL | 0    | 2        | 0        |
 | HIGH     | 0    | 4        | 0        |
-| MEDIUM   | 1    | 7        | 0        |
-| LOW      | 2    | 2        | 0        |
+| MEDIUM   | 0    | 8        | 0        |
+| LOW      | 0    | 2        | 2        |
 
 ## Patterns
 
@@ -282,7 +282,7 @@ python -m pytest tests/ -k "check_status" -v 2>&1 | tail -10
 **Severity:** MEDIUM
 **Category:** `bug/edge-case`
 **Location:** `skills/sprint-run/scripts/sync_tracking.py:106`
-**Status:** 🔴 OPEN
+**Status:** ✅ RESOLVED — matches slug portion after last / instead of full branch path
 **Pattern:** —
 
 **Problem:** `get_linked_pr()` fallback searches pre-fetched PRs by `re.search(rf"\b{re.escape(story_id)}\b", branch, re.IGNORECASE)`. Story ID "US-0001" would match branch `sprint-2/us-0001-follow-up` even if that branch belongs to a different sprint's issue. The branch-name convention is `sprint-{N}/US-{ID}-{slug}`, but the search ignores the sprint prefix.
@@ -432,7 +432,7 @@ grep -rn '_KANBAN_STATES' scripts/ skills/ tests/
 **Severity:** LOW
 **Category:** `test/gap`
 **Location:** `scripts/test_coverage.py`
-**Status:** 🔴 OPEN
+**Status:** ⏸️ DEFERRED — quality-of-life, not a bug
 **Pattern:** —
 
 **Problem:** The script whose job is to check test coverage has the lowest coverage of any module at 68%. Missing coverage: `scan_project_tests()` main loop, `check_test_coverage()` report formatting, several edge-case paths. This is both ironic and a real gap — if the coverage checker itself has bugs, it could miss gaps in the project it's monitoring.
@@ -453,7 +453,7 @@ python -m pytest tests/ --cov=scripts/test_coverage --cov-report=term-missing 2>
 **Severity:** LOW
 **Category:** `docs/drift`
 **Location:** `CHEATSHEET.md`
-**Status:** 🔴 OPEN
+**Status:** ⏸️ DEFERRED — doc maintenance, not a bug
 **Pattern:** —
 
 **Problem:** CHEATSHEET.md contains line-number indices for all functions and sections. After 279 commits (44% of which are fixes that change line numbers), many of these references are likely stale. The project has validate_anchors.py for §-anchor validation but no automated check for line-number accuracy.

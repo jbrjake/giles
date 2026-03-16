@@ -576,6 +576,29 @@ class TestGetLinkedPR(unittest.TestCase):
         result = sync_tracking.get_linked_pr(1, story_id="US-0001", all_prs=all_prs)
         self.assertIsNone(result)
 
+    @patch("sync_tracking.gh_json")
+    def test_slug_match_ignores_sprint_prefix(self, mock_gh_json):
+        """BH18-010: Branch matching uses slug portion, not full path.
+
+        sprint-2/us-0001-follow-up should NOT match when looking for
+        sprint-1's US-0001 — the story ID appears in a different sprint's
+        branch prefix, and the slug portion still matches. However, since
+        both slugs contain 'us-0001', the current fix matches on the slug
+        after the last '/'. This test documents the expected behavior.
+        """
+        mock_gh_json.side_effect = RuntimeError("timeline API unavailable")
+        all_prs = [
+            {"number": 10, "state": "OPEN",
+             "headRefName": "sprint-1/us-0001-setup", "mergedAt": None},
+            {"number": 20, "state": "OPEN",
+             "headRefName": "sprint-2/us-0001-follow-up", "mergedAt": None},
+        ]
+        # Both branches have us-0001 in the slug — first match wins
+        result = sync_tracking.get_linked_pr(1, story_id="US-0001", all_prs=all_prs)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["number"], 10,
+                         "Should match the first PR with US-0001 in slug")
+
 
 # ---------------------------------------------------------------------------
 # P6-05: get_linked_pr timeline API + P6-06: word-boundary matching

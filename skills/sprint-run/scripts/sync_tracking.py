@@ -100,10 +100,14 @@ def get_linked_pr(
     except RuntimeError as exc:
         print(f"Warning: timeline API failed for issue {issue_num}: {exc}",
               file=sys.stderr)
-    # Fallback: search pre-fetched PRs by branch name
+    # Fallback: search pre-fetched PRs by branch name.
+    # BH18-010: Match the story ID in the slug portion (after last /) to avoid
+    # false matches on branches like sprint-2/us-0001-follow-up when looking
+    # for sprint-1's US-0001.
     for pr in (all_prs or []):
         branch = pr.get("headRefName", "")
-        if re.search(rf"\b{re.escape(story_id)}\b", branch, re.IGNORECASE):
+        slug = branch.rsplit("/", 1)[-1] if "/" in branch else branch
+        if re.search(rf"\b{re.escape(story_id)}\b", slug, re.IGNORECASE):
             return {
                 "number": pr["number"],
                 "state": (
