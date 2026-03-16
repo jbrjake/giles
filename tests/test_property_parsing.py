@@ -194,11 +194,15 @@ class TestYamlSafe:
     @given(st.text(min_size=1, max_size=200))
     @settings(max_examples=500)
     def test_quoting_roundtrip(self, value: str):
-        """If _yaml_safe quotes the value, unquoting must recover the original."""
+        """If _yaml_safe quotes the value, unquoting must recover the original.
+
+        BH-007: Uses the same unescape logic as read_tf (unescape quotes
+        first, then backslashes) instead of a hand-rolled reverse.
+        """
         result = _yaml_safe(value)
         if result.startswith('"') and result.endswith('"'):
-            # Unquote: strip outer quotes, unescape inner \"
-            inner = result[1:-1].replace('\\"', '"')
+            # Unquote using the same logic as read_tf (BH-007)
+            inner = result[1:-1].replace('\\"', '"').replace('\\\\', '\\')
             assert inner == value, (
                 f"Roundtrip failed: {value!r} -> {result!r} -> {inner!r}"
             )
@@ -210,6 +214,9 @@ class TestYamlSafe:
     @settings(max_examples=500)
     def test_dangerous_chars_get_quoted(self, value: str):
         """Values with YAML-dangerous characters must be quoted."""
+        _YAML_BOOL_KEYWORDS = {
+            "true", "false", "yes", "no", "on", "off", "null",
+        }
         dangerous = (
             ': ' in value
             or value.endswith(':')
@@ -217,6 +224,8 @@ class TestYamlSafe:
             or '#' in value
             or value.startswith('- ')
             or value.startswith('? ')
+            or value.lower() in _YAML_BOOL_KEYWORDS  # BH-007
+            or '\\' in value  # BH-007
         )
         result = _yaml_safe(value)
         if dangerous:

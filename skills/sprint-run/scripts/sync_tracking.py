@@ -162,8 +162,9 @@ def read_tf(path: Path) -> TF:
             return ""
         val = m.group(1).strip()
         # Strip surrounding quotes added by _yaml_safe
+        # BH-007: unescape quotes first, then backslashes (reverse of _yaml_safe order)
         if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
-            val = val[1:-1].replace('\\"', '"')
+            val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
         return val
 
     tf.story, tf.title = v("story"), v("title")
@@ -193,9 +194,11 @@ def _yaml_safe(value: str) -> str:
         or value.startswith('- ')
         or value.startswith('? ')
         or value.lower() in _YAML_BOOL_KEYWORDS
+        or '\\' in value  # BH-007: backslash must be quoted
     )
     if needs_quoting:
-        escaped = value.replace('"', '\\"')
+        # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"
+        escaped = value.replace('\\', '\\\\').replace('"', '\\"')
         return f'"{escaped}"'
     return value
 

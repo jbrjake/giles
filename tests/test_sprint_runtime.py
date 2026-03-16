@@ -1826,6 +1826,37 @@ class TestWriteTfEscaping(unittest.TestCase):
         result = sync_tracking.read_tf(tf.path)
         self.assertEqual(result.title, "'Twas a dark night'")
 
+    def test_backslash_in_value_roundtrips(self):
+        """BH-007: Backslash must be escaped so it round-trips correctly."""
+        tf = sync_tracking.TF(
+            path=self.tmp / "backslash.md",
+            story="US-08", title="C:\\Users\\name", sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, "C:\\Users\\name")
+
+    def test_backslash_quote_combo_roundtrips(self):
+        """BH-007: Value with both backslashes and quotes round-trips."""
+        tf = sync_tracking.TF(
+            path=self.tmp / "combo.md",
+            story="US-09", title='path\\"quoted"', sprint=1,
+        )
+        sync_tracking.write_tf(tf)
+        result = sync_tracking.read_tf(tf.path)
+        self.assertEqual(result.title, 'path\\"quoted"')
+
+    def test_yaml_boolean_keyword_roundtrips(self):
+        """BH-007: Boolean keywords must be quoted and round-trip as strings."""
+        for kw in ("true", "false", "null", "yes", "no"):
+            tf = sync_tracking.TF(
+                path=self.tmp / f"bool-{kw}.md",
+                story="US-10", title=kw, sprint=1,
+            )
+            sync_tracking.write_tf(tf)
+            result = sync_tracking.read_tf(tf.path)
+            self.assertEqual(result.title, kw, f"Boolean keyword {kw!r} did not round-trip")
+
 
 class TestSlugFromTitle(unittest.TestCase):
     """P5-11: slug generation edge cases."""
