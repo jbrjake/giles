@@ -842,6 +842,134 @@ class TestTeardownInteractiveConfirmation(unittest.TestCase):
         self.assertEqual(exists_count, 1, "Exactly one file should be skipped")
 
 
+# ---------------------------------------------------------------------------
+# P12-007: main() integration tests for 4 highest-risk scripts
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(ROOT / "skills" / "sprint-setup" / "scripts"))
+sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
+
+import release_gate
+import bootstrap_github
+import populate_issues
+
+
+class TestValidateConfigMain(unittest.TestCase):
+    """P12-007: validate_config.main() integration tests."""
+
+    def test_config_error_exits_1(self):
+        """main() exits 1 when config dir is missing."""
+        with patch("sys.argv", ["validate_config", "nonexistent-dir"]):
+            with self.assertRaises(SystemExit) as ctx:
+                from validate_config import main as vc_main
+                vc_main()
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_help_exits_0(self):
+        """main() --help exits cleanly."""
+        with patch("sys.argv", ["validate_config", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                from validate_config import main as vc_main
+                vc_main()
+            self.assertEqual(ctx.exception.code, 0)
+
+    def test_valid_config_succeeds(self):
+        """main() exits cleanly on valid generated config."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-vc-main-")
+        root = Path(tmpdir)
+        mock = MockProject(root, extra_personas=True)
+        mock.create()
+        scanner = ProjectScanner(root)
+        gen = ConfigGenerator(scanner.scan())
+        gen.generate()
+
+        with patch("sys.argv", ["validate_config", str(root / "sprint-config")]):
+            # Should not raise
+            from validate_config import main as vc_main
+            vc_main()
+
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestReleaseGateMain(unittest.TestCase):
+    """P12-007: release_gate.main() integration tests."""
+
+    def test_missing_config_exits_1(self):
+        """main() exits 1 when load_config raises ConfigError."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-rg-main-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with patch("sys.argv", ["release_gate", "validate", "Sprint 1"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    release_gate.main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_no_subcommand_exits_2(self):
+        """main() exits 2 when no subcommand is given."""
+        with patch("sys.argv", ["release_gate"]):
+            with self.assertRaises(SystemExit) as ctx:
+                release_gate.main()
+            self.assertEqual(ctx.exception.code, 2)
+
+
+class TestBootstrapGitHubMain(unittest.TestCase):
+    """P12-007: bootstrap_github.main() integration tests."""
+
+    def test_missing_config_exits_1(self):
+        """main() exits 1 when load_config raises ConfigError."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bg-main-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with patch("sys.argv", ["bootstrap_github"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    bootstrap_github.main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_help_exits_0(self):
+        """main() --help exits cleanly."""
+        with patch("sys.argv", ["bootstrap_github", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                bootstrap_github.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+
+class TestPopulateIssuesMain(unittest.TestCase):
+    """P12-007: populate_issues.main() integration tests."""
+
+    def test_missing_config_exits_1(self):
+        """main() exits 1 when load_config raises ConfigError."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-pi-main-")
+        orig = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            with patch("sys.argv", ["populate_issues"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    populate_issues.main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.chdir(orig)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_help_exits_0(self):
+        """main() --help exits cleanly."""
+        with patch("sys.argv", ["populate_issues", "--help"]):
+            with self.assertRaises(SystemExit) as ctx:
+                populate_issues.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+
 class TestEveryScriptMainCovered(unittest.TestCase):
     """BH-P11-202: Gate test — every script with def main() must have a test.
 
@@ -860,15 +988,11 @@ class TestEveryScriptMainCovered(unittest.TestCase):
         "team_voices",
         "sprint_init",
         "traceability",
-        "validate_config",
         "manage_sagas",
         "manage_epics",
         "test_coverage",
         "setup_ci",
-        "bootstrap_github",
-        "populate_issues",
         "update_burndown",
-        "release_gate",
     ))
 
     def test_every_script_main_has_test(self):
