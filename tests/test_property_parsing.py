@@ -361,6 +361,26 @@ class TestParseSimpleToml:
         """Comment-only input produces empty dict."""
         assert parse_simple_toml("# just a comment\n# another") == {}
 
+    def test_unquoted_value_with_spaces_warns(self):
+        """P13-008: Unquoted multi-word value emits a warning."""
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = parse_simple_toml("key = hello world")
+        assert result["key"] == "hello world"
+        assert "unquoted" in buf.getvalue().lower()
+
+    def test_quoted_value_no_warning(self):
+        """P13-008: Properly quoted value does not warn."""
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = parse_simple_toml('key = "hello world"')
+        assert result["key"] == "hello world"
+        assert buf.getvalue() == ""
+
     def test_unicode_escape_4digit(self):
         """P13-017: \\uXXXX produces correct unicode character."""
         result = parse_simple_toml('name = "caf\\u00e9"')

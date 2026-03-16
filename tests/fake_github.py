@@ -96,13 +96,24 @@ class FakeGitHub:
 
     @classmethod
     def _check_jq(cls) -> bool:
-        """Check if the jq Python package is available (dev dependency)."""
+        """Check if the jq Python package is available (dev dependency).
+
+        The jq package is required for full-fidelity testing of --jq filters.
+        Without it, FakeGitHub falls back to pre-filtered data, which means
+        tests pass but don't actually verify jq expressions (P13-005).
+        """
         if cls._jq_available is None:
             try:
                 import jq as _jq  # noqa: F401
                 cls._jq_available = True
             except ImportError:
                 cls._jq_available = False
+                warnings.warn(
+                    "jq Python package not installed. FakeGitHub jq filters "
+                    "will use pre-filtered fallbacks. Install with: "
+                    "pip install jq  (P13-005)",
+                    stacklevel=2,
+                )
         return cls._jq_available
 
     def _maybe_apply_jq(self, json_str: str, flags: dict[str, list[str]]) -> str:

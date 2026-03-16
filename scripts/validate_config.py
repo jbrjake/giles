@@ -307,6 +307,10 @@ def _parse_value(raw: str):
     # Fall back to raw string — intentional leniency: unquoted values like
     # ``key = hello world`` are accepted as plain strings rather than raising.
     # This keeps the minimal parser forgiving for non-standard TOML usage.
+    # Warn if the value looks like it should have been quoted or typed (P13-008).
+    if ' ' in raw and not raw.startswith('#'):
+        print(f"Warning: unquoted TOML value '{raw}' interpreted as raw string. "
+              f"Did you mean to quote it?", file=sys.stderr)
     return raw
 
 
