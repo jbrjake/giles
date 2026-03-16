@@ -602,14 +602,9 @@ class TestValidateProjectFormatStringInjection(unittest.TestCase):
         self.assertTrue(has_brace,
                         f"Braces not preserved in errors: {errors}")
 
-    def test_source_uses_replace_not_format(self):
-        """validate_project must use .replace(), not .format(), for path expansion."""
-        import inspect
-        source = inspect.getsource(validate_project)
-        self.assertNotIn('.format(config_dir=', source,
-                         "validate_project still uses .format(); use .replace() instead")
-        self.assertIn('.replace("{config_dir}"', source,
-                      "validate_project should use .replace() for path expansion")
+    # test_source_uses_replace_not_format removed (P12-028):
+    # The behavioral tests above (format specifiers don't crash, braces
+    # preserved) already verify the fix.  Inspecting source is brittle.
 
 
 # ---------------------------------------------------------------------------

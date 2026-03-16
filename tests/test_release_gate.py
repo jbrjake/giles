@@ -1125,11 +1125,13 @@ class TestDoReleaseDryRunIntegration(unittest.TestCase):
                 return subprocess.CompletedProcess(
                     cmd, 0, stdout="v1.0.0\n", stderr="",
                 )
-            # git log (commits since tag)
+            # git log (commits since tag) — must use the \x00--END--\x00 delimiter
+            # that parse_commits_since expects from --format="%s\n%b\x00--END--\x00"
             if "git" in joined and "log" in joined:
+                delim = "\x00--END--\x00"
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="abc1234 feat: add new feature\ndef5678 fix: resolve bug\n",
+                    stdout=f"feat: add new feature\n{delim}fix: resolve bug\n{delim}",
                     stderr="",
                 )
             # Default success
@@ -1148,8 +1150,10 @@ class TestDoReleaseDryRunIntegration(unittest.TestCase):
                     "Sprint 1", self.config, dry_run=True,
                 )
         output = buf.getvalue()
-        # Dry run should print version bump info
-        self.assertIn("1.0.0", output)
+        # Dry run should print version bump info with correct calculated version
+        # feat commit should trigger minor bump: 1.0.0 → 1.1.0
+        self.assertIn("1.1.0", output)
+        self.assertIn("minor bump", output)
         self.assertIn("DRY-RUN", output)
         # Version file should NOT be modified (dry run)
         self.assertIn('version = "1.0.0"', self.toml_path.read_text())

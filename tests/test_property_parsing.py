@@ -103,9 +103,9 @@ class TestExtractStoryId:
     @given(st.text(max_size=50))
     @settings(max_examples=200)
     def test_never_crashes(self, title: str):
-        """Must never raise an exception."""
-        # Just calling it is the test — hypothesis will report any exception
-        extract_story_id(title)
+        """Must never raise an exception and always returns str."""
+        result = extract_story_id(title)
+        assert isinstance(result, str)
 
 
 # ============================================================================
@@ -173,8 +173,10 @@ class TestExtractSp:
     @given(st.text(max_size=200))
     @settings(max_examples=200)
     def test_never_crashes_on_body(self, body: str):
-        """Random body text never causes a crash."""
-        extract_sp({"body": body, "labels": []})
+        """Random body text never causes a crash and returns int >= 0."""
+        result = extract_sp({"body": body, "labels": []})
+        assert isinstance(result, int)
+        assert result >= 0
 
 
 # ============================================================================
@@ -187,8 +189,9 @@ class TestYamlSafe:
     @given(st.text(max_size=200))
     @settings(max_examples=500)
     def test_never_crashes(self, value: str):
-        """Must handle any string without raising."""
-        _yaml_safe(value)
+        """Must handle any string without raising and always returns str."""
+        result = _yaml_safe(value)
+        assert isinstance(result, str)
 
     @given(st.text(min_size=1, max_size=200))
     @settings(max_examples=500)
