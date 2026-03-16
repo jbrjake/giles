@@ -68,16 +68,24 @@ def get_linked_pr(
             if isinstance(linked, dict):
                 linked = [linked]
             if linked:
-                # Prefer open PRs, then first merged, then last in list
+                # Prefer open PRs, then latest merged, then last in list
                 best = linked[-1]  # default to last in list
+                open_pr = None
+                latest_merged = None
+                latest_merged_at = ""
                 for d in linked:
                     if d.get("state") == "open":
-                        best = d
-                        break
-                    if (d.get("pull_request", {}).get("merged_at")
-                            is not None):
-                        best = d
-                        break
+                        open_pr = d
+                        break  # open PR takes priority
+                    merged_at = d.get("pull_request", {}).get("merged_at")
+                    if merged_at is not None:
+                        if merged_at > latest_merged_at:
+                            latest_merged = d
+                            latest_merged_at = merged_at
+                if open_pr:
+                    best = open_pr
+                elif latest_merged:
+                    best = latest_merged
                 return {
                     "number": best.get("number"),
                     "state": best.get("state"),

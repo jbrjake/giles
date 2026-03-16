@@ -483,9 +483,42 @@ def do_release(
         )
         pre_release_sha = r.stdout.strip() if r.returncode == 0 else None
 
+        pushed_to_remote = False
+
         def _rollback_commit() -> None:
-            """Undo the version bump commit by resetting to pre-release HEAD."""
-            if pre_release_sha:
+            """Undo the version bump commit locally and on remote if pushed.
+
+            If the commit was already pushed, creates a revert commit and
+            pushes it (safer than force-push). If not yet pushed, resets
+            to the pre-release HEAD.
+            """
+            if not pre_release_sha:
+                return
+            if pushed_to_remote:
+                # Revert is safer than force-push for shared branches
+                r = subprocess.run(
+                    ["git", "revert", "--no-edit", "HEAD"],
+                    capture_output=True, text=True,
+                )
+                if r.returncode == 0:
+                    base = get_base_branch(config)
+                    r2 = subprocess.run(
+                        ["git", "push", "origin", base],
+                        capture_output=True, text=True,
+                    )
+                    if r2.returncode != 0:
+                        print(
+                            f"Warning: revert committed locally but push "
+                            f"failed. Run: git push origin {base}",
+                            file=sys.stderr,
+                        )
+                else:
+                    print(
+                        "Warning: could not revert version bump commit. "
+                        f"Run manually: git revert HEAD && git push",
+                        file=sys.stderr,
+                    )
+            else:
                 subprocess.run(
                     ["git", "reset", "--hard", pre_release_sha],
                     capture_output=True, text=True,
@@ -542,6 +575,7 @@ def do_release(
         if r.returncode != 0:
             _rollback_commit()
             return _fail("push-tag", f"Push failed: {r.stderr.strip()}")
+        pushed_to_remote = True
         completed_steps.append("push-tag")
 
         def _rollback_tag() -> None:

@@ -864,16 +864,17 @@ class TestDoRelease(unittest.TestCase):
 
         self.assertFalse(result)
 
-        # Verify git reset --hard was called
+        # After push succeeded, rollback should use revert (not reset --hard)
+        # because the commit is already on the remote
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
-        reset_hard_calls = [
+        revert_calls = [
             c for c in run_cmds
-            if isinstance(c, list) and len(c) >= 4
-            and c[0] == "git" and c[1] == "reset" and c[2] == "--hard"
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "revert"
         ]
         self.assertGreaterEqual(
-            len(reset_hard_calls), 1,
-            f"Expected 'git reset --hard' after release failure, got: {run_cmds}",
+            len(revert_calls), 1,
+            f"Expected 'git revert' after release failure (commit already pushed), got: {run_cmds}",
         )
 
     # -- Test 8: P6-03 — gh release failure cleans up notes temp file ----------

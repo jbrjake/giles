@@ -169,8 +169,7 @@ def do_sync(config: dict) -> dict[str, int]:
     if not milestone_files:
         return result
 
-    bootstrap_github.create_milestones_on_github(config)
-    result["milestones"] = len(milestone_files)
+    result["milestones"] = bootstrap_github.create_milestones_on_github(config)
 
     # 2. Create issues
     stories = populate_issues.parse_milestone_stories(milestone_files, config)

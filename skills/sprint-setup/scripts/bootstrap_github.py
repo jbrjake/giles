@@ -211,14 +211,19 @@ def create_epic_labels(epics_dir: Path) -> None:
 
 
 # §bootstrap_github.create_milestones_on_github
-def create_milestones_on_github(config: dict) -> None:
-    """Create sprint milestones from config milestone files."""
+def create_milestones_on_github(config: dict) -> int:
+    """Create sprint milestones from config milestone files.
+
+    Returns the number of milestones successfully created.
+    """
     milestone_files = get_milestones(config)
     if not milestone_files:
         print("\n=== No milestone files to create milestones from ===")
-        return
+        return 0
 
     print("\n=== Creating Milestones ===\n")
+    created = 0
+    errors = 0
 
     for mf_path in milestone_files:
         mf = Path(mf_path)
@@ -255,12 +260,23 @@ def create_milestones_on_github(config: dict) -> None:
         try:
             gh(api_args)
             print(f"  + {title}")
+            created += 1
         except RuntimeError as exc:
             msg = str(exc)
             if "already_exists" in msg:
                 print(f"  = {title} (already exists)")
             else:
                 print(f"  ! {title}: {msg}")
+                errors += 1
+
+    if errors:
+        print(
+            f"\nWarning: {errors} milestone(s) failed to create. "
+            "Labels may exist without corresponding milestones. "
+            "Re-run bootstrap to retry.",
+            file=sys.stderr,
+        )
+    return created
 
 
 # §bootstrap_github.main

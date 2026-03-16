@@ -1024,8 +1024,8 @@ class TestGetLinkedPrTimeline(unittest.TestCase):
         self.assertEqual(result["number"], 99)
         self.assertTrue(result["merged"])
 
-    def test_timeline_prefers_first_merged_pr(self):
-        """BH-P11-101: When multiple merged PRs exist, pick the first one found."""
+    def test_timeline_prefers_latest_merged_pr(self):
+        """P12-002: When multiple merged PRs exist, pick the latest merged one."""
         self.fake.timeline_events[8] = [
             {
                 "source": {
@@ -1052,8 +1052,8 @@ class TestGetLinkedPrTimeline(unittest.TestCase):
                 8, story_id="US-03", all_prs=[]
             )
         self.assertIsNotNone(result)
-        # Should pick the first merged PR, not the last (order-dependent bug)
-        self.assertEqual(result["number"], 10)
+        # Should pick the latest merged PR (#20, merged June) not earliest (#10, merged Jan)
+        self.assertEqual(result["number"], 20)
 
     def test_timeline_no_match_falls_back(self):
         """Timeline has events but no PR link -- should fall back to branch search."""
