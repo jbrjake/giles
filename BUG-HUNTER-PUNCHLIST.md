@@ -1,479 +1,433 @@
-# Bug Hunter Pass 11 — Punchlist
+# Bug Hunter Pass 12 — Adversarial Legacy Code Review
 
-> Generated: 2026-03-15 | Project: giles | Pass: 11
-> Phase 1: Doc-to-implementation audit (BH-P11-001 through BH-P11-010)
-> Phase 2: Test quality audit (BH-P11-050 through BH-P11-063)
-> Phase 3: Adversarial code audit (BH-P11-100 through BH-P11-114)
-> Phase 4: Structural prevention (BH-P11-200 through BH-P11-202) — trend-derived
-
----
-
-## Phase 1: Doc-to-Implementation Audit
-
-Scope: Testable claims in CLAUDE.md, SKILL.md files, kanban-protocol.md, release-checklist.md, persona-guide.md
-Detail: See `audit/1-doc-claims.md` for the full 112-claim checklist (102 passed, 10 failed).
-
-### BH-P11-001 — No idempotency test for bootstrap label creation
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `skills/sprint-setup/scripts/bootstrap_github.py:172`
-- **Problem:** CLAUDE.md claims "All bootstrap and monitoring scripts are idempotent." No test runs `create_static_labels()` twice on the same FakeGitHub instance and verifies no duplicate labels are created.
-- **Acceptance Criteria:** A test calls `create_static_labels()` twice against the same FakeGitHub, then asserts `len(fake_gh.labels)` is the same after both calls.
-- **Validation:** `python -m pytest tests/ -k "idempotent_static_labels" -v`
-- **Status:** Resolved
-
-### BH-P11-002 — No idempotency test for milestone creation
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `skills/sprint-setup/scripts/bootstrap_github.py:214`
-- **Problem:** CLAUDE.md claims bootstrap scripts are idempotent, but no test runs `create_milestones_on_github()` twice and verifies no duplicate milestones.
-- **Acceptance Criteria:** A test calls `create_milestones_on_github(config)` twice against the same FakeGitHub, then asserts milestone count is unchanged.
-- **Validation:** `python -m pytest tests/ -k "idempotent_milestone" -v`
-- **Status:** Resolved
-
-### BH-P11-003 — No test for bootstrap persona label idempotency
-- **Severity:** Low
-- **Category:** missing-test
-- **Location:** `skills/sprint-setup/scripts/bootstrap_github.py:62`
-- **Problem:** `create_persona_labels()` is called in pipeline tests but never called twice in the same test.
-- **Acceptance Criteria:** A test calls `create_persona_labels(config)` twice and verifies no duplicate persona labels.
-- **Validation:** `python -m pytest tests/ -k "idempotent_persona_labels" -v`
-- **Status:** Resolved
-
-### BH-P11-004 — Kanban transition rules documented but not enforced or tested
-- **Severity:** High
-- **Category:** doc-drift
-- **Location:** `skills/sprint-run/references/kanban-protocol.md:22-29`
-- **Problem:** kanban-protocol.md defines 7 specific allowed transitions. `sync_tracking.sync_one()` at `skills/sprint-run/scripts/sync_tracking.py:217` accepts ANY kanban label without validating the transition. No transition validation function exists.
-- **Acceptance Criteria:** Either (a) add `validate_transition()` with tests, OR (b) update kanban-protocol.md to clarify transitions are LLM guidelines, not programmatic constraints.
-- **Validation:** `python -m pytest tests/ -k "kanban_transition" -v`
-- **Status:** Resolved
-
-### BH-P11-005 — Kanban WIP limits documented but not enforced or tested
-- **Severity:** Medium
-- **Category:** doc-drift
-- **Location:** `skills/sprint-run/references/kanban-protocol.md:57-64`
-- **Problem:** WIP limits (1 dev/persona, 2 review/reviewer, 3 integration) are documented as system constraints but are actually LLM process guidelines with no code enforcement.
-- **Acceptance Criteria:** Either (a) add `check_wip_limits()` with tests, OR (b) clarify in kanban-protocol.md these are LLM guidelines.
-- **Validation:** `grep -c "guideline\|not enforced" skills/sprint-run/references/kanban-protocol.md` should return >0
-- **Status:** Resolved
-
-### BH-P11-006 — Review round limit (3 rounds) documented but not enforced
-- **Severity:** Medium
-- **Category:** doc-drift
-- **Location:** `skills/sprint-run/references/kanban-protocol.md:38`
-- **Problem:** "review->dev loop can repeat at most 3 times" is documented but not enforced in code. No test validates the limit.
-- **Acceptance Criteria:** Either (a) add enforcement with a test, OR (b) clarify this is an LLM behavioral guideline.
-- **Validation:** `grep -c "guideline\|behavioral" skills/sprint-run/references/kanban-protocol.md` should return >0
-- **Status:** Resolved
-
-### BH-P11-007 — No test verifying sync_tracking does NOT push local state to GitHub
-- **Severity:** Low
-- **Category:** weak-test
-- **Location:** `skills/sprint-run/scripts/sync_tracking.py:217`
-- **Problem:** "GitHub as source of truth" claim tested only in one direction (GitHub->local). No test asserts sync_one makes zero outgoing `gh` calls.
-- **Acceptance Criteria:** A test calls `sync_one()` with disagreeing states and asserts no `gh issue edit` or `gh label` commands were invoked.
-- **Validation:** `python -m pytest tests/ -k "github_authoritative_no_push" -v`
-- **Status:** Resolved
-
-### BH-P11-008 — No test verifies sprint-init creates symlinks for project files
-- **Severity:** Low
-- **Category:** missing-test
-- **Location:** `scripts/sprint_init.py:752`
-- **Problem:** CLAUDE.md claims "sprint_init creates symlinks." Tests verify Giles is NOT a symlink, but no test verifies rules.md and development.md ARE symlinks with correct targets.
-- **Acceptance Criteria:** A test asserts `(config_dir / "rules.md").is_symlink() == True` and target resolves to the original project file.
-- **Validation:** `python -m pytest tests/ -k "symlink_created" -v`
-- **Status:** Resolved
-
-### BH-P11-009 — No test for validate_project rejecting config with one missing required key
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `scripts/validate_config.py:389`
-- **Problem:** 8 required TOML keys are documented. No test removes one key and verifies validate_project fails with an error naming that key.
-- **Acceptance Criteria:** A test removes `ci.build_command`, calls `validate_project()`, asserts `ok == False` and error mentions the missing key.
-- **Validation:** `python -m pytest tests/ -k "missing_required_key" -v`
-- **Status:** Resolved
-
-### BH-P11-010 — No test for KANBAN_STATES constant matching documented states
-- **Severity:** Low
-- **Category:** weak-test
-- **Location:** `scripts/validate_config.py:794`
-- **Problem:** CLAUDE.md and kanban-protocol.md claim 6 states. No test asserts the exact set or count of `KANBAN_STATES`.
-- **Acceptance Criteria:** A test asserts `KANBAN_STATES == {"todo", "design", "dev", "review", "integration", "done"}`.
-- **Validation:** `python -m pytest tests/ -k "kanban_states_constant" -v`
-- **Status:** Resolved
+**Date:** 2026-03-15
+**Scope:** Full project (19 scripts, 12 test files, 5 test infra files, all docs)
+**Method:** Manual deep-read of all source + 3 parallel audit agents + cross-cutting analysis
+**Sources:** audit/3-code-audit-cross-cutting.md, audit/3-code-audit-batch2.md, audit/2-test-quality-batch1.md, audit/2-test-quality-batch2.md, recon/0d-lint-results.md, recon/0f-skipped-tests.md
 
 ---
 
-## Phase 2: Test Quality Audit
+## Priority Legend
 
-Scope: All 11 test files + fake_github.py test infrastructure
-Focus: Anti-patterns that provide false confidence — tests that look good at a distance but catch nothing
-
-### BH-P11-050 — `test_skips_missing_file` has zero assertions
-- **Severity:** High
-- **Category:** assertion-free
-- **Location:** `tests/test_gh_interactions.py:1548`
-- **Problem:** `test_skips_missing_file` calls `update_burndown.update_sprint_status()` with a missing SPRINT-STATUS.md and only verifies no exception is raised. No assertion on return value, no check that no file was created. Comment says "Should not raise" — but any exception-free codepath passes this test. If the function silently corrupted data instead of skipping, this test would still pass.
-- **Acceptance Criteria:** Assert that no SPRINT-STATUS.md was created in tmpdir AND/OR assert the function returns a sentinel value (None, 0, etc.) indicating the skip.
-- **Validation:** `python -m unittest tests.test_gh_interactions.TestUpdateSprintStatus.test_skips_missing_file -v`
-- **Status:** Resolved
-
-### BH-P11-051 — Golden snapshot comparisons silently degrade to warnings
-- **Severity:** High
-- **Category:** weak-test
-- **Location:** `tests/test_golden_run.py:101-109`
-- **Problem:** When golden recording files are absent, the test issues `warnings.warn()` and continues. All 5 phase-level snapshot comparisons are silently skipped. The test passes green while providing zero snapshot regression coverage. In CI, recordings ARE checked in — but if someone accidentally deletes the recordings directory, the test degrades without anyone noticing.
-- **Acceptance Criteria:** When recordings are absent, either (a) emit a visible `print()` to stdout so it appears in test output, or (b) use `self.skipTest()` to explicitly mark the test as skipped (visible in test summary), or (c) fail if in CI (`os.environ.get("CI")`).
-- **Validation:** `python -m unittest tests.test_golden_run -v 2>&1 | grep -i "skip\|warn\|golden"`
-- **Status:** Resolved
-
-### BH-P11-052 — `gate_stories` unit tests are mock-returns-what-you-assert
-- **Severity:** High
-- **Category:** mock-abuse
-- **Location:** `tests/test_gh_interactions.py:293-308`
-- **Problem:** `TestGateStories` patches `gh_json` to return `[]` (all closed) or a list of open issues. The test then verifies the function returns `(True, ...)` or `(False, "2 open ...")`. This tests the report formatting — "given this data, does the function format the output correctly?" — but NOT that the function queries GitHub with the right search parameters. If `gate_stories` changed its `gh_json` call from `--search "milestone:X is:open"` to `--search "is:open"` (dropping the milestone filter), these tests would still pass. The `validate_gates` integration test (via FakeGitHub) partially covers this, but these unit tests provide false confidence.
-- **Acceptance Criteria:** Either (a) verify the `gh_json` call args include the milestone name, or (b) document these as "report formatting tests" and add a separate integration test that exercises the query path. At minimum, assert `mock_gh.call_args` contains the milestone.
-- **Validation:** `grep -A5 "def test_all_closed" tests/test_gh_interactions.py | grep "call_args"`
-- **Status:** Resolved
-
-### BH-P11-053 — `gate_ci` unit tests are mock-returns-what-you-assert
-- **Severity:** High
-- **Category:** mock-abuse
-- **Location:** `tests/test_gh_interactions.py:313-334`
-- **Problem:** Same pattern as BH-P11-052. `TestGateCI` patches `gh_json` to return pre-shaped run data and verifies the pass/fail logic. Never verifies the query targets the right workflow or branch. If `gate_ci` dropped its `--branch` filter, these tests would still pass.
-- **Acceptance Criteria:** Assert `mock_gh.call_args` includes the base branch or workflow name. Or document these as formatting-only tests.
-- **Validation:** `grep -A5 "def test_passing" tests/test_gh_interactions.py | grep "call_args"`
-- **Status:** Resolved
-
-### BH-P11-054 — FakeGitHub `--jq` flag accepted but never evaluated
-- **Severity:** High
-- **Category:** mock-abuse
-- **Location:** `tests/fake_github.py` (multiple handlers)
-- **Problem:** FakeGitHub accepts `--jq` as a known flag but does NOT evaluate the jq expression. Instead, handlers pre-shape their return data to match what the real jq filter would produce. This means: (a) if a production script changes its `--jq` filter, FakeGitHub still returns the old shape — tests pass but production breaks, (b) complex jq expressions (nested selects, array construction) are never tested, (c) tests implicitly document the expected jq output shape, but this documentation can drift. The `--jq` gap has been flagged in prior passes but persists because full jq evaluation would require a jq library dependency (violating the stdlib-only constraint).
-- **Acceptance Criteria:** Either (a) add a comment to each handler documenting the assumed jq filter shape, or (b) for critical paths (check_direct_pushes, get_linked_pr), add a separate test that runs the real `gh` with `--jq` against known input to verify the filter. At minimum, document which production jq filters each handler is simulating.
-- **Validation:** `grep -c "jq" tests/fake_github.py`
-- **Status:** Resolved
-
-### BH-P11-055 — No `main()` integration test for `check_status.py`
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `skills/sprint-monitor/scripts/check_status.py:main()`
-- **Problem:** `check_status.py` has unit tests for individual check functions (check_ci, check_prs, etc.) but no test that calls `main()` with mocked subprocess/config and verifies the full orchestration — sync, CI check, drift detection, PR check, milestone check, log file write. The monitoring pipeline test in `test_lifecycle.py:test_14` exercises some of these but through individual function calls, not through `main()`.
-- **Acceptance Criteria:** A test calls `check_status.main()` with patched subprocess and config, verifies it runs all checks in order, writes a log file, and exits cleanly.
-- **Validation:** `grep -c "check_status.main" tests/`
-- **Status:** Resolved
-
-### BH-P11-056 — No `main()` integration test for `sync_tracking.py`
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `skills/sprint-run/scripts/sync_tracking.py:main()`
-- **Problem:** `sync_tracking.py` has unit tests for `sync_one()` and `create_from_issue()` but no test calls `main()`. The `main()` function orchestrates: load config, find milestone, list issues, sync each one — none of this orchestration is tested.
-- **Acceptance Criteria:** A test calls `sync_tracking.main()` with patched subprocess and verifies it processes all issues in the milestone.
-- **Validation:** `grep -c "sync_tracking.main" tests/`
-- **Status:** Resolved
-
-### BH-P11-057 — No `main()` integration test for `commit.py`
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `scripts/commit.py:main()`
-- **Problem:** `commit.py` has unit tests for `validate_message()` and `check_atomicity()` but no test calls `main()` end-to-end. The `main()` function orchestrates: parse args, validate message, check atomicity, run git commit — none of this orchestration logic is tested.
-- **Acceptance Criteria:** A test calls `commit.main()` with patched sys.argv and subprocess, verifies it validates the message, checks atomicity, and calls `git commit`.
-- **Validation:** `grep -rn "commit.main" tests/`
-- **Status:** Resolved
-
-### BH-P11-058 — No `main()` integration test for `validate_anchors.py`
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `scripts/validate_anchors.py:main()`
-- **Problem:** `validate_anchors.py` has unit tests for `find_anchor_defs`, `find_anchor_refs`, `check_anchors`, and `fix_missing_anchors`. But no test calls `main()` to verify CLI arg parsing and the check/fix mode selection.
-- **Acceptance Criteria:** A test calls `validate_anchors.main()` with patched sys.argv and verifies it runs in check mode or fix mode correctly.
-- **Validation:** `grep -rn "validate_anchors.main" tests/`
-- **Status:** Resolved
-
-### BH-P11-059 — FakeGitHub `--search` flag silently ignored in PR/issue list
-- **Severity:** Medium
-- **Category:** mock-abuse
-- **Location:** `tests/fake_github.py` (_pr_list, _issue_list handlers)
-- **Problem:** FakeGitHub accepts `--search` as a known flag but does not filter results by the search query. Production code like `gate_stories()` uses `--search "milestone:\"Sprint 1\" is:open"` — but FakeGitHub returns ALL issues/PRs regardless of the search string. Tests work because they pre-populate FakeGitHub with only matching data. If production code dropped or changed the search query, tests would still pass because FakeGitHub never validates the search.
-- **Acceptance Criteria:** Either (a) FakeGitHub parses `--search` and filters results by milestone/state, or (b) tests assert the search string is correct via `mock.call_args`.
-- **Validation:** `grep -n "search" tests/fake_github.py | head -10`
-- **Status:** Resolved
-
-### BH-P11-060 — `do_release` tests over-mock subprocess, never exercise real git
-- **Severity:** Medium
-- **Category:** mock-abuse
-- **Location:** `tests/test_release_gate.py:TestDoRelease`
-- **Problem:** `do_release` tests patch `subprocess.run` globally, replacing ALL subprocess calls (including git) with MagicMock. This means git operations (commit, tag, push) are never actually executed. The test verifies the sequence of subprocess calls but not that the git commands are syntactically correct or produce the expected state. For example, the test can't catch if `git tag -a v{ver}` has wrong quoting or if the tag format is invalid.
-- **Acceptance Criteria:** Either (a) use FakeGitHub (which passes real git commands through) for the git operations while mocking gh, or (b) add a separate integration test that runs do_release in a real git repo (temp dir).
-- **Validation:** `grep -c "MagicMock\|mock_run" tests/test_release_gate.py`
-- **Status:** Resolved
-
-### BH-P11-061 — `sprint_teardown` interactive confirmation path untested
-- **Severity:** Medium
-- **Category:** missing-test
-- **Location:** `scripts/sprint_teardown.py:main()`
-- **Problem:** `sprint_teardown.main()` has a dry-run test and an execute test, but the interactive confirmation prompt (when neither `--force` nor `--dry-run` is passed) is not tested. The code path where the user is asked "Remove sprint-config/? [y/N]" and responds with various inputs (y, n, empty, unexpected) is never exercised.
-- **Acceptance Criteria:** A test patches `input()` to return "y", "n", and "" and verifies the function proceeds or aborts accordingly.
-- **Validation:** `grep -n "input(" scripts/sprint_teardown.py`
-- **Status:** Resolved
-
-### BH-P11-062 — Duplicate `MockProject` classes across test files
-- **Severity:** Low
-- **Category:** duplicate
-- **Location:** `tests/test_lifecycle.py:MockProject` + `tests/test_verify_fixes.py:MockProject`
-- **Problem:** Two nearly identical `MockProject` classes create minimal Rust project fixtures in temp directories. Both create Cargo.toml, .git/config, team personas, milestones, RULES.md, DEVELOPMENT.md. Divergence between them means one test suite might pass with a slightly different fixture than another, making behavior inconsistent. Changes to project structure require updating both copies.
-- **Acceptance Criteria:** Extract `MockProject` into a shared test helper (e.g., `tests/mock_project.py`) imported by both test files.
-- **Validation:** `grep -rn "class MockProject" tests/`
-- **Status:** Resolved
-
-### BH-P11-063 — `check_ci`/`check_prs` tests verify mock output shape, not query correctness
-- **Severity:** Medium
-- **Category:** mock-abuse
-- **Location:** `tests/test_gh_interactions.py:TestCheckCI, TestCheckPRs`
-- **Problem:** `TestCheckCI` and `TestCheckPRs` use FakeGitHub with pre-populated run/PR data. They verify the output message contains expected strings but don't verify the query parameters (e.g., that check_ci queries the correct branch, that check_prs filters by state). If the production code changed its query from `--state open` to `--state all`, these tests would still pass because FakeGitHub returns all data regardless.
-- **Acceptance Criteria:** Tests should verify the subprocess call args include expected filters (branch, state, limit) or FakeGitHub should validate query parameters.
-- **Validation:** `python -m unittest tests.test_gh_interactions.TestCheckCI -v`
-- **Status:** Resolved
+| Priority | Meaning |
+|----------|---------|
+| **P0** | Production logic bugs — wrong behavior in real usage |
+| **P1** | Test infrastructure defeats its own purpose — provides false confidence |
+| **P2** | Test quality issues that mask bugs — coverage looks good but isn't |
+| **P3** | Code quality and minor correctness gaps |
+| **P4** | Maintenance, style, and structural improvements |
 
 ---
 
-## Phase 3: Adversarial Code Audit
+## P0 — Production Logic Bugs
 
-Scope: All production scripts (priority 1-12 from churn analysis)
-Focus: Cross-script interaction bugs, error paths, boundary conditions missed by passes 1-10
+### P12-001: `do_release` rollback leaves orphaned commit on remote
 
-### BH-P11-100 — `do_release` rollback silently swallows failures and double-resets HEAD
-- **Severity:** High
-- **Category:** logic-bug
-- **Location:** `skills/sprint-release/scripts/release_gate.py:538-547,580-583`
-- **Problem:** When the GitHub Release creation fails (line 579), the cleanup calls `_rollback_tag()` (line 580) then `_rollback_commit()` (line 581). But `_rollback_tag()` only removes the tag — it does NOT call `_rollback_commit()`. The real issue is that both rollback functions silently discard subprocess return codes. If `git push --delete origin v{new_ver}` fails (network error, permission denied), the tag persists on the remote while the local commit is rewound by `_rollback_commit()`. The remote now has an orphaned tag pointing at a commit that the local branch no longer contains. The user sees "GitHub Release failed (tag rolled back)" but the tag was NOT actually rolled back on the remote. There is no error surfaced for the failed rollback.
-- **Acceptance Criteria:** Rollback subprocess calls check return codes and print warnings on failure. The user is told explicitly if remote tag deletion failed, with a remediation command (`git push --delete origin v{version}`).
-- **Validation:** `grep -c "returncode" skills/sprint-release/scripts/release_gate.py | python3 -c "import sys; n=int(sys.stdin.read().strip()); print(f'Rollback return code checks: {n - 10} (in rollback functions)')"`
-- **Status:** Resolved
+- **File:** `skills/sprint-release/scripts/release_gate.py:482-488, 534-537, 590-594`
+- **Bug:** When GitHub Release creation fails after the version bump commit was pushed, `_rollback_commit()` does `git reset --hard` locally but does NOT force-push to remove the commit from the remote. The tag is deleted (both local and remote via `_rollback_tag`), but the version bump commit remains on the remote branch.
+- **Impact:** Remote has orphaned version bump commit (no release), local HEAD diverges from remote, next push fails, anyone pulling gets a version bump with no release.
+- **Acceptance criteria:**
+  1. After a failed GitHub Release, the remote branch must not contain the version bump commit
+  2. OR the rollback must create a revert commit (safer than force-push) and push it
+  3. Test must simulate: push succeeds → release creation fails → verify remote state is clean
+- **Validation:** `grep -n "force\|revert\|push" skills/sprint-release/scripts/release_gate.py | grep -i rollback` should show the rollback function addresses the remote state. New test in `test_release_gate.py` must assert post-rollback remote state.
 
-### BH-P11-101 — `get_linked_pr` merged-PR selection is order-dependent on API response
-- **Severity:** High
-- **Category:** logic-bug
-- **Location:** `skills/sprint-run/scripts/sync_tracking.py:74-83`
-- **Problem:** The PR selection loop iterates `linked` looking for the best PR. For open PRs it breaks immediately (line 79). For merged PRs, it sets `best = d` but does NOT break (line 82) — so if multiple merged PRs exist, the LAST one in the list wins. `best` is initialized to `linked[-1]` (line 75), which is the last item in the API response. The GitHub timeline API does not guarantee chronological ordering. This means the "best" PR for a given issue depends on which order the API returns linked PRs, making behavior non-deterministic. If an issue had an initial PR merged, then a hotfix PR merged, the code might return either one depending on API pagination and ordering.
-- **Acceptance Criteria:** After finding a merged PR, break the loop (to match the open-PR behavior), or sort linked PRs by a timestamp before iterating. Document which merged PR is preferred.
-- **Validation:** `python3 -c "
-linked = [
-    {'state':'closed','pull_request':{'merged_at':'2025-01-01'},'number':1},
-    {'state':'closed','pull_request':{'merged_at':'2025-06-01'},'number':2},
-    {'state':'closed','number':3}
-]
-best = linked[-1]
-for d in linked:
-    if d.get('state') == 'open':
-        best = d; break
-    if d.get('pull_request',{}).get('merged_at') is not None:
-        best = d
-print(f'Selected PR #{best[\"number\"]} (should be most recent merged)')
-"`
-- **Status:** Resolved
+### P12-002: `get_linked_pr` returns first merged PR, not latest
 
-### BH-P11-102 — `populate_issues.get_milestone_numbers` bypasses `gh_json` concatenation fix
-- **Severity:** High
-- **Category:** logic-bug
-- **Location:** `skills/sprint-setup/scripts/populate_issues.py:285-288`
-- **Problem:** `get_milestone_numbers()` calls `gh()` with `--paginate` and then `json.loads(raw)`. The BH-001 fix (pass 10) added incremental JSON decoding to `gh_json()` in validate_config.py, but this function calls `gh()` directly and parses manually, completely bypassing that fix. For repos with 100+ milestones, `--paginate` concatenates multiple JSON arrays (`[...][...]`), and `json.loads()` will either raise `JSONDecodeError` or parse only the first page, silently dropping milestones. Issues assigned to dropped milestones won't be created.
-- **Acceptance Criteria:** `get_milestone_numbers()` uses `gh_json()` instead of `gh()` + `json.loads()`. Or at minimum, uses the same incremental decoding logic.
-- **Validation:** `grep -n "json.loads" skills/sprint-setup/scripts/populate_issues.py`
-- **Status:** Resolved
+- **File:** `skills/sprint-run/scripts/sync_tracking.py:73-81`
+- **Bug:** The `break` on line 81 stops at the first merged PR in the timeline (chronologically oldest). For stories with multiple linked PRs (failed first attempt → successful redo), this returns the wrong PR. Pass 11 (BH-P11-101) flagged this but the "fix" only documented existing behavior — the `break` was not changed.
+- **Impact:** Story tracking files link to the wrong PR. Status shown to user may reflect abandoned work instead of the actual implementation.
+- **Acceptance criteria:**
+  1. `get_linked_pr` must return the most recently merged PR when multiple exist
+  2. If an open PR exists, prefer it over merged PRs (current behavior, correct)
+  3. If no open PR, prefer the latest merged PR (not earliest)
+- **Validation:** New test: create timeline with 2 merged PRs (merged_at timestamps differ), assert the one with the later `merged_at` is returned.
+  ```
+  python -m pytest tests/test_gh_interactions.py -k "linked_pr" -v
+  ```
 
-### BH-P11-103 — `populate_issues.get_existing_issues` uses raw `json.loads` without type validation
-- **Severity:** High
-- **Category:** error-handling
-- **Location:** `skills/sprint-setup/scripts/populate_issues.py:264-270`
-- **Problem:** `get_existing_issues()` calls `gh()` then `json.loads(raw)`. Two issues: (1) It doesn't use `gh_json()`, missing centralized error handling. (2) It doesn't validate that `json.loads(raw)` returns a list. If `gh` returns a JSON object (e.g., an error response `{"message": "Bad credentials"}`), `for issue in issues` would iterate over dict keys (`"message"`), and `issue.get("title", "")` would fail with `AttributeError: 'str' object has no attribute 'get'`. The try/except catches `JSONDecodeError` but not `AttributeError`.
-- **Acceptance Criteria:** Either use `gh_json()` or add `if not isinstance(issues, list): raise RuntimeError(...)` after parsing. The function should handle non-list JSON responses gracefully.
-- **Validation:** `python3 -c "issues = {'message': 'Bad credentials'}; [i.get('title','') for i in issues]" 2>&1 | head -1`
-- **Status:** Resolved
+### P12-003: Sprint heading regex inconsistency across scripts
 
-### BH-P11-104 — `sync_tracking.get_linked_pr` uses `json.loads` on paginated+jq output
-- **Severity:** Medium
-- **Category:** logic-bug
-- **Location:** `skills/sprint-run/scripts/sync_tracking.py:62-70`
-- **Problem:** `get_linked_pr` calls `gh()` with both `--paginate` and `--jq`. The `--jq` filter transforms each page independently, and `--paginate` concatenates the results. For a timeline that spans multiple pages, the output is `[...filtered page 1...][...filtered page 2...]` — concatenated arrays. `json.loads(raw)` at line 70 parses only the first array, silently dropping linked PRs from later pages. This is the same bug class as BH-001 (pass 10) but in a call site that combines `--paginate` with `--jq`, which wasn't caught because the `--jq` transformation masks the concatenation issue.
-- **Acceptance Criteria:** Use `gh_json()` which handles concatenated arrays, or remove `--paginate` (single-issue timelines rarely exceed one page).
-- **Validation:** `grep -n "paginate" skills/sprint-run/scripts/sync_tracking.py`
-- **Status:** Resolved
+- **File:** Multiple: `populate_issues.py`, `bootstrap_github.py`, `sprint_init.py`
+- **Bug:** Four different patterns parse sprint headers:
+  - `_SPRINT_HEADER_RE` requires colon (`### Sprint (\d+):`)
+  - `_collect_sprint_numbers` requires colon
+  - `_infer_sprint_number` does NOT require colon (`^###\s+Sprint\s+(\d+)`)
+  - `check_milestone` matches milestone title (`^Sprint {N}\b`)
+  A heading `### Sprint 1` (no colon) would be detected by `_infer_sprint_number` for epic enrichment but NOT by `_SPRINT_HEADER_RE` for story parsing or by `_collect_sprint_numbers` for label creation. Stories get sprint numbers that don't have corresponding labels/milestones.
+- **Acceptance criteria:**
+  1. All sprint heading regexes must agree on whether the colon is required
+  2. Either all require it (and document this as a format requirement) or none do
+  3. Skeleton template `milestone.md.tmpl` must match the chosen format
+- **Validation:**
+  ```bash
+  grep -rn "Sprint.*\\\\d\|Sprint.*[0-9]" scripts/ skills/ --include="*.py" | grep -i "re\.\|_RE\|pattern\|regex\|match"
+  ```
+  All patterns should be consistent. New test: parse a milestone file with `### Sprint 1` (no colon) through the full pipeline, verify labels AND issues are created.
 
-### BH-P11-105 — `_yaml_safe` misses single-quote as a YAML-sensitive leading character
-- **Severity:** Medium
-- **Category:** logic-bug
-- **Location:** `skills/sprint-run/scripts/sync_tracking.py:179`
-- **Problem:** `_yaml_safe` checks if `value[0] in '[{>|*&!%@\``'` to decide if quoting is needed. Single-quote (`'`) is not in this set. In YAML, a value starting with `'` begins a single-quoted scalar. If a story title starts and ends with `'` (e.g., `'Twas a dark night'`), `write_tf` writes it unquoted. When `read_tf` parses it back, the quote-stripping logic at lines 158-159 checks `val[0] == val[-1] and val[0] in ('"', "'")` — this is True, so both the first and last `'` are stripped, corrupting the title to `Twas a dark night` (no quotes). Round-trip fidelity is broken.
-- **Acceptance Criteria:** `_yaml_safe` includes both `'` and `"` in the set of leading characters that trigger quoting. Round-trip test: `write_tf` then `read_tf` preserves titles starting/ending with quotes.
-- **Validation:** `python3 -c "
-value = \"'Twas a dark night'\"
-needs = (
-    ': ' in value or value.endswith(':')
-    or value[0] in '[{>|*&!%@\x60'
-    or '#' in value or value.startswith('- ') or value.startswith('? ')
-)
-print(f'Title: {value!r}, needs_quoting: {needs}')
-# After fix, needs should be True
-"`
-- **Status:** Resolved
+### P12-029: `renumber_stories` crashes on backslash-containing IDs (regex injection)
 
-### BH-P11-106 — `write_version_to_toml` next-section regex matches TOML array-of-tables
-- **Severity:** Medium
-- **Category:** logic-bug
-- **Location:** `skills/sprint-release/scripts/release_gate.py:284`
-- **Problem:** `re.search(r"^\[(?![\s\"\'])", text[start + 1:], re.MULTILINE)` finds the next TOML section header after `[release]`. The negative lookahead excludes whitespace, `"`, and `'` but does NOT exclude `[`. TOML's array-of-tables syntax `[[table_name]]` starts with `[[` — the second `[` would pass the lookahead, causing the regex to match `[[table_name]]` as a section boundary. Content between `[release]` and `[[table_name]]` would be treated as the release section, and the version line insertion could be placed incorrectly.
-- **Acceptance Criteria:** The regex also excludes `[` in the lookahead: `r"^\[(?![\[\s\"'])"`. Or use a more robust section detection that skips `[[`.
-- **Validation:** `python3 -c "
-import re
-text = '[release]\nversion = \"1.0\"\n\n[[plugins]]\nname = \"foo\"'
-start = text.index('[release]')
-m = re.search(r'^\[(?![\s\"\x27])', text[start + 1:], re.MULTILINE)
-print(f'Matched at offset {m.start()}: {m.group()!r}' if m else 'No match')
-# Bug: matches the second [ in [[plugins]]
-"`
-- **Status:** Resolved
+- **File:** `scripts/manage_epics.py:347-363`
+- **Bug:** `re.sub()` uses user-supplied `new_ids` as the replacement string without escaping. In Python's `re.sub`, the replacement string interprets `\1`, `\2`, etc. as backreferences. A story ID containing `\1` causes `re.error: invalid group reference`.
+- **Impact:** Crash when renumbering stories with backslash-containing IDs. CLI accepts arbitrary arguments.
+- **Acceptance criteria:**
+  1. `renumber_stories` must not crash on IDs containing backslashes
+  2. Use `lambda m: replacement` instead of raw replacement string, or escape backslashes
+- **Validation:** New test: call `renumber_stories` with `new_ids=[r"US-01\1a"]`, verify no crash and correct substitution.
 
-### BH-P11-107 — `check_status.main` catches all sync exceptions silently
-- **Severity:** Medium
-- **Category:** error-handling
-- **Location:** `skills/sprint-monitor/scripts/check_status.py:361-366`
-- **Problem:** `sync_backlog_main()` is called inside a bare `except Exception` handler that converts any error to a one-line string `f"Sync: error — {exc}"`. This masks the full traceback, making debugging impossible. If `sync_backlog_main()` crashes due to a real bug (e.g., `KeyError`, `TypeError`, `AttributeError`), the error looks like a transient sync failure instead of a code bug. Additionally, the module-level import at line 26 (`from sync_backlog import main as sync_backlog_main`) transitively imports `bootstrap_github` and `populate_issues`, which import `load_config` and other heavy modules. If any of these have a syntax error or missing dependency, check_status.py itself fails to import — not just the sync step.
-- **Acceptance Criteria:** The `except Exception` block logs `traceback.format_exc()` to stderr (not just the exception message). The sync_backlog import uses a lazy import pattern so check_status.py remains functional even when sync dependencies are broken.
-- **Validation:** `grep -A3 "except Exception" skills/sprint-monitor/scripts/check_status.py`
-- **Status:** Resolved
+### P12-030: CI YAML injection via newline-containing commands in `check_commands`
 
-### BH-P11-108 — `compute_review_rounds` reports misleading "highest" story when max rounds is 0
-- **Severity:** Medium
-- **Category:** logic-bug
-- **Location:** `scripts/sprint_analytics.py:117-119`
-- **Problem:** When all PRs have 0 review rounds (no reviews submitted), `max(rounds_per_pr, key=lambda x: x[1])` returns an arbitrary PR (the first one with max value 0). The report then says something like `"highest: US-001: Add auth, 0 rounds"`, implying US-001 was reviewed 0 times specifically. This is misleading — no PR was reviewed at all. The `max_story` field should be empty or "N/A" when `max_rounds` is 0.
-- **Acceptance Criteria:** When `max_rounds == 0`, `max_story` is set to "none" or similar, and `format_report` handles this case distinctly.
-- **Validation:** `python3 -c "
-rounds = [('US-001: Add auth', 0), ('US-002: Fix bug', 0)]
-ms, mr = max(rounds, key=lambda x: x[1])
-print(f'highest: {ms}, {mr} rounds')  # misleading
-"`
-- **Status:** Resolved
+- **File:** `skills/sprint-setup/scripts/setup_ci.py:94-113`
+- **Bug:** `generate_ci_yaml` interpolates CI commands from `project.toml` directly into YAML string concatenation. A command containing a newline character produces an invalid or dangerous CI workflow (e.g., injecting an `env:` block with secrets).
+- **Impact:** Generated `.github/workflows/ci.yml` could contain unintended steps. Self-inflicted (config is local), but could produce silent CI breakage or security issues.
+- **Acceptance criteria:**
+  1. Commands must be quoted or escaped before YAML interpolation
+  2. Newline characters in commands must be rejected or properly handled
+  3. Test must verify a command with embedded newline doesn't produce raw YAML injection
+- **Validation:** New test: `generate_ci_yaml` with `check_commands=["cargo test\n    env:\n      SECRET: x"]`, verify the output is valid YAML and the injected `env:` block is NOT present as a separate YAML key.
 
-### BH-P11-109 — `_parse_team_index` treats malformed separator row as data
-- **Severity:** Medium
-- **Category:** boundary
-- **Location:** `scripts/validate_config.py:521`
-- **Problem:** The separator row check `all(re.match(r"^[-:]+$", c) for c in cells)` requires every cell to have at least one character matching `[-:]`. But after `stripped.strip("|").split("|")`, a table like `|---|---|` (with no trailing content) produces cells `["---", "---"]` which works. However, `| --- |  |` produces cells `["---", " "]` — the space-only cell fails the `[-:]+` match because space is not in the character class. The row is treated as data, adding a persona with name `---` and role ` `. More commonly, `|---|` (single-column) produces `["---"]` which passes the check but has fewer cells than headers, so it silently creates a row with only the first column populated.
-- **Acceptance Criteria:** Separator detection strips whitespace from cells before checking, and also handles the case where the number of cells differs from headers.
-- **Validation:** `python3 -c "
-import re
-cells = ['---', ' ']
-result = all(re.match(r'^[-:]+$', c) for c in cells)
-print(f'Detected as separator: {result}')  # False — bug
-cells2 = ['---', ' '.strip()]
-result2 = all(re.match(r'^[-:]+$', c) for c in cells2 if c)
-print(f'After strip+filter: {result2}')  # True
-"`
-- **Status:** Resolved
+### P12-031: `create_milestones_on_github` uses `{owner}/{repo}` template variables inconsistently
 
-### BH-P11-110 — `validate_project` missing-file check uses string formatting with user-controlled config_dir
-- **Severity:** Low
-- **Category:** security
-- **Location:** `scripts/validate_config.py:404-405`
-- **Problem:** `template.format(config_dir=config_dir)` uses Python's `str.format()` with the `config_dir` parameter, which is user-controlled (from sys.argv or function argument). If `config_dir` contains format specifiers like `{0}` or `{__class__}`, `str.format()` will try to resolve them, potentially raising `IndexError`, `KeyError`, or exposing internal object attributes. While this is unlikely in normal usage (config_dir is a path like `sprint-config`), it's a format string injection pattern. Example: `config_dir = "{0.__class__}"` would crash with an IndexError.
-- **Acceptance Criteria:** Use f-string interpolation or `template.replace("{config_dir}", config_dir)` instead of `.format()` to prevent format string injection.
-- **Validation:** `python3 -c "
-template = '{config_dir}/project.toml'
-try:
-    result = template.format(config_dir='{0.__class__}')
-    print(f'Result: {result}')
-except (IndexError, KeyError) as e:
-    print(f'Format injection error: {e}')
-"`
-- **Status:** Resolved
-
-### BH-P11-111 — `sprint_analytics.main` arg parsing allows `-h` to be treated as sprint number
-- **Severity:** Low
-- **Category:** logic-bug
-- **Location:** `scripts/sprint_analytics.py:192-206`
-- **Problem:** The help check at line 192 only triggers when `sys.argv[1]` is exactly `-h` or `--help`. After that, `load_config()` is called (which may fail). Then at line 204, if `sys.argv[1].isdigit()` is checked. If someone passes `--verbose` or any non-digit, non-help flag, it hits the `else` branch at line 207 which prints usage and exits. But if someone passes `-h` as the SECOND argument (`sprint_analytics.py 1 -h`), the help check at line 192 sees `sys.argv[1] = "1"` (not `-h`), skips help, and tries to run analytics for sprint 1. The `-h` at argv[2] is silently ignored. This is a minor UX issue, not a bug.
-- **Acceptance Criteria:** Use `argparse` for consistent arg parsing, or document that `-h` must be the first argument.
-- **Validation:** `python3 -c "import sys; sys.argv = ['x', '1', '-h']; print(sys.argv[1] in ('-h', '--help'))"`
-- **Status:** Resolved
-
-### BH-P11-112 — `do_release` catches `RuntimeError` from `gh()` but not from subprocess calls
-- **Severity:** Low
-- **Category:** error-handling
-- **Location:** `skills/sprint-release/scripts/release_gate.py:437-448`
-- **Problem:** In `do_release()`, the `git status --porcelain` call at line 437 checks `r.returncode` but not for `FileNotFoundError` if git is not installed. The `subprocess.run` call will raise `FileNotFoundError` (not `RuntimeError`), which is unhandled. The function would crash with a traceback instead of printing a clean error message. Similarly, the `git rev-parse HEAD` at line 472 and all subsequent `subprocess.run` calls for git commands assume git is available. While `gh auth status` checks are done elsewhere, the release flow itself doesn't verify git availability upfront.
-- **Acceptance Criteria:** Wrap the initial git subprocess calls in try/except `FileNotFoundError` with a clean error message, or add a git-availability check at the top of `do_release()`.
-- **Validation:** `python3 -c "
-import subprocess
-try:
-    subprocess.run(['nonexistent-command'], capture_output=True)
-except FileNotFoundError as e:
-    print(f'Caught: {e}')
-"`
-- **Status:** Resolved
-
-### BH-P11-113 — `manage_sagas.update_team_voices` produces merged blockquote instead of separate ones
-- **Severity:** Low
-- **Category:** logic-bug
-- **Location:** `scripts/manage_sagas.py:255-257`
-- **Problem:** Between voice entries, the code inserts a `>` line (line 256). In markdown, a line containing only `>` is a continuation of the blockquote, not a separator. All voices merge into a single continuous blockquote when rendered. To actually separate blockquotes, there must be a non-blockquote line (empty line without `>`) between them. The visual intent is separate blockquotes per persona, but the markdown output produces one merged blockquote.
-- **Acceptance Criteria:** Use an empty line (without `>` prefix) between voices to create visually separate blockquotes. Or use `""` instead of `">"` as the separator line.
-- **Validation:** `python3 -c "
-lines = ['> **Alice:** \"hello\"', '>', '> **Bob:** \"world\"']
-print('Rendered as one blockquote (bug):')
-print('\\n'.join(lines))
-print()
-lines2 = ['> **Alice:** \"hello\"', '', '> **Bob:** \"world\"']
-print('Rendered as two blockquotes (fix):')
-print('\\n'.join(lines2))
-"`
-- **Status:** Resolved
-
-### BH-P11-114 — `check_direct_pushes` jq filter selects single-parent commits but misses initial commit
-- **Severity:** Low
-- **Category:** logic-bug
-- **Location:** `skills/sprint-monitor/scripts/check_status.py:283`
-- **Problem:** The `--jq` filter `'[.[] | select(.parents | length == 1) | ...]'` identifies direct pushes by selecting commits with exactly one parent (non-merge commits). But the initial commit of a repository has 0 parents, which would be filtered out. If someone force-pushes a new root commit to the base branch (rewriting history), this would not be detected. Additionally, octopus merges (3+ parents) are also filtered out, but these are extremely rare in practice.
-- **Acceptance Criteria:** Document that `length == 1` intentionally excludes merge commits and the initial commit. Or use `length <= 1` to also catch force-pushed root commits.
-- **Validation:** `python3 -c "
-# Simulating: initial commit has 0 parents
-commits = [{'parents': [], 'sha': 'abc'}]
-filtered = [c for c in commits if len(c['parents']) == 1]
-print(f'Direct pushes detected: {len(filtered)} (should be 1 if initial commit is direct)')
-"`
-- **Status:** Resolved
+- **File:** `skills/sprint-setup/scripts/bootstrap_github.py:249-254`
+- **Bug:** Milestone creation uses `gh api repos/{owner}/{repo}/milestones` — relying on `gh api`'s template variable expansion. Label creation uses `gh label create` — a higher-level command that auto-detects the repo. If `gh api` template expansion fails (wrong git remote, detached HEAD), milestone creation gets a 404 while label creation succeeds, producing a partial bootstrap.
+- **Impact:** Partial bootstrap state — labels exist, milestones don't. Subsequent populate_issues fails because it can't find milestones.
+- **Acceptance criteria:**
+  1. Either both use `gh api` with template variables, or both use higher-level commands
+  2. OR add error handling that detects partial bootstrap and reports which step failed
+- **Validation:** New test: FakeGitHub test that verifies label and milestone creation succeed together, and that a milestone creation failure produces a clear error (not silent partial state).
 
 ---
 
-## Phase 4: Structural Prevention (Trend-Derived)
+## P1 — Test Infrastructure Defeats Its Own Purpose
 
-Scope: Recurring patterns across passes 5–11 (210 total findings). These are structural changes to prevent entire categories of bugs from recurring.
+### P12-004: Golden replay compares file names only, not content
 
-### BH-P11-200 — FakeGitHub strict mode: reject flags it doesn't evaluate
-- **Severity:** High
-- **Category:** test-infra
-- **Location:** `tests/fake_github.py`
-- **Problem:** FakeGitHub accepts flags like `--jq`, `--search`, `--state`, `--branch` via `_KNOWN_FLAGS` but silently ignores most of them, returning all data regardless of filters. Production code thinks it's filtering; tests pass without exercising the query path. This pattern generated ~18 findings across 5 of 7 passes (passes 5, 6, 8, 10, 11). New production code that adds a filter parameter gets "free green bar" from tests that don't actually validate the filter works.
-- **Acceptance Criteria:** Add a `strict=True` mode (default on) where FakeGitHub distinguishes between _accepted_ flags (parsed and silently consumed) and _implemented_ flags (actually used to filter results). When `strict=True`, any flag in `_KNOWN_FLAGS` that is NOT in `_IMPLEMENTED_FLAGS` causes the handler to emit a warning or raise, alerting test authors that their test isn't exercising the filter. Existing tests that intentionally skip filtering can opt out with `FakeGitHub(strict=False)`.
-- **Validation:** `grep -c "_IMPLEMENTED_FLAGS" tests/fake_github.py` should return >0. A test that passes `--branch main` to a handler that doesn't filter by branch should produce a warning.
-- **Status:** Resolved
+- **File:** `tests/golden_replay.py:137-175`
+- **Bug:** `assert_files_match()` compares only the set of relative file paths between recorded and current state. The recorder (`golden_recorder.py:78-101`) captures full file contents, but the replayer never reads or compares them. The entire purpose of golden testing — catching content regressions — is defeated.
+- **Impact:** A production regression that changes generated file content (wrong TOML structure, malformed persona template, broken symlink target) passes the golden test as long as the same files exist.
+- **Acceptance criteria:**
+  1. `assert_files_match` must compare file contents, not just paths
+  2. Content comparison must handle expected differences (timestamps, absolute paths) via an allowlist or normalization
+  3. A test must prove: change a recorded file's content → golden replay fails
+- **Validation:**
+  ```bash
+  grep -n "read_text\|content\|compare" tests/golden_replay.py
+  ```
+  Should show content comparison logic in `assert_files_match`. Regression test: modify a golden recording's file content, run `python -m pytest tests/test_golden_run.py -v`, expect failure.
 
-### BH-P11-201 — Call-args audit: auto-verify mocked gh_json/gh calls are interrogated
-- **Severity:** High
-- **Category:** test-infra
-- **Location:** `tests/` (new shared helper or conftest.py)
-- **Problem:** Tests that patch `gh_json` or `gh` set up return values and verify output formatting, but never check `mock.call_args` to confirm the function constructed the right query. If production code dropped a `--milestone` filter or `--branch` flag, tests would still pass. This "mock-returns-what-you-assert" pattern was found in passes 9 and 11 (total ~12 items). Pass 11 added `call_args` assertions to existing tests, but nothing prevents new tests from repeating the pattern.
-- **Acceptance Criteria:** A shared test utility (e.g., `assert_gh_args_verified` context manager or a `conftest.py` fixture) that wraps `@patch("module.gh_json")` and automatically warns or fails if the mock was called but `call_args` was never accessed by the test. New tests using this helper structurally cannot ignore query parameters.
-- **Validation:** At least one existing test uses the new helper. A deliberately bad test (patches gh_json, ignores call_args) triggers the warning.
-- **Status:** Resolved
+### P12-005: Property tests for `_parse_team_index` test a reimplemented parser
 
-### BH-P11-202 — Script main() coverage gate: fail CI if new scripts lack main() tests
-- **Severity:** Medium
-- **Category:** test-infra
-- **Location:** `tests/test_lifecycle.py` or `tests/conftest.py`
-- **Problem:** Every pass finds 3–5 scripts where individual functions are well-tested but `main()` — the orchestration code that parses args, loads config, calls functions, handles errors — is untested. We keep adding these tests one at a time in each pass, and new scripts get written without them. This pattern recurred in passes 5, 7, 10, and 11 (~15 total items).
-- **Acceptance Criteria:** A test that discovers all `scripts/**/*.py` and `skills/**/scripts/*.py` files containing `def main()`, then asserts each one has at least one test that calls `<module>.main()`. Untested main() functions cause the test to fail with a message naming the script. New scripts without main() tests fail CI immediately.
-- **Validation:** `python -m pytest tests/ -k "every_script_main" -v` passes. Adding a new script with `def main()` and no test causes the gate to fail.
-- **Status:** Resolved
+- **File:** `tests/test_property_parsing.py:394-458`
+- **Bug:** The test admits (line 392): "We can't easily call _parse_team_index with hypothesis because it reads from a file. Instead, we test the regex logic it uses by extracting the core parsing into test cases that use the same patterns." The test reimplements the parsing loop inline and asserts against its own reimplementation. If production `_parse_team_index` diverges (which it already has — BH-P11-109 added whitespace-stripping), these tests still pass.
+- **Impact:** Testing a copy-paste of the algorithm, not the actual production code. Any production bug not replicated in the test copy goes undetected.
+- **Acceptance criteria:**
+  1. Property tests must call the actual `_parse_team_index` function
+  2. Strategy generates valid team index markdown → writes to temp file → calls production function → asserts structural invariants
+  3. Remove the inline reimplementation
+- **Validation:**
+  ```bash
+  grep -n "_parse_team_index" tests/test_property_parsing.py
+  ```
+  Should show direct imports and calls to the production function, not inline reimplementation.
+
+### P12-006: Property test TOML strategy avoids the hardest characters
+
+- **File:** `tests/test_property_parsing.py:264-270`
+- **Bug:** The `_toml_string_val` strategy blacklists `'"\\#\n\r'` — the exact characters that require escaping in TOML and are the most likely to trigger parser bugs. The custom TOML parser is a documented complexity hotspot. Property tests that systematically avoid the hardest cases provide false confidence.
+- **Impact:** Strings like `value = "path\\to\\file"` or `value = "say \"hello\""` are never generated. Parser bugs with escape sequences go untested by the fuzz engine.
+- **Acceptance criteria:**
+  1. Remove the character blacklist from `_toml_string_val`
+  2. The `_toml_line` helper must properly escape special characters in generated TOML
+  3. Property tests must exercise strings containing `\`, `"`, `#`, and newlines (within quoted values)
+  4. If the custom parser can't handle these (known limitation), document it and add skip logic, don't silently avoid them
+- **Validation:** Run hypothesis with increased examples and verify special characters are tested:
+  ```bash
+  python -m pytest tests/test_property_parsing.py -k "toml" -v --hypothesis-seed=0
+  ```
+
+### P12-007: 12 core scripts in `_KNOWN_UNTESTED` — coverage gate is too permissive
+
+- **File:** `tests/test_verify_fixes.py:864-877`
+- **Bug:** The `TestEveryScriptMainCovered._KNOWN_UNTESTED` frozenset grandfathers 12 scripts including: `release_gate`, `bootstrap_github`, `populate_issues`, `setup_ci`, `update_burndown`, `validate_config`. These are the most critical pipeline scripts. The gate test prevents NEW scripts from bypassing testing but doesn't address the existing gap.
+- **Impact:** These 12 scripts could have bugs in main() entry points (argument parsing, error handling, exit codes) that no test exercises. `release_gate.main()` orchestrates versioning, tagging, and release publishing.
+- **Acceptance criteria:**
+  1. Add main() integration tests for at least the 4 highest-risk scripts: `release_gate`, `bootstrap_github`, `populate_issues`, `validate_config`
+  2. Remove those 4 from `_KNOWN_UNTESTED`
+  3. Each new main() test must verify: correct exit code, expected stdout/stderr content, no unhandled exceptions
+- **Validation:**
+  ```bash
+  python -c "
+  import ast, sys
+  tree = ast.parse(open('tests/test_verify_fixes.py').read())
+  for node in ast.walk(tree):
+      if isinstance(node, ast.Assign):
+          for t in node.targets:
+              if hasattr(t, 'attr') and t.attr == '_KNOWN_UNTESTED':
+                  print(ast.literal_eval(node.value))
+  "
+  ```
+  Should show 8 or fewer scripts (down from 12).
+
+---
+
+## P2 — Test Quality Issues That Mask Bugs
+
+### P12-008: `do_release` happy path mocks away the code under test
+
+- **File:** `tests/test_release_gate.py:527-591`
+- **Bug:** `test_happy_path` patches 5 things: `calculate_version`, `write_version_to_toml`, `subprocess.run`, `find_milestone_number`, and `gh`. Then asserts the mocks were called in order. Never verifies actual orchestration — if `do_release` reordered steps (pushed before tagging), all assertions still pass.
+- **Impact:** False confidence that the release flow works end-to-end.
+- **Acceptance criteria:**
+  1. At least one `do_release` test uses FakeGitHub instead of global mocks
+  2. Test verifies actual state changes: release created, milestone closed, version file updated
+  3. Existing mock-based test can remain as a call-sequence check, but must not be the only test
+- **Validation:** `grep -n "FakeGitHub\|fake_gh" tests/test_release_gate.py` should show FakeGitHub usage in at least one do_release test.
+
+### P12-009: Dry-run integration test mock produces invalid git log format
+
+- **File:** `tests/test_release_gate.py:1090-1155`
+- **Bug:** `_make_side_effect` simulates `git log` as `"abc1234 feat: add new feature\n..."`. But production `parse_commits_since` uses `--format="%s\n%b\x00--END--\x00"`. The mock's output lacks the `\x00--END--\x00` delimiter, so `parse_commits_since` parses it as a single malformed commit. The `"abc1234"` hash prefix becomes part of the subject, breaking conventional commit detection. Test asserts `"1.0.0" in output` which passes regardless because "1.0.0" appears in the base version output.
+- **Acceptance criteria:**
+  1. Mock must produce `\x00--END--\x00`-delimited output matching the real `git log --format` string
+  2. Assertion must verify the calculated version (e.g., `assertIn("1.1.0", output)` for a feat commit → minor bump)
+  3. OR the test must be rewritten to use real git commits in a temp repo
+- **Validation:** The calculated version in the dry-run output must reflect the commit types (feat → minor, fix → patch).
+
+### P12-010: `check_direct_pushes` jq filter path not tested
+
+- **File:** `tests/test_gh_interactions.py:1491-1565`
+- **Bug:** Production uses a complex `--jq` filter that selects commits with exactly 1 parent (direct pushes, not merges) and reshapes output. When `jq` is not installed, FakeGitHub falls back to raw JSON. The test passes either way without distinguishing which code path ran. A broken jq expression would go undetected.
+- **Acceptance criteria:**
+  1. Split into two tests: one that requires jq (skips if unavailable), one that tests the no-jq fallback
+  2. The jq test must verify merge commits ARE excluded from the count
+  3. The no-jq test must verify the graceful degradation path
+- **Validation:** `python -m pytest tests/test_gh_interactions.py -k "direct_push" -v` should show 2+ test methods.
+
+### P12-011: `gate_stories` test doesn't verify `--state open` filter value
+
+- **File:** `tests/test_gh_interactions.py:318-328`
+- **Bug:** `test_all_closed` checks `"--state" in call_args` but never verifies the value is `"open"`. If production changed to `--state all` or `--state closed`, the gate would produce wrong results but the test would still pass.
+- **Acceptance criteria:**
+  1. Assert both `"--state"` and `"open"` are consecutive in `call_args`
+  2. OR assert the full argument list fragment `["--state", "open"]` is a subsequence
+- **Validation:** `grep -A2 "state.*call_args\|call_args.*state" tests/test_gh_interactions.py` should show value verification.
+
+### P12-012: FakeGitHub PATCH milestone doesn't update state
+
+- **File:** `tests/fake_github.py:362-364`
+- **Bug:** PATCH on milestones returns `self._ok("{}")` without modifying the milestone's state. Production code calls PATCH to close milestones after release. Any test that queries milestone state after a PATCH sees stale data.
+- **Acceptance criteria:**
+  1. `_handle_api` PATCH for milestones must update the milestone's `state` field
+  2. Also update `closed_at` timestamp when state changes to "closed"
+  3. Test: create milestone → PATCH state=closed → query milestone → assert state=="closed"
+- **Validation:** `grep -A5 "PATCH.*milestone\|milestone.*PATCH" tests/fake_github.py` should show state mutation logic.
+
+### P12-013: FakeGitHub `--search` only handles `milestone:` pattern
+
+- **File:** `tests/fake_github.py:497-554`
+- **Bug:** `_issue_list` parses `--search` via `_extract_search_milestone`, which only understands `milestone:"X"`. Any other search pattern (label, state compound queries) is silently ignored — issues returned unfiltered. But `--search` is registered as `_IMPLEMENTED_FLAGS`, so strict mode doesn't warn.
+- **Acceptance criteria:**
+  1. Either downgrade `search` from `_IMPLEMENTED_FLAGS` to `_KNOWN_FLAGS` (strict mode warns on use)
+  2. OR document the partial implementation with an inline comment listing supported patterns
+  3. If left as _IMPLEMENTED, add a strict-mode warning when an unrecognized search predicate is used
+- **Validation:** `grep -B2 -A2 "search.*IMPLEMENTED\|IMPLEMENTED.*search" tests/fake_github.py` should show the fix.
+
+---
+
+## P3 — Code Quality and Minor Correctness
+
+### P12-014: `parse_requirements` hardcoded to `reference.md` filename
+
+- **File:** `scripts/traceability.py:114`
+- **Bug:** `prd_path.rglob("reference.md")` only finds files literally named `reference.md`. Other naming conventions silently produce 0 requirements.
+- **Acceptance criteria:** Either scan for `*.md` files in the PRD directory, or make the filename pattern configurable in `project.toml`.
+- **Validation:** `grep -n "rglob\|glob" scripts/traceability.py` should show a broader pattern or configuration.
+
+### P12-015: No duplicate story ID detection in `parse_milestone_stories`
+
+- **File:** `skills/sprint-setup/scripts/populate_issues.py:93-128`
+- **Bug:** Same US-XXXX story ID in multiple milestone files silently creates duplicate Story objects. Idempotency in `create_issue` catches the duplicate creation, but the first one may have wrong metadata.
+- **Acceptance criteria:** `parse_milestone_stories` should warn or deduplicate when the same story ID appears multiple times.
+- **Validation:** New test: parse milestone files with duplicate story ID, verify warning is emitted or only one Story object is returned.
+
+### P12-016: `_yaml_safe` doesn't quote YAML boolean keywords
+
+- **File:** `skills/sprint-run/scripts/sync_tracking.py:171-186`
+- **Bug:** Values like `true`, `false`, `yes`, `no`, `null` pass through unquoted. Read back, they'd be parsed as booleans/null, not strings.
+- **Acceptance criteria:** `_yaml_safe` must quote YAML boolean keywords (case-insensitive: true, false, yes, no, on, off, null).
+- **Validation:** `python -c "from sync_tracking import _yaml_safe; assert _yaml_safe('true').startswith('\"')"` (after adding to sys.path).
+
+### P12-017: `write_version_to_toml` regex matches `[release]` in comments
+
+- **File:** `skills/sprint-release/scripts/release_gate.py:280`
+- **Bug:** `r"^\[release\]"` matches lines like `# See [release] notes`.
+- **Acceptance criteria:** Regex should exclude lines starting with `#` (TOML comments).
+- **Validation:** New test: TOML with `# [release]` comment before actual `[release]` section, verify version is written at correct position.
+
+### P12-018: `gh_json` return type not validated in gate functions
+
+- **File:** `skills/sprint-release/scripts/release_gate.py:141-148, 174-193`
+- **Bug:** `gate_stories` and `gate_prs` directly iterate `gh_json()` results without `isinstance(result, list)` check. If `gh_json` returns a dict, iteration would produce dict keys.
+- **Acceptance criteria:** Both functions should validate `isinstance(result, list)` and handle the error case.
+- **Validation:** `grep -A3 "gh_json" skills/sprint-release/scripts/release_gate.py | grep -c "isinstance"` should be >= 2.
+
+### P12-019: 11 unused imports across 9 files
+
+- **File:** See `recon/0d-lint-results.md` for full list
+- **Bug:** Dead imports indicate incomplete refactoring. `sync_tracking.py` has 4 unused imports.
+- **Acceptance criteria:** Remove all 11 unused imports.
+- **Validation:** `python -m py_compile <file>` still passes for each file. `flake8 --select=F401 scripts/ skills/ --exclude=__pycache__` returns 0 results.
+
+### P12-020: `do_sync` counts milestone files, not actual creations
+
+- **File:** `scripts/sync_backlog.py:173`
+- **Bug:** `result["milestones"] = len(milestone_files)` counts files, not milestones actually created on GitHub. If creation partially fails, the count is wrong.
+- **Acceptance criteria:** Count should reflect actual GitHub milestones created (return value from `create_milestones_on_github`).
+- **Validation:** New test: simulate partial milestone creation failure, verify `do_sync` returns the correct (lower) count.
+
+### P12-021: Empty f-string in `populate_issues.py:74`
+
+- **File:** `skills/sprint-setup/scripts/populate_issues.py:74`
+- **Bug:** f-string with no `{}` placeholders — either a bug (intended interpolation) or leftover.
+- **Acceptance criteria:** Either add the intended placeholder or convert to a regular string.
+- **Validation:** `flake8 --select=F541 skills/sprint-setup/scripts/populate_issues.py` returns 0 results.
+
+### P12-022: Unused variable `sprint_dir` in `check_status.py:387`
+
+- **File:** `skills/sprint-monitor/scripts/check_status.py:387`
+- **Bug:** Variable assigned but never used.
+- **Acceptance criteria:** Remove the unused assignment.
+- **Validation:** `flake8 --select=F841 skills/sprint-monitor/scripts/check_status.py` returns 0 results.
+
+### P12-032: Separator rows leak into metadata dicts in epic/saga parsers
+
+- **File:** `scripts/manage_epics.py:70-86`, `scripts/manage_sagas.py:65-77`
+- **Bug:** `TABLE_ROW` regex matches markdown separator rows (`|-------|-------|`) as data rows. The downstream filter checks for `"Field"`, `"---"`, `""` but not `"-------"` (7 dashes). Metadata dicts get polluted with `{"-------": "-------"}`.
+- **Acceptance criteria:** Filter must catch all separator-like values (e.g., `field.strip("-") == ""`).
+- **Validation:** New test: parse an epic with separator row, verify metadata dict has no dash-only keys.
+
+### P12-033: `update_sprint_status` drops last table row if file lacks trailing newline
+
+- **File:** `skills/sprint-run/scripts/update_burndown.py:108`
+- **Bug:** Regex `r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*"` requires each line to end with `\n`. If the Active Stories section is last and the file has no trailing newline, the final data row is not matched and becomes an orphan below the new table.
+- **Acceptance criteria:** Regex must handle files with or without trailing newlines.
+- **Validation:** New test: write SPRINT-STATUS.md without trailing newline, run `update_sprint_status`, verify no orphaned rows.
+
+### P12-034: Short test case IDs produce false positive coverage matches
+
+- **File:** `scripts/test_coverage.py:121-134`
+- **Bug:** Fuzzy slug matching for `TC-E-1` produces slug `e_1`. The word-boundary regex `(?:^|_)e_1(?:$|_)` matches unrelated functions like `test_type_e_1_setup`.
+- **Acceptance criteria:** Fuzzy matching must require the slug to match a meaningful portion of the function name (not just a substring between underscores).
+- **Validation:** New test: `TC-E-1` should NOT match `test_type_e_1_setup`.
+
+### P12-035: Duplicate section headings in saga files cause silent data loss
+
+- **File:** `scripts/manage_sagas.py:126-147`
+- **Bug:** `_find_section_ranges` builds a dict keyed by heading text. Duplicate `## Team Voices` sections → only the last one is retained. Updates target the wrong section.
+- **Acceptance criteria:** Either warn on duplicate headings or use a list-based approach that preserves all sections.
+- **Validation:** New test: saga with two `## Team Voices` sections, verify both are accessible.
+
+---
+
+## P4 — Maintenance and Structural Improvements
+
+### P12-023: Pipeline test code duplicated 3x across test files
+
+- **File:** `tests/test_hexwise_setup.py:341-407`, `tests/test_lifecycle.py:275-327`, `tests/test_golden_run.py:115-214`
+- **Issue:** Nearly identical pipeline orchestration code (config → labels → milestones → issues) copy-pasted across three test files. When the pipeline API changes, all three must be updated.
+- **Acceptance criteria:** Extract shared `run_full_pipeline(fake_gh, config)` helper. All three test files use it.
+- **Validation:** `grep -rn "create_static_labels\|create_persona_labels\|create_milestones" tests/test_*.py | wc -l` should decrease by ~60%.
+
+### P12-024: `TestCheckMilestone` uses call-order-based mock dispatch
+
+- **File:** `tests/test_gh_interactions.py:1922-1978`
+- **Issue:** `_mock_gh_json` returns different data based on `call_count[0]`, coupling the test to production code's call sequence. Refactoring production to query in different order would silently break tests.
+- **Acceptance criteria:** Replace call-order dispatch with argument-inspecting side effects that return milestones or issues based on what's being queried.
+
+### P12-025: Three "never crashes" hypothesis tests have zero assertions
+
+- **File:** `tests/test_property_parsing.py:103-106, 173-175, 186-189`
+- **Issue:** Call production function but assert nothing about the return value. `extract_story_id` returning `None` for all inputs would pass.
+- **Acceptance criteria:** Add at minimum return-type assertions (e.g., result is `str | None`, result is `int`).
+
+### P12-026: `test_lifecycle` reimplements burndown row-building logic
+
+- **File:** `tests/test_lifecycle.py:400-461`
+- **Issue:** Phase 2 of the monitoring pipeline test manually builds burndown rows instead of calling production code. Tests the shared utility functions individually but assembles them in a test-specific way.
+- **Acceptance criteria:** Call production burndown-building function instead of reimplementing the assembly.
+
+### P12-027: Golden test silently skips when recordings absent (locally)
+
+- **File:** `tests/test_golden_run.py:93-113`
+- **Issue:** Missing golden recordings → `self.skipTest()` locally, only fails in CI. A developer could run the full suite, see green, and push without golden coverage.
+- **Acceptance criteria:** Either always fail on missing recordings, or print a prominent warning that's hard to miss.
+
+### P12-028: `test_verify_fixes.test_source_uses_replace_not_format` inspects source code
+
+- **File:** `tests/test_verify_fixes.py:605-612`
+- **Issue:** Uses `inspect.getsource()` to check implementation details. Companion behavior tests already verify the actual safety property. This test breaks on valid refactors.
+- **Acceptance criteria:** Remove the source inspection test; the behavior tests at lines 587-603 are sufficient.
+
+---
+
+## Metrics
+
+| Category | Count | Resolved |
+|----------|-------|----------|
+| P0 (production bugs) | 6 | 6 |
+| P1 (test infra defeats purpose) | 4 | 4 |
+| P2 (test quality masks bugs) | 6 | 6 |
+| P3 (code quality / minor) | 13 | 13 |
+| P4 (maintenance / structural) | 6 | 6 |
+| **Total** | **35** | **35** |
+
+## Resolution Summary
+
+All 35 items resolved across 8 commits:
+
+1. `c1d6ace` — Phase 1: Remove 11 unused imports across 9 files (P12-019, P12-021, P12-022)
+2. `d147850` — Phase 2: Fix P3 code quality bugs (P12-014 thru P12-018, P12-032 thru P12-035)
+3. `8044428` — Phase 3: Fix P0 production logic bugs (P12-001 thru P12-003, P12-029 thru P12-031)
+4. `5f7f168` — Phase 4 batch 1: Test infra fixes (P12-004 thru P12-006, P12-011 thru P12-013)
+5. `6a9e1b4` — Phase 4 batch 2: Hypothesis assertions + source inspection removal (P12-009, P12-025, P12-028)
+6. `c98a9d6` — FakeGitHub do_release test + direct push test split (P12-008, P12-010)
+7. `5d92e12` — main() integration tests for 4 critical scripts (P12-007)
+8. `7e4c3cf` — Shared pipeline helper + structural fixes (P12-023, P12-024, P12-026, P12-027)
+
+Test count: 634 → 643 (+9 net new tests). All passing.
+
+---
+
+## Validation Gate (run after all fixes)
+
+```bash
+# 1. Full test suite must pass
+python -m pytest tests/ --tb=short -q
+
+# 2. No unused imports
+flake8 --select=F401,F541,F841 scripts/ skills/ --exclude=__pycache__ 2>/dev/null || echo "flake8 not available"
+
+# 3. Anchor validation
+python scripts/validate_anchors.py
+
+# 4. Verify _KNOWN_UNTESTED shrank
+python -c "
+import ast
+tree = ast.parse(open('tests/test_verify_fixes.py').read())
+for node in ast.walk(tree):
+    if isinstance(node, ast.Assign):
+        for t in node.targets:
+            if hasattr(t, 'attr') and t.attr == '_KNOWN_UNTESTED':
+                untested = ast.literal_eval(node.value)
+                print(f'_KNOWN_UNTESTED: {len(untested)} scripts: {sorted(untested)}')
+                assert len(untested) <= 8, f'Expected <=8, got {len(untested)}'
+"
+
+# 5. Golden replay includes content comparison
+python -c "
+import inspect
+from tests.golden_replay import GoldenReplay
+src = inspect.getsource(GoldenReplay.assert_files_match)
+assert 'read_text' in src or 'content' in src, 'assert_files_match must compare file contents'
+"
+```
