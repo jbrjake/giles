@@ -107,6 +107,12 @@ class TestGoldenRun(unittest.TestCase):
                     "run GOLDEN_RECORD=1 to create them"
                 )
             else:
+                import warnings
+                warnings.warn(
+                    f"GOLDEN COVERAGE GAP: recordings absent for "
+                    f"{phase_name}. Run GOLDEN_RECORD=1 to create them.",
+                    stacklevel=2,
+                )
                 self.skipTest(
                     f"Golden recordings absent for {phase_name} — "
                     "run GOLDEN_RECORD=1 to create them"
@@ -174,24 +180,8 @@ class TestGoldenRun(unittest.TestCase):
 
         # Phase 4: populate creates issues (cumulative — labels + milestones present)
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
-            milestone_files = get_milestones(config)
-            stories = populate_issues.parse_milestone_stories(
-                milestone_files, config,
-            )
-            ms_numbers = {
-                ms["title"]: ms["number"]
-                for ms in self.fake_gh.milestones
-            }
-            ms_titles = {}
-            for i, mf in enumerate(milestone_files, 1):
-                if i <= len(self.fake_gh.milestones):
-                    ms_titles[i] = self.fake_gh.milestones[i - 1]["title"]
-                else:
-                    ms_titles[i] = f"Sprint {i}"
-
-            for story in stories:
-                if story.story_id not in populate_issues.get_existing_issues():
-                    populate_issues.create_issue(story, ms_numbers, ms_titles)
+            from gh_test_helpers import populate_test_issues
+            populate_test_issues(self.fake_gh, config, populate_issues)
 
         self.assertEqual(len(self.fake_gh.issues), 17)
         self._check_or_record(

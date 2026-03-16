@@ -291,32 +291,12 @@ class TestLifecycle(unittest.TestCase):
         config = self._generate_config()
 
         with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
-            # Bootstrap labels
             bootstrap_github.create_static_labels()
             bootstrap_github.create_persona_labels(config)
-
-            # Create milestones
             bootstrap_github.create_milestones_on_github(config)
 
-            # Populate issues
-            from validate_config import get_milestones
-            milestone_files = get_milestones(config)
-            stories = populate_issues.parse_milestone_stories(
-                milestone_files, config,
-            )
-
-            ms_numbers = {ms["title"]: ms["number"]
-                          for ms in self.fake_gh.milestones}
-            ms_titles = {}
-            for i, mf in enumerate(milestone_files, 1):
-                if i <= len(self.fake_gh.milestones):
-                    ms_titles[i] = self.fake_gh.milestones[i - 1]["title"]
-                else:
-                    ms_titles[i] = f"Sprint {i}"
-
-            for story in stories:
-                if story.story_id not in populate_issues.get_existing_issues():
-                    populate_issues.create_issue(story, ms_numbers, ms_titles)
+            from gh_test_helpers import populate_test_issues
+            populate_test_issues(self.fake_gh, config, populate_issues)
 
         # Verify the pipeline produced expected counts
         self.assertGreaterEqual(len(self.fake_gh.labels), 15,
@@ -413,26 +393,7 @@ class TestLifecycle(unittest.TestCase):
             # --- Phase 2: update_burndown reads tracking + writes burndown ---
             issues = self.fake_gh.issues
             now = datetime.now(timezone.utc)
-            rows: list[dict] = []
-            for issue in issues:
-                from validate_config import (
-                    extract_story_id, kanban_from_labels, extract_sp,
-                )
-                sid = extract_story_id(issue["title"])
-                short = (
-                    issue["title"].split(":", 1)[-1].strip()
-                    if ":" in issue["title"]
-                    else issue["title"]
-                )
-                rows.append({
-                    "story_id": sid,
-                    "short_title": short,
-                    "sp": extract_sp(issue),
-                    "status": kanban_from_labels(issue),
-                    "closed": update_burndown.closed_date(issue),
-                    "assignee": "\u2014",
-                    "pr": "\u2014",
-                })
+            rows = update_burndown.build_rows(issues)
 
             bd_path = update_burndown.write_burndown(1, rows, now, sprints_dir)
             update_burndown.update_sprint_status(1, rows, sprints_dir)

@@ -1,4 +1,4 @@
-"""Shared test helpers for gh/gh_json mock verification.
+"""Shared test helpers for gh/gh_json mock verification and pipeline setup.
 
 Provides MonitoredMock and patch_gh to structurally prevent the
 "mock-returns-what-you-assert" anti-pattern (BH-P11-201).
@@ -103,3 +103,52 @@ def patch_gh(target: str, *, return_value=None, side_effect=None):
             UserWarning,
             stacklevel=2,
         )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline test helper: shared issue population logic (P12-023)
+# ---------------------------------------------------------------------------
+
+def populate_test_issues(fake_gh, config, populate_issues_mod):
+    """Parse milestone stories and create issues on FakeGitHub.
+
+    Extracts the duplicated issue-population block used by test_hexwise_setup,
+    test_lifecycle, and test_golden_run into a single function.
+
+    Args:
+        fake_gh: FakeGitHub instance (subprocess.run must already be patched).
+        config: Project config dict (from parse_simple_toml).
+        populate_issues_mod: The imported populate_issues module.
+
+    Returns:
+        Tuple of (milestone_files, stories) for further assertions.
+    """
+    import sys
+    from pathlib import Path
+
+    ROOT = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from validate_config import get_milestones
+
+    milestone_files = get_milestones(config)
+    stories = populate_issues_mod.parse_milestone_stories(
+        milestone_files, config,
+    )
+
+    ms_numbers = {
+        ms["title"]: ms["number"]
+        for ms in fake_gh.milestones
+    }
+    ms_titles = {}
+    for i, _mf in enumerate(milestone_files, 1):
+        if i <= len(fake_gh.milestones):
+            ms_titles[i] = fake_gh.milestones[i - 1]["title"]
+        else:
+            ms_titles[i] = f"Sprint {i}"
+
+    existing = populate_issues_mod.get_existing_issues()
+    for story in stories:
+        if story.story_id not in existing:
+            populate_issues_mod.create_issue(story, ms_numbers, ms_titles)
+
+    return milestone_files, stories

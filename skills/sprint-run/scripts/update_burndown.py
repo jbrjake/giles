@@ -152,6 +152,34 @@ def _fm_val(frontmatter: str, key: str) -> str | None:
     return val
 
 
+# §update_burndown.build_rows
+def build_rows(
+    issues: list[dict], tracking: dict[str, dict] | None = None,
+) -> list[dict]:
+    """Build burndown rows from GitHub issues and optional tracking metadata."""
+    if tracking is None:
+        tracking = {}
+    rows: list[dict] = []
+    for issue in issues:
+        sid = extract_story_id(issue["title"])
+        short_title = (
+            issue["title"].split(":", 1)[-1].strip()
+            if ":" in issue["title"]
+            else issue["title"]
+        )
+        t = tracking.get(sid, {})
+        rows.append({
+            "story_id": sid,
+            "short_title": short_title,
+            "sp": extract_sp(issue),
+            "status": kanban_from_labels(issue),
+            "closed": closed_date(issue),
+            "assignee": t.get("assignee", "\u2014"),
+            "pr": t.get("pr", "\u2014"),
+        })
+    return rows
+
+
 # -- Main --------------------------------------------------------------------
 
 # §update_burndown.main
@@ -193,27 +221,7 @@ def main() -> None:
         sys.exit(1)
 
     tracking = load_tracking_metadata(sprint_num, sprints_dir)
-
-    rows: list[dict] = []
-    for issue in issues:
-        sid = extract_story_id(issue["title"])
-        short_title = (
-            issue["title"].split(":", 1)[-1].strip()
-            if ":" in issue["title"]
-            else issue["title"]
-        )
-        sp = extract_sp(issue)
-        status = kanban_from_labels(issue)
-        t = tracking.get(sid, {})
-        rows.append({
-            "story_id": sid,
-            "short_title": short_title,
-            "sp": sp,
-            "status": status,
-            "closed": closed_date(issue),
-            "assignee": t.get("assignee", "\u2014"),
-            "pr": t.get("pr", "\u2014"),
-        })
+    rows = build_rows(issues, tracking)
 
     burndown_path = write_burndown(sprint_num, rows, now, sprints_dir)
     update_sprint_status(sprint_num, rows, sprints_dir)

@@ -1946,13 +1946,15 @@ class TestCheckMilestone(unittest.TestCase):
     """P5-10: check_milestone with mocked gh_json."""
 
     def _mock_gh_json(self, milestones=None, issues=None):
-        """Return a side_effect function for gh_json calls."""
-        call_count = [0]
+        """Return a side_effect that dispatches by argument content, not call order."""
         def _side_effect(args):
-            call_count[0] += 1
-            if call_count[0] == 1:
+            # Milestone query contains "milestones" in the API path
+            if any("milestones" in str(a) for a in args):
                 return milestones if milestones is not None else []
-            return issues if issues is not None else []
+            # Issue query uses "issue" subcommand
+            if args and args[0] == "issue":
+                return issues if issues is not None else []
+            return []
         return _side_effect
 
     def test_happy_path_with_sp(self):

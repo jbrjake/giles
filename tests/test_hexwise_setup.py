@@ -362,27 +362,8 @@ class TestHexwisePipeline(unittest.TestCase):
             bootstrap_github.create_persona_labels(config)
             bootstrap_github.create_milestones_on_github(config)
 
-            from validate_config import get_milestones
-            milestone_files = get_milestones(config)
-            stories = populate_issues.parse_milestone_stories(
-                milestone_files, config,
-            )
-
-            ms_numbers = {
-                ms["title"]: ms["number"]
-                for ms in self.fake_gh.milestones
-            }
-            ms_titles = {}
-            for i, mf in enumerate(milestone_files, 1):
-                if i <= len(self.fake_gh.milestones):
-                    ms_titles[i] = self.fake_gh.milestones[i - 1]["title"]
-                else:
-                    ms_titles[i] = f"Sprint {i}"
-
-            existing = populate_issues.get_existing_issues()
-            for story in stories:
-                if story.story_id not in existing:
-                    populate_issues.create_issue(story, ms_numbers, ms_titles)
+            from gh_test_helpers import populate_test_issues
+            populate_test_issues(self.fake_gh, config, populate_issues)
 
         # Verify results
         self.assertGreaterEqual(len(self.fake_gh.labels), 17,
