@@ -572,17 +572,6 @@ def do_release(
             _rollback_commit()
             return _fail("create-tag", f"Tag creation failed: {r.stderr.strip()}")
         completed_steps.append("create-tag")
-        # Push the version bump commit and the tag together
-        base_branch = get_base_branch(config)
-        r = subprocess.run(
-            ["git", "push", "origin", base_branch, f"v{new_ver}"],
-            capture_output=True, text=True,
-        )
-        if r.returncode != 0:
-            _rollback_commit()
-            return _fail("push-tag", f"Push failed: {r.stderr.strip()}")
-        pushed_to_remote = True
-        completed_steps.append("push-tag")
 
         def _rollback_tag() -> None:
             """Remove the tag locally and from remote on release failure."""
@@ -601,6 +590,19 @@ def do_release(
                 print(f"Warning: failed to delete remote tag v{new_ver}. "
                       f"Run manually: git push --delete origin v{new_ver}",
                       file=sys.stderr)
+
+        # Push the version bump commit and the tag together
+        base_branch = get_base_branch(config)
+        r = subprocess.run(
+            ["git", "push", "origin", base_branch, f"v{new_ver}"],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            _rollback_tag()
+            _rollback_commit()
+            return _fail("push-tag", f"Push failed: {r.stderr.strip()}")
+        pushed_to_remote = True
+        completed_steps.append("push-tag")
 
     # 6. Generate release notes
     notes = generate_release_notes(

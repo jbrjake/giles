@@ -904,13 +904,14 @@ class TestDoRelease(unittest.TestCase):
     @patch("release_gate.subprocess.run")
     @patch("release_gate.write_version_to_toml")
     @patch("release_gate.calculate_version")
-    def test_push_tag_failure_resets_commit(
+    def test_push_tag_failure_resets_commit_and_deletes_tag(
         self, mock_calc, mock_write_toml, mock_run, mock_ms, mock_gh,
     ):
-        """P5-01: When tag push fails, version bump commit must be undone.
+        """BH-001: When push fails, BOTH the local tag AND the commit must be undone.
 
-        After rollback, git reset --hard <pre-release-sha> should be called
-        so the branch HEAD matches the state before do_release().
+        Prior to this fix, only _rollback_commit() was called on push failure.
+        The local tag created by 'git tag -a' was left orphaned, causing the
+        next release attempt to fail with 'tag already exists'.
         """
         mock_calc.return_value = ("2.0.0", "1.0.0", "major", [
             {"subject": "feat!: new API", "body": "BREAKING CHANGE: v2"},
@@ -929,8 +930,22 @@ class TestDoRelease(unittest.TestCase):
 
         self.assertFalse(result)
 
-        # Verify git reset --hard <sha> was called to undo the commit
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
+
+        # BH-001: Verify local tag is deleted after push failure
+        tag_delete_calls = [
+            c for c in run_cmds
+            if isinstance(c, list) and len(c) >= 3
+            and c[0] == "git" and c[1] == "tag" and c[2] == "-d"
+        ]
+        self.assertGreaterEqual(
+            len(tag_delete_calls), 1,
+            f"Expected 'git tag -d v2.0.0' after push failure, got: {run_cmds}",
+        )
+        self.assertIn("v2.0.0", tag_delete_calls[0],
+                       "Tag delete should target the release tag")
+
+        # Verify git reset --hard <sha> was called to undo the commit
         reset_hard_calls = [
             c for c in run_cmds
             if isinstance(c, list) and len(c) >= 4
@@ -940,7 +955,6 @@ class TestDoRelease(unittest.TestCase):
             len(reset_hard_calls), 1,
             f"Expected 'git reset --hard <sha>' after push failure, got: {run_cmds}",
         )
-        # The sha should be the pre-release sha
         self.assertEqual(reset_hard_calls[0][3], "deadbeef")
 
     # -- Test 7: P5-01 — gh release failure also resets commit + deletes tag ---
