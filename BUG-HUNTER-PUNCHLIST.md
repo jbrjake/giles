@@ -1,433 +1,602 @@
-# Bug Hunter Pass 12 — Adversarial Legacy Code Review
+# Bug Hunter Punchlist — Pass 13
+> Generated: 2026-03-15 | Project: giles | Baseline: 643 pass, 0 fail, 0 skip (9.39s)
 
-**Date:** 2026-03-15
-**Scope:** Full project (19 scripts, 12 test files, 5 test infra files, all docs)
-**Method:** Manual deep-read of all source + 3 parallel audit agents + cross-cutting analysis
-**Sources:** audit/3-code-audit-cross-cutting.md, audit/3-code-audit-batch2.md, audit/2-test-quality-batch1.md, audit/2-test-quality-batch2.md, recon/0d-lint-results.md, recon/0f-skipped-tests.md
+## Summary
+| Severity | Open | Resolved | Deferred |
+|----------|------|----------|----------|
+| CRITICAL | 1 | 1 | 0 |
+| HIGH | 6 | 1 | 0 |
+| MEDIUM | 9 | 0 | 0 |
+| LOW | 4 | 1 | 0 |
+| **Total** | **19** | **3** | **0** |
 
----
+## Patterns
 
-## Priority Legend
+### Pattern: PAT-001: Untested main() entry points
+**Instances:** P13-003, P13-004
+**Root Cause:** Scripts were added over time without requiring main() integration tests. A gate test exists but has a `_KNOWN_UNTESTED` escape hatch with 8 entries.
+**Systemic Fix:** Remove the `_KNOWN_UNTESTED` set by adding tests for all 8 scripts. The gate test then catches any new scripts automatically.
+**Detection Rule:** `grep -c '_KNOWN_UNTESTED' tests/test_verify_fixes.py` — should return entries pointing to an empty frozenset.
 
-| Priority | Meaning |
-|----------|---------|
-| **P0** | Production logic bugs — wrong behavior in real usage |
-| **P1** | Test infrastructure defeats its own purpose — provides false confidence |
-| **P2** | Test quality issues that mask bugs — coverage looks good but isn't |
-| **P3** | Code quality and minor correctness gaps |
-| **P4** | Maintenance, style, and structural improvements |
+### Pattern: PAT-002: FakeGitHub fidelity gaps
+**Instances:** P13-005, P13-006, P13-007
+**Root Cause:** FakeGitHub silently degrades when optional `jq` package is missing and doesn't fully simulate error conditions. Tests pass with unfiltered data, masking potential production failures.
+**Systemic Fix:** Make jq handling explicit: either install pyjq as a dev dep and test with it, or hardcode expected jq outputs per endpoint. Add FakeGitHub tests that verify its own correctness.
+**Detection Rule:** `grep -r '_check_jq' tests/fake_github.py` — each usage should have a comment explaining what happens without jq.
 
----
-
-## P0 — Production Logic Bugs
-
-### P12-001: `do_release` rollback leaves orphaned commit on remote
-
-- **File:** `skills/sprint-release/scripts/release_gate.py:482-488, 534-537, 590-594`
-- **Bug:** When GitHub Release creation fails after the version bump commit was pushed, `_rollback_commit()` does `git reset --hard` locally but does NOT force-push to remove the commit from the remote. The tag is deleted (both local and remote via `_rollback_tag`), but the version bump commit remains on the remote branch.
-- **Impact:** Remote has orphaned version bump commit (no release), local HEAD diverges from remote, next push fails, anyone pulling gets a version bump with no release.
-- **Acceptance criteria:**
-  1. After a failed GitHub Release, the remote branch must not contain the version bump commit
-  2. OR the rollback must create a revert commit (safer than force-push) and push it
-  3. Test must simulate: push succeeds → release creation fails → verify remote state is clean
-- **Validation:** `grep -n "force\|revert\|push" skills/sprint-release/scripts/release_gate.py | grep -i rollback` should show the rollback function addresses the remote state. New test in `test_release_gate.py` must assert post-rollback remote state.
-
-### P12-002: `get_linked_pr` returns first merged PR, not latest
-
-- **File:** `skills/sprint-run/scripts/sync_tracking.py:73-81`
-- **Bug:** The `break` on line 81 stops at the first merged PR in the timeline (chronologically oldest). For stories with multiple linked PRs (failed first attempt → successful redo), this returns the wrong PR. Pass 11 (BH-P11-101) flagged this but the "fix" only documented existing behavior — the `break` was not changed.
-- **Impact:** Story tracking files link to the wrong PR. Status shown to user may reflect abandoned work instead of the actual implementation.
-- **Acceptance criteria:**
-  1. `get_linked_pr` must return the most recently merged PR when multiple exist
-  2. If an open PR exists, prefer it over merged PRs (current behavior, correct)
-  3. If no open PR, prefer the latest merged PR (not earliest)
-- **Validation:** New test: create timeline with 2 merged PRs (merged_at timestamps differ), assert the one with the later `merged_at` is returned.
-  ```
-  python -m pytest tests/test_gh_interactions.py -k "linked_pr" -v
-  ```
-
-### P12-003: Sprint heading regex inconsistency across scripts
-
-- **File:** Multiple: `populate_issues.py`, `bootstrap_github.py`, `sprint_init.py`
-- **Bug:** Four different patterns parse sprint headers:
-  - `_SPRINT_HEADER_RE` requires colon (`### Sprint (\d+):`)
-  - `_collect_sprint_numbers` requires colon
-  - `_infer_sprint_number` does NOT require colon (`^###\s+Sprint\s+(\d+)`)
-  - `check_milestone` matches milestone title (`^Sprint {N}\b`)
-  A heading `### Sprint 1` (no colon) would be detected by `_infer_sprint_number` for epic enrichment but NOT by `_SPRINT_HEADER_RE` for story parsing or by `_collect_sprint_numbers` for label creation. Stories get sprint numbers that don't have corresponding labels/milestones.
-- **Acceptance criteria:**
-  1. All sprint heading regexes must agree on whether the colon is required
-  2. Either all require it (and document this as a format requirement) or none do
-  3. Skeleton template `milestone.md.tmpl` must match the chosen format
-- **Validation:**
-  ```bash
-  grep -rn "Sprint.*\\\\d\|Sprint.*[0-9]" scripts/ skills/ --include="*.py" | grep -i "re\.\|_RE\|pattern\|regex\|match"
-  ```
-  All patterns should be consistent. New test: parse a milestone file with `### Sprint 1` (no colon) through the full pipeline, verify labels AND issues are created.
-
-### P12-029: `renumber_stories` crashes on backslash-containing IDs (regex injection)
-
-- **File:** `scripts/manage_epics.py:347-363`
-- **Bug:** `re.sub()` uses user-supplied `new_ids` as the replacement string without escaping. In Python's `re.sub`, the replacement string interprets `\1`, `\2`, etc. as backreferences. A story ID containing `\1` causes `re.error: invalid group reference`.
-- **Impact:** Crash when renumbering stories with backslash-containing IDs. CLI accepts arbitrary arguments.
-- **Acceptance criteria:**
-  1. `renumber_stories` must not crash on IDs containing backslashes
-  2. Use `lambda m: replacement` instead of raw replacement string, or escape backslashes
-- **Validation:** New test: call `renumber_stories` with `new_ids=[r"US-01\1a"]`, verify no crash and correct substitution.
-
-### P12-030: CI YAML injection via newline-containing commands in `check_commands`
-
-- **File:** `skills/sprint-setup/scripts/setup_ci.py:94-113`
-- **Bug:** `generate_ci_yaml` interpolates CI commands from `project.toml` directly into YAML string concatenation. A command containing a newline character produces an invalid or dangerous CI workflow (e.g., injecting an `env:` block with secrets).
-- **Impact:** Generated `.github/workflows/ci.yml` could contain unintended steps. Self-inflicted (config is local), but could produce silent CI breakage or security issues.
-- **Acceptance criteria:**
-  1. Commands must be quoted or escaped before YAML interpolation
-  2. Newline characters in commands must be rejected or properly handled
-  3. Test must verify a command with embedded newline doesn't produce raw YAML injection
-- **Validation:** New test: `generate_ci_yaml` with `check_commands=["cargo test\n    env:\n      SECRET: x"]`, verify the output is valid YAML and the injected `env:` block is NOT present as a separate YAML key.
-
-### P12-031: `create_milestones_on_github` uses `{owner}/{repo}` template variables inconsistently
-
-- **File:** `skills/sprint-setup/scripts/bootstrap_github.py:249-254`
-- **Bug:** Milestone creation uses `gh api repos/{owner}/{repo}/milestones` — relying on `gh api`'s template variable expansion. Label creation uses `gh label create` — a higher-level command that auto-detects the repo. If `gh api` template expansion fails (wrong git remote, detached HEAD), milestone creation gets a 404 while label creation succeeds, producing a partial bootstrap.
-- **Impact:** Partial bootstrap state — labels exist, milestones don't. Subsequent populate_issues fails because it can't find milestones.
-- **Acceptance criteria:**
-  1. Either both use `gh api` with template variables, or both use higher-level commands
-  2. OR add error handling that detects partial bootstrap and reports which step failed
-- **Validation:** New test: FakeGitHub test that verifies label and milestone creation succeed together, and that a milestone creation failure produces a clear error (not silent partial state).
+### Pattern: PAT-003: Missing negative/error path tests
+**Instances:** P13-008, P13-009, P13-010, P13-014 (P13-007 was false positive)
+**Root Cause:** Tests cover happy paths and basic failure modes but don't test degraded inputs, malformed data, or partial failure recovery.
+**Systemic Fix:** For each function taking external input (GitHub API responses, file content, CLI args), add at least one test with malformed/missing/unexpected data.
+**Detection Rule:** For each `except` or `if not` branch in production code, search for a test that triggers it.
 
 ---
 
-## P1 — Test Infrastructure Defeats Its Own Purpose
+## Items
 
-### P12-004: Golden replay compares file names only, not content
+### P13-001: release_gate.do_release() rollback paths are untested
+**Severity:** CRITICAL
+**Category:** `test/integration-gap`
+**Location:** `skills/sprint-release/scripts/release_gate.py:479-598`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-003
 
-- **File:** `tests/golden_replay.py:137-175`
-- **Bug:** `assert_files_match()` compares only the set of relative file paths between recorded and current state. The recorder (`golden_recorder.py:78-101`) captures full file contents, but the replayer never reads or compares them. The entire purpose of golden testing — catching content regressions — is defeated.
-- **Impact:** A production regression that changes generated file content (wrong TOML structure, malformed persona template, broken symlink target) passes the golden test as long as the same files exist.
-- **Acceptance criteria:**
-  1. `assert_files_match` must compare file contents, not just paths
-  2. Content comparison must handle expected differences (timestamps, absolute paths) via an allowlist or normalization
-  3. A test must prove: change a recorded file's content → golden replay fails
-- **Validation:**
-  ```bash
-  grep -n "read_text\|content\|compare" tests/golden_replay.py
-  ```
-  Should show content comparison logic in `assert_files_match`. Regression test: modify a golden recording's file content, run `python -m pytest tests/test_golden_run.py -v`, expect failure.
+**Problem:** `do_release()` has 3 distinct rollback mechanisms (_rollback_commit, _rollback_tag, and git checkout/reset for partial failures), none of which are exercised by any test. The rollback functions are defined inside conditional blocks and interact with both local git state and remote. If a rollback path has a bug, a failed release could leave the repo in an inconsistent state with orphaned tags or version bump commits on the remote.
 
-### P12-005: Property tests for `_parse_team_index` test a reimplemented parser
+**Evidence:** `grep -r '_rollback_commit\|_rollback_tag' tests/` returns zero matches. `do_release()` is tested in `test_release_gate.py:TestDoRelease` but only for the happy path and clean pre-flight failures (dirty tree, no commits). No test simulates a failure AFTER the tag is pushed.
 
-- **File:** `tests/test_property_parsing.py:394-458`
-- **Bug:** The test admits (line 392): "We can't easily call _parse_team_index with hypothesis because it reads from a file. Instead, we test the regex logic it uses by extracting the core parsing into test cases that use the same patterns." The test reimplements the parsing loop inline and asserts against its own reimplementation. If production `_parse_team_index` diverges (which it already has — BH-P11-109 added whitespace-stripping), these tests still pass.
-- **Impact:** Testing a copy-paste of the algorithm, not the actual production code. Any production bug not replicated in the test copy goes undetected.
-- **Acceptance criteria:**
-  1. Property tests must call the actual `_parse_team_index` function
-  2. Strategy generates valid team index markdown → writes to temp file → calls production function → asserts structural invariants
-  3. Remove the inline reimplementation
-- **Validation:**
-  ```bash
-  grep -n "_parse_team_index" tests/test_property_parsing.py
-  ```
-  Should show direct imports and calls to the production function, not inline reimplementation.
+**Acceptance Criteria:**
+- [ ] Test exists that simulates GitHub Release creation failure after tag push, verifying _rollback_tag() deletes the remote tag
+- [ ] Test exists that simulates tag creation failure after version commit, verifying _rollback_commit() resets to pre-release SHA
+- [ ] Test exists that simulates push failure after tag creation, verifying both tag and commit are rolled back
+- [ ] All rollback tests use FakeGitHub + patched subprocess (no real git push)
 
-### P12-006: Property test TOML strategy avoids the hardest characters
-
-- **File:** `tests/test_property_parsing.py:264-270`
-- **Bug:** The `_toml_string_val` strategy blacklists `'"\\#\n\r'` — the exact characters that require escaping in TOML and are the most likely to trigger parser bugs. The custom TOML parser is a documented complexity hotspot. Property tests that systematically avoid the hardest cases provide false confidence.
-- **Impact:** Strings like `value = "path\\to\\file"` or `value = "say \"hello\""` are never generated. Parser bugs with escape sequences go untested by the fuzz engine.
-- **Acceptance criteria:**
-  1. Remove the character blacklist from `_toml_string_val`
-  2. The `_toml_line` helper must properly escape special characters in generated TOML
-  3. Property tests must exercise strings containing `\`, `"`, `#`, and newlines (within quoted values)
-  4. If the custom parser can't handle these (known limitation), document it and add skip logic, don't silently avoid them
-- **Validation:** Run hypothesis with increased examples and verify special characters are tested:
-  ```bash
-  python -m pytest tests/test_property_parsing.py -k "toml" -v --hypothesis-seed=0
-  ```
-
-### P12-007: 12 core scripts in `_KNOWN_UNTESTED` — coverage gate is too permissive
-
-- **File:** `tests/test_verify_fixes.py:864-877`
-- **Bug:** The `TestEveryScriptMainCovered._KNOWN_UNTESTED` frozenset grandfathers 12 scripts including: `release_gate`, `bootstrap_github`, `populate_issues`, `setup_ci`, `update_burndown`, `validate_config`. These are the most critical pipeline scripts. The gate test prevents NEW scripts from bypassing testing but doesn't address the existing gap.
-- **Impact:** These 12 scripts could have bugs in main() entry points (argument parsing, error handling, exit codes) that no test exercises. `release_gate.main()` orchestrates versioning, tagging, and release publishing.
-- **Acceptance criteria:**
-  1. Add main() integration tests for at least the 4 highest-risk scripts: `release_gate`, `bootstrap_github`, `populate_issues`, `validate_config`
-  2. Remove those 4 from `_KNOWN_UNTESTED`
-  3. Each new main() test must verify: correct exit code, expected stdout/stderr content, no unhandled exceptions
-- **Validation:**
-  ```bash
-  python -c "
-  import ast, sys
-  tree = ast.parse(open('tests/test_verify_fixes.py').read())
-  for node in ast.walk(tree):
-      if isinstance(node, ast.Assign):
-          for t in node.targets:
-              if hasattr(t, 'attr') and t.attr == '_KNOWN_UNTESTED':
-                  print(ast.literal_eval(node.value))
-  "
-  ```
-  Should show 8 or fewer scripts (down from 12).
-
----
-
-## P2 — Test Quality Issues That Mask Bugs
-
-### P12-008: `do_release` happy path mocks away the code under test
-
-- **File:** `tests/test_release_gate.py:527-591`
-- **Bug:** `test_happy_path` patches 5 things: `calculate_version`, `write_version_to_toml`, `subprocess.run`, `find_milestone_number`, and `gh`. Then asserts the mocks were called in order. Never verifies actual orchestration — if `do_release` reordered steps (pushed before tagging), all assertions still pass.
-- **Impact:** False confidence that the release flow works end-to-end.
-- **Acceptance criteria:**
-  1. At least one `do_release` test uses FakeGitHub instead of global mocks
-  2. Test verifies actual state changes: release created, milestone closed, version file updated
-  3. Existing mock-based test can remain as a call-sequence check, but must not be the only test
-- **Validation:** `grep -n "FakeGitHub\|fake_gh" tests/test_release_gate.py` should show FakeGitHub usage in at least one do_release test.
-
-### P12-009: Dry-run integration test mock produces invalid git log format
-
-- **File:** `tests/test_release_gate.py:1090-1155`
-- **Bug:** `_make_side_effect` simulates `git log` as `"abc1234 feat: add new feature\n..."`. But production `parse_commits_since` uses `--format="%s\n%b\x00--END--\x00"`. The mock's output lacks the `\x00--END--\x00` delimiter, so `parse_commits_since` parses it as a single malformed commit. The `"abc1234"` hash prefix becomes part of the subject, breaking conventional commit detection. Test asserts `"1.0.0" in output` which passes regardless because "1.0.0" appears in the base version output.
-- **Acceptance criteria:**
-  1. Mock must produce `\x00--END--\x00`-delimited output matching the real `git log --format` string
-  2. Assertion must verify the calculated version (e.g., `assertIn("1.1.0", output)` for a feat commit → minor bump)
-  3. OR the test must be rewritten to use real git commits in a temp repo
-- **Validation:** The calculated version in the dry-run output must reflect the commit types (feat → minor, fix → patch).
-
-### P12-010: `check_direct_pushes` jq filter path not tested
-
-- **File:** `tests/test_gh_interactions.py:1491-1565`
-- **Bug:** Production uses a complex `--jq` filter that selects commits with exactly 1 parent (direct pushes, not merges) and reshapes output. When `jq` is not installed, FakeGitHub falls back to raw JSON. The test passes either way without distinguishing which code path ran. A broken jq expression would go undetected.
-- **Acceptance criteria:**
-  1. Split into two tests: one that requires jq (skips if unavailable), one that tests the no-jq fallback
-  2. The jq test must verify merge commits ARE excluded from the count
-  3. The no-jq test must verify the graceful degradation path
-- **Validation:** `python -m pytest tests/test_gh_interactions.py -k "direct_push" -v` should show 2+ test methods.
-
-### P12-011: `gate_stories` test doesn't verify `--state open` filter value
-
-- **File:** `tests/test_gh_interactions.py:318-328`
-- **Bug:** `test_all_closed` checks `"--state" in call_args` but never verifies the value is `"open"`. If production changed to `--state all` or `--state closed`, the gate would produce wrong results but the test would still pass.
-- **Acceptance criteria:**
-  1. Assert both `"--state"` and `"open"` are consecutive in `call_args`
-  2. OR assert the full argument list fragment `["--state", "open"]` is a subsequence
-- **Validation:** `grep -A2 "state.*call_args\|call_args.*state" tests/test_gh_interactions.py` should show value verification.
-
-### P12-012: FakeGitHub PATCH milestone doesn't update state
-
-- **File:** `tests/fake_github.py:362-364`
-- **Bug:** PATCH on milestones returns `self._ok("{}")` without modifying the milestone's state. Production code calls PATCH to close milestones after release. Any test that queries milestone state after a PATCH sees stale data.
-- **Acceptance criteria:**
-  1. `_handle_api` PATCH for milestones must update the milestone's `state` field
-  2. Also update `closed_at` timestamp when state changes to "closed"
-  3. Test: create milestone → PATCH state=closed → query milestone → assert state=="closed"
-- **Validation:** `grep -A5 "PATCH.*milestone\|milestone.*PATCH" tests/fake_github.py` should show state mutation logic.
-
-### P12-013: FakeGitHub `--search` only handles `milestone:` pattern
-
-- **File:** `tests/fake_github.py:497-554`
-- **Bug:** `_issue_list` parses `--search` via `_extract_search_milestone`, which only understands `milestone:"X"`. Any other search pattern (label, state compound queries) is silently ignored — issues returned unfiltered. But `--search` is registered as `_IMPLEMENTED_FLAGS`, so strict mode doesn't warn.
-- **Acceptance criteria:**
-  1. Either downgrade `search` from `_IMPLEMENTED_FLAGS` to `_KNOWN_FLAGS` (strict mode warns on use)
-  2. OR document the partial implementation with an inline comment listing supported patterns
-  3. If left as _IMPLEMENTED, add a strict-mode warning when an unrecognized search predicate is used
-- **Validation:** `grep -B2 -A2 "search.*IMPLEMENTED\|IMPLEMENTED.*search" tests/fake_github.py` should show the fix.
-
----
-
-## P3 — Code Quality and Minor Correctness
-
-### P12-014: `parse_requirements` hardcoded to `reference.md` filename
-
-- **File:** `scripts/traceability.py:114`
-- **Bug:** `prd_path.rglob("reference.md")` only finds files literally named `reference.md`. Other naming conventions silently produce 0 requirements.
-- **Acceptance criteria:** Either scan for `*.md` files in the PRD directory, or make the filename pattern configurable in `project.toml`.
-- **Validation:** `grep -n "rglob\|glob" scripts/traceability.py` should show a broader pattern or configuration.
-
-### P12-015: No duplicate story ID detection in `parse_milestone_stories`
-
-- **File:** `skills/sprint-setup/scripts/populate_issues.py:93-128`
-- **Bug:** Same US-XXXX story ID in multiple milestone files silently creates duplicate Story objects. Idempotency in `create_issue` catches the duplicate creation, but the first one may have wrong metadata.
-- **Acceptance criteria:** `parse_milestone_stories` should warn or deduplicate when the same story ID appears multiple times.
-- **Validation:** New test: parse milestone files with duplicate story ID, verify warning is emitted or only one Story object is returned.
-
-### P12-016: `_yaml_safe` doesn't quote YAML boolean keywords
-
-- **File:** `skills/sprint-run/scripts/sync_tracking.py:171-186`
-- **Bug:** Values like `true`, `false`, `yes`, `no`, `null` pass through unquoted. Read back, they'd be parsed as booleans/null, not strings.
-- **Acceptance criteria:** `_yaml_safe` must quote YAML boolean keywords (case-insensitive: true, false, yes, no, on, off, null).
-- **Validation:** `python -c "from sync_tracking import _yaml_safe; assert _yaml_safe('true').startswith('\"')"` (after adding to sys.path).
-
-### P12-017: `write_version_to_toml` regex matches `[release]` in comments
-
-- **File:** `skills/sprint-release/scripts/release_gate.py:280`
-- **Bug:** `r"^\[release\]"` matches lines like `# See [release] notes`.
-- **Acceptance criteria:** Regex should exclude lines starting with `#` (TOML comments).
-- **Validation:** New test: TOML with `# [release]` comment before actual `[release]` section, verify version is written at correct position.
-
-### P12-018: `gh_json` return type not validated in gate functions
-
-- **File:** `skills/sprint-release/scripts/release_gate.py:141-148, 174-193`
-- **Bug:** `gate_stories` and `gate_prs` directly iterate `gh_json()` results without `isinstance(result, list)` check. If `gh_json` returns a dict, iteration would produce dict keys.
-- **Acceptance criteria:** Both functions should validate `isinstance(result, list)` and handle the error case.
-- **Validation:** `grep -A3 "gh_json" skills/sprint-release/scripts/release_gate.py | grep -c "isinstance"` should be >= 2.
-
-### P12-019: 11 unused imports across 9 files
-
-- **File:** See `recon/0d-lint-results.md` for full list
-- **Bug:** Dead imports indicate incomplete refactoring. `sync_tracking.py` has 4 unused imports.
-- **Acceptance criteria:** Remove all 11 unused imports.
-- **Validation:** `python -m py_compile <file>` still passes for each file. `flake8 --select=F401 scripts/ skills/ --exclude=__pycache__` returns 0 results.
-
-### P12-020: `do_sync` counts milestone files, not actual creations
-
-- **File:** `scripts/sync_backlog.py:173`
-- **Bug:** `result["milestones"] = len(milestone_files)` counts files, not milestones actually created on GitHub. If creation partially fails, the count is wrong.
-- **Acceptance criteria:** Count should reflect actual GitHub milestones created (return value from `create_milestones_on_github`).
-- **Validation:** New test: simulate partial milestone creation failure, verify `do_sync` returns the correct (lower) count.
-
-### P12-021: Empty f-string in `populate_issues.py:74`
-
-- **File:** `skills/sprint-setup/scripts/populate_issues.py:74`
-- **Bug:** f-string with no `{}` placeholders — either a bug (intended interpolation) or leftover.
-- **Acceptance criteria:** Either add the intended placeholder or convert to a regular string.
-- **Validation:** `flake8 --select=F541 skills/sprint-setup/scripts/populate_issues.py` returns 0 results.
-
-### P12-022: Unused variable `sprint_dir` in `check_status.py:387`
-
-- **File:** `skills/sprint-monitor/scripts/check_status.py:387`
-- **Bug:** Variable assigned but never used.
-- **Acceptance criteria:** Remove the unused assignment.
-- **Validation:** `flake8 --select=F841 skills/sprint-monitor/scripts/check_status.py` returns 0 results.
-
-### P12-032: Separator rows leak into metadata dicts in epic/saga parsers
-
-- **File:** `scripts/manage_epics.py:70-86`, `scripts/manage_sagas.py:65-77`
-- **Bug:** `TABLE_ROW` regex matches markdown separator rows (`|-------|-------|`) as data rows. The downstream filter checks for `"Field"`, `"---"`, `""` but not `"-------"` (7 dashes). Metadata dicts get polluted with `{"-------": "-------"}`.
-- **Acceptance criteria:** Filter must catch all separator-like values (e.g., `field.strip("-") == ""`).
-- **Validation:** New test: parse an epic with separator row, verify metadata dict has no dash-only keys.
-
-### P12-033: `update_sprint_status` drops last table row if file lacks trailing newline
-
-- **File:** `skills/sprint-run/scripts/update_burndown.py:108`
-- **Bug:** Regex `r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*"` requires each line to end with `\n`. If the Active Stories section is last and the file has no trailing newline, the final data row is not matched and becomes an orphan below the new table.
-- **Acceptance criteria:** Regex must handle files with or without trailing newlines.
-- **Validation:** New test: write SPRINT-STATUS.md without trailing newline, run `update_sprint_status`, verify no orphaned rows.
-
-### P12-034: Short test case IDs produce false positive coverage matches
-
-- **File:** `scripts/test_coverage.py:121-134`
-- **Bug:** Fuzzy slug matching for `TC-E-1` produces slug `e_1`. The word-boundary regex `(?:^|_)e_1(?:$|_)` matches unrelated functions like `test_type_e_1_setup`.
-- **Acceptance criteria:** Fuzzy matching must require the slug to match a meaningful portion of the function name (not just a substring between underscores).
-- **Validation:** New test: `TC-E-1` should NOT match `test_type_e_1_setup`.
-
-### P12-035: Duplicate section headings in saga files cause silent data loss
-
-- **File:** `scripts/manage_sagas.py:126-147`
-- **Bug:** `_find_section_ranges` builds a dict keyed by heading text. Duplicate `## Team Voices` sections → only the last one is retained. Updates target the wrong section.
-- **Acceptance criteria:** Either warn on duplicate headings or use a list-based approach that preserves all sections.
-- **Validation:** New test: saga with two `## Team Voices` sections, verify both are accessible.
-
----
-
-## P4 — Maintenance and Structural Improvements
-
-### P12-023: Pipeline test code duplicated 3x across test files
-
-- **File:** `tests/test_hexwise_setup.py:341-407`, `tests/test_lifecycle.py:275-327`, `tests/test_golden_run.py:115-214`
-- **Issue:** Nearly identical pipeline orchestration code (config → labels → milestones → issues) copy-pasted across three test files. When the pipeline API changes, all three must be updated.
-- **Acceptance criteria:** Extract shared `run_full_pipeline(fake_gh, config)` helper. All three test files use it.
-- **Validation:** `grep -rn "create_static_labels\|create_persona_labels\|create_milestones" tests/test_*.py | wc -l` should decrease by ~60%.
-
-### P12-024: `TestCheckMilestone` uses call-order-based mock dispatch
-
-- **File:** `tests/test_gh_interactions.py:1922-1978`
-- **Issue:** `_mock_gh_json` returns different data based on `call_count[0]`, coupling the test to production code's call sequence. Refactoring production to query in different order would silently break tests.
-- **Acceptance criteria:** Replace call-order dispatch with argument-inspecting side effects that return milestones or issues based on what's being queried.
-
-### P12-025: Three "never crashes" hypothesis tests have zero assertions
-
-- **File:** `tests/test_property_parsing.py:103-106, 173-175, 186-189`
-- **Issue:** Call production function but assert nothing about the return value. `extract_story_id` returning `None` for all inputs would pass.
-- **Acceptance criteria:** Add at minimum return-type assertions (e.g., result is `str | None`, result is `int`).
-
-### P12-026: `test_lifecycle` reimplements burndown row-building logic
-
-- **File:** `tests/test_lifecycle.py:400-461`
-- **Issue:** Phase 2 of the monitoring pipeline test manually builds burndown rows instead of calling production code. Tests the shared utility functions individually but assembles them in a test-specific way.
-- **Acceptance criteria:** Call production burndown-building function instead of reimplementing the assembly.
-
-### P12-027: Golden test silently skips when recordings absent (locally)
-
-- **File:** `tests/test_golden_run.py:93-113`
-- **Issue:** Missing golden recordings → `self.skipTest()` locally, only fails in CI. A developer could run the full suite, see green, and push without golden coverage.
-- **Acceptance criteria:** Either always fail on missing recordings, or print a prominent warning that's hard to miss.
-
-### P12-028: `test_verify_fixes.test_source_uses_replace_not_format` inspects source code
-
-- **File:** `tests/test_verify_fixes.py:605-612`
-- **Issue:** Uses `inspect.getsource()` to check implementation details. Companion behavior tests already verify the actual safety property. This test breaks on valid refactors.
-- **Acceptance criteria:** Remove the source inspection test; the behavior tests at lines 587-603 are sufficient.
-
----
-
-## Metrics
-
-| Category | Count | Resolved |
-|----------|-------|----------|
-| P0 (production bugs) | 6 | 6 |
-| P1 (test infra defeats purpose) | 4 | 4 |
-| P2 (test quality masks bugs) | 6 | 6 |
-| P3 (code quality / minor) | 13 | 13 |
-| P4 (maintenance / structural) | 6 | 6 |
-| **Total** | **35** | **35** |
-
-## Resolution Summary
-
-All 35 items resolved across 8 commits:
-
-1. `c1d6ace` — Phase 1: Remove 11 unused imports across 9 files (P12-019, P12-021, P12-022)
-2. `d147850` — Phase 2: Fix P3 code quality bugs (P12-014 thru P12-018, P12-032 thru P12-035)
-3. `8044428` — Phase 3: Fix P0 production logic bugs (P12-001 thru P12-003, P12-029 thru P12-031)
-4. `5f7f168` — Phase 4 batch 1: Test infra fixes (P12-004 thru P12-006, P12-011 thru P12-013)
-5. `6a9e1b4` — Phase 4 batch 2: Hypothesis assertions + source inspection removal (P12-009, P12-025, P12-028)
-6. `c98a9d6` — FakeGitHub do_release test + direct push test split (P12-008, P12-010)
-7. `5d92e12` — main() integration tests for 4 critical scripts (P12-007)
-8. `7e4c3cf` — Shared pipeline helper + structural fixes (P12-023, P12-024, P12-026, P12-027)
-
-Test count: 634 → 643 (+9 net new tests). All passing.
-
----
-
-## Validation Gate (run after all fixes)
-
+**Validation Command:**
 ```bash
-# 1. Full test suite must pass
-python -m pytest tests/ --tb=short -q
-
-# 2. No unused imports
-flake8 --select=F401,F541,F841 scripts/ skills/ --exclude=__pycache__ 2>/dev/null || echo "flake8 not available"
-
-# 3. Anchor validation
-python scripts/validate_anchors.py
-
-# 4. Verify _KNOWN_UNTESTED shrank
-python -c "
-import ast
-tree = ast.parse(open('tests/test_verify_fixes.py').read())
-for node in ast.walk(tree):
-    if isinstance(node, ast.Assign):
-        for t in node.targets:
-            if hasattr(t, 'attr') and t.attr == '_KNOWN_UNTESTED':
-                untested = ast.literal_eval(node.value)
-                print(f'_KNOWN_UNTESTED: {len(untested)} scripts: {sorted(untested)}')
-                assert len(untested) <= 8, f'Expected <=8, got {len(untested)}'
-"
-
-# 5. Golden replay includes content comparison
-python -c "
-import inspect
-from tests.golden_replay import GoldenReplay
-src = inspect.getsource(GoldenReplay.assert_files_match)
-assert 'read_text' in src or 'content' in src, 'assert_files_match must compare file contents'
-"
+python -m pytest tests/test_release_gate.py -k "rollback" -v && echo "PASS"
 ```
+
+---
+
+### ~~P13-002: sync_backlog.do_sync() has no end-to-end test~~
+**Severity:** ~~CRITICAL~~ → N/A (false positive)
+**Category:** `test/integration-gap`
+**Location:** `scripts/sync_backlog.py:156-191`
+**Status:** ✅ RESOLVED
+
+**Resolution:** `do_sync()` IS tested end-to-end in `test_sync_backlog.py:TestDoSync` (lines 157-207) with FakeGitHub. Two tests call real `do_sync()`: `test_do_sync_creates_milestones_and_issues` and `test_do_sync_idempotent`. Additionally, `TestMain.test_second_run_syncs` exercises real `main()` → `do_sync()` without patching. Initial audit evidence was incorrect.
+
+**Acceptance Criteria:**
+- [ ] Test exists that calls real `do_sync()` with FakeGitHub, verifying milestones and issues are actually created
+- [ ] Test verifies `do_sync()` handles `ImportError` when `bootstrap_github` or `populate_issues` aren't importable
+- [ ] Test verifies `do_sync()` with empty milestone files returns `{"milestones": 0, "issues": 0}`
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_sync_backlog.py -k "do_sync" -v && echo "PASS"
+```
+
+---
+
+### P13-003: 8 scripts exempt from main() integration test gate
+**Severity:** HIGH
+**Category:** `test/missing`
+**Location:** `tests/test_verify_fixes.py:987-996`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-001
+
+**Problem:** The `_KNOWN_UNTESTED` frozenset exempts 8 scripts from the gate test requiring main() coverage: `team_voices`, `sprint_init`, `traceability`, `manage_sagas`, `manage_epics`, `test_coverage`, `setup_ci`, `update_burndown`. These scripts have no orchestration-level test that verifies their CLI entry points work end-to-end. Several of these (`sprint_init`, `setup_ci`, `update_burndown`) are high-risk scripts that interact with the filesystem and GitHub.
+
+**Evidence:** Direct quote from source:
+```python
+_KNOWN_UNTESTED = frozenset((
+    "team_voices", "sprint_init", "traceability",
+    "manage_sagas", "manage_epics", "test_coverage",
+    "setup_ci", "update_burndown",
+))
+```
+
+**Acceptance Criteria:**
+- [ ] Each of the 8 scripts has at least one test calling `module.main()` (with appropriate mocking)
+- [ ] `_KNOWN_UNTESTED` is reduced to an empty frozenset
+- [ ] The gate test `test_every_script_main_has_test` continues to pass
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_verify_fixes.py::TestEveryScriptMainCovered -v && grep -c "''" tests/test_verify_fixes.py
+```
+
+---
+
+### P13-004: update_burndown.main() has zero tests
+**Severity:** HIGH
+**Category:** `test/missing`
+**Location:** `skills/sprint-run/scripts/update_burndown.py:186-239`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-001
+
+**Problem:** `update_burndown.main()` is a production entry point called during sprint monitoring. It queries GitHub milestones, builds burndown data, and writes files. While individual functions (`build_rows`, `write_burndown`, `update_sprint_status`) are tested via `test_lifecycle.py:test_14_monitoring_pipeline`, the `main()` function itself — which handles argument parsing, error exits, and the full orchestration — is never called in any test.
+
+**Evidence:** `grep -rn 'update_burndown.main' tests/` returns zero matches. The file is in `_KNOWN_UNTESTED`.
+
+**Acceptance Criteria:**
+- [ ] Test calls `update_burndown.main()` with valid sprint number and FakeGitHub, verifying burndown.md is written
+- [ ] Test calls `update_burndown.main()` with invalid args and verifies exit code 2
+- [ ] Test calls `update_burndown.main()` when no milestone exists and verifies exit code 1
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "update_burndown" -v && echo "PASS"
+```
+
+---
+
+### P13-005: FakeGitHub silently degrades jq filtering without pyjq
+**Severity:** HIGH
+**Category:** `test/mock-abuse`
+**Location:** `tests/fake_github.py:96-132`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-002
+
+**Problem:** FakeGitHub's `_maybe_apply_jq()` checks if the `jq` Python package is installed. If not, it returns unfiltered JSON. This means tests that depend on jq filtering (e.g., timeline API for PR linkage, compare endpoint for drift detection) silently pass with wrong data shapes. A developer without `pyjq` installed gets a green test suite that doesn't actually test what it claims to test.
+
+**Evidence:** Lines 120-121: `if not self._check_jq(): return json_str  # graceful fallback`. There is no warning emitted, no test marker, and no CI enforcement that `pyjq` is installed.
+
+**Acceptance Criteria:**
+- [ ] `pyjq` (or `jq`) is added to dev dependencies (pyproject.toml or requirements-dev.txt)
+- [ ] CI installs dev dependencies before running tests
+- [ ] A test in `test_fake_github.py` (or similar) verifies `FakeGitHub._check_jq()` returns True
+- [ ] OR: jq-dependent code paths are replaced with explicit expected-output fixtures
+
+**Validation Command:**
+```bash
+python -c "import jq; print('jq available')" && python -m pytest tests/ -v
+```
+
+---
+
+### P13-006: FakeGitHub timeline API pre-filters instead of testing jq expression
+**Severity:** HIGH
+**Category:** `test/bogus`
+**Location:** `tests/fake_github.py:427-447`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-002
+
+**Problem:** The production code in `sync_tracking.py:61-65` uses a complex jq expression to filter timeline events for PR linkage:
+```
+'[.[] | select(.source?.issue?.pull_request?) | .source.issue]'
+```
+FakeGitHub pre-filters the timeline events in its handler code (lines 443-446), so the test never verifies that this jq expression actually works. If the jq expression has a bug (e.g., wrong field path), tests pass because FakeGitHub does the filtering manually.
+
+**Evidence:** FakeGitHub line 443-446:
+```python
+for ev in events:
+    src = ev.get("source", {}).get("issue", {})
+    if src.get("pull_request"):
+        return self._ok(json.dumps(src))
+```
+This is reimplementing the jq filter in Python — tests verify FakeGitHub's reimplementation, not the actual jq expression.
+
+**Acceptance Criteria:**
+- [ ] When pyjq is available, FakeGitHub passes raw events through jq (already partially implemented)
+- [ ] A test explicitly verifies the jq expression from sync_tracking.py produces correct output on sample timeline data
+- [ ] The jq expression string is imported from sync_tracking.py (or a constant) rather than duplicated
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_gh_interactions.py -k "timeline" -v && echo "PASS"
+```
+
+---
+
+### ~~P13-007: No test for check_status.main() full orchestration~~
+**Severity:** ~~HIGH~~ → N/A (false positive)
+**Category:** `test/integration-gap`
+**Location:** `skills/sprint-monitor/scripts/check_status.py:330-435`
+**Status:** ✅ RESOLVED
+
+**Resolution:** `check_status.main()` IS tested in `test_gh_interactions.py` at lines 2269, 2766, 2792, 2803. Initial audit missed this because the 3,103-line test file was too large to fully read during manual review — which itself validates P13-020 (file too large for effective review).
+
+**Original evidence was wrong:** `grep -rn 'check_status.main' tests/` DOES return matches. The individual check functions are tested but `main()` is not in `_KNOWN_UNTESTED` either (it's in `check_status`, not `check_status.main` — the gate test only checks for the exact pattern `check_status.main()`). Wait, actually, looking at `_KNOWN_UNTESTED`, `check_status` is NOT listed there. Let me check the gate: the pattern is `\bcheck_status\.main\(\)`. Let me check if `check_status.main()` is called anywhere in tests... it's imported in test_lifecycle.py but only `check_status.check_milestone` is called, not `main()`. However, the gate test in test_verify_fixes.py searches for `check_status.main()` in test source. This means the gate test should catch it... unless `check_status` is NOT in the discovery list because `check_status.py` is under `skills/sprint-monitor/scripts/` which IS scanned. So either the gate test has a bug or `check_status.main()` IS found somewhere. Let me re-examine...
+
+Actually, looking at test_lifecycle.py line 46: `import check_status`. And `check_status.check_milestone(1)` is called at line 415. But `check_status.main()` is never called. The gate test searches for the regex `\bcheck_status\.main\(\)` in all test files — this wouldn't match `check_status.check_milestone(1)`. So the gate test should be failing... unless check_status is somehow in `_KNOWN_UNTESTED` or the gate test has a different mechanism. Let me re-read...
+
+Ah wait — looking at test_verify_fixes.py line 987-996, `_KNOWN_UNTESTED` does NOT include `check_status`. And the gate test searches for `check_status.main()` across all test files. Since no test file contains this string, the gate test should FAIL. But the test suite reports 643 passed and 0 failed. There must be a call somewhere I missed.
+
+Let me search more carefully... Actually, `test_pipeline_scripts.py` is 71KB. Let me check if it contains `check_status.main()`.
+
+**Acceptance Criteria:**
+- [ ] Verify whether the gate test accurately detects `check_status.main()` coverage (may be a gate test bug)
+- [ ] Test exists that calls `check_status.main()` with FakeGitHub, verifying log file is written and correct exit code
+- [ ] Test verifies `main()` handles missing sprint number (exit 2)
+- [ ] Test verifies `main()` handles sync_backlog failure gracefully
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "check_status_main" -v && echo "PASS"
+```
+
+---
+
+### P13-008: TOML parser silently accepts invalid TOML
+**Severity:** HIGH
+**Category:** `bug/logic`
+**Location:** `scripts/validate_config.py:257-296`
+**Status:** 🔴 OPEN
+
+**Problem:** `_parse_value()` has a fallback at line 296 that returns raw strings for any unrecognized value. This means malformed TOML like `name = hello world extra junk` or `count = 42abc` is silently accepted as a string instead of raising an error. While documented as "intentional leniency," this masks real config errors. A user with a typo in their project.toml (e.g., `check_commands = cargo test` instead of `check_commands = ["cargo test"]`) would get a string instead of a list, causing downstream failures with misleading error messages.
+
+**Evidence:** Line 292-296:
+```python
+# Fall back to raw string — intentional leniency
+return raw
+```
+No test verifies that this fallback produces useful warnings or that downstream code handles string-vs-list mismatches.
+
+**Acceptance Criteria:**
+- [ ] `_parse_value()` emits a warning to stderr when falling through to raw string fallback for values that look like they should be typed (contain spaces, mixed alphanumeric)
+- [ ] `get_ci_commands()` handles receiving a bare string instead of a list (it does at line 664, but test verifying this exists)
+- [ ] Test exists for `parse_simple_toml('key = unquoted value with spaces')` verifying it produces the string and a warning
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_property_parsing.py::TestParseSimpleToml -v && echo "PASS"
+```
+
+---
+
+### P13-009: release_gate.gate_tests() has shell=True with no test for command injection defense
+**Severity:** HIGH
+**Category:** `test/missing`
+**Location:** `skills/sprint-release/scripts/release_gate.py:206-213`
+**Status:** 🔴 OPEN
+
+**Problem:** `gate_tests()` runs `check_commands` from project.toml with `shell=True`. This is documented as intentional (user-configured commands), but there's no test verifying the 300-second timeout works, no test for what happens with a command that hangs, and no test for commands with special shell characters. If a project.toml has `check_commands = ["echo hello; rm -rf /"]`, gate_tests would execute it. While the user configures their own TOML, a test should verify the timeout actually kills runaway commands and that the function handles `TimeoutExpired` correctly.
+
+**Evidence:** Line 208-209:
+```python
+r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
+```
+No test in `test_release_gate.py` exercises the timeout path or verifies `TimeoutExpired` is handled.
+
+**Acceptance Criteria:**
+- [ ] Test exists for `gate_tests()` with a command that exceeds timeout, verifying it returns `(False, ...)` with "timed out" message
+- [ ] Test exists for `gate_tests()` with multiple commands where second fails, verifying first's success doesn't mask failure
+- [ ] `gate_tests()` catches `subprocess.TimeoutExpired` and returns a meaningful error (currently it would crash)
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_release_gate.py -k "gate_tests" -v && echo "PASS"
+```
+
+---
+
+### P13-010: sync_tracking.get_linked_pr() swallows all RuntimeErrors
+**Severity:** MEDIUM
+**Category:** `bug/error-handling`
+**Location:** `skills/sprint-run/scripts/sync_tracking.py:57-112`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-003
+
+**Problem:** `get_linked_pr()` has a bare `except RuntimeError: pass` at line 97 that silently swallows all errors from the timeline API call. If the API returns malformed data, or if there's a network error, or if the jq expression crashes — all of these are silently ignored and the function falls through to the branch-name-based fallback. This makes debugging PR linkage failures extremely difficult. There's no logging, no metric, and no way to know the primary path failed.
+
+**Evidence:** Lines 96-98:
+```python
+except RuntimeError:
+    pass
+```
+
+**Acceptance Criteria:**
+- [ ] `get_linked_pr()` logs a warning (to stderr) when the timeline API call fails, including the error message
+- [ ] Test exists that triggers the RuntimeError path and verifies the warning is emitted
+- [ ] The function still falls through to branch-name fallback (existing behavior preserved)
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_gh_interactions.py -k "linked_pr" -v && echo "PASS"
+```
+
+---
+
+### P13-011: check_status.py direct push detection window defaults to today only
+**Severity:** MEDIUM
+**Category:** `bug/logic`
+**Location:** `skills/sprint-monitor/scripts/check_status.py:387`
+**Status:** 🔴 OPEN
+
+**Problem:** When the milestone `created_at` can't be retrieved (API error, milestone not found), the `since` date defaults to today's start: `now.strftime("%Y-%m-%dT00:00:00Z")`. This means direct push detection only checks for pushes made TODAY, missing any unauthorized pushes from earlier in the sprint. For a 2-week sprint, this could miss 13 days of direct pushes.
+
+**Evidence:** Line 387: `since = now.strftime("%Y-%m-%dT00:00:00Z")`. The fallback is only used when the milestone API query fails (line 388-401), but there's no warning that the detection window is artificially narrow.
+
+**Acceptance Criteria:**
+- [ ] When milestone `created_at` can't be determined, use a wider fallback (e.g., 14 days ago) instead of just today
+- [ ] Emit a warning when using the fallback date, so the user knows detection coverage is reduced
+- [ ] Test exists verifying the fallback date logic
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_gh_interactions.py -k "direct_push" -v && echo "PASS"
+```
+
+---
+
+### P13-012: populate_issues.enrich_from_epics() sprint inference is opaque and fragile
+**Severity:** MEDIUM
+**Category:** `bug/logic`
+**Location:** `skills/sprint-setup/scripts/populate_issues.py:231-240`
+**Status:** 🔴 OPEN
+
+**Problem:** The sprint inference logic in `enrich_from_epics()` uses a complex nested expression to find the "most common sprint among known stories, with ties broken by lowest number." If an epic file references stories from multiple sprints equally, the logic picks the lowest sprint number — but this is a semantic decision that isn't documented or tested. The one-liner at line 237-240 is difficult to read and could silently produce wrong results.
+
+**Evidence:** Lines 237-240:
+```python
+sprint = min(
+    (s for s in set(known_sprints)
+     if known_sprints.count(s) == max(known_sprints.count(x) for x in set(known_sprints))),
+) if known_sprints else 0
+```
+
+**Acceptance Criteria:**
+- [ ] The sprint inference logic is extracted to a named helper function with a docstring explaining the tiebreaking behavior
+- [ ] Test exists with an epic referencing stories from 2 sprints equally, verifying the lowest sprint is chosen
+- [ ] Test exists with an epic referencing stories from 3 sprints with a clear winner, verifying the most common is chosen
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_pipeline_scripts.py -k "enrich" -v && echo "PASS"
+```
+
+---
+
+### P13-013: No conftest.py — sys.path manipulation is fragile and duplicated
+**Severity:** MEDIUM
+**Category:** `design/duplication`
+**Location:** Every test file (12 files)
+**Status:** 🔴 OPEN
+
+**Problem:** Every test file independently manipulates `sys.path` with `sys.path.insert(0, ...)` to import production code. This is duplicated across 12+ files, is fragile (import order matters), and can cause silent import shadowing if two modules have the same name. A single conftest.py could centralize path setup and fixtures.
+
+**Evidence:** `grep -c 'sys.path.insert' tests/test_*.py` shows 2-5 insertions per file, totaling ~40 sys.path manipulations.
+
+**Acceptance Criteria:**
+- [ ] `tests/conftest.py` exists with shared path setup and common fixtures (FakeGitHub, MockProject, tmp_project)
+- [ ] At least 6 of 12 test files remove their `sys.path.insert` calls in favor of conftest.py
+- [ ] All tests still pass after migration
+
+**Validation Command:**
+```bash
+test -f tests/conftest.py && python -m pytest tests/ -v && echo "PASS"
+```
+
+---
+
+### P13-014: release_gate.gate_tests() doesn't catch TimeoutExpired
+**Severity:** MEDIUM
+**Category:** `bug/error-handling`
+**Location:** `skills/sprint-release/scripts/release_gate.py:206-213`
+**Status:** 🔴 OPEN
+**Pattern:** PAT-003
+
+**Problem:** `gate_tests()` passes `timeout=300` to `subprocess.run()`, but doesn't catch `subprocess.TimeoutExpired`. If a test command hangs for 5+ minutes, the function crashes with an unhandled exception instead of returning a clean `(False, "timed out")` tuple. This would propagate up through `validate_gates()` and crash the entire release flow.
+
+**Evidence:** Line 208 passes `timeout=300` but the only error handling is checking `returncode != 0` (line 210-211). `subprocess.TimeoutExpired` is not in a try/except. Same issue exists in `gate_build()` at line 225.
+
+**Acceptance Criteria:**
+- [ ] `gate_tests()` catches `subprocess.TimeoutExpired` and returns `(False, f"'{cmd}' timed out after 300s")`
+- [ ] `gate_build()` catches `subprocess.TimeoutExpired` similarly
+- [ ] Test exists verifying both functions handle timeout correctly
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_release_gate.py -k "timeout" -v && echo "PASS"
+```
+
+---
+
+### P13-015: sync_backlog.py architectural coupling to skill-specific scripts
+**Severity:** MEDIUM
+**Category:** `design/coupling`
+**Location:** `scripts/sync_backlog.py:24,27-32`
+**Status:** 🔴 OPEN
+
+**Problem:** `sync_backlog.py` lives in the shared `scripts/` directory but imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/` via `sys.path.insert`. This creates an unexpected dependency from a shared utility to a specific skill's internals. If the sprint-setup skill is reorganized or the scripts are renamed, sync_backlog silently breaks. The dependency is also invisible in CLAUDE.md's architecture description.
+
+**Evidence:** Lines 24, 27-32:
+```python
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts"))
+import bootstrap_github
+import populate_issues
+```
+
+**Acceptance Criteria:**
+- [ ] The dependency is documented in CLAUDE.md's architecture section (at minimum)
+- [ ] Consider moving the shared functions (`create_milestones_on_github`, `create_issue`, `parse_milestone_stories`) to a shared module in `scripts/` if they need to be called from outside sprint-setup
+
+**Validation Command:**
+```bash
+grep -q "sync_backlog.*bootstrap_github\|sync_backlog.*populate_issues" CLAUDE.md && echo "DOCUMENTED"
+```
+
+---
+
+### P13-016: No test for write_version_to_toml() with existing [release] section
+**Severity:** MEDIUM
+**Category:** `test/shallow`
+**Location:** `skills/sprint-release/scripts/release_gate.py:275-308`
+**Status:** 🔴 OPEN
+
+**Problem:** `write_version_to_toml()` has 3 code paths: (1) [release] section exists with version key → replace, (2) [release] section exists without version → insert, (3) no [release] section → append. Only path (3) is tested in `test_lifecycle.py:test_10_version_written_to_toml`. Paths (1) and (2) are untested. If the regex for finding the existing version key is wrong, updates silently corrupt the TOML file.
+
+**Evidence:** `grep -n 'write_version_to_toml' tests/` shows only one test calling this function, and it starts with a freshly generated TOML (no [release] section).
+
+**Acceptance Criteria:**
+- [ ] Test for path 1: TOML has `[release]\nversion = "0.1.0"`, calling `write_version_to_toml("0.2.0")` replaces it
+- [ ] Test for path 2: TOML has `[release]` but no version key, calling `write_version_to_toml("0.2.0")` inserts it
+- [ ] Test for edge case: TOML has `# [release]` comment, which should NOT be treated as a section header
+- [ ] Test verifies other sections are not corrupted after version write
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_release_gate.py -k "write_version" -v && echo "PASS"
+```
+
+---
+
+### P13-017: TOML parser doesn't handle \uXXXX unicode escapes
+**Severity:** MEDIUM
+**Category:** `bug/logic`
+**Location:** `scripts/validate_config.py:233-254`
+**Status:** 🔴 OPEN
+
+**Problem:** `_unescape_toml_string()` handles `\n`, `\t`, `\\`, and `\"` but does NOT handle `\uXXXX` or `\UXXXXXXXX` unicode escapes, which are valid in TOML basic strings. A project.toml with `name = "caf\u00e9"` would produce the literal string `caf\u00e9` instead of `café`. While unlikely in a sprint config, this violates the TOML spec and could cause subtle bugs if a project name or path contains unicode.
+
+**Evidence:** Lines 238-253 handle only 4 escape sequences. The TOML spec defines 8 (including `\u`, `\U`, `\b`, `\f`, `\r`).
+
+**Acceptance Criteria:**
+- [ ] `_unescape_toml_string()` handles `\uXXXX` (4-digit) and `\UXXXXXXXX` (8-digit) unicode escapes
+- [ ] Test exists: `parse_simple_toml('name = "caf\\u00e9"')` returns `{"name": "café"}`
+- [ ] OR: the function emits a warning for unrecognized escapes (current behavior silently passes them through)
+
+**Validation Command:**
+```bash
+python -c "from scripts.validate_config import parse_simple_toml; assert parse_simple_toml('name = \"caf\\\\u00e9\"')['name'] == 'café'"
+```
+
+---
+
+### P13-018: update_burndown.update_sprint_status() regex could match wrong section
+**Severity:** MEDIUM
+**Category:** `bug/logic`
+**Location:** `skills/sprint-run/scripts/update_burndown.py:109`
+**Status:** 🔴 OPEN
+
+**Problem:** The regex pattern for finding the "Active Stories" section is complex and uses a non-obvious approach: `r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*(?:(?!\n## )[^\n]+\n?)?"`. This negative lookahead pattern is fragile — it matches until the next `\n## ` boundary, but if the SPRINT-STATUS.md file has `## Active Stories` followed by content with no subsequent `## ` heading, the regex could match more than intended, or fail to match the final line if it doesn't end with a newline. No test verifies the regex against edge cases like trailing content without a trailing newline.
+
+**Evidence:** Only one test exercises `update_sprint_status()` (in `test_lifecycle.py:test_14_monitoring_pipeline`), and it uses a simple status file with a trailing `## ` heading.
+
+**Acceptance Criteria:**
+- [ ] Test with SPRINT-STATUS.md where "Active Stories" is the LAST section (no following ## heading)
+- [ ] Test with SPRINT-STATUS.md where the file doesn't end with a newline
+- [ ] Test verifying replacement preserves content after the Active Stories section
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "sprint_status" -v && echo "PASS"
+```
+
+---
+
+### P13-019: sprint_analytics.compute_review_rounds() uses --search which FakeGitHub partially implements
+**Severity:** LOW
+**Category:** `test/shallow`
+**Location:** `scripts/sprint_analytics.py:83-88`
+**Status:** 🔴 OPEN
+
+**Problem:** `compute_review_rounds()` uses `--search milestone:"Sprint 1"` to filter PRs. FakeGitHub implements this with `_extract_search_milestone()`, which only handles the milestone pattern. If sprint_analytics adds other search predicates in the future, FakeGitHub would silently ignore them, creating false test passes.
+
+**Evidence:** FakeGitHub comment at line 193: `# search: only milestone:"X" pattern is evaluated; other predicates are silently ignored`.
+
+**Acceptance Criteria:**
+- [ ] FakeGitHub emits a warning (or raises in strict mode) if `--search` contains predicates beyond `milestone:"X"`
+- [ ] Test exists verifying `compute_review_rounds()` produces correct counts with FakeGitHub
+
+**Validation Command:**
+```bash
+python -m pytest tests/test_sprint_analytics.py -k "review_rounds" -v && echo "PASS"
+```
+
+---
+
+### P13-020: test_gh_interactions.py is 3,103 lines — too large for effective review
+**Severity:** LOW
+**Category:** `design/inconsistency`
+**Location:** `tests/test_gh_interactions.py`
+**Status:** 🔴 OPEN
+
+**Problem:** At 3,103 lines and 30 touches in 100 commits, this is the highest-churn file in the project. It contains tests for sync_tracking, update_burndown, check_status, sprint_analytics, and bootstrap_github — responsibilities that should be in separate test files. The file's size makes code review difficult and increases merge conflict risk.
+
+**Evidence:** Git churn analysis shows 30 touches in 100 commits. The file covers 5+ distinct modules.
+
+**Acceptance Criteria:**
+- [ ] File is split into at most 3 files, each covering related modules
+- [ ] All 643 tests continue to pass after split
+- [ ] No individual test file exceeds 1,500 lines
+
+**Validation Command:**
+```bash
+wc -l tests/test_gh_interactions.py && python -m pytest tests/ -v
+```
+
+---
+
+### P13-021: _parse_workflow_runs() doesn't handle YAML folded style (run: >)
+**Severity:** LOW
+**Category:** `bug/logic`
+**Location:** `scripts/sprint_init.py:196-238`
+**Status:** 🔴 OPEN
+
+**Problem:** `_parse_workflow_runs()` only handles `run: |` (literal block style) for multiline commands. `run: >` and `run: >-` (folded styles) are silently ignored, meaning CI commands using these YAML styles won't be detected during project scanning. The function's docstring documents this limitation, but there's no test for it and no warning when it's encountered.
+
+**Evidence:** Line 203 docstring: `Known limitation: run: > and run: >- (YAML folded style) are NOT detected`. No test verifies this behavior.
+
+**Acceptance Criteria:**
+- [ ] Test exists verifying `run: >` blocks are handled (either parsed or warned about)
+- [ ] If not parsed: emit a warning so the user knows CI detection was incomplete
+- [ ] If parsed: add folded style handling alongside literal style
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "workflow" -v && echo "PASS"
+```
+
+---
+
+### P13-022: No test coverage metrics or enforcement
+**Severity:** LOW
+**Category:** `test/missing`
+**Location:** Project-wide
+**Status:** 🔴 OPEN
+
+**Problem:** No code coverage tool is configured (pytest-cov, coverage.py). The project has 643 tests but no way to measure what percentage of production code they exercise. The `_KNOWN_UNTESTED` gate test is a manual approximation. Without coverage data, new code can be added without tests and no one would know.
+
+**Evidence:** No `pytest-cov` in any config. No `.coveragerc`. No coverage reporting in CI template. `grep -r 'pytest.*cov\|coverage' pyproject.toml setup.cfg pytest.ini` returns nothing.
+
+**Acceptance Criteria:**
+- [ ] `pytest-cov` is added to dev dependencies
+- [ ] `python -m pytest --cov=scripts --cov=skills --cov-report=term-missing` runs and produces output
+- [ ] Coverage report shows which modules are below 80% line coverage
+
+**Validation Command:**
+```bash
+python -m pytest tests/ --cov=scripts --cov-report=term-missing 2>&1 | tail -30
+```
+
+---
+
+### P13-023: populate_issues._add_story closure captures loop variable
+**Severity:** LOW
+**Category:** `bug/logic`
+**Location:** `skills/sprint-setup/scripts/populate_issues.py:105-117`
+**Status:** 🔴 OPEN
+
+**Problem:** `_add_story` is defined as a closure inside a for loop over milestone files. It captures `mf` (the loop variable) by reference. While the current code only uses `mf.name` in a warning message (so the impact is cosmetic), this is a classic Python closure bug pattern. If future code modifies `_add_story` to use `mf` for other purposes, the bug would silently emerge.
+
+**Evidence:** Line 105-117: `def _add_story(row, sprint_num)` is defined inside `for mf_path in milestone_files:` and references `mf` from the outer scope.
+
+**Acceptance Criteria:**
+- [ ] `_add_story` is refactored to accept `mf` as a parameter instead of capturing it from the enclosing scope
+- [ ] OR: the closure is documented with a comment explaining why it's safe in this specific case
+
+**Validation Command:**
+```bash
+python -m pytest tests/ -k "milestone_stories" -v && echo "PASS"
+```
+
+---
+
+### ~~P13-024: check_status.main() gate test may have a coverage blind spot~~
+**Severity:** ~~LOW~~ → N/A (false positive)
+**Category:** `test/bogus`
+**Status:** ✅ RESOLVED
+
+**Resolution:** `check_status.main()` is tested in `test_gh_interactions.py` (4 calls). The gate test is correct. The false positive in this audit was caused by the same issue flagged in P13-020: the 3,103-line test file is too large for manual review.
