@@ -292,8 +292,18 @@ def create_from_issue(
         if ":" in issue["title"]
         else issue["title"]
     )
+    target = d / f"{slug}.md"
+    # BH-016: Detect slug collision — if a file exists with a different story ID,
+    # append issue number to make the slug unique.
+    if target.is_file():
+        existing = read_tf(target)
+        if existing.story and existing.story != sid:
+            slug = f"{slug}-{issue['number']}"
+            target = d / f"{slug}.md"
+            print(f"  Warning: slug collision for {sid}, using {slug}.md",
+                  file=sys.stderr)
     tf = TF(
-        path=d / f"{slug}.md",
+        path=target,
         story=sid,
         title=short,
         sprint=sprint,

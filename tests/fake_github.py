@@ -522,6 +522,13 @@ class FakeGitHub:
                     f"Validation Failed: milestone '{milestone}' not found"
                 )
 
+        # BH-009: Auto-create labels that don't exist (matches real gh behavior).
+        # Real gh silently auto-creates labels used in issue create --label.
+        for label_name in labels:
+            if label_name not in self.labels:
+                self.labels[label_name] = {
+                    "name": label_name, "color": "ededed", "description": "",
+                }
         issue = {
             "number": self._next_issue,
             "title": title,
