@@ -585,6 +585,11 @@ class ConfigGenerator:
                 .replace('\t', '\\t'))
 
     def generate_project_toml(self) -> None:
+        # BH-017: Skip if project.toml already exists — user edits are precious
+        toml_path = self.config_dir / "project.toml"
+        if toml_path.is_file():
+            self.skipped.append("  preserved  project.toml (already exists)")
+            return
         s = self.scan
         esc = self._esc
         lines = ['# Sprint Process Configuration',

@@ -272,8 +272,11 @@ def remove_empty_dirs(directories: list[Path], project_root: Path) -> int:
                 d.rmdir()
                 print(f"  ✓ removed empty dir: {d.relative_to(project_root)}/")
                 removed += 1
-        except OSError:
-            pass  # Not empty or permission issue — skip silently
+        except OSError as e:
+            # BH-012: Only silence "not empty" errors; report others
+            import errno
+            if e.errno not in (errno.ENOTEMPTY, errno.ENOENT):
+                print(f"  ✗ cannot remove {d}: {e}", file=sys.stderr)
     return removed
 
 

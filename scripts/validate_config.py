@@ -278,6 +278,13 @@ def _parse_value(raw: str):
     if raw == "false":
         return False
 
+    # Detect unsupported multi-line strings (BH-007)
+    if raw.startswith('"""') or raw.startswith("'''"):
+        raise ValueError(
+            f"Multi-line strings ({raw[:3]}...{raw[:3]}) are not supported "
+            f"by this parser. Use single-line strings instead."
+        )
+
     # String (must be at least 2 chars: opening + closing quote)
     if len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'):
         return _unescape_toml_string(raw[1:-1])
@@ -304,10 +311,18 @@ def _parse_value(raw: str):
     except ValueError:
         pass
 
+    # BH-002: Reject unquoted values containing TOML metacharacters that
+    # indicate a syntax error (e.g., ``name = foo = bar``).
+    for meta in ('=', '[', ']', '{', '}'):
+        if meta in raw:
+            raise ValueError(
+                f"Unquoted TOML value contains '{meta}': {raw!r}. "
+                f"Did you mean to quote it? Use: key = \"{raw}\""
+            )
+
     # Fall back to raw string — intentional leniency: unquoted values like
-    # ``key = hello world`` are accepted as plain strings rather than raising.
-    # This keeps the minimal parser forgiving for non-standard TOML usage.
-    # Warn if the value looks like it should have been quoted or typed (P13-008).
+    # ``key = hello`` are accepted as plain strings rather than raising.
+    # This keeps the minimal parser forgiving for simple unquoted usage.
     if ' ' in raw and not raw.startswith('#'):
         print(f"Warning: unquoted TOML value '{raw}' interpreted as raw string. "
               f"Did you mean to quote it?", file=sys.stderr)
@@ -606,15 +621,21 @@ def load_config(config_dir: str = "sprint-config") -> dict:
     """
     # BH-014: Parse TOML once and pass to validate_project to avoid
     # double-read (previously parsed in validate_project AND here).
+    # BH-003: Propagate parse errors instead of swallowing them.
     toml_path = Path(config_dir) / "project.toml"
     config: dict = {}
+    _parse_error: str = ""
     if toml_path.is_file():
         try:
             config = parse_simple_toml(toml_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass  # validate_project will report the parse error
+        except Exception as exc:
+            _parse_error = f"Failed to parse {toml_path}: {exc}"
 
     ok, errors = validate_project(config_dir, _config=config)
+    # BH-003: Prepend the actual parse error so users see the root cause
+    if _parse_error:
+        errors.insert(0, _parse_error)
+        ok = False
     if not ok:
         _print_errors(errors, config_dir)
         raise ConfigError(
@@ -829,21 +850,28 @@ def extract_story_id(title: str) -> str:
 KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
 _KANBAN_STATES = KANBAN_STATES  # Backward compat alias
 
+# BH-016: Ordered progression for picking most advanced state
+_KANBAN_ORDER = ("todo", "design", "dev", "review", "integration", "done")
+
 
 # §validate_config.kanban_from_labels
 def kanban_from_labels(issue: dict) -> str:
     """Derive kanban status from an issue's labels.
 
     Returns a valid kanban state. Invalid label values are ignored.
+    BH-016: When multiple kanban labels exist, returns the most advanced state.
     """
     fallback = "done" if issue.get("state") == "closed" else "todo"
+    best = -1
     for label in issue.get("labels", []):
         name = label if isinstance(label, str) else label.get("name", "")
         if name.startswith("kanban:"):
             state = name.split(":", 1)[1]
             if state in _KANBAN_STATES:
-                return state
-    return fallback
+                idx = _KANBAN_ORDER.index(state)
+                if idx > best:
+                    best = idx
+    return _KANBAN_ORDER[best] if best >= 0 else fallback
 
 
 # §validate_config.find_milestone

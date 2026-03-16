@@ -294,12 +294,12 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
     if not first_section:
         return
 
-    # Find the start of the stories area (including separator before first story)
+    # BH-018: Find the start of the stories area. Walk back over blank lines
+    # and --- separators to find the end of the header content. We strip all
+    # separator lines and re-emit them consistently to ensure idempotency.
     stories_start = first_section["start_line"]
     while stories_start > 0 and lines[stories_start - 1].strip() in ("", "---"):
         stories_start -= 1
-    if stories_start > 0:
-        stories_start += 1  # Keep at least one separator line
 
     header = lines[:stories_start]
 
@@ -328,6 +328,8 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
     # Reassemble in new order.
     # P15: Strip trailing blank/separator lines from each section to prevent
     # separator duplication on repeated reorders.
+    # BH-018: Always emit separator before EVERY story (including first) for
+    # idempotency — repeated reorders produce identical output.
     new_lines = list(header)
     stories_emitted = 0
     for sid in story_ids:
@@ -337,10 +339,10 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
         # Strip trailing blank lines and --- separators from section
         while section_lines and section_lines[-1].strip() in ("", "---"):
             section_lines.pop()
-        if stories_emitted > 0:
-            new_lines.append("")
-            new_lines.append("---")
-            new_lines.append("")
+        # Emit separator before every story (consistent structure)
+        new_lines.append("")
+        new_lines.append("---")
+        new_lines.append("")
         new_lines.extend(section_lines)
         stories_emitted += 1
 

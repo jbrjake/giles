@@ -221,7 +221,14 @@ def main() -> str:
         # this — hashes must be stable across multiple invocations before
         # syncing, so a file edited during the ~100 ms gap would simply
         # cause the next check to detect a change and re-sync.
-        counts = do_sync(config)
+        try:
+            counts = do_sync(config)
+        except Exception as exc:
+            # BH-021: Do NOT update state on failure — next run should retry
+            print(f"sync: do_sync failed — {exc}", file=sys.stderr)
+            print("sync: state NOT updated; next run will retry")
+            save_state(config_dir, state)
+            return "error"
         state["file_hashes"] = current_hashes
         state["pending_hashes"] = None
         state["last_sync_at"] = now.isoformat()

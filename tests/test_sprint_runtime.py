@@ -849,11 +849,21 @@ class TestSharedHelpers(unittest.TestCase):
         self.assertIn("2026-03-15", result)
 
     def test_gh_custom_timeout(self):
-        """BH-016: gh() accepts custom timeout parameter."""
+        """BH-016 / BH-020: gh() passes custom timeout to subprocess.
+
+        BH-020: Replaced signature inspection with behavioral test.
+        """
         from validate_config import gh
-        sig = inspect.signature(gh)
-        self.assertIn("timeout", sig.parameters)
-        self.assertEqual(sig.parameters["timeout"].default, 60)
+        import subprocess as _sp
+        with patch("validate_config.subprocess.run",
+                   side_effect=_sp.TimeoutExpired(cmd="gh", timeout=5)) as mock_run:
+            with self.assertRaises(RuntimeError) as ctx:
+                gh(["api", "repos"], timeout=5)
+            # Verify timeout was actually passed through to subprocess.run
+            mock_run.assert_called_once()
+            call_kwargs = mock_run.call_args[1]
+            self.assertEqual(call_kwargs.get("timeout"), 5)
+            self.assertIn("timed out", str(ctx.exception))
 
 
 class TestParseSimpleTomlEdgeCases(unittest.TestCase):

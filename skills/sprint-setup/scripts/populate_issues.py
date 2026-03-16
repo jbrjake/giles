@@ -286,7 +286,9 @@ def get_existing_issues() -> set[str]:
         raise
     existing: set[str] = set()
     for issue in issues:
-        m = re.match(r"([A-Z]+-\d+):", issue.get("title", ""))
+        # BH-006: Match story IDs with or without a colon after the ID,
+        # consistent with extract_story_id() in validate_config.py.
+        m = re.match(r"([A-Z]+-\d+)", issue.get("title", ""))
         if m:
             existing.add(m.group(1))
     return existing

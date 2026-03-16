@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
     kanban_from_labels, find_milestone,
-    list_milestone_issues, parse_iso_date, KANBAN_STATES,
+    list_milestone_issues, parse_iso_date, KANBAN_STATES, warn_if_at_limit,
 )
 
 
@@ -41,7 +41,10 @@ def _fetch_all_prs() -> list[dict]:
             "--json", "number,state,headRefName,mergedAt",
             "--limit", "500",
         ])
-        return result if isinstance(result, list) else []
+        if not isinstance(result, list):
+            return []
+        warn_if_at_limit(result)  # BH-015: warn when 500 limit is hit
+        return result
     except RuntimeError:
         return []
 

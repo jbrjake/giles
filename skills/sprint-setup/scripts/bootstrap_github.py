@@ -12,7 +12,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, get_team_personas, get_milestones, get_epics_dir, gh
+from validate_config import load_config, ConfigError, get_team_personas, get_milestones, get_epics_dir, get_sagas_dir, gh
 
 
 def check_prerequisites() -> None:
@@ -158,10 +158,30 @@ def _parse_saga_labels_from_backlog(config: dict) -> list[tuple[str, str]]:
 
 # §bootstrap_github.create_saga_labels
 def create_saga_labels(config: dict) -> None:
-    """Create saga labels from backlog/INDEX.md."""
+    """Create saga labels from backlog/INDEX.md or saga files.
+
+    BH-004: Also scans saga files in sagas_dir when the INDEX doesn't
+    contain saga rows (e.g., hexwise-style routing tables).
+    """
     sagas = _parse_saga_labels_from_backlog(config)
+    # BH-004: Fallback — scan saga files directly if INDEX yielded nothing
     if not sagas:
-        print("\nSaga labels: (none found in backlog index)")
+        sagas_dir = get_sagas_dir(config)
+        if sagas_dir and sagas_dir.is_dir():
+            for sf in sorted(sagas_dir.glob("S*-*.md")):
+                m = re.match(r"(S\d{2})-(.+)\.md$", sf.name)
+                if m:
+                    saga_id = m.group(1)
+                    # Try to get a better name from the file's heading
+                    try:
+                        heading = sf.read_text(encoding="utf-8").splitlines()[0]
+                        hm = re.match(r"#\s*S\d{2}\s*[—–-]\s*(.+)", heading)
+                        saga_name = hm.group(1).strip() if hm else m.group(2).replace("-", " ").title()
+                    except (OSError, IndexError):
+                        saga_name = m.group(2).replace("-", " ").title()
+                    sagas.append((saga_id, saga_name))
+    if not sagas:
+        print("\nSaga labels: (none found)")
         return
     print("\nSaga labels:")
     for saga_id, saga_name in sagas:
@@ -230,6 +250,7 @@ def create_milestones_on_github(config: dict) -> int:
         # Parse title from the milestone file's first heading
         title = None
         description = ""
+        text = ""  # BH-001: initialize before is_file() guard
         if mf.is_file():
             text = mf.read_text(encoding="utf-8")
             heading = re.search(r"^#\s+(.+)", text, re.MULTILINE)
