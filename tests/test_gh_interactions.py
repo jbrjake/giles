@@ -325,7 +325,9 @@ class TestGateStories(unittest.TestCase):
         call_args = mock_gh.call_args[0][0]
         self.assertIn("--milestone", call_args)
         self.assertIn("Sprint 1", call_args)
-        self.assertIn("--state", call_args)
+        # Verify the --state value is "open" (not "all" or "closed")
+        state_idx = call_args.index("--state")
+        self.assertEqual(call_args[state_idx + 1], "open")
 
     @patch("release_gate.gh_json")
     def test_open_issues(self, mock_gh):

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,7 @@ from validate_config import (
     extract_story_id,
     extract_sp,
     parse_simple_toml,
+    _parse_team_index,
 )
 from sync_tracking import _yaml_safe
 
@@ -264,7 +266,8 @@ _toml_key = st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_-]{0,20}", fullmatch=True)
 _toml_string_val = st.text(
     alphabet=st.characters(
         whitelist_categories=("L", "N", "P", "S", "Z"),
-        blacklist_characters='"\\#\n\r',
+        # Allow all TOML-sensitive characters — _toml_line must escape them
+        blacklist_characters='\r',  # carriage returns not supported in basic TOML strings
     ),
     max_size=50,
 )
@@ -273,14 +276,19 @@ _toml_bool_val = st.booleans()
 
 
 def _toml_line(key: str, value) -> str:
-    """Build a single TOML key=value line."""
+    """Build a single TOML key=value line with proper TOML escaping."""
     if isinstance(value, bool):
         return f'{key} = {"true" if value else "false"}'
     elif isinstance(value, int):
         return f"{key} = {value}"
     else:
-        escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
-        return f'{key} = "{escaped}"'
+        s = str(value)
+        # Escape in TOML order: backslashes first, then quotes, then newlines
+        s = s.replace("\\", "\\\\")
+        s = s.replace('"', '\\"')
+        s = s.replace("\n", "\\n")
+        s = s.replace("\t", "\\t")
+        return f'{key} = "{s}"'
 
 
 class TestParseSimpleToml:
@@ -384,15 +392,11 @@ class TestParseSimpleToml:
 
 
 # ============================================================================
-# 5. _parse_team_index — table parsing invariants (via string input)
+# 5. _parse_team_index — table parsing invariants (calls production code)
 # ============================================================================
 
-# We can't easily call _parse_team_index with hypothesis because it reads
-# from a file. Instead, we test the regex logic it uses by extracting the
-# core parsing into test cases that use the same patterns.
-
 class TestParseTeamIndexProperties:
-    """Property tests for team INDEX.md table parsing patterns."""
+    """Property tests for team INDEX.md table parsing via production _parse_team_index."""
 
     @given(
         name=st.text(
@@ -404,55 +408,35 @@ class TestParseTeamIndexProperties:
     )
     @settings(max_examples=200)
     def test_table_row_extraction(self, name: str, role: str):
-        """Pipe-delimited table rows are correctly split into cells."""
-        row = f"| {name} | {role} | {name.lower()}.md |"
-        cells = [c.strip() for c in row.strip().strip("|").split("|")]
-        assert len(cells) == 3
-        assert cells[0] == name
-        assert cells[1] == role
-        assert cells[2] == f"{name.lower()}.md"
-
-    @given(
-        sep=st.from_regex(r"[-:]{1,10}", fullmatch=True),
-    )
-    @settings(max_examples=100)
-    def test_separator_detection(self, sep: str):
-        """Separator rows (|---|---|) are correctly identified."""
-        row = f"| {sep} | {sep} | {sep} |"
-        cells = [c.strip() for c in row.strip().strip("|").split("|")]
-        # All non-empty cells should match the separator pattern
-        non_empty = [c for c in cells if c.strip()]
-        assert all(re.match(r"^[-:]+$", c) for c in non_empty)
+        """Production parser extracts name, role, and file from a table row."""
+        table = (
+            "| Name | Role | File |\n"
+            "| --- | --- | --- |\n"
+            f"| {name} | {role} | {name.lower()}.md |\n"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(table)
+            f.flush()
+            rows = _parse_team_index(Path(f.name))
+        Path(f.name).unlink()
+        assert len(rows) == 1
+        assert rows[0]["name"] == name
+        assert rows[0]["role"] == role
+        assert rows[0]["file"] == f"{name.lower()}.md"
 
     @given(
         n_rows=st.integers(min_value=0, max_value=10),
     )
     @settings(max_examples=100)
     def test_row_count_fidelity(self, n_rows: int):
-        """Number of data rows parsed equals number of data rows in input."""
+        """Number of data rows parsed by production code equals rows in input."""
         header = "| Name | Role | File |"
         sep = "| --- | --- | --- |"
         rows = [f"| Person{i} | Dev | person{i}.md |" for i in range(n_rows)]
-        table = "\n".join([header, sep] + rows)
-
-        # Simulate the parsing logic from _parse_team_index
-        headers: list[str] = []
-        parsed_rows: list[dict] = []
-        for line in table.splitlines():
-            stripped = line.strip()
-            if not stripped.startswith("|"):
-                continue
-            cells = [c.strip() for c in stripped.strip("|").split("|")]
-            if not headers:
-                headers = [c.lower() for c in cells]
-                continue
-            sep_cells = [c.strip() for c in cells]
-            if all(re.match(r"^[-:]+$", c) for c in sep_cells if c):
-                continue
-            row = {}
-            for i, cell in enumerate(cells):
-                if i < len(headers):
-                    row[headers[i]] = cell
-            parsed_rows.append(row)
-
-        assert len(parsed_rows) == n_rows
+        table = "\n".join([header, sep] + rows) + "\n"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write(table)
+            f.flush()
+            parsed = _parse_team_index(Path(f.name))
+        Path(f.name).unlink()
+        assert len(parsed) == n_rows

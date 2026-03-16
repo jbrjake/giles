@@ -190,6 +190,7 @@ class FakeGitHub:
     # authors know their query filter isn't actually being exercised.
     _IMPLEMENTED_FLAGS: dict[str, frozenset[str]] = {
         "issue_create": frozenset(("title", "body", "label", "milestone")),
+        # search: only milestone:"X" pattern is evaluated; other predicates are silently ignored
         "issue_list": frozenset(("state", "milestone", "json", "limit", "label", "search")),
         "issue_edit": frozenset(("add-label", "remove-label", "milestone")),
         "issue_close": frozenset(),
@@ -359,8 +360,22 @@ class FakeGitHub:
             json_str = json.dumps(self.milestones)
             return self._ok(self._maybe_apply_jq(json_str, flags))
 
-        # PATCH milestone (close)
+        # PATCH milestone (update state)
         if "milestones" in path and "-X" in args:
+            # Extract milestone number from path
+            ms_match = re.search(r"/milestones/(\d+)", path)
+            if ms_match:
+                ms_num = int(ms_match.group(1))
+                for ms in self.milestones:
+                    if ms.get("number") == ms_num:
+                        # Apply field updates from -f flags
+                        for fval in flags.get("f", []):
+                            if "=" in fval:
+                                key, val = fval.split("=", 1)
+                                ms[key] = val
+                        if ms.get("state") == "closed" and not ms.get("closed_at"):
+                            ms["closed_at"] = "2026-01-01T00:00:00Z"
+                        return self._ok(json.dumps(ms))
             return self._ok("{}")
 
         # Compare endpoint: repos/{owner}/{repo}/compare/{base}...{branch}

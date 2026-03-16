@@ -172,4 +172,19 @@ class GoldenReplayer:
                 f"Files on disk but not in recording: {sorted(extra)}"
             )
 
+        # Compare file contents for files that exist in both sets
+        recorded_tree = snapshot.get("file_tree", {})
+        common_files = recorded_files & current_files
+        for rel_path in sorted(common_files):
+            recorded_content = recorded_tree.get(rel_path, "")
+            actual_path = project_root / rel_path
+            try:
+                actual_content = actual_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue  # skip unreadable files
+            if recorded_content != actual_content:
+                diffs.append(
+                    f"Content mismatch: {rel_path}"
+                )
+
         return diffs
