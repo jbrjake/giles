@@ -156,16 +156,31 @@ def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
 
 # -- Detail block parser (dreamcatcher format) -------------------------------
 
+# BH-005: Default pattern for detail blocks; overridden by config story_id_pattern
 _DETAIL_BLOCK_RE = re.compile(r"^###\s+(US-\d{4}):\s+(.+)$", re.MULTILINE)
 _META_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$", re.MULTILINE)
 
 
+def _build_detail_block_re(config: dict) -> re.Pattern:
+    """Build detail block regex, respecting custom story_id_pattern (BH-005)."""
+    pattern = config.get("backlog", {}).get("story_id_pattern", "")
+    if pattern and not re.search(r'(?<!\\)\((?!\?)', pattern):
+        try:
+            return re.compile(rf"^###\s+({pattern}):\s+(.+)$", re.MULTILINE)
+        except re.error:
+            pass
+    return _DETAIL_BLOCK_RE
+
+
 # §populate_issues.parse_detail_blocks
-def parse_detail_blocks(content: str, sprint: int, source_file: str) -> list[Story]:
+def parse_detail_blocks(
+    content: str, sprint: int, source_file: str, config: dict | None = None,
+) -> list[Story]:
     """Parse detail-block-format stories from epic/milestone content."""
+    detail_re = _build_detail_block_re(config) if config else _DETAIL_BLOCK_RE
     stories = []
-    # Split on ### US-XXXX headers
-    parts = _DETAIL_BLOCK_RE.split(content)
+    # Split on ### ID: Title headers
+    parts = detail_re.split(content)
     # parts: [preamble, id1, title1, body1, id2, title2, body2, ...]
     for i in range(1, len(parts), 3):
         if i + 2 > len(parts):
@@ -249,7 +264,7 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
             if sid in by_id
         ]
         sprint = _most_common_sprint(known_sprints)
-        parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file))
+        parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file), config=config)
         for ps in parsed:
             if ps.story_id in by_id:
                 # Merge: detail block fields override table-row fields

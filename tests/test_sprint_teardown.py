@@ -517,5 +517,122 @@ class TestTeardownMainExecute(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 0)
 
 
+# ---------------------------------------------------------------------------
+# BH-011: git-dirty check before destructive operations
+# ---------------------------------------------------------------------------
+
+
+class TestGitDirtyCheck(unittest.TestCase):
+    """BH-011: main() warns about uncommitted changes before deletion."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.project_root = Path(self.tmpdir)
+        self.config_dir = self.project_root / "sprint-config"
+        self.config_dir.mkdir()
+        (self.config_dir / "project.toml").write_text('[project]\nname = "test"')
+        (self.project_root / "RULES.md").write_text("# Rules")
+        (self.project_root / "DEVELOPMENT.md").write_text("# Dev")
+        self._saved_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+    def tearDown(self):
+        os.chdir(self._saved_cwd)
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @patch("subprocess.run")
+    def test_dirty_files_block_without_force(self, mock_run):
+        """Uncommitted changes should block teardown unless --force is used."""
+        # First call is the BH-011 git diff check; subsequent calls are from
+        # check_active_loops or elsewhere.
+        def side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if cmd and cmd[0] == "git":
+                from unittest.mock import MagicMock
+                result = MagicMock()
+                result.stdout = "sprint-config/project.toml\n"
+                result.returncode = 0
+                return result
+            # Default: crontab or other subprocess calls
+            from unittest.mock import MagicMock
+            result = MagicMock()
+            result.stdout = ""
+            result.returncode = 1
+            return result
+
+        mock_run.side_effect = side_effect
+
+        with unittest.mock.patch(
+            "sys.argv", ["teardown"],
+        ), self.assertRaises(SystemExit) as ctx:
+            sprint_teardown.main()
+        self.assertEqual(ctx.exception.code, 1)
+        # File should still exist (teardown was blocked)
+        self.assertTrue((self.config_dir / "project.toml").exists())
+
+    @patch("subprocess.run")
+    def test_dirty_files_proceed_with_force(self, mock_run):
+        """With --force, teardown should proceed despite uncommitted changes."""
+        def side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if cmd and cmd[0] == "git":
+                from unittest.mock import MagicMock
+                result = MagicMock()
+                result.stdout = "sprint-config/project.toml\n"
+                result.returncode = 0
+                return result
+            from unittest.mock import MagicMock
+            result = MagicMock()
+            result.stdout = ""
+            result.returncode = 1
+            return result
+
+        mock_run.side_effect = side_effect
+
+        with unittest.mock.patch(
+            "sys.argv", ["teardown", "--force"],
+        ):
+            sprint_teardown.main()
+        # File should be removed (teardown proceeded)
+        self.assertFalse((self.config_dir / "project.toml").exists())
+
+    @patch("subprocess.run")
+    def test_no_dirty_files_proceeds_normally(self, mock_run):
+        """When git reports no dirty files, teardown should proceed."""
+        def side_effect(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if cmd and cmd[0] == "git":
+                from unittest.mock import MagicMock
+                result = MagicMock()
+                result.stdout = ""
+                result.returncode = 0
+                return result
+            from unittest.mock import MagicMock
+            result = MagicMock()
+            result.stdout = ""
+            result.returncode = 1
+            return result
+
+        mock_run.side_effect = side_effect
+
+        with unittest.mock.patch(
+            "sys.argv", ["teardown", "--force"],
+        ):
+            sprint_teardown.main()
+        # File should be removed
+        self.assertFalse((self.config_dir / "project.toml").exists())
+
+    @patch("subprocess.run", side_effect=OSError("git not found"))
+    def test_git_unavailable_proceeds(self, mock_run):
+        """When git is not available, teardown should proceed anyway."""
+        with unittest.mock.patch(
+            "sys.argv", ["teardown", "--force"],
+        ):
+            sprint_teardown.main()
+        # File should be removed (git failure is non-fatal)
+        self.assertFalse((self.config_dir / "project.toml").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -362,6 +362,10 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     Only replaces in table rows and body text, not in ### headings,
     to preserve the parseable heading format.
     """
+    # BH-019: Validate no duplicates in new_ids
+    if len(new_ids) != len(set(new_ids)):
+        dupes = [x for x in new_ids if new_ids.count(x) > 1]
+        raise ValueError(f"renumber_stories: duplicate new IDs: {sorted(set(dupes))}")
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     replacement = ", ".join(new_ids)
     new_lines = []

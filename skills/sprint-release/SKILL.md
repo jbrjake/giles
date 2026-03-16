@@ -93,6 +93,11 @@ Version is calculated automatically from conventional commits since the last
 `vX.Y.Z` tag. Breaking changes bump major, features bump minor, fixes bump
 patch. Base version is `0.1.0` when no tags exist.
 
+> **First release note:** When no prior semver tags exist, the script scans
+> ALL commits in history to determine the bump. If any commit ever used
+> `feat!:` or contains `BREAKING CHANGE:`, the first release will be `1.0.0`
+> (not `0.2.0`). To override, create a manual tag first: `git tag v0.1.0`.
+
 ### Tag
 
 ```bash

@@ -1325,5 +1325,223 @@ class TestEveryScriptMainCovered(unittest.TestCase):
             )
 
 
+# ---------------------------------------------------------------------------
+# BH-008: bootstrap_github main() — additional coverage
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapGitHubMainHappyPath(_HappyPathBase):
+    """BH-008: bootstrap_github.main() happy-path coverage.
+
+    The basic --help and missing-config tests exist in TestBootstrapGitHubMain.
+    These tests verify that main() gets past argument parsing into real work.
+    """
+
+    def test_main_calls_check_prerequisites(self):
+        """main() with valid config reaches check_prerequisites (mocked)."""
+        tmpdir, root = self._make_project_with_config()
+        orig = os.getcwd()
+        try:
+            os.chdir(root)
+            with patch("sys.argv", ["bootstrap_github"]), \
+                 patch.object(bootstrap_github, "check_prerequisites",
+                              side_effect=SystemExit(42)) as mock_cp:
+                with self.assertRaises(SystemExit) as ctx:
+                    bootstrap_github.main()
+                self.assertEqual(ctx.exception.code, 42)
+                mock_cp.assert_called_once()
+        finally:
+            os.chdir(orig)
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-009: update_burndown build_rows and load_tracking_metadata
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateBurndownBuildRows(unittest.TestCase):
+    """BH-009: update_burndown.build_rows() unit tests."""
+
+    def _make_issue(self, title, labels=None, state="open", closed_at=""):
+        """Helper to build a minimal issue dict."""
+        return {
+            "title": title,
+            "labels": labels or [],
+            "state": state,
+            "closedAt": closed_at,
+        }
+
+    def test_normal_issues(self):
+        """build_rows extracts story_id, short_title, sp, status from issues."""
+        issues = [
+            self._make_issue(
+                "US-0001: Build the widget",
+                labels=["sp:3", "kanban:dev"],
+            ),
+            self._make_issue(
+                "US-0002: Test the widget",
+                labels=["sp:2", "kanban:done"],
+                state="closed",
+                closed_at="2026-03-10T12:00:00Z",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 2)
+
+        r1 = next(r for r in rows if r["story_id"] == "US-0001")
+        self.assertEqual(r1["short_title"], "Build the widget")
+        self.assertEqual(r1["sp"], 3)
+        self.assertEqual(r1["status"], "dev")
+
+        r2 = next(r for r in rows if r["story_id"] == "US-0002")
+        self.assertEqual(r2["short_title"], "Test the widget")
+        self.assertEqual(r2["sp"], 2)
+        self.assertEqual(r2["status"], "done")
+        self.assertNotEqual(r2["closed"], "\u2014")  # should have a date
+
+    def test_issue_no_colon_in_title(self):
+        """build_rows handles titles without a colon gracefully."""
+        issues = [
+            self._make_issue("US-0099 Some title without colon", labels=["sp:1"]),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 1)
+        # Without a colon, short_title falls back to the full title
+        self.assertEqual(rows[0]["short_title"], "US-0099 Some title without colon")
+
+    def test_with_tracking_metadata(self):
+        """build_rows merges tracking metadata into rows."""
+        issues = [
+            self._make_issue("US-0001: Widget", labels=["sp:2", "kanban:review"]),
+        ]
+        tracking = {"US-0001": {"assignee": "Ada", "pr": "#42"}}
+        rows = update_burndown.build_rows(issues, tracking)
+        self.assertEqual(rows[0]["assignee"], "Ada")
+        self.assertEqual(rows[0]["pr"], "#42")
+
+
+class TestUpdateBurndownLoadTracking(unittest.TestCase):
+    """BH-009: update_burndown.load_tracking_metadata() unit tests."""
+
+    def test_reads_tracking_file_frontmatter(self):
+        """load_tracking_metadata reads YAML frontmatter from story files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-track-")
+        try:
+            sprints_dir = Path(tmpdir)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+
+            tracking_content = (
+                "---\n"
+                "story: US-0001\n"
+                "implementer: Ada\n"
+                "pr_number: 42\n"
+                "---\n"
+                "# US-0001\n"
+            )
+            (stories_dir / "US-0001.md").write_text(tracking_content)
+
+            meta = update_burndown.load_tracking_metadata(1, sprints_dir)
+            self.assertIn("US-0001", meta)
+            self.assertEqual(meta["US-0001"]["assignee"], "Ada")
+            self.assertEqual(meta["US-0001"]["pr"], "42")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_missing_directory_returns_empty(self):
+        """load_tracking_metadata returns {} when stories dir doesn't exist."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-track-")
+        try:
+            sprints_dir = Path(tmpdir)
+            meta = update_burndown.load_tracking_metadata(99, sprints_dir)
+            self.assertEqual(meta, {})
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-024: enrich_from_epics sprint=0 skip test
+# ---------------------------------------------------------------------------
+
+
+class TestBH024EnrichSkipsSprint0(unittest.TestCase):
+    """BH-024: enrich_from_epics skips stories when sprint cannot be determined."""
+
+    def test_skips_unknown_story_with_sprint_0(self):
+        """A story in an epic file not found in existing stories gets sprint=0
+        from _most_common_sprint([]) and should be skipped, not added."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh024-")
+        try:
+            epics_dir = Path(tmpdir) / "epics"
+            epics_dir.mkdir()
+
+            # Epic file with a detail block for a story NOT in existing stories
+            epic_content = (
+                "# E-0001 — Test Epic\n"
+                "\n"
+                "### US-9999: Orphan story\n"
+                "\n"
+                "| Field | Value |\n"
+                "| Saga | S01 |\n"
+                "| Story Points | 3 |\n"
+                "| Priority | P1 |\n"
+                "\n"
+            )
+            (epics_dir / "E-0001-test.md").write_text(epic_content)
+
+            # No existing stories — so _most_common_sprint returns 0
+            existing_stories = []
+            config = {"paths": {"epics_dir": str(epics_dir)}}
+
+            result = populate_issues.enrich_from_epics(existing_stories, config)
+            # US-9999 should NOT be added because sprint=0 triggers skip
+            story_ids = [s.story_id for s in result]
+            self.assertNotIn("US-9999", story_ids,
+                             "Story with undeterminable sprint should be skipped")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH-025: _build_row_regex safety paths
+# ---------------------------------------------------------------------------
+
+
+class TestBH025BuildRowRegexSafety(unittest.TestCase):
+    """BH-025: _build_row_regex falls back to default on bad patterns."""
+
+    def test_capturing_group_falls_back(self):
+        """A story_id_pattern with a capturing group triggers fallback."""
+        config = {"backlog": {"story_id_pattern": "(PROJ)-\\d{4}"}}
+        result = populate_issues._build_row_regex(config)
+        self.assertIs(result, populate_issues._DEFAULT_ROW_RE,
+                      "Should fall back to default when pattern has capturing group")
+
+    def test_invalid_regex_falls_back(self):
+        """An invalid regex in story_id_pattern triggers fallback."""
+        config = {"backlog": {"story_id_pattern": "[invalid"}}
+        result = populate_issues._build_row_regex(config)
+        self.assertIs(result, populate_issues._DEFAULT_ROW_RE,
+                      "Should fall back to default on invalid regex")
+
+    def test_empty_pattern_returns_default(self):
+        """An empty story_id_pattern returns the default regex."""
+        config = {"backlog": {"story_id_pattern": ""}}
+        result = populate_issues._build_row_regex(config)
+        self.assertIs(result, populate_issues._DEFAULT_ROW_RE)
+
+    def test_valid_pattern_compiles(self):
+        """A valid non-capturing pattern produces a working regex."""
+        config = {"backlog": {"story_id_pattern": "PROJ-\\d{4}"}}
+        result = populate_issues._build_row_regex(config)
+        self.assertIsNot(result, populate_issues._DEFAULT_ROW_RE,
+                         "Valid pattern should produce a new regex")
+        # Verify the compiled regex can match a row
+        test_row = "| PROJ-0001 | Do stuff | S01 | 3 | P1 |"
+        self.assertIsNotNone(result.search(test_row),
+                             "Compiled regex should match a valid row")
+
+
 if __name__ == "__main__":
     unittest.main()

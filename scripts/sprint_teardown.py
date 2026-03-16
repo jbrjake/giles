@@ -397,6 +397,25 @@ def main() -> None:
                       unknown, directories)
         sys.exit(0)
 
+    # BH-011: Warn about uncommitted changes before deletion
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--name-only", str(config_dir)],
+            capture_output=True, text=True, timeout=10,
+        )
+        dirty_files = [f for f in r.stdout.strip().splitlines() if f]
+        if dirty_files:
+            print(f"\n⚠ Warning: {len(dirty_files)} uncommitted change(s) in {config_dir}/:",
+                  file=sys.stderr)
+            for f in dirty_files[:5]:
+                print(f"    {f}", file=sys.stderr)
+            if not force:
+                print("Use --force to proceed anyway, or commit/stash first.",
+                      file=sys.stderr)
+                sys.exit(1)
+    except (subprocess.TimeoutExpired, OSError):
+        pass  # Not in a git repo, or git not available — proceed
+
     # Execute teardown
     print("Sprint teardown\n")
 
