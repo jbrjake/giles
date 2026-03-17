@@ -1576,6 +1576,16 @@ class TestBH025BuildRowRegexSafety(unittest.TestCase):
             "Simple pattern should be accepted",
         )
 
+    def test_safe_compile_rejects_non_a_backtracking(self):
+        """BH21-011: (b+)+$ backtracks on 'bbb...!' but not on 'aaa...!'."""
+        # Before the fix, this passed because the probe used only 'a' chars,
+        # which fast-fail against the [b] character class. The fix tests
+        # multiple character classes so the 'b' probe triggers backtracking.
+        self.assertFalse(
+            populate_issues._safe_compile_pattern("(?:b+)+$"),
+            "Pattern (b+)+$ should be rejected — backtracks on b-chars",
+        )
+
 
 # ---------------------------------------------------------------------------
 # BH19: Additional regression tests
@@ -2190,6 +2200,114 @@ class TestBH21013ShortTitle(unittest.TestCase):
     def test_empty_after_colon(self):
         from validate_config import short_title
         self.assertEqual(short_title("US-0001:"), "")
+
+
+# ---------------------------------------------------------------------------
+# BH21-017: enrich_from_epics uses by_id keys instead of hardcoded US-\d{4}
+# ---------------------------------------------------------------------------
+
+
+class TestBH21_017_EnrichCustomStoryIds(unittest.TestCase):
+    """BH21-017: enrich_from_epics should work with custom story ID patterns."""
+
+    def test_custom_story_id_pattern_enrichment(self):
+        """Stories with non-US-XXXX IDs (e.g. PROJ-0001) should still get
+        enriched from epic files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh21017-")
+        try:
+            epics_dir = Path(tmpdir) / "epics"
+            epics_dir.mkdir()
+
+            # Epic file referencing a custom story ID
+            epic_content = (
+                "# E-0001 — Test Epic\n"
+                "\n"
+                "Stories: PROJ-0001, PROJ-0002\n"
+                "\n"
+                "### PROJ-0001: Custom story\n"
+                "\n"
+                "| Field | Value |\n"
+                "| Saga | S01 |\n"
+                "| Story Points | 5 |\n"
+                "| Priority | P1 |\n"
+                "\n"
+                "**As a** user **I want** custom IDs **so that** I can use my project's convention\n"
+                "\n"
+            )
+            (epics_dir / "E-0001-test.md").write_text(epic_content)
+
+            # Existing story with custom ID pattern
+            existing_stories = [
+                populate_issues.Story(
+                    story_id="PROJ-0001", title="Custom story",
+                    saga="S01", sp=5, priority="P1", sprint=1,
+                ),
+                populate_issues.Story(
+                    story_id="PROJ-0002", title="Another story",
+                    saga="S01", sp=3, priority="P2", sprint=1,
+                ),
+            ]
+            config = {
+                "paths": {"epics_dir": str(epics_dir)},
+                "backlog": {"story_id_pattern": r"PROJ-\d{4}"},
+            }
+
+            result = populate_issues.enrich_from_epics(existing_stories, config)
+
+            # PROJ-0001 should be enriched with user story from epic
+            enriched = {s.story_id: s for s in result}
+            self.assertIn("PROJ-0001", enriched)
+            self.assertIn("custom IDs", enriched["PROJ-0001"].user_story)
+
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_known_sprints_detected_with_custom_ids(self):
+        """Sprint inference from epic content should find custom IDs in by_id."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh21017b-")
+        try:
+            epics_dir = Path(tmpdir) / "epics"
+            epics_dir.mkdir()
+
+            # Epic file mentions MYAPP-0001 (which is in by_id at sprint 3)
+            # and has a new story MYAPP-0099 not in by_id
+            epic_content = (
+                "# E-0001 — Test Epic\n"
+                "\n"
+                "Related: MYAPP-0001\n"
+                "\n"
+                "### MYAPP-0099: New story from epic\n"
+                "\n"
+                "| Field | Value |\n"
+                "| Saga | S01 |\n"
+                "| Story Points | 2 |\n"
+                "| Priority | P2 |\n"
+                "\n"
+            )
+            (epics_dir / "E-0001-test.md").write_text(epic_content)
+
+            existing_stories = [
+                populate_issues.Story(
+                    story_id="MYAPP-0001", title="Existing",
+                    saga="S01", sp=3, priority="P1", sprint=3,
+                ),
+            ]
+            config = {
+                "paths": {"epics_dir": str(epics_dir)},
+                "backlog": {"story_id_pattern": r"MYAPP-\d{4}"},
+            }
+
+            result = populate_issues.enrich_from_epics(existing_stories, config)
+
+            # MYAPP-0099 should be added with sprint=3 (inferred from MYAPP-0001)
+            new_ids = [s.story_id for s in result if s.story_id == "MYAPP-0099"]
+            self.assertEqual(len(new_ids), 1, "New story from epic should be added")
+            new_story = [s for s in result if s.story_id == "MYAPP-0099"][0]
+            self.assertEqual(new_story.sprint, 3,
+                             "Sprint should be inferred from known MYAPP-0001")
+
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

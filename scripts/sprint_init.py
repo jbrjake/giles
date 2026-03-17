@@ -693,7 +693,7 @@ class ConfigGenerator:
         except OSError:
             return "Team Member"
         in_role = False
-        for line in text.splitlines():
+        for line in text.split('\n'):
             stripped = line.strip()
             if stripped.startswith("## Role"):
                 in_role = True

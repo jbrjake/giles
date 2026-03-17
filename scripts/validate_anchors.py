@@ -83,7 +83,7 @@ def find_anchor_defs(file_path: Path) -> dict[str, int]:
     """Return {anchor_name: line_number} for all anchors defined in a file."""
     defs: dict[str, int] = {}
     text = file_path.read_text(encoding="utf-8")
-    for i, line in enumerate(text.splitlines(), 1):
+    for i, line in enumerate(text.split('\n'), 1):
         stripped = line.strip()
         m = _PY_ANCHOR_RE.match(stripped) or _MD_ANCHOR_RE.match(stripped)
         if m:
@@ -99,7 +99,7 @@ def find_anchor_refs(doc_path: Path) -> list[tuple[str, int]]:
     """Return [(anchor_name, line_number), ...] for all § refs in a doc file."""
     refs: list[tuple[str, int]] = []
     text = doc_path.read_text(encoding="utf-8")
-    for i, line in enumerate(text.splitlines(), 1):
+    for i, line in enumerate(text.split('\n'), 1):
         for m in _REF_RE.finditer(line):
             refs.append((m.group(1), i))
     return refs
@@ -167,7 +167,7 @@ def check_anchors(
 def _find_symbol_line(file_path: Path, symbol: str) -> int | None:
     """Find line number of a symbol definition (def/class/constant)."""
     text = file_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+    lines = text.split('\n')
     clean = symbol.strip("()")
     patterns = [
         rf"^(def|class)\s+{re.escape(clean)}\b",
@@ -197,7 +197,7 @@ def _find_heading_line(file_path: Path, slug: str) -> int | None:
     # Collect candidates with match quality
     best: tuple[int, int] | None = None  # (priority, line)
 
-    for i, line in enumerate(text.splitlines(), 1):
+    for i, line in enumerate(text.split('\n'), 1):
         if not line.startswith("#"):
             continue
         heading_text = re.sub(r"^#+\s*", "", line).strip()
@@ -275,7 +275,7 @@ def fix_missing_anchors(
     fixed_count = 0
     for rel_path, fixes in fixes_by_file.items():
         full = root / rel_path
-        lines = full.read_text(encoding="utf-8").splitlines()
+        lines = full.read_text(encoding="utf-8").split('\n')
         is_python = rel_path.endswith(".py")
 
         # Sort by line number descending so insertions don't shift later targets

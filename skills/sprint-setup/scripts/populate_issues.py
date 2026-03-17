@@ -79,20 +79,28 @@ def _safe_compile_pattern(pattern: str) -> bool:
         print(f"Warning: invalid story_id_pattern '{pattern}': {exc}, "
               f"using default", file=sys.stderr)
         return False
-    # BH18-004 ReDoS safety: test the pattern against a short non-matching
-    # string. 25 chars is enough to detect catastrophic backtracking
-    # (2^25 ≈ 33M steps) while completing in under 1s for safe patterns.
+    # BH18-004 / BH21-011 ReDoS safety: test the pattern against short
+    # non-matching strings. 25 chars is enough to detect catastrophic
+    # backtracking (2^25 ≈ 33M steps) while completing in under 1s for
+    # safe patterns.
+    #
+    # BH21-011: Testing only "a" * 25 misses patterns like (b+)+$ which
+    # fast-fail on all-a input but backtrack catastrophically on "bbb...!".
+    # We test multiple character classes so at least one probe is likely to
+    # exercise the pattern's accepting paths.
     import time
-    test_input = "a" * 25
-    start = time.monotonic()
-    compiled.search(test_input)
-    elapsed = time.monotonic() - start
-    if elapsed > 0.5:
-        print(f"Warning: story_id_pattern '{pattern}' is too slow "
-              f"({elapsed:.1f}s on 25-char input), using default pattern. "
-              f"Avoid nested quantifiers like (?:a+)+.",
-              file=sys.stderr)
-        return False
+    _PROBE_CHARS = "aA0b_-/ \t"
+    for ch in _PROBE_CHARS:
+        test_input = ch * 25 + "!"
+        start = time.monotonic()
+        compiled.search(test_input)
+        elapsed = time.monotonic() - start
+        if elapsed > 0.5:
+            print(f"Warning: story_id_pattern '{pattern}' is too slow "
+                  f"({elapsed:.1f}s on 25-char input), using default pattern. "
+                  f"Avoid nested quantifiers like (?:a+)+.",
+                  file=sys.stderr)
+            return False
     return True
 
 
@@ -295,11 +303,13 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 
     for epic_file in sorted(epics_path.glob("*.md")):
         content = epic_file.read_text(encoding="utf-8", errors="replace")
-        # Infer sprint from stories already parsed in this epic file
+        # Infer sprint from stories already parsed in this epic file.
+        # BH21-017: Use by_id keys instead of hardcoded US-\d{4} pattern
+        # so custom story ID patterns (e.g. PROJ-\d{4}) get enrichment.
         known_sprints = [
             by_id[sid].sprint
-            for sid in re.findall(r"US-\d{4}", content)
-            if sid in by_id
+            for sid in by_id
+            if sid in content
         ]
         sprint = _most_common_sprint(known_sprints)
         parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file), config=config)

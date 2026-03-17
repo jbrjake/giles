@@ -175,7 +175,7 @@ def print_dry_run(
     if toml_path.exists():
         try:
             text = toml_path.read_text(encoding="utf-8")
-            for line in text.splitlines():
+            for line in text.split('\n'):
                 if "sprints_dir" in line and "=" in line:
                     val = line.split("=", 1)[1].strip().strip('"').strip("'")
                     candidate = project_root / val
