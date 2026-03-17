@@ -15,16 +15,16 @@ tracking files. Run once at project start; subsequent sprints use `sprint-run`.
 | Prerequisites | `references/prerequisites-checklist.md` |
 | Labels & Conventions | `references/github-conventions.md` |
 | CI Workflow | `references/ci-workflow-template.md` |
-| Scripts | `scripts/bootstrap_github.py`, `scripts/populate_issues.py`, `scripts/setup_ci.py` |
+| Scripts | `${CLAUDE_PLUGIN_ROOT}/skills/sprint-setup/scripts/{bootstrap_github,populate_issues,setup_ci}.py` |
 
 ---
 
 <!-- §sprint-setup.phase_0_project_initialization -->
 ## Phase 0: Project Initialization
 
-If `sprint-config/` exists — run `scripts/validate_config.py`. Pass → Step 1. Fail → show errors, stop.
+If `sprint-config/` exists — run `"${CLAUDE_PLUGIN_ROOT}/scripts/validate_config.py"`. Pass → Step 1. Fail → show errors, stop.
 
-If `sprint-config/` does not exist — ask the user, then run `scripts/sprint_init.py` to
+If `sprint-config/` does not exist — ask the user, then run `"${CLAUDE_PLUGIN_ROOT}/scripts/sprint_init.py"` to
 auto-detect project structure and generate config. Load `project.toml` via
 `validate_config.load_config()` before continuing.
 
@@ -58,7 +58,7 @@ Read `references/github-conventions.md` for the full label taxonomy (persona, sp
 saga, priority, kanban, type categories).
 
 ```bash
-python skills/sprint-setup/scripts/bootstrap_github.py
+python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-setup/scripts/bootstrap_github.py"
 ```
 
 #### 2.2 Create Milestones
@@ -69,7 +69,7 @@ from current date).
 #### 2.3 Populate Issues
 
 ```bash
-python skills/sprint-setup/scripts/populate_issues.py
+python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-setup/scripts/populate_issues.py"
 ```
 
 Creates one GitHub issue per story from `backlog/milestones/` with labels, milestone,
@@ -80,7 +80,7 @@ and full requirements.
 Read `references/ci-workflow-template.md` for the workflow structure.
 
 ```bash
-python skills/sprint-setup/scripts/setup_ci.py
+python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-setup/scripts/setup_ci.py"
 ```
 
 Supported languages: Rust, Python, Node.js, Go. Review `.github/workflows/ci.yml`

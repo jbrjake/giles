@@ -152,7 +152,7 @@ If your changes affect project navigation or add new modules/concepts:
 - This must happen IN THE SAME COMMIT as the code change, not after
 
 ### 5. Push and Mark Ready
-All commits use the conventional commit wrapper: `python {plugin_root}/scripts/commit.py "type(scope): description"`
+All commits use the conventional commit wrapper: `python "${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" "type(scope): description"`
 
 ```bash
 # Push all commits

@@ -12,7 +12,7 @@ from `config [paths]`:
 3. Read in-flight story files in
    `{sprints_dir}/sprint-{N}/stories/` -- YAML frontmatter has
    exact state (status, branch, PR number, issue number).
-4. Run `skills/sprint-run/scripts/sync_tracking.py` to reconcile local tracking files
+4. Run `"${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/sync_tracking.py"` to reconcile local tracking files
    with GitHub state (issues, PRs, labels).
 5. Query GitHub directly:
    - `gh issue list --milestone "Sprint {N}"`

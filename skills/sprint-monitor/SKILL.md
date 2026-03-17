@@ -7,8 +7,8 @@ description: Continuous CI/PR/burndown monitoring for active sprints, designed f
 
 | Step | Script |
 |------|--------|
-| Full status check | `skills/sprint-monitor/scripts/check_status.py [sprint-number]` |
-| Burndown update | `skills/sprint-run/scripts/update_burndown.py` |
+| Full status check | `${CLAUDE_PLUGIN_ROOT}/skills/sprint-monitor/scripts/check_status.py [sprint-number]` |
+| Burndown update | `${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py` |
 
 # Sprint Monitor
 
@@ -30,7 +30,7 @@ Each invocation performs seven steps in order:
 <!-- §sprint-monitor.prerequisites -->
 ## Prerequisites
 
-- Run `scripts/validate_config.py` first. Load `project.toml` for paths.
+- Run `"${CLAUDE_PLUGIN_ROOT}/scripts/validate_config.py"` first. Load `project.toml` for paths.
 - `gh` CLI authenticated with repo access.
 - `SPRINT-STATUS.md` exists at the path specified by `project.toml [paths] sprints_dir`.
 - A sprint is active (phase = development).
@@ -54,7 +54,7 @@ Run the backlog sync engine to detect new or changed milestone files and
 create corresponding GitHub milestones and issues:
 
 ```bash
-python3 scripts/sync_backlog.py
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync_backlog.py"
 ```
 
 This script:
@@ -234,7 +234,7 @@ presents it before resuming work.
 Run the status check script (path relative to skill install location):
 
 ```bash
-python3 skills/sprint-monitor/scripts/check_status.py
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/sprint-monitor/scripts/check_status.py"
 ```
 
 This script runs all monitoring checks in one pass:
@@ -249,7 +249,7 @@ also run individual `gh` commands for the same checks.
 
 Note: `check_status.py` does not modify tracking or burndown files — it queries
 GitHub and reports to stdout. For actual burndown file updates, use
-`skills/sprint-run/scripts/update_burndown.py`.
+`${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py`.
 
 If the script is missing or fails, reconstruct status manually:
 

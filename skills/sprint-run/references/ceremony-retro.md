@@ -108,7 +108,7 @@ limit.
 <!-- §ceremony-retro.5_sprint_analytics -->
 ### 5. Sprint Analytics
 
-Run `scripts/sprint_analytics.py` (path relative to plugin root) to compute
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/sprint_analytics.py"` to compute
 sprint metrics. The script queries GitHub for review round counts and velocity.
 Giles reviews the numbers and adds qualitative commentary.
 

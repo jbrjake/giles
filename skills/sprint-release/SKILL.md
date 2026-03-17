@@ -8,7 +8,7 @@ description: Release management for project milestones — tagging, building, CI
 | Phase | Read These First |
 |-------|-----------------|
 | Gate Validation | `references/release-checklist.md` |
-| Scripts | `skills/sprint-release/scripts/release_gate.py --help` |
+| Scripts | `${CLAUDE_PLUGIN_ROOT}/skills/sprint-release/scripts/release_gate.py --help` |
 
 # Sprint Release Skill
 
@@ -20,7 +20,7 @@ Manage the full release process from gate validation to published GitHub Release
 ## Prerequisites
 
 Load `project.toml` and validate configuration before starting. Run
-`scripts/validate_config.py` to confirm all required keys exist.
+`"${CLAUDE_PLUGIN_ROOT}/scripts/validate_config.py"` to confirm all required keys exist.
 
 Verify all prerequisites before starting. If any check fails, report the failure
 and stop.
@@ -42,7 +42,7 @@ and stop.
 
 4. **Conventional commits.** All commits since the last release tag must follow
    conventional commit format. The release script calculates the version from
-   the commit log. Run `python {plugin_root}/scripts/commit.py --help` for format.
+   the commit log. Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" --help` for format.
 
 ---
 
@@ -284,5 +284,5 @@ Validation). Increment the patch version (e.g., v0.1.0 becomes v0.1.1).
   test counts, and acceptance thresholds
 - `SPRINT-STATUS.md` (at `project.toml [paths] sprints_dir`) -- sprint
   completion status and velocity tracking
-- `skills/sprint-release/scripts/release_gate.py` -- gate validation, version
+- `${CLAUDE_PLUGIN_ROOT}/skills/sprint-release/scripts/release_gate.py` -- gate validation, version
   calculation, release notes, and publishing automation

@@ -67,7 +67,7 @@ test -d sprint-config/ || echo "No sprint-config/ found. Nothing to do."
 Run the teardown script in dry-run mode to show what would be removed:
 
 ```bash
-python3 scripts/sprint_teardown.py --dry-run
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sprint_teardown.py" --dry-run
 ```
 
 The script classifies every item in `sprint-config/` into one of three
@@ -121,7 +121,7 @@ Present this to the user and ask for confirmation before proceeding.
 Once the user confirms, run the teardown:
 
 ```bash
-python3 scripts/sprint_teardown.py
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sprint_teardown.py"
 ```
 
 The script executes in this order:
@@ -207,5 +207,5 @@ but never executes them without explicit user instruction.
 
 ## References
 
-- `scripts/sprint_teardown.py` — the teardown script
-- `scripts/sprint_init.py` — the setup counterpart (for understanding what was created)
+- `${CLAUDE_PLUGIN_ROOT}/scripts/sprint_teardown.py` — the teardown script
+- `${CLAUDE_PLUGIN_ROOT}/scripts/sprint_init.py` — the setup counterpart (for understanding what was created)

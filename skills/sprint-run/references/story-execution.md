@@ -50,11 +50,11 @@ need to leave the PR to understand what they are reviewing.
 All commits MUST use the conventional commit wrapper:
 
 ```bash
-python {plugin_root}/scripts/commit.py "feat(module): description"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" "feat(module): description"
 ```
 
 Do not use raw `git commit -m`. The wrapper validates message format and
-checks atomicity. See `scripts/commit.py --help` for flags.
+checks atomicity. See `"${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" --help` for flags.
 
 ---
 
@@ -142,7 +142,7 @@ before proceeding to integration.
    ```
 5. Update burndown:
    ```bash
-   python skills/sprint-run/scripts/update_burndown.py
+   python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py"
    ```
 6. Update story tracking file: set status = done, record completion date.
 7. Update `SPRINT-STATUS.md` with the completed story.
