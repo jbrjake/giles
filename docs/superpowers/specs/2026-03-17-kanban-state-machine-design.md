@@ -53,6 +53,12 @@ The tracking files (`sprint-{N}/stories/*.md`) are the authoritative store.
 Agents can still write to the body text (design notes, etc.) and to `pr_number`
 and `branch` fields.
 
+**Agent responsibility:** The implementer agent must write `pr_number` and
+`branch` to the tracking file during the design phase (after creating the
+draft PR). The `design → dev` transition checks that these fields are set
+and fails with a clear error if they're missing. This is an explicit
+contract: `kanban.py` owns state transitions, agents own PR/branch metadata.
+
 ## Transition Table
 
 ```
@@ -201,7 +207,17 @@ def lock_story(tracking_path: Path):
 ```
 
 Advisory locks, released automatically on process death. `fcntl` is
-stdlib, macOS and Linux only.
+stdlib, macOS and Linux only. Windows-native Python is unsupported —
+`kanban.py` uses a guarded import that exits with a clear error message
+if `fcntl` is unavailable:
+
+```python
+try:
+    import fcntl
+except ImportError:
+    sys.exit("kanban.py requires POSIX file locking (fcntl). "
+             "Run on macOS, Linux, or WSL.")
+```
 
 ## Integration with Existing Code
 
@@ -210,6 +226,12 @@ stdlib, macOS and Linux only.
 **`sync_tracking.py`** — the `sync` subcommand absorbs its core purpose.
 `sync_one()` and `create_from_issue()` logic moves into `kanban.py`.
 The old script becomes a thin wrapper or gets removed.
+
+**Shared tracking file I/O:** The `TF` dataclass, `read_tf()`, `write_tf()`,
+and `_yaml_safe()` currently live in `sync_tracking.py`. These are extracted
+into `validate_config.py` (the shared utilities module) so `kanban.py` can
+import them directly. This removes `kanban.py`'s dependency on
+`sync_tracking.py` and makes the deprecation path clean.
 
 **Scattered `gh issue edit` commands** in agent prompts and reference
 docs — all replaced with `kanban.py` calls:
@@ -231,6 +253,7 @@ docs — all replaced with `kanban.py` calls:
 | `skills/sprint-run/SKILL.md` | Add note that all state changes go through `kanban.py` |
 | `skills/sprint-run/references/ceremony-kickoff.md` | Add exit criteria step: run `kanban.py assign` for each story |
 | `skills/sprint-run/scripts/sync_tracking.py` | Deprecate or thin wrapper around `kanban.py sync` |
+| `skills/sprint-run/references/tracking-formats.md` | Update source-of-truth statement: local tracking files are authoritative, not GitHub |
 
 ### What it does NOT replace
 
