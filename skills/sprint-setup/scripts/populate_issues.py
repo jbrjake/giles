@@ -343,7 +343,11 @@ def get_existing_issues() -> set[str]:
         issues = gh_json(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
         if not isinstance(issues, list):
             raise RuntimeError(f"Expected list from gh, got {type(issues).__name__}")
-        warn_if_at_limit(issues, 500)
+        if warn_if_at_limit(issues, limit=500):
+            raise RuntimeError(
+                "Repository has 500+ issues. Cannot safely deduplicate. "
+                "Use --paginate or increase --limit to fetch all issues."
+            )
     except RuntimeError as exc:
         print(f"Error: could not fetch existing issues: {exc}", file=sys.stderr)
         raise

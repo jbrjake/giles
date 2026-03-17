@@ -34,6 +34,9 @@ sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
 import sync_tracking
 import update_burndown
 
+sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
+import check_status
+
 import manage_epics
 
 
@@ -2308,6 +2311,135 @@ class TestBH21_017_EnrichCustomStoryIds(unittest.TestCase):
 
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestBH21_008_GetExistingIssuesAbortAtLimit(unittest.TestCase):
+    """BH21-008: get_existing_issues() must abort when issue count hits limit."""
+
+    @patch("populate_issues.gh_json")
+    def test_raises_when_at_limit(self, mock_gh_json):
+        """If gh returns exactly 500 issues, get_existing_issues must raise
+        RuntimeError to prevent silent duplicate creation."""
+        # Simulate 500 issues returned (the limit)
+        mock_gh_json.return_value = [
+            {"title": f"US-{i:04d}: Story {i}"} for i in range(500)
+        ]
+        with self.assertRaises(RuntimeError) as ctx:
+            populate_issues.get_existing_issues()
+        self.assertIn("500+", str(ctx.exception))
+        self.assertIn("Cannot safely deduplicate", str(ctx.exception))
+
+    @patch("populate_issues.gh_json")
+    def test_succeeds_when_under_limit(self, mock_gh_json):
+        """If gh returns fewer than 500 issues, get_existing_issues succeeds."""
+        mock_gh_json.return_value = [
+            {"title": f"US-{i:04d}: Story {i}"} for i in range(10)
+        ]
+        result = populate_issues.get_existing_issues()
+        self.assertEqual(len(result), 10)
+
+
+class TestBH21_019_TruncateCILog(unittest.TestCase):
+    """BH21-019: CI log output must be truncated before scanning."""
+
+    def test_truncate_by_lines(self):
+        """Logs exceeding _MAX_LOG_LINES are trimmed to that many lines."""
+        big_log = "\n".join(f"line {i}" for i in range(1000))
+        result = check_status._truncate_log(big_log)
+        self.assertEqual(len(result.splitlines()), check_status._MAX_LOG_LINES)
+
+    def test_truncate_by_bytes(self):
+        """Logs exceeding _MAX_LOG_BYTES are trimmed at a line boundary."""
+        # Build a log bigger than 100KB
+        line = "x" * 200 + "\n"
+        big_log = line * 1000  # 201KB
+        result = check_status._truncate_log(big_log)
+        self.assertLessEqual(len(result), check_status._MAX_LOG_BYTES)
+        # Should end at a line boundary (no partial lines)
+        self.assertFalse(result.endswith("\n"))
+
+    def test_small_log_unchanged(self):
+        """Logs under both limits are returned as-is."""
+        small = "error: something broke\nline 2"
+        self.assertEqual(check_status._truncate_log(small), small)
+
+
+class TestBH21_022_WriteLogUnlinkCrash(unittest.TestCase):
+    """BH21-022: write_log must not crash if old log deletion fails."""
+
+    def test_unlink_oserror_does_not_crash(self):
+        """If unlink raises OSError, write_log should still succeed."""
+        import tempfile
+        from datetime import datetime, timezone
+
+        tmpdir = Path(tempfile.mkdtemp(prefix="giles-bh21022-"))
+        try:
+            sprints_dir = tmpdir / "sprints"
+            sprint_dir = sprints_dir / "sprint-1"
+            sprint_dir.mkdir(parents=True)
+
+            # Create MAX_LOGS + 1 log files so write_log tries to delete one
+            for i in range(check_status.MAX_LOGS + 1):
+                (sprint_dir / f"monitor-20260101-{i:06d}.log").write_text("old")
+
+            now = datetime.now(timezone.utc)
+            # Make the oldest file read-only directory won't help on all OS,
+            # so we mock unlink to raise OSError
+            original_unlink = Path.unlink
+
+            call_count = 0
+            def failing_unlink(self_path, *args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                raise OSError("permission denied")
+
+            with patch.object(Path, "unlink", failing_unlink):
+                # Should NOT raise
+                path = check_status.write_log(1, "test report", now, sprints_dir)
+                self.assertTrue(path.exists() or call_count > 0)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+class TestBH21_023_FalsePositiveRegex(unittest.TestCase):
+    """BH21-023: _first_error false-positive regex must not be too broad."""
+
+    def test_zero_errors_is_false_positive(self):
+        """'0 errors' should be treated as a false positive."""
+        log = "Build complete: 0 errors, 0 warnings"
+        self.assertEqual(check_status._first_error(log), "")
+
+    def test_no_failures_is_false_positive(self):
+        """'no failures' should be treated as a false positive."""
+        log = "Test run: no failures detected"
+        self.assertEqual(check_status._first_error(log), "")
+
+    def test_real_error_not_suppressed(self):
+        """A genuine error line must not be filtered out."""
+        log = "error: cannot find module 'foo'"
+        result = check_status._first_error(log)
+        self.assertIn("cannot find module", result)
+
+    def test_error_in_word_not_suppressed(self):
+        """Old regex matched 'no error' even inside compound phrases.
+        'no error-handling' should NOT be a false positive — it contains
+        'error' but 'error-handling' doesn't end at a word boundary for
+        'errors?'."""
+        log = "warning: no error-handling in module X"
+        # The old broad regex would have matched "no error" and suppressed
+        # this line. The tightened regex requires errors?/failures? at a
+        # word boundary, so "error-handling" won't match.
+        result = check_status._first_error(log)
+        self.assertNotEqual(result, "", "Should detect as real issue, not false positive")
+
+    def test_plural_forms_are_false_positives(self):
+        """Both singular and plural forms should be caught."""
+        for phrase in ["0 errors", "0 error", "no failure", "no failures"]:
+            log = f"Summary: {phrase} found"
+            self.assertEqual(
+                check_status._first_error(log), "",
+                f"'{phrase}' should be treated as false positive",
+            )
 
 
 if __name__ == "__main__":

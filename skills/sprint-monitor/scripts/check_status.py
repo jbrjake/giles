@@ -30,6 +30,23 @@ except ImportError as _import_err:
     sync_backlog_main = None
 
 MAX_LOGS = 10
+_MAX_LOG_LINES = 500          # BH21-019: cap CI log size before scanning
+_MAX_LOG_BYTES = 100_000      # ~100 KB
+
+
+def _truncate_log(log: str) -> str:
+    """Cap CI log to _MAX_LOG_LINES / _MAX_LOG_BYTES, whichever hits first."""
+    if len(log) <= _MAX_LOG_BYTES:
+        lines = log.splitlines()
+        if len(lines) <= _MAX_LOG_LINES:
+            return log
+        return "\n".join(lines[:_MAX_LOG_LINES])
+    # Byte limit hit — take first N bytes, then trim to last full line
+    truncated = log[:_MAX_LOG_BYTES]
+    last_nl = truncated.rfind("\n")
+    if last_nl > 0:
+        truncated = truncated[:last_nl]
+    return truncated
 
 
 # -- CI check ----------------------------------------------------------------
@@ -67,6 +84,8 @@ def check_ci() -> tuple[list[str], list[str]]:
         if run_id:
             try:
                 log = gh(["run", "view", str(run_id), "--log-failed"])
+                # BH21-019: truncate oversized CI logs before scanning
+                log = _truncate_log(log)
                 err = _first_error(log)
                 if err:
                     report.append(f"    Error: {err}")
@@ -79,7 +98,12 @@ def check_ci() -> tuple[list[str], list[str]]:
 
 
 def _first_error(log: str) -> str:
-    _FALSE_POSITIVE = re.compile(r"\b(?:0|no)\s+(?:error|fail)", re.IGNORECASE)
+    # BH21-023: Require trailing space/punctuation/EOL (not hyphen) to avoid
+    # matching "no error-handling" as a false positive.
+    _FALSE_POSITIVE = re.compile(
+        r"\b(?:0|no)\s+(?:errors?|fail(?:ures?|ed)?)(?:\s|[.,;:!)]|$)",
+        re.IGNORECASE,
+    )
     for line in log.splitlines():
         lower = line.lower()
         if any(kw in lower for kw in ("error", "failed", "panicked", "assert")):
@@ -319,7 +343,10 @@ def write_log(
     path.write_text(report, encoding="utf-8")
     logs = sorted(d.glob("monitor-*.log"))
     while len(logs) > MAX_LOGS:
-        logs.pop(0).unlink()
+        try:
+            logs.pop(0).unlink()
+        except OSError:
+            pass  # BH21-022: best-effort cleanup; don't crash monitor
     return path
 
 

@@ -121,13 +121,15 @@ class TestCreateLabel(unittest.TestCase):
     @patch("bootstrap_github.gh")
     def test_creates_label(self, mock_gh):
         mock_gh.return_value = ""
-        # Should not raise
         bootstrap_github.create_label("test-label", "ff0000", "A test label")
         mock_gh.assert_called_once()
         call_args = mock_gh.call_args[0][0]
         self.assertIn("label", call_args)
         self.assertIn("create", call_args)
         self.assertIn("test-label", call_args)
+        # BH21-007: Verify color and description are passed (not silently dropped)
+        self.assertIn("ff0000", call_args)
+        self.assertIn("A test label", call_args)
 
     @patch("builtins.print")
     @patch("bootstrap_github.gh")
