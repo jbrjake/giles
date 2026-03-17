@@ -1,26 +1,31 @@
 # Bug Hunter Status — Pass 19
 
 **Started:** 2026-03-16
-**Current Phase:** Punchlist Complete — Ready for Review
+**Current Phase:** COMPLETE
 **Approach:** End-to-end data flow tracing, error path exhaustive audit, FakeGitHub fidelity deep-dive, boundary value analysis, test theater detection
 
-## Method
-- 5 parallel recon agents (error paths, FakeGitHub fidelity, data flows, boundaries, test theater)
-- Manual probing of SP roundtrip, extract_story_id edge cases, kanban_from_labels type handling
-- Coverage analysis (84% overall, 6 modules below 80%)
-- Cross-referenced all agent findings with coverage report
-
 ## Results
-- **Baseline:** 758 tests pass, 84% coverage, 0 skip, 0 fail
-- **Punchlist items:** 15 (1 CRITICAL, 3 HIGH, 8 MEDIUM, 3 LOW)
-- **Key finding categories:**
-  - 1 fake test (claims to test failure path but never calls the function)
-  - 1 potential crash (None label in kanban_from_labels)
-  - 1 untested defense-in-depth (BH18-014 path traversal)
-  - 3 FakeGitHub fidelity gaps that mask potential production bugs
-  - 4 untested error paths with silent data loss
-  - 2 missing end-to-end roundtrip tests
-  - 3 boundary/edge case gaps
+- **Baseline:** 758 tests pass, 84% coverage
+- **Final:** 773 tests pass (+15 new), 0 fail
+- **Punchlist:** 15 items — 12 resolved, 3 deferred (LOW)
 
-## Next Action
-User review of BUG-HUNTER-PUNCHLIST.md → Phase 4 (fix loop)
+## Fixes Applied (2 commits)
+
+### Commit 1: BH19-001/002/003/004/008/010/011 + kanban dataflow bugs
+- kanban_from_labels handles None/int/bool labels safely
+- Rewrote BH-021 fake test to actually test do_sync failure path
+- create_from_issue and build_rows override kanban for closed issues
+- gh_json incremental decoder handles garbage input
+- _format_story_section sanitizes pipe chars
+- Added path traversal test, SP roundtrip test
+
+### Commit 2: BH19-005/006/007/009
+- FakeGitHub PR state uppercase (OPEN/MERGED)
+- FakeGitHub shared issue/PR number counter
+- FakeGitHub issue edit --milestone updates counters
+- build_milestone_title_map direct unit tests
+
+## Deferred
+- BH19-013: get_existing_issues --limit 500 (scalability, not a bug)
+- BH19-014: MonitoredMock adoption (code quality, not a bug)
+- BH19-015: find_milestone case sensitivity (fragility, mitigated by templates)

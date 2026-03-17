@@ -7,10 +7,10 @@
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
-| CRITICAL | 1    | 0        | 0        |
-| HIGH     | 3    | 0        | 0        |
-| MEDIUM   | 8    | 0        | 0        |
-| LOW      | 3    | 0        | 0        |
+| CRITICAL | 0    | 1        | 0        |
+| HIGH     | 0    | 3        | 0        |
+| MEDIUM   | 0    | 7        | 1        |
+| LOW      | 0    | 1        | 2        |
 
 ## Patterns
 
