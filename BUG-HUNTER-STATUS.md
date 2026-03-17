@@ -1,38 +1,34 @@
-# Bug Hunter Status — Pass 20
+# Bug Hunter Status — Pass 21 (Adversarial Legacy Review)
 
 **Started:** 2026-03-16
 **Current Phase:** COMPLETE
-**Approach:** Hypothesis-discovered bugs, TOML parser edge cases, coverage hole analysis, splitlines hardening
+**Approach:** Fresh adversarial review from "legacy code newcomer" perspective. 10 parallel audit agents.
 
 ## Results
-- **Baseline:** 773 tests (1 hypothesis failure pre-fix)
-- **Final:** 773 tests pass, 0 fail
-- **Punchlist:** 8 items — 4 resolved, 4 deferred (1 MEDIUM non-issue, 3 LOW)
+- **Baseline:** 773 tests, 85% coverage
+- **Final:** 802 tests, 0 fail
+- **Punchlist:** 27 items — 22 resolved, 5 deferred (1 MEDIUM, 4 LOW)
 
-## Fixes Applied (2 commits)
+## Commits (5)
 
-### Commit 1: BH20-001
-- parse_simple_toml: replaced splitlines() with split('\n') to prevent
-  U+2028/U+2029 corruption. Found by hypothesis.
-
-### Commit 2: BH20-002/004/005
-- TOML key regex allows digit-start keys per TOML spec
-- Unparseable TOML lines now emit warning instead of silent drop
-- splitlines() replaced with split('\n') in 6 markdown parsers
+| Commit | Items | Summary |
+|--------|-------|---------|
+| `a485d98` | BH21-001, 002, 010 | CI: switch to pytest, install dev deps, enforce jq |
+| `df5f776` | BH21-003, 004, 005, 006 | Parser: quoted keys, escape warnings, yaml newlines, BOM |
+| `9c5c37d` | BH21-009, 012-016, 018 | Dedup: kanban override, short_title, dead wrappers, FakeGitHub PR fields, CHEATSHEET anchors |
+| `7bbf41b` | BH21-011, 017, 021 | ReDoS multi-char, epic custom IDs, splitlines consistency |
+| `d59eee6` | BH21-007, 008, 019, 022, 023 | Label args, issue dedup abort, monitor hardening |
 
 ## Deferred
-- BH20-003: current_section is NOT dead code (setdefault side effect needed)
-- BH20-006: format_report() untested (LOW — utility output function)
-- BH20-007: saga label parsing regex untested (LOW)
-- BH20-008: create_epic_labels untested (LOW)
+- BH21-014 (MEDIUM): Sprint number inference duplication — lower risk after BH21-017 fix
+- BH21-020 (LOW): Happy-path main() tests for 5 scripts — coverage improvement, not bug
+- BH21-024 (LOW): sync_backlog hash key collision — unlikely with standard backlog structures
+- BH21-025 (LOW): test_coverage.py self-coverage — ironic but not breaking
+- BH21-026 (LOW): load_config nested config_dir — only affects non-standard usage
+- BH21-027 (LOW): gate_prs 500 limit — mitigated by BH21-008 pattern (abort at limit)
 
-## Convergence Assessment
-After 4 consecutive passes (17-20), the codebase is approaching convergence:
-- Pass 17: 16 items (mutation testing)
-- Pass 18: 18 items (cross-module, security)
-- Pass 19: 15 items (data flows, error paths, fidelity)
-- Pass 20: 8 items (hypothesis bugs, TOML parser, coverage holes)
-
-Item count is declining. The CRITICAL finding (U+2028) was discovered by
-hypothesis property testing, not by human review — suggesting the remaining
-bugs are in edge cases that require generative testing to find.
+## Key Metrics
+- 29 new tests added (773 → 802)
+- 3 CRITICAL items resolved (CI blind spots, TOML silent data loss)
+- 8 HIGH items resolved (parser corruption, mock abuse, duplicate creation)
+- All 3 systemic patterns addressed (PAT-001 parsers, PAT-002 duplication, PAT-003 test fidelity)
