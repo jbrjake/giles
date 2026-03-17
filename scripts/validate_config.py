@@ -140,7 +140,11 @@ def parse_simple_toml(text: str) -> dict:
     multiline_key: str | None = None
     multiline_buf: str = ""
 
-    for raw_line in text.splitlines():
+    # BH20-001: Use split('\n') instead of splitlines(). Python's splitlines()
+    # treats U+2028 (Line Separator) and U+2029 (Paragraph Separator) as line
+    # breaks, which corrupts TOML strings containing these unicode characters.
+    # TOML spec only recognizes \n and \r\n as line endings.
+    for raw_line in text.split('\n'):
         line = raw_line.strip()
 
         # Continue collecting a multiline array

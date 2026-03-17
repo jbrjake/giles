@@ -1,31 +1,19 @@
-# Bug Hunter Status — Pass 19
+# Bug Hunter Status — Pass 20
 
 **Started:** 2026-03-16
-**Current Phase:** COMPLETE
-**Approach:** End-to-end data flow tracing, error path exhaustive audit, FakeGitHub fidelity deep-dive, boundary value analysis, test theater detection
+**Current Phase:** Phase 0 Recon (agents running) + Phase 4 fix (BH20-001 done)
+**Approach:** Hypothesis-discovered bugs, coverage hole analysis, skeleton template validation, TOML parser edge cases
 
-## Results
-- **Baseline:** 758 tests pass, 84% coverage
-- **Final:** 773 tests pass (+15 new), 0 fail
-- **Punchlist:** 15 items — 12 resolved, 3 deferred (LOW)
+## Immediate Finding
+- BH20-001: parse_simple_toml uses splitlines() which treats U+2028/U+2029 as line breaks, corrupting TOML strings containing these unicode chars. FIXED: replaced with split('\n').
+- Found by: hypothesis property test test_string_array (falsifying example: ['\u2028'])
 
-## Fixes Applied (2 commits)
+## Agents Running
+- Coverage hole deep-dive (6 lowest-coverage modules)
+- Skeleton template validation (19 .tmpl files)
+- TOML parser edge case audit (17 specific scenarios)
 
-### Commit 1: BH19-001/002/003/004/008/010/011 + kanban dataflow bugs
-- kanban_from_labels handles None/int/bool labels safely
-- Rewrote BH-021 fake test to actually test do_sync failure path
-- create_from_issue and build_rows override kanban for closed issues
-- gh_json incremental decoder handles garbage input
-- _format_story_section sanitizes pipe chars
-- Added path traversal test, SP roundtrip test
-
-### Commit 2: BH19-005/006/007/009
-- FakeGitHub PR state uppercase (OPEN/MERGED)
-- FakeGitHub shared issue/PR number counter
-- FakeGitHub issue edit --milestone updates counters
-- build_milestone_title_map direct unit tests
-
-## Deferred
-- BH19-013: get_existing_issues --limit 500 (scalability, not a bug)
-- BH19-014: MonitoredMock adoption (code quality, not a bug)
-- BH19-015: find_milestone case sensitivity (fragility, mitigated by templates)
+## Next
+- Read agent findings, synthesize punchlist
+- Check other splitlines() calls across codebase
+- Run hypothesis with more examples to find additional counterexamples
