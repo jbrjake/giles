@@ -1003,8 +1003,8 @@ def slug_from_title(title: str) -> str:
     return slug if slug else "untitled"
 
 
-@dataclass
 # §validate_config.TF
+@dataclass
 class TF:
     path: Path
     story: str = ""
