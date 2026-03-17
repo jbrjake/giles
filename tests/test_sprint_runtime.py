@@ -1192,8 +1192,7 @@ class TestCheckDirectPushesFakeGH(unittest.TestCase):
 
     def test_jq_filters_merge_commits(self):
         """With jq available, merge commits (2+ parents) are excluded."""
-        if not FakeGitHub._check_jq():
-            self.skipTest("jq package not installed")
+        # BH21-002: jq is now a required dev dependency (enforced by conftest.py)
         self._setup_mixed_commits()
         report, actions = check_status.check_direct_pushes(
             "owner/repo", "main", "2026-03-01T00:00:00Z",

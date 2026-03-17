@@ -24,8 +24,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Create venv
-        run: python -m venv .venv
+      - name: Create venv and install deps
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements-dev.txt
 
       - name: Lint (syntax check)
         run: make lint
