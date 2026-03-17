@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
@@ -23,7 +22,7 @@ from validate_config import (
     load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
     kanban_from_labels, find_milestone, frontmatter_value,
     list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
-    warn_if_at_limit,
+    warn_if_at_limit, TF, read_tf, write_tf, _yaml_safe, slug_from_title,
 )
 
 
@@ -113,116 +112,6 @@ def get_linked_pr(
                 "merged": pr.get("mergedAt") is not None,
             }
     return None
-
-
-# §sync_tracking.slug_from_title
-def slug_from_title(title: str) -> str:
-    slug = re.sub(
-        r"\s+", "-",
-        re.sub(r"[^a-zA-Z0-9\s-]", "", title).strip(),
-    ).lower()
-    return slug if slug else "untitled"
-
-
-# -- Tracking file dataclass and I/O ----------------------------------------
-
-@dataclass
-# §sync_tracking.TF
-class TF:
-    path: Path
-    story: str = ""
-    title: str = ""
-    sprint: int = 0
-    implementer: str = ""
-    reviewer: str = ""
-    status: str = "todo"
-    branch: str = ""
-    pr_number: str = ""
-    issue_number: str = ""
-    started: str = ""
-    completed: str = ""
-    body_text: str = ""
-
-
-# §sync_tracking.read_tf
-def read_tf(path: Path) -> TF:
-    tf = TF(path=path)
-    content = path.read_text(encoding="utf-8")
-    # BH21-006: Strip BOM if present (common from Windows editors)
-    if content.startswith('\ufeff'):
-        content = content[1:]
-    fm = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)", content, re.DOTALL)
-    if not fm:
-        tf.body_text = content
-        return tf
-    raw, tf.body_text = fm.group(1), fm.group(2)
-
-    def v(k: str) -> str:
-        # BH18-005: Use shared frontmatter_value to stay in sync with
-        # update_burndown._fm_val (both parse _yaml_safe output).
-        return frontmatter_value(raw, k) or ""
-
-    tf.story, tf.title = v("story"), v("title")
-    tf.sprint = int(v("sprint") or "0")
-    tf.implementer, tf.reviewer = v("implementer"), v("reviewer")
-    tf.status = v("status") or "todo"
-    tf.branch, tf.pr_number = v("branch"), v("pr_number")
-    tf.issue_number = v("issue_number")
-    tf.started, tf.completed = v("started"), v("completed")
-    return tf
-
-
-def _yaml_safe(value: str) -> str:
-    """Quote a value if it contains YAML-sensitive characters."""
-    if not value:
-        return value
-    # YAML boolean keywords (case-insensitive) must be quoted to avoid
-    # being parsed as booleans/null when the file is read back.
-    _YAML_BOOL_KEYWORDS = {
-        "true", "false", "yes", "no", "on", "off", "null",
-    }
-    needs_quoting = (
-        ': ' in value
-        or value.endswith(':')
-        or value[0] in '\'\"[{>|*&!%@`'
-        or '#' in value
-        or value.startswith('- ')
-        or value.startswith('? ')
-        or value.lower() in _YAML_BOOL_KEYWORDS
-        or '\\' in value  # BH-007: backslash must be quoted
-        or '\n' in value  # BH21-005: newline breaks YAML frontmatter
-        or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
-    )
-    if needs_quoting:
-        # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"
-        escaped = value.replace('\\', '\\\\').replace('"', '\\"')
-        escaped = escaped.replace('\n', '\\n').replace('\r', '\\r')
-        return f'"{escaped}"'
-    return value
-
-
-# §sync_tracking.write_tf
-def write_tf(tf: TF) -> None:
-    lines = [
-        "---",
-        f"story: {_yaml_safe(tf.story)}",
-        f"title: {_yaml_safe(tf.title)}",
-        f"sprint: {tf.sprint}",
-        f"implementer: {tf.implementer}",
-        f"reviewer: {tf.reviewer}",
-        f"status: {tf.status}",
-        f"branch: {_yaml_safe(tf.branch)}",
-        f"pr_number: {tf.pr_number}",
-        f"issue_number: {tf.issue_number}",
-        f"started: {tf.started}",
-        f"completed: {tf.completed}",
-        "---",
-    ]
-    if tf.body_text:
-        lines += ["", tf.body_text.strip()]
-    lines.append("")
-    tf.path.parent.mkdir(parents=True, exist_ok=True)
-    tf.path.write_text("\n".join(lines), encoding="utf-8")
 
 
 # -- Sync logic --------------------------------------------------------------
