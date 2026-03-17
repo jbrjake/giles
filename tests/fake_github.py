@@ -827,6 +827,11 @@ class FakeGitHub:
             "mergedAt": None,
             "reviewDecision": "",
             "closedAt": None,
+            # BH21-009: Fields that production code requests via --json.
+            # Without these, tests must manually inject them.
+            "statusCheckRollup": [],
+            "createdAt": "2026-01-01T00:00:00Z",
+            "reviews": [],
         }
         self._next_number += 1
         self.prs.append(pr)

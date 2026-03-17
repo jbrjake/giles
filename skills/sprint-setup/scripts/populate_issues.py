@@ -13,7 +13,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, get_milestones, gh, gh_json, warn_if_at_limit
+from validate_config import load_config, ConfigError, get_milestones, gh, gh_json, extract_story_id, warn_if_at_limit
 
 
 @dataclass
@@ -339,11 +339,15 @@ def get_existing_issues() -> set[str]:
         raise
     existing: set[str] = set()
     for issue in issues:
-        # BH-006: Match story IDs with or without a colon after the ID,
-        # consistent with extract_story_id() in validate_config.py.
-        m = re.match(r"([A-Z]+-\d+)", issue.get("title", ""))
-        if m:
-            existing.add(m.group(1))
+        # BH-006 / BH21-015: Use shared extract_story_id() instead of
+        # inlining the same regex. Handles fallback slugs too.
+        title = issue.get("title", "")
+        if title:
+            sid = extract_story_id(title)
+            # Only add IDs that look like proper story IDs (uppercase prefix + digits),
+            # not fallback slugs from extract_story_id's sanitization path.
+            if re.match(r"[A-Z]+-\d+", sid):
+                existing.add(sid)
     return existing
 
 

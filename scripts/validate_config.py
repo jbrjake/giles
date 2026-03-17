@@ -944,6 +944,12 @@ def extract_story_id(title: str) -> str:
     return slug[:40] if slug else "unknown"
 
 
+# §validate_config.short_title
+def short_title(title: str) -> str:
+    """Extract the short part of a story title (after the first colon, if any)."""
+    return title.split(":", 1)[-1].strip() if ":" in title else title
+
+
 # §validate_config.KANBAN_STATES
 KANBAN_STATES = frozenset(("todo", "design", "dev", "review", "integration", "done"))
 
@@ -974,7 +980,12 @@ def kanban_from_labels(issue: dict) -> str:
                 idx = _KANBAN_ORDER.index(state)
                 if idx > best:
                     best = idx
-    return _KANBAN_ORDER[best] if best >= 0 else fallback
+    result = _KANBAN_ORDER[best] if best >= 0 else fallback
+    # BH21-012: Override stale kanban labels on closed issues.
+    # A closed issue is always "done" regardless of what kanban label it has.
+    if issue.get("state") == "closed" and result != "done":
+        result = "done"
+    return result
 
 
 # §validate_config.find_milestone

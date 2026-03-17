@@ -22,14 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
     kanban_from_labels, find_milestone, frontmatter_value,
-    list_milestone_issues, parse_iso_date, KANBAN_STATES, warn_if_at_limit,
+    list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
+    warn_if_at_limit,
 )
-
-
-# §sync_tracking.find_milestone_title
-def find_milestone_title(sprint_num: int) -> str | None:
-    ms = find_milestone(sprint_num)
-    return ms["title"] if ms else None
 
 
 # §sync_tracking._fetch_all_prs
@@ -127,10 +122,6 @@ def slug_from_title(title: str) -> str:
         re.sub(r"[^a-zA-Z0-9\s-]", "", title).strip(),
     ).lower()
     return slug if slug else "untitled"
-
-
-def _parse_closed(iso: str) -> str:
-    return parse_iso_date(iso)
 
 
 # -- Tracking file dataclass and I/O ----------------------------------------
@@ -244,19 +235,14 @@ def sync_one(
     changes: list[str] = []
     gh_status = kanban_from_labels(issue)
 
-    if issue["state"] == "closed" and tf.status != "done":
-        changes.append(
-            f"{tf.story}: status {tf.status} -> done (issue closed)"
-        )
-        tf.status = "done"
-    elif gh_status != tf.status and gh_status in KANBAN_STATES:
+    if gh_status != tf.status and gh_status in KANBAN_STATES:
         changes.append(
             f"{tf.story}: status {tf.status} -> {gh_status} (label sync)"
         )
         tf.status = gh_status
 
     if tf.status == "done" and not tf.completed:
-        d = _parse_closed(issue.get("closedAt", ""))
+        d = parse_iso_date(issue.get("closedAt", ""))
         if d:
             tf.completed = d
             changes.append(f"{tf.story}: set completed = {d}")
@@ -290,17 +276,9 @@ def create_from_issue(
 ) -> tuple[TF, list[str]]:
     sid = extract_story_id(issue["title"])
     slug = slug_from_title(issue["title"])
-    # BH19-dataflow: Override kanban label for closed issues, matching
-    # sync_one behavior (line 241). Without this, a closed issue with
-    # stale kanban:dev label gets status="dev" on first tracking file creation.
+    # BH21-012: kanban_from_labels now handles closed-issue override internally
     status = kanban_from_labels(issue)
-    if issue.get("state") == "closed" and status != "done":
-        status = "done"
-    short = (
-        issue["title"].split(":", 1)[-1].strip()
-        if ":" in issue["title"]
-        else issue["title"]
-    )
+    short = short_title(issue["title"])
     target = d / f"{slug}.md"
     # BH-016: Detect slug collision — if a file exists with a different story ID,
     # append issue number to make the slug unique.
@@ -322,7 +300,7 @@ def create_from_issue(
         branch=f"sprint-{sprint}/{slug}",
     )
     if tf.status == "done":
-        tf.completed = _parse_closed(issue.get("closedAt", ""))
+        tf.completed = parse_iso_date(issue.get("closedAt", ""))
     return tf, [f"{sid}: created tracking file {slug}.md (status={status})"]
 
 
@@ -350,10 +328,11 @@ def main() -> None:
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)
 
-    mt = find_milestone_title(sprint)
-    if not mt:
+    ms = find_milestone(sprint)
+    if not ms:
         print(f"No GitHub milestone for Sprint {sprint}", file=sys.stderr)
         sys.exit(1)
+    mt = ms["title"]
 
     issues = list_milestone_issues(mt)
     if not issues:

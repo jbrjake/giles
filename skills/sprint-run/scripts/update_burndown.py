@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "s
 from validate_config import (
     load_config, ConfigError, extract_sp, get_sprints_dir,
     find_milestone, extract_story_id, kanban_from_labels,
-    list_milestone_issues, parse_iso_date, frontmatter_value,
+    list_milestone_issues, parse_iso_date, short_title, frontmatter_value,
 )
 
 
@@ -132,18 +132,13 @@ def load_tracking_metadata(
         if not fm_match:
             continue
         fm = fm_match.group(1)
-        story_id = _fm_val(fm, "story")
+        story_id = frontmatter_value(fm, "story")
         if story_id:
             meta[story_id] = {
-                "assignee": _fm_val(fm, "implementer") or "\u2014",
-                "pr": _fm_val(fm, "pr_number") or "\u2014",
+                "assignee": frontmatter_value(fm, "implementer") or "\u2014",
+                "pr": frontmatter_value(fm, "pr_number") or "\u2014",
             }
     return meta
-
-
-def _fm_val(frontmatter: str, key: str) -> str | None:
-    # BH18-005: Delegate to shared frontmatter_value in validate_config.
-    return frontmatter_value(frontmatter, key)
 
 
 # §update_burndown.build_rows
@@ -156,22 +151,12 @@ def build_rows(
     rows: list[dict] = []
     for issue in issues:
         sid = extract_story_id(issue["title"])
-        short_title = (
-            issue["title"].split(":", 1)[-1].strip()
-            if ":" in issue["title"]
-            else issue["title"]
-        )
+        short = short_title(issue["title"])
         t = tracking.get(sid, {})
-        # BH19-dataflow: Override kanban label for closed issues, matching
-        # sync_one behavior. kanban_from_labels only falls back to "done"
-        # when NO kanban labels exist; closed issues with stale labels
-        # (e.g., kanban:dev) would otherwise show wrong status in burndown.
         status = kanban_from_labels(issue)
-        if issue.get("state") == "closed" and status != "done":
-            status = "done"
         rows.append({
             "story_id": sid,
-            "short_title": short_title,
+            "short_title": short,
             "sp": extract_sp(issue),
             "status": status,
             "closed": closed_date(issue),

@@ -110,7 +110,7 @@ what you need without reading entire files.
 ### skills/sprint-run/scripts/sync_tracking.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
-| §sync_tracking.find_milestone_title | `find_milestone_title()` | Look up milestone title by sprint number |
+| _(removed: BH21-016)_ | `find_milestone()` | Uses shared `validate_config.find_milestone()` directly |
 | §sync_tracking._fetch_all_prs | `_fetch_all_prs()` | Batch-fetch all PRs (one API call for entire sync) |
 | §sync_tracking.get_linked_pr | `get_linked_pr()` | Find PR linked to issue via timeline, fallback to branch |
 | §sync_tracking.slug_from_title | `slug_from_title()` | Slugify issue title for tracking filename |
@@ -204,7 +204,7 @@ what you need without reading entire files.
 | §validate_config.safe_int | `_safe_int()` | Imported from validate_config — extract leading digits, 0 on failure |
 | §manage_epics._parse_epic_from_lines | `_parse_epic_from_lines()` | Parse epic from pre-read lines (avoids TOCTOU) |
 | §manage_epics.parse_epic | `parse_epic()` | Parse epic file: metadata + stories list + raw sections |
-| §manage_epics._parse_header_table | `_parse_header_table()` | Epic-level metadata table (Saga, Stories, Total SP) |
+| §validate_config.parse_header_table | `parse_header_table()` | Shared metadata table parser (imported by manage_epics, manage_sagas) |
 | §manage_epics._parse_stories | `_parse_stories()` | All `### US-XXXX` sections with metadata, ACs, tasks |
 | §manage_epics._format_story_section | `_format_story_section()` | Format story data dict as markdown section |
 | §manage_epics.add_story | `add_story()` | Append new story section to epic file |
@@ -218,7 +218,7 @@ what you need without reading entire files.
 |--------|----------|---------|
 | §validate_config.safe_int | `_safe_int()` | Imported from validate_config — extract leading digits, 0 on failure |
 | §manage_sagas.parse_saga | `parse_saga()` | Parse saga file: metadata + epic index + sprint allocation |
-| §manage_sagas._parse_header_table | `_parse_header_table()` | Saga-level metadata table |
+| _(see §validate_config.parse_header_table)_ | `parse_header_table()` | Imported from validate_config (BH18-012 refactor) |
 | §manage_sagas._parse_epic_index | `_parse_epic_index()` | Epic Index table (ID, name, stories, SP) |
 | §manage_sagas._parse_sprint_allocation | `_parse_sprint_allocation()` | Sprint Allocation table |
 | §manage_sagas._find_section_ranges | `_find_section_ranges()` | Line ranges for each ## section |

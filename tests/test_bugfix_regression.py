@@ -407,16 +407,19 @@ class TestBH008NestedArrays(unittest.TestCase):
 
 
 class TestBH009FmValEscape(unittest.TestCase):
-    """BH-009: _fm_val unescapes quotes like read_tf."""
+    """BH-009: frontmatter_value unescapes quotes like read_tf.
+
+    BH21-016: _fm_val wrapper removed; tests now call frontmatter_value directly.
+    """
 
     def test_escaped_quotes_unescaped(self):
         fm = 'title: "He said \\"hello\\" to her"'
-        result = update_burndown._fm_val(fm, "title")
+        result = validate_config.frontmatter_value(fm, "title")
         self.assertEqual(result, 'He said "hello" to her')
 
     def test_plain_value_unchanged(self):
         fm = 'title: "Simple title"'
-        result = update_burndown._fm_val(fm, "title")
+        result = validate_config.frontmatter_value(fm, "title")
         self.assertEqual(result, "Simple title")
 
 

@@ -2153,5 +2153,44 @@ class TestBH21TomlEscapeHandling(unittest.TestCase):
         self.assertEqual(result["path"], "C:\\new_folder")  # Literal backslash preserved
 
 
+class TestBH21012KanbanOverrideCentralized(unittest.TestCase):
+    """BH21-012: kanban_from_labels handles closed-issue override."""
+
+    def test_closed_issue_with_stale_dev_label(self):
+        from validate_config import kanban_from_labels
+        issue = {"state": "closed", "labels": [{"name": "kanban:dev"}]}
+        self.assertEqual(kanban_from_labels(issue), "done")
+
+    def test_closed_issue_with_done_label(self):
+        from validate_config import kanban_from_labels
+        issue = {"state": "closed", "labels": [{"name": "kanban:done"}]}
+        self.assertEqual(kanban_from_labels(issue), "done")
+
+    def test_open_issue_with_dev_label(self):
+        from validate_config import kanban_from_labels
+        issue = {"state": "open", "labels": [{"name": "kanban:dev"}]}
+        self.assertEqual(kanban_from_labels(issue), "dev")
+
+
+class TestBH21013ShortTitle(unittest.TestCase):
+    """BH21-013: short_title helper."""
+
+    def test_with_colon(self):
+        from validate_config import short_title
+        self.assertEqual(short_title("US-0001: Add login"), "Add login")
+
+    def test_without_colon(self):
+        from validate_config import short_title
+        self.assertEqual(short_title("Add login"), "Add login")
+
+    def test_multiple_colons(self):
+        from validate_config import short_title
+        self.assertEqual(short_title("US-0001: Add login: v2"), "Add login: v2")
+
+    def test_empty_after_colon(self):
+        from validate_config import short_title
+        self.assertEqual(short_title("US-0001:"), "")
+
+
 if __name__ == "__main__":
     unittest.main()

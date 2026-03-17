@@ -455,20 +455,10 @@ class TestInferSprintNumber(unittest.TestCase):
 # sync_tracking.py tests -- find_milestone_title with mocked gh
 # ---------------------------------------------------------------------------
 
-class TestFindMilestoneTitle(unittest.TestCase):
-    """Test sync_tracking.find_milestone_title() pass-through."""
-
-    @patch("sync_tracking.find_milestone")
-    def test_finds_sprint(self, mock_find):
-        mock_find.return_value = {"title": "Sprint 1: Walking Skeleton", "number": 1}
-        result = sync_tracking.find_milestone_title(1)
-        self.assertEqual(result, "Sprint 1: Walking Skeleton")
-
-    @patch("sync_tracking.find_milestone")
-    def test_no_match_returns_none(self, mock_find):
-        mock_find.return_value = None
-        result = sync_tracking.find_milestone_title(1)
-        self.assertIsNone(result)
+# BH21-016: TestFindMilestoneTitle removed — it tested the find_milestone_title()
+# wrapper which was a one-line pass-through to find_milestone(). The wrapper
+# was removed and the call site now uses find_milestone() directly.
+# The underlying find_milestone() is tested by TestFindMilestoneBoundary below.
 
 
 class TestFindMilestoneBoundary(unittest.TestCase):
@@ -1581,12 +1571,10 @@ class TestKanbanFromLabels(unittest.TestCase):
         self.assertEqual(validate_config.kanban_from_labels(issue), "todo")
 
     def test_closed_with_stale_kanban_label(self):
-        """BH19-dataflow: build_rows must override stale kanban for closed issues."""
-        # This tests that kanban_from_labels returns "dev" (it doesn't override)
-        # but callers (build_rows, create_from_issue) must override to "done"
+        """BH21-012: kanban_from_labels now overrides stale labels for closed issues."""
         issue = {"labels": [{"name": "kanban:dev"}], "state": "closed"}
-        self.assertEqual(validate_config.kanban_from_labels(issue), "dev",
-                         "kanban_from_labels itself does NOT override for closed")
+        self.assertEqual(validate_config.kanban_from_labels(issue), "done",
+                         "closed issues always return 'done' regardless of kanban label")
 
 
 # ---------------------------------------------------------------------------
