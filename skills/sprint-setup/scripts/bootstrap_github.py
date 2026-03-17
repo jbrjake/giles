@@ -139,7 +139,7 @@ def _parse_saga_labels_from_backlog(config: dict) -> list[tuple[str, str]]:
 
     # Match rows like: | S01 | Walking Skeleton | ... |
     # or: | S01: Walking Skeleton | ... |
-    for line in text.splitlines():
+    for line in text.split('\n'):
         stripped = line.strip()
         if not stripped.startswith("|"):
             continue
@@ -174,7 +174,7 @@ def create_saga_labels(config: dict) -> None:
                     saga_id = m.group(1)
                     # Try to get a better name from the file's heading
                     try:
-                        heading = sf.read_text(encoding="utf-8").splitlines()[0]
+                        heading = sf.read_text(encoding="utf-8").split('\n')[0]
                         hm = re.match(r"#\s*S\d{2}\s*[—–-]\s*(.+)", heading)
                         saga_name = hm.group(1).strip() if hm else m.group(2).replace("-", " ").title()
                     except (OSError, IndexError):
@@ -257,7 +257,7 @@ def create_milestones_on_github(config: dict) -> int:
             if heading:
                 title = heading.group(1).strip()
             # Use first non-heading paragraph as description
-            for line in text.splitlines():
+            for line in text.split('\n'):
                 line = line.strip()
                 if line and not line.startswith("#") and not line.startswith("|"):
                     description = line

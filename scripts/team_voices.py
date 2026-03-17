@@ -52,7 +52,7 @@ def extract_voices(
 # §team_voices._extract_from_file
 def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
     """Extract voice blocks from a single markdown file."""
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = path.read_text(encoding="utf-8").split('\n')
     current_section = ""
     i = 0
     while i < len(lines):

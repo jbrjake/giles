@@ -135,7 +135,6 @@ def parse_simple_toml(text: str) -> dict:
       - Comments starting with #
     """
     root: dict = {}
-    current_section = root
     section_path: list[str] = []
     multiline_key: str | None = None
     multiline_buf: str = ""
@@ -179,7 +178,8 @@ def parse_simple_toml(text: str) -> dict:
         # Key = value
         # Note: dotted keys (a.b = "value") are not supported. This project uses
         # section headers ([project], [paths]) rather than dotted keys.
-        kv_match = re.match(r"^([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*(.*)$", line)
+        # BH20-002: Allow digit-start keys per TOML spec (bare keys are [A-Za-z0-9_-])
+        kv_match = re.match(r"^([a-zA-Z0-9_][a-zA-Z0-9_-]*)\s*=\s*(.*)$", line)
         if kv_match:
             key = kv_match.group(1)
             raw_val = kv_match.group(2).strip()
@@ -192,6 +192,12 @@ def parse_simple_toml(text: str) -> dict:
                 continue
 
             _set_nested(root, section_path, key, _parse_value(raw_val))
+            continue
+
+        # BH20-004: Warn on lines that don't match any pattern.
+        # Previously these were silently dropped, hiding typos.
+        print(f"Warning: unrecognized TOML line ignored: {line!r}",
+              file=sys.stderr)
 
     if multiline_key is not None:
         raise ValueError(
@@ -563,7 +569,8 @@ def _parse_team_index(index_path: Path) -> list[dict[str, str]]:
     Expects a table with at least Name, Role, and File columns.
     Returns a list of dicts with lowercase keys.
     """
-    lines = index_path.read_text(encoding="utf-8").splitlines()
+    # BH20-005: Use split('\n') to avoid U+2028/U+2029 line-split issues
+    lines = index_path.read_text(encoding="utf-8").split('\n')
     headers: list[str] = []
     rows: list[dict[str, str]] = []
 

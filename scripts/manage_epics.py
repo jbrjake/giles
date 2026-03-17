@@ -61,7 +61,7 @@ def parse_epic(path: str) -> dict:
         stories: [{id, title, story_points, priority, ...}, ...]
         raw_sections: [{id, start_line, end_line, lines}, ...]
     """
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     return _parse_epic_from_lines(lines)
 
 
@@ -213,7 +213,7 @@ def add_story(path: str, story_data: dict) -> None:
     content = Path(path).read_text(encoding="utf-8")
     story_id = story_data.get("id", "")
     if story_id:
-        epic = _parse_epic_from_lines(content.splitlines())
+        epic = _parse_epic_from_lines(content.split('\n'))
         if any(s["id"] == story_id for s in epic["stories"]):
             raise ValueError(f"Story {story_id} already exists in {path}")
     new_section = _format_story_section(story_data)
@@ -232,7 +232,7 @@ def add_story(path: str, story_data: dict) -> None:
 def remove_story(path: str, story_id: str) -> None:
     """Remove a story section from an epic file."""
     content = Path(path).read_text(encoding="utf-8")
-    lines = content.splitlines()
+    lines = content.split('\n')
     epic = _parse_epic_from_lines(lines)
     section = next(
         (s for s in epic["raw_sections"] if s["id"] == story_id), None
@@ -267,7 +267,7 @@ def remove_story(path: str, story_id: str) -> None:
 def reorder_stories(path: str, story_ids: list[str]) -> None:
     """Reorder story sections to match the given ID list."""
     content = Path(path).read_text(encoding="utf-8")
-    lines = content.splitlines()
+    lines = content.split('\n')
     epic = _parse_epic_from_lines(lines)
 
     # Find where stories begin (after the header/intro)
@@ -347,7 +347,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     if len(new_ids) != len(set(new_ids)):
         dupes = [x for x in new_ids if new_ids.count(x) > 1]
         raise ValueError(f"renumber_stories: duplicate new IDs: {sorted(set(dupes))}")
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     replacement = ", ".join(new_ids)
     new_lines = []
     for line in lines:

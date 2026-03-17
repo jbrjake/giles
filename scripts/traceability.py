@@ -41,7 +41,7 @@ def parse_stories(epics_dir: str) -> dict[str, dict]:
         return stories
 
     for md_file in sorted(epics_path.glob("*.md")):
-        lines = md_file.read_text(encoding="utf-8").splitlines()
+        lines = md_file.read_text(encoding="utf-8").split('\n')
         i = 0
         while i < len(lines):
             m = STORY_HEADING.match(lines[i])
@@ -89,7 +89,7 @@ def parse_test_cases(test_plan_dir: str) -> dict[str, dict]:
         return cases
 
     for md_file in sorted(plan_path.glob("*.md")):
-        for line in md_file.read_text(encoding="utf-8").splitlines():
+        for line in md_file.read_text(encoding="utf-8").split('\n'):
             m = TEST_CASE_HEADING.match(line)
             if m:
                 cases[m.group(1)] = {
@@ -112,7 +112,7 @@ def parse_requirements(prd_dir: str) -> dict[str, dict]:
         return reqs
 
     for md_file in sorted(prd_path.rglob("*.md")):
-        for line in md_file.read_text(encoding="utf-8").splitlines():
+        for line in md_file.read_text(encoding="utf-8").split('\n'):
             m = REQ_TABLE_ROW.match(line)
             if m:
                 req_id = m.group(1).strip()

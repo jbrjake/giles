@@ -42,7 +42,7 @@ def parse_saga(path: str) -> dict:
         sprint_allocation: [{sprint, stories, sp}, ...]
         section_ranges: {section_name: (start_line, end_line)}
     """
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     metadata = parse_header_table(lines, stop_heading="##")
     epic_index = _parse_epic_index(lines)
     sprint_allocation = _parse_sprint_allocation(lines)
@@ -146,7 +146,7 @@ def update_sprint_allocation(
 
     allocation: [{sprint: str, stories: str, sp: str}, ...]
     """
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     section_ranges = _find_section_ranges(lines)
 
     if "Sprint Allocation" not in section_ranges:
@@ -183,7 +183,7 @@ def update_epic_index(
     """
     from manage_epics import parse_epic
 
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     section_ranges = _find_section_ranges(lines)
 
     if "Epic Index" not in section_ranges:
@@ -232,7 +232,7 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
 
     voices: {persona_name: "quote text"}
     """
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    lines = Path(path).read_text(encoding="utf-8").split('\n')
     section_ranges = _find_section_ranges(lines)
 
     if "Team Voices" not in section_ranges:
