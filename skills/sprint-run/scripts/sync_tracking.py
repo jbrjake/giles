@@ -157,6 +157,9 @@ class TF:
 def read_tf(path: Path) -> TF:
     tf = TF(path=path)
     content = path.read_text(encoding="utf-8")
+    # BH21-006: Strip BOM if present (common from Windows editors)
+    if content.startswith('\ufeff'):
+        content = content[1:]
     fm = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)", content, re.DOTALL)
     if not fm:
         tf.body_text = content
@@ -196,10 +199,13 @@ def _yaml_safe(value: str) -> str:
         or value.startswith('? ')
         or value.lower() in _YAML_BOOL_KEYWORDS
         or '\\' in value  # BH-007: backslash must be quoted
+        or '\n' in value  # BH21-005: newline breaks YAML frontmatter
+        or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
     )
     if needs_quoting:
         # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"
         escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+        escaped = escaped.replace('\n', '\\n').replace('\r', '\\r')
         return f'"{escaped}"'
     return value
 

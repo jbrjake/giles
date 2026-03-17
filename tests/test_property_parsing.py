@@ -201,8 +201,15 @@ class TestYamlSafe:
         """
         result = _yaml_safe(value)
         if result.startswith('"') and result.endswith('"'):
-            # Unquote using the same logic as read_tf (BH-007)
-            inner = result[1:-1].replace('\\"', '"').replace('\\\\', '\\')
+            # Unquote using single-pass unescape to avoid \\n vs \n confusion
+            # (BH-007, BH21-005). Simple chained .replace() can't handle
+            # strings containing literal backslash+n vs escaped newlines.
+            _ESCAPE_MAP = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r'}
+            inner = re.sub(
+                r'\\(.)',
+                lambda m: _ESCAPE_MAP.get(m.group(1), m.group(0)),
+                result[1:-1],
+            )
             assert inner == value, (
                 f"Roundtrip failed: {value!r} -> {result!r} -> {inner!r}"
             )

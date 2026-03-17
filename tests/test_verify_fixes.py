@@ -2062,5 +2062,96 @@ class TestTestCoverageScanProject(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+class TestBH21003QuotedTomlKeys(unittest.TestCase):
+    """BH21-003: Quoted TOML keys should raise ValueError, not be silently dropped."""
+
+    def test_double_quoted_key_rejected(self):
+        """parse_simple_toml rejects double-quoted keys with a clear error."""
+        with self.assertRaises(ValueError) as ctx:
+            parse_simple_toml('"my key" = "value"')
+        self.assertIn("quoted", str(ctx.exception).lower())
+
+    def test_single_quoted_key_rejected(self):
+        """parse_simple_toml rejects single-quoted keys with a clear error."""
+        with self.assertRaises(ValueError) as ctx:
+            parse_simple_toml("'my key' = 'value'")
+        self.assertIn("quoted", str(ctx.exception).lower())
+
+    def test_bare_keys_still_work(self):
+        """Bare keys continue to parse normally."""
+        result = parse_simple_toml('my_key = "value"')
+        self.assertEqual(result["my_key"], "value")
+
+    def test_quoted_key_under_section(self):
+        """Quoted keys under a section header also raise ValueError."""
+        toml_str = '[project]\n"spaced key" = "val"'
+        with self.assertRaises(ValueError) as ctx:
+            parse_simple_toml(toml_str)
+        self.assertIn("quoted", str(ctx.exception).lower())
+
+
+class TestBH21YamlSafeNewlines(unittest.TestCase):
+    """BH21-005: _yaml_safe must escape newlines and carriage returns."""
+
+    def test_newline_in_value_is_escaped(self):
+        from sync_tracking import _yaml_safe
+        result = _yaml_safe("line1\nline2")
+        self.assertNotIn("\n", result.strip('"'))
+        # Should be quoted with escaped newline
+        self.assertTrue(result.startswith('"'))
+
+    def test_carriage_return_in_value_is_escaped(self):
+        from sync_tracking import _yaml_safe
+        result = _yaml_safe("line1\rline2")
+        self.assertNotIn("\r", result.strip('"'))
+
+    def test_crlf_in_value_is_escaped(self):
+        from sync_tracking import _yaml_safe
+        result = _yaml_safe("line1\r\nline2")
+        self.assertNotIn("\r", result.strip('"'))
+        self.assertNotIn("\n", result.strip('"'))
+
+
+class TestBH21006BomHandling(unittest.TestCase):
+    """BH21-006: read_tf must handle BOM-prefixed files."""
+
+    def test_bom_prefixed_tracking_file(self):
+        import tempfile
+        from sync_tracking import read_tf
+        fd, path = tempfile.mkstemp(suffix=".md")
+        try:
+            # Write with BOM prefix
+            with open(fd, 'w', encoding='utf-8-sig') as f:
+                f.write("---\nstory: US-0001\ntitle: Test Story\nsprint: 1\nstatus: dev\n---\nBody text\n")
+            tf = read_tf(Path(path))
+            self.assertEqual(tf.story, "US-0001")
+            self.assertEqual(tf.title, "Test Story")
+            self.assertEqual(tf.sprint, 1)
+            self.assertEqual(tf.status, "dev")
+        finally:
+            os.unlink(path)
+
+
+class TestBH21TomlEscapeHandling(unittest.TestCase):
+    """BH21-004: TOML escape handling — warn on unknown escapes, respect single-quoted literals."""
+
+    def test_unknown_escape_warns(self):
+        import io
+        stderr = io.StringIO()
+        old = sys.stderr
+        sys.stderr = stderr
+        try:
+            result = parse_simple_toml('key = "hello\\qworld"')
+        finally:
+            sys.stderr = old
+        # Should warn about unknown escape
+        self.assertIn("\\q", stderr.getvalue())
+
+    def test_single_quoted_no_escape_processing(self):
+        # Single-quoted strings are TOML literal strings — no escape processing
+        result = parse_simple_toml("path = 'C:\\new_folder'")
+        self.assertEqual(result["path"], "C:\\new_folder")  # Literal backslash preserved
+
+
 if __name__ == "__main__":
     unittest.main()

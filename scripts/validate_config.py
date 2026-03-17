@@ -175,6 +175,16 @@ def parse_simple_toml(text: str) -> dict:
                 current_section = current_section.setdefault(part, {})
             continue
 
+        # BH21-003: Reject quoted TOML keys with a clear error.
+        # The parser only supports bare keys (TOML spec: [A-Za-z0-9_-]).
+        # Quoted keys are valid TOML but unsupported here.
+        quoted_key_match = re.match(r'^(["\'])(.+?)\1\s*=', line)
+        if quoted_key_match:
+            raise ValueError(
+                f"Quoted TOML keys are not supported by this parser: {line!r}. "
+                f"Use bare keys (letters, digits, underscores, hyphens) instead."
+            )
+
         # Key = value
         # Note: dotted keys (a.b = "value") are not supported. This project uses
         # section headers ([project], [paths]) rather than dotted keys.
@@ -278,7 +288,10 @@ def _unescape_toml_string(s: str) -> str:
                 except (ValueError, OverflowError):
                     result.append(s[i:i + 2])
             else:
-                result.append(s[i:i + 2])  # Unknown escape, keep as-is
+                # BH21-004: Warn on unknown escape sequences (TOML spec says these are errors).
+                print(f"Warning: unknown TOML escape sequence '\\{nxt}' in string",
+                      file=sys.stderr)
+                result.append(s[i:i + 2])  # Keep as-is for compatibility
             i += 2
         else:
             result.append(s[i])
