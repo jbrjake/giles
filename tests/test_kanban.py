@@ -49,7 +49,12 @@ from kanban import (  # noqa: E402 — conftest.py puts scripts/ on sys.path
     lock_story,
     lock_sprint,
     find_story,
+    do_transition,
+    do_assign,
+    do_sync,
+    do_status,
 )
+from gh_test_helpers import patch_gh
 
 
 class TestTransitionTable(unittest.TestCase):
@@ -263,6 +268,259 @@ class TestFindStory(unittest.TestCase):
             result = find_story("BUG-0007", sprints_dir, sprint=2)
             self.assertIsNotNone(result)
             self.assertEqual(result.story, "BUG-0007")
+
+
+# ---------------------------------------------------------------------------
+# Chunk 3 tests: do_transition, do_assign, do_sync, do_status
+# ---------------------------------------------------------------------------
+
+class TestTransitionCommand(unittest.TestCase):
+    """do_transition() updates local state and syncs to GitHub."""
+
+    def _make_tf(self, td: str, **kwargs) -> TF:
+        stories_dir = Path(td) / "sprint-1" / "stories"
+        stories_dir.mkdir(parents=True, exist_ok=True)
+        p = stories_dir / "US-0042-feature.md"
+        defaults = dict(
+            path=p, story="US-0042", title="Feature", sprint=1,
+            status="todo", implementer="rae", issue_number="42",
+        )
+        defaults.update(kwargs)
+        tf = TF(**defaults)
+        write_tf(tf)
+        return tf
+
+    def test_transition_updates_local_and_github(self):
+        """Successful transition updates local file and calls gh with label swap."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(tf, "design")
+                self.assertTrue(result)
+                # Local state updated
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.status, "design")
+                # Verify label swap args were passed to gh
+                calls_str = str(mock.call_args_list)
+                self.assertIn("kanban:todo", calls_str)
+                self.assertIn("kanban:design", calls_str)
+
+    def test_transition_reverts_on_github_failure(self):
+        """RuntimeError from gh reverts local file to old status."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")) as mock:
+                result = do_transition(tf, "design")
+                self.assertFalse(result)
+                # Local state must be reverted
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.status, "todo")
+                # Verify the mock was called (and thus call_args is meaningful)
+                self.assertIn("issue", str(mock.call_args))
+
+    def test_transition_to_done_closes_issue(self):
+        """Transitioning to done calls both label swap and issue close."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(
+                td, status="integration", pr_number="99",
+                implementer="rae", reviewer="chen",
+            )
+            calls_made = []
+
+            def capture_gh(args):
+                calls_made.append(list(args))
+                return ""
+
+            with patch_gh("kanban.gh", side_effect=capture_gh) as mock:
+                result = do_transition(tf, "done")
+                self.assertTrue(result)
+                # Verify both label swap and close were issued
+                all_calls = str(mock.call_args_list)
+                self.assertIn("kanban:done", all_calls)
+                # Find the close call
+                close_calls = [c for c in calls_made if "close" in c]
+                self.assertTrue(close_calls, "gh issue close must be called for done")
+
+
+class TestAssignCommand(unittest.TestCase):
+    """do_assign() updates local file and adds persona labels on GitHub."""
+
+    def _make_tf(self, td: str, **kwargs) -> TF:
+        stories_dir = Path(td) / "sprint-1" / "stories"
+        stories_dir.mkdir(parents=True, exist_ok=True)
+        p = stories_dir / "US-0043-assign-test.md"
+        defaults = dict(
+            path=p, story="US-0043", title="Assign test", sprint=1,
+            status="todo", issue_number="43",
+        )
+        defaults.update(kwargs)
+        tf = TF(**defaults)
+        write_tf(tf)
+        return tf
+
+    def _make_gh_side_effect(self):
+        """Return a side_effect that handles view (body) and edit calls."""
+        import json as _json
+
+        def side_effect(args):
+            # gh_json call: ["issue", "view", num, "--json", "body"]
+            # do_assign calls gh_json for view, so this handles the gh mock
+            if "view" in args:
+                return _json.dumps(
+                    {"body": "> **[Unassigned]** \u00b7 Implementation\n\n## Story"}
+                )
+            return ""
+
+        return side_effect
+
+    def test_assign_implementer(self):
+        """Assigning implementer adds persona label and updates local file."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+
+            def gh_side_effect(args):
+                if "view" in args:
+                    return {"body": "> **[Unassigned]** \u00b7 Implementation\n\n## Story"}
+                return ""
+
+            with patch_gh("kanban.gh_json", side_effect=gh_side_effect) as mock_json, \
+                 patch_gh("kanban.gh") as mock_gh:
+                result = do_assign(tf, implementer="rae")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.implementer, "rae")
+                # Verify gh_json was called for issue view
+                self.assertIn("view", str(mock_json.call_args))
+                # Verify gh was called with persona label
+                self.assertIn("persona:rae", str(mock_gh.call_args_list))
+
+    def test_assign_both(self):
+        """Assigning both implementer and reviewer adds both persona labels."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+
+            def gh_side_effect(args):
+                if "view" in args:
+                    return {"body": "> **[Unassigned]** \u00b7 Implementation\n\n## Story"}
+                return ""
+
+            with patch_gh("kanban.gh_json", side_effect=gh_side_effect) as mock_json, \
+                 patch_gh("kanban.gh") as mock_gh:
+                result = do_assign(tf, implementer="rae", reviewer="chen")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.implementer, "rae")
+                self.assertEqual(loaded.reviewer, "chen")
+                all_gh_calls = str(mock_gh.call_args_list)
+                self.assertIn("persona:rae", all_gh_calls)
+                self.assertIn("persona:chen", all_gh_calls)
+                # Satisfy MonitoredMock for mock_json
+                self.assertIn("view", str(mock_json.call_args))
+
+
+class TestSyncCommand(unittest.TestCase):
+    """do_sync() reconciles local tracking files against GitHub issue data."""
+
+    def _sprints_dir(self, td: str) -> Path:
+        d = Path(td) / "sprints"
+        (d / "sprint-1" / "stories").mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _issue(self, number: int, title: str, state: str = "open",
+               labels: list | None = None) -> dict:
+        if labels is None:
+            labels = [f"kanban:{state}"] if state != "open" else ["kanban:todo"]
+        return {"number": number, "title": title, "state": "open", "labels": labels}
+
+    def _write_tf(self, sprints_dir: Path, sprint: int, **kwargs) -> TF:
+        stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
+        story_id = kwargs.get("story", "US-0001")
+        p = stories_dir / f"{story_id}-test.md"
+        defaults = dict(path=p, sprint=sprint)
+        defaults.update(kwargs)
+        tf = TF(**defaults)
+        write_tf(tf)
+        return tf
+
+    def test_sync_accepts_legal_external_transition(self):
+        """Local=todo, GitHub=design → accepted and local updated."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0045", status="todo",
+                           implementer="rae")
+            issues = [self._issue(45, "US-0045: Feature A",
+                                  labels=["kanban:design"])]
+            changes = do_sync(sprints_dir, 1, issues)
+            # Change accepted
+            accepted = [c for c in changes if "accepted" in c and "US-0045" in c]
+            self.assertTrue(accepted, f"Expected accepted transition, got: {changes}")
+            # Local file updated
+            result = find_story("US-0045", sprints_dir, 1)
+            self.assertIsNotNone(result)
+            self.assertEqual(result.status, "design")
+
+    def test_sync_rejects_illegal_external_transition(self):
+        """Local=todo, GitHub=review → warning emitted, local unchanged."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0046", status="todo")
+            issues = [self._issue(46, "US-0046: Feature B",
+                                  labels=["kanban:review"])]
+            changes = do_sync(sprints_dir, 1, issues)
+            # Warning issued
+            warnings = [c for c in changes if "WARNING" in c and "US-0046" in c]
+            self.assertTrue(warnings, f"Expected warning, got: {changes}")
+            # Local state unchanged
+            result = find_story("US-0046", sprints_dir, 1)
+            self.assertIsNotNone(result)
+            self.assertEqual(result.status, "todo")
+
+    def test_sync_creates_new_story(self):
+        """A GitHub issue with no local counterpart creates a tracking file."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            issues = [self._issue(99, "US-0099: Brand new story",
+                                  labels=["kanban:todo"])]
+            changes = do_sync(sprints_dir, 1, issues)
+            created = [c for c in changes if "created" in c and "US-0099" in c]
+            self.assertTrue(created, f"Expected creation entry, got: {changes}")
+            result = find_story("US-0099", sprints_dir, 1)
+            self.assertIsNotNone(result)
+            self.assertEqual(result.story, "US-0099")
+            self.assertEqual(result.status, "todo")
+
+
+class TestStatusCommand(unittest.TestCase):
+    """do_status() renders a board view from local tracking files."""
+
+    def _write_tf(self, stories_dir: Path, sprint: int, **kwargs) -> TF:
+        story_id = kwargs.get("story", "US-0001")
+        p = stories_dir / f"{story_id}-test.md"
+        defaults = dict(path=p, sprint=sprint)
+        defaults.update(kwargs)
+        tf = TF(**defaults)
+        write_tf(tf)
+        return tf
+
+    def test_status_shows_board(self):
+        """Three stories in different states appear under correct headers."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td) / "sprints"
+            stories_dir = sprints_dir / "sprint-3" / "stories"
+            stories_dir.mkdir(parents=True)
+            self._write_tf(stories_dir, 3, story="US-0041", status="done",
+                           implementer="rae", reviewer="chen")
+            self._write_tf(stories_dir, 3, story="US-0042", status="dev",
+                           implementer="rae", reviewer="chen")
+            self._write_tf(stories_dir, 3, story="US-0043", status="todo")
+            output = do_status(sprints_dir, 3)
+            self.assertIn("Sprint 3", output)
+            self.assertIn("TODO", output)
+            self.assertIn("DEV", output)
+            self.assertIn("DONE", output)
+            self.assertIn("US-0041", output)
+            self.assertIn("US-0042", output)
+            self.assertIn("US-0043", output)
 
 
 if __name__ == "__main__":

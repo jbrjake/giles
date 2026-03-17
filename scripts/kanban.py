@@ -12,7 +12,9 @@ GitHub is a downstream reflection synced on every mutation.
 """
 from __future__ import annotations
 
+import json
 import os
+import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -209,3 +211,206 @@ def find_story(story_id: str, sprints_dir: Path, sprint: int) -> TF | None:
         if stem == prefix or stem.startswith(prefix + "-"):
             return read_tf(md_file)
     return None
+
+
+# ---------------------------------------------------------------------------
+# GitHub sync — do_transition, do_assign, do_sync, do_status
+# ---------------------------------------------------------------------------
+
+# §kanban._PERSONA_HEADER_PATTERN
+_PERSONA_HEADER_PATTERN = re.compile(
+    r'> \*\*\[Unassigned\]\*\* · Implementation'
+)
+
+
+# §kanban.do_transition
+def do_transition(tf: TF, target: str) -> bool:
+    """Execute a state transition: validate, update local, sync GitHub.
+
+    Returns True on success, False on failure (with local state reverted).
+    """
+    err = validate_transition(tf.status, target)
+    if err:
+        print(f"{tf.story}: {err}", file=sys.stderr)
+        return False
+    err = check_preconditions(tf, target)
+    if err:
+        print(f"{tf.story}: {err}", file=sys.stderr)
+        return False
+    old_status = tf.status
+    issue_num = tf.issue_number
+    if not issue_num:
+        print(f"{tf.story}: no issue_number — cannot sync to GitHub", file=sys.stderr)
+        return False
+    # Update local state
+    tf.status = target
+    atomic_write_tf(tf)
+    # Sync to GitHub
+    try:
+        gh(["issue", "edit", issue_num,
+            "--remove-label", f"kanban:{old_status}",
+            "--add-label", f"kanban:{target}"])
+        if target == "done":
+            gh(["issue", "close", issue_num])
+        print(f"{tf.story}: {old_status} → {target}")
+        return True
+    except RuntimeError as exc:
+        tf.status = old_status
+        atomic_write_tf(tf)
+        print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
+              file=sys.stderr)
+        return False
+
+
+# §kanban.do_assign
+def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
+    """Assign personas: update local → add persona labels on GitHub → update issue body.
+
+    Returns True on success, False on failure (with local state reverted).
+    """
+    old_implementer = tf.implementer
+    old_reviewer = tf.reviewer
+    issue_num = tf.issue_number
+    if not issue_num:
+        print(f"{tf.story}: no issue_number — cannot sync to GitHub", file=sys.stderr)
+        return False
+
+    if implementer:
+        tf.implementer = implementer
+    if reviewer:
+        tf.reviewer = reviewer
+    atomic_write_tf(tf)
+
+    try:
+        # Add persona labels
+        if implementer:
+            gh(["issue", "edit", issue_num, "--add-label", f"persona:{implementer}"])
+        if reviewer:
+            gh(["issue", "edit", issue_num, "--add-label", f"persona:{reviewer}"])
+        # Update issue body: replace [Unassigned] header with implementer name
+        if implementer:
+            raw = gh_json(["issue", "view", issue_num, "--json", "body"])
+            body = raw.get("body", "") if isinstance(raw, dict) else ""
+            new_body = _PERSONA_HEADER_PATTERN.sub(
+                f"> **[{implementer}]** · Implementation",
+                body,
+            )
+            if new_body != body:
+                gh(["issue", "edit", issue_num, "--body", new_body])
+        return True
+    except RuntimeError as exc:
+        tf.implementer = old_implementer
+        tf.reviewer = old_reviewer
+        atomic_write_tf(tf)
+        print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
+              file=sys.stderr)
+        return False
+
+
+# §kanban.do_sync
+def do_sync(sprints_dir: Path, sprint: int, issues: list) -> list[str]:
+    """Bidirectional sync — accepts legal external GitHub changes, creates new stories.
+
+    Takes a pre-fetched list of GitHub issue dicts so callers control the API
+    query (no GitHub calls made here).  Returns a list of change descriptions.
+    """
+    stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
+    stories_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build index of local tracking files by story ID
+    local_by_id: dict[str, TF] = {}
+    for md_file in sorted(stories_dir.glob("*.md")):
+        tf = read_tf(md_file)
+        if tf.story:
+            local_by_id[tf.story.upper()] = tf
+
+    changes: list[str] = []
+    github_ids: set[str] = set()
+
+    for issue in issues:
+        title = issue.get("title", "")
+        story_id = extract_story_id(title).upper()
+        github_ids.add(story_id)
+        github_state = kanban_from_labels(issue)
+        issue_num = str(issue.get("number", ""))
+
+        if story_id in local_by_id:
+            tf = local_by_id[story_id]
+            if tf.status == github_state:
+                # No-op: states match
+                continue
+            # States diverge — validate the external transition
+            err = validate_transition(tf.status, github_state)
+            if err is None:
+                old = tf.status
+                tf.status = github_state
+                atomic_write_tf(tf)
+                changes.append(
+                    f"accepted external transition {story_id}: {old} → {github_state}"
+                )
+            else:
+                changes.append(
+                    f"WARNING: illegal external transition ignored for {story_id}: "
+                    f"{tf.status} → {github_state} ({err})"
+                )
+        else:
+            # New story from GitHub — create local tracking file
+            slug = slug_from_title(short_title(title))
+            filename = f"{story_id}-{slug}.md" if slug else f"{story_id}.md"
+            path = stories_dir / filename
+            tf = TF(
+                path=path,
+                story=story_id,
+                title=short_title(title),
+                sprint=sprint,
+                status=github_state,
+                issue_number=issue_num,
+            )
+            atomic_write_tf(tf)
+            local_by_id[story_id] = tf
+            changes.append(f"created tracking file for new story {story_id} ({github_state})")
+
+    # Warn about local stories absent from GitHub
+    for story_id, tf in local_by_id.items():
+        if story_id not in github_ids:
+            changes.append(
+                f"WARNING: local story {story_id} not found on GitHub"
+            )
+
+    return changes
+
+
+# §kanban.do_status
+def do_status(sprints_dir: Path, sprint: int) -> str:
+    """Read-only board view from local tracking files.  No GitHub calls.
+
+    Returns a formatted string grouping stories by kanban state.
+    """
+    stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
+    if not stories_dir.is_dir():
+        return f"Sprint {sprint}\n\n(no stories found)"
+
+    # Ordered state list for display
+    _STATE_ORDER = ("todo", "design", "dev", "review", "integration", "done")
+
+    buckets: dict[str, list[TF]] = {state: [] for state in _STATE_ORDER}
+    for md_file in sorted(stories_dir.glob("*.md")):
+        tf = read_tf(md_file)
+        state = tf.status if tf.status in buckets else "todo"
+        buckets[state].append(tf)
+
+    lines: list[str] = [f"Sprint {sprint}", ""]
+    for state in _STATE_ORDER:
+        stories = buckets[state]
+        if not stories:
+            continue
+        lines.append(f"{state.upper()} ({len(stories)}):")
+        for tf in stories:
+            persona_parts = []
+            if tf.implementer:
+                persona_parts.append(tf.implementer)
+            if tf.reviewer:
+                persona_parts.append(tf.reviewer)
+            persona_str = f" ({' → '.join(persona_parts)})" if persona_parts else ""
+            lines.append(f"  {tf.story}{persona_str}")
+    return "\n".join(lines)
