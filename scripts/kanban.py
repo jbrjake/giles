@@ -92,7 +92,7 @@ def check_preconditions(tf: TF, target: str) -> str | None:
     ------------------
     design      — tf.implementer must be set
     dev         — tf.branch and tf.pr_number must both be set
-    review      — tf.reviewer must be set
+    review      — tf.implementer and tf.reviewer must be set
     done        — tf.pr_number must be set
     todo / integration — no preconditions
     """
@@ -110,8 +110,15 @@ def check_preconditions(tf: TF, target: str) -> str | None:
                 f"Precondition failed: {', '.join(missing)} must be set before entering dev."
             )
     elif target == "review":
+        missing = []
+        if not tf.implementer:
+            missing.append("implementer")
         if not tf.reviewer:
-            return "Precondition failed: 'reviewer' must be set before entering review."
+            missing.append("reviewer")
+        if missing:
+            return (
+                f"Precondition failed: {', '.join(missing)} must be set before entering review."
+            )
     elif target == "done":
         if not tf.pr_number:
             return "Precondition failed: 'pr_number' must be set before entering done."
@@ -134,9 +141,11 @@ def atomic_write_tf(tf: TF) -> None:
     tmp = tf.path.with_suffix(".tmp")
     original_path = tf.path
     tf.path = tmp
-    write_tf(tf)
-    tf.path = original_path
-    os.rename(str(tmp), str(tf.path))
+    try:
+        write_tf(tf)
+    finally:
+        tf.path = original_path
+    os.rename(str(tmp), str(original_path))
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +162,7 @@ def lock_story(tracking_path: Path) -> Generator[None, None, None]:
     The file must already exist.  If concurrent processes race, they block
     until the lock is released.
     """
-    with open(tracking_path, "r+", encoding="utf-8") as fh:
+    with open(tracking_path, "r", encoding="utf-8") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
         try:
             yield

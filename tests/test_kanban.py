@@ -138,9 +138,14 @@ class TestPreconditions(unittest.TestCase):
         tf = self._tf(reviewer="")
         self.assertIsNotNone(check_preconditions(tf, "review"))
 
-    def test_dev_to_review_ok_with_reviewer(self):
-        tf = self._tf(reviewer="chen")
+    def test_dev_to_review_ok_with_both_assigned(self):
+        tf = self._tf(implementer="rae", reviewer="chen")
         self.assertIsNone(check_preconditions(tf, "review"))
+
+    def test_dev_to_review_requires_implementer(self):
+        tf = self._tf(implementer="", reviewer="chen")
+        self.assertIsNotNone(check_preconditions(tf, "review"))
+        self.assertIn("implementer", check_preconditions(tf, "review"))
 
     def test_integration_to_done_requires_pr_number(self):
         tf = self._tf(pr_number="")
