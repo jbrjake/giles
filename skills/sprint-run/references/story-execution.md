@@ -73,6 +73,9 @@ review style.
    are defined, update those progressive disclosure docs in lockstep
    with code changes. Code without updated docs is incomplete work.
 4. Push commits to the branch. Mark PR as ready for review.
+   Before transitioning, ensure the tracking file has `branch` and `pr_number`
+   fields set (the implementer writes these after creating the draft PR in the
+   previous phase). The `dev` precondition requires both fields.
    ```bash
    git push origin {branch_name}
    gh pr ready {pr_number}
@@ -138,7 +141,11 @@ before proceeding to integration.
    ```bash
    gh pr merge {pr_number} --squash --delete-branch
    ```
-4. Close the story (the script handles the label swap and issue close):
+3.5. Transition to integration (required intermediate state):
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} integration
+   ```
+4. Confirm merge is complete, then close the story:
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} done
    ```
