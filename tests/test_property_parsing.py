@@ -182,7 +182,7 @@ class TestYamlSafe:
 
     @given(st.text(min_size=1, max_size=200))
     @settings(max_examples=500)
-    def test_empty_preserves_empty(self, value: str):
+    def test_nonempty_input_produces_nonempty_output(self, value: str):
         """Non-empty input produces non-empty output."""
         result = _yaml_safe(value)
         assert len(result) > 0

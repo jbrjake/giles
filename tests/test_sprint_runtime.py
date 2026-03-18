@@ -70,6 +70,8 @@ class TestCheckCI(unittest.TestCase):
         report, actions = check_status.check_ci()
         self.assertIn("1 failing", report[0])
         self.assertTrue(len(actions) > 0)
+        # BH22-061: Verify the log fetch used the correct run database ID
+        self.assertIn("42", str(mock_gh.call_args))
 
 
 class TestCheckPRs(unittest.TestCase):

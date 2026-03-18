@@ -368,10 +368,15 @@ class TestTransitionCommand(unittest.TestCase):
                 # Local state updated
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "design")
-                # Verify label swap args were passed to gh
-                calls_str = str(mock.call_args_list)
-                self.assertIn("kanban:todo", calls_str)
-                self.assertIn("kanban:design", calls_str)
+                # BH22-058: Verify exact label swap call — issue number,
+                # --remove-label and --add-label in one call
+                first_call = mock.call_args_list[0]
+                args = first_call[0][0]  # positional arg list
+                self.assertIn("42", args)
+                self.assertIn("--remove-label", args)
+                self.assertIn("kanban:todo", args)
+                self.assertIn("--add-label", args)
+                self.assertIn("kanban:design", args)
 
     def test_transition_reverts_on_github_failure(self):
         """RuntimeError from gh reverts local file to old status."""
@@ -383,8 +388,10 @@ class TestTransitionCommand(unittest.TestCase):
                 # Local state must be reverted
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "todo")
-                # Verify the mock was called (and thus call_args is meaningful)
-                self.assertIn("issue", str(mock.call_args))
+                # BH22-054: Verify the failed call targeted the correct issue
+                call_str = str(mock.call_args)
+                self.assertIn("42", call_str)
+                self.assertIn("kanban:design", call_str)
 
     def test_transition_to_done_closes_issue(self):
         """Transitioning to done calls both label swap and issue close."""
@@ -493,7 +500,8 @@ class TestAssignCommand(unittest.TestCase):
                 all_gh_calls = str(mock_gh.call_args_list)
                 self.assertIn("persona:rae", all_gh_calls)
                 self.assertIn("persona:chen", all_gh_calls)
-                # Satisfy MonitoredMock for mock_json
+                # BH22-052: Verify gh_json was called with the issue number
+                self.assertIn("43", str(mock_json.call_args))
                 self.assertIn("view", str(mock_json.call_args))
 
 
@@ -699,17 +707,17 @@ class TestCLI(unittest.TestCase):
         self.assertIn("status", result.stdout)
 
 
-class TestMainIntegration(unittest.TestCase):
-    """Integration test calling kanban.main() to satisfy meta-test coverage."""
+class TestCLIInfrastructure(unittest.TestCase):
+    """CLI plumbing tests — validates arg parsing and error handling,
+    not kanban logic.  These exercise load_config / arg dispatch paths."""
 
-    def test_main_status_no_config(self):
-        """main() with status exits 1 when no sprint-config exists."""
+    def test_main_exits_1_without_config(self):
+        """main() with any subcommand exits 1 when no sprint-config exists."""
         from unittest.mock import patch as _patch
         import kanban
         with _patch("sys.argv", ["kanban.py", "status"]):
             with self.assertRaises(SystemExit) as ctx:
                 kanban.main()
-            # Exits 1 because load_config() fails (no sprint-config/)
             self.assertEqual(ctx.exception.code, 1)
 
 
