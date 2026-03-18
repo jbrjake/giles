@@ -38,7 +38,7 @@ and acceptance criteria, then produces a design.
 4. Apply labels: persona, sprint, saga, priority, `kanban:design`.
    ```bash
    gh pr edit {pr_number} --add-label "persona:{persona},sprint:{N},saga:{saga},priority:{pri},kanban:design"
-   gh issue edit {issue_number} --remove-label "kanban:todo" --add-label "kanban:design"
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design
    ```
 
 The PR description carries full context because reviewers should never
@@ -76,7 +76,7 @@ review style.
    ```bash
    git push origin {branch_name}
    gh pr ready {pr_number}
-   gh issue edit {issue_number} --remove-label "kanban:design" --add-label "kanban:dev"
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} dev
    ```
 
 ---
@@ -99,7 +99,10 @@ full agent protocol. The reviewer's persona file (from
 4. If approved: proceed to integration.
 5. If changes requested: implementer addresses feedback, then
    re-requests review. This loop repeats until approval.
-6. Update the GitHub issue label to `kanban:review`.
+6. Update the GitHub issue kanban state:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} review
+   ```
 
 <!-- §story-execution.pair_review_high_risk_stories -->
 ### Pair Review (High-Risk Stories)
@@ -135,10 +138,9 @@ before proceeding to integration.
    ```bash
    gh pr merge {pr_number} --squash --delete-branch
    ```
-4. Update the GitHub issue label and close:
+4. Close the story (the script handles the label swap and issue close):
    ```bash
-   gh issue edit {issue_number} --remove-label "kanban:review" --add-label "kanban:done"
-   gh issue close {issue_number}
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} done
    ```
 5. Update burndown:
    ```bash
