@@ -68,6 +68,7 @@ from kanban import (  # noqa: E402 — conftest.py puts scripts/ on sys.path
     do_assign,
     do_sync,
     do_status,
+    do_update,
 )
 from gh_test_helpers import patch_gh
 
@@ -648,6 +649,85 @@ class TestSyncCommand(unittest.TestCase):
             # No tracking file should be created
             stories = list((sprints_dir / "sprint-1" / "stories").glob("*.md"))
             self.assertEqual(len(stories), 0)
+
+
+class TestUpdateCommand(unittest.TestCase):
+    """do_update() safely updates individual tracking file fields."""
+
+    def _make_tf(self, td: str, **kwargs) -> TF:
+        stories_dir = Path(td) / "sprint-1" / "stories"
+        stories_dir.mkdir(parents=True, exist_ok=True)
+        p = stories_dir / "US-0050-update-test.md"
+        defaults = dict(
+            path=p, story="US-0050", title="Update test", sprint=1,
+            status="design", implementer="rae", issue_number="50",
+        )
+        defaults.update(kwargs)
+        tf = TF(**defaults)
+        write_tf(tf)
+        return tf
+
+    def test_update_pr_number_and_branch(self):
+        """Sets pr_number and branch fields atomically."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            ok = do_update(tf, pr_number="42", branch="sprint-1/US-0050-update")
+            self.assertTrue(ok)
+            loaded = read_tf(tf.path)
+            self.assertEqual(loaded.pr_number, "42")
+            self.assertEqual(loaded.branch, "sprint-1/US-0050-update")
+
+    def test_update_skips_none_fields(self):
+        """None values are ignored — only explicit strings are updated."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, pr_number="10", branch="old-branch")
+            ok = do_update(tf, pr_number=None, branch="new-branch")
+            self.assertTrue(ok)
+            loaded = read_tf(tf.path)
+            self.assertEqual(loaded.pr_number, "10")  # unchanged
+            self.assertEqual(loaded.branch, "new-branch")
+
+    def test_update_no_changes(self):
+        """When values match current state, no write is performed."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, pr_number="42")
+            ok = do_update(tf, pr_number="42")
+            self.assertTrue(ok)
+
+
+class TestSyncPrune(unittest.TestCase):
+    """do_sync(prune=True) removes orphaned local stories."""
+
+    def _sprints_dir(self, td: str) -> Path:
+        d = Path(td) / "sprints"
+        (d / "sprint-1" / "stories").mkdir(parents=True, exist_ok=True)
+        return d
+
+    def test_prune_removes_orphaned_file(self):
+        """Local story absent from GitHub is deleted when prune=True."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            p = stories_dir / "US-0099-orphan.md"
+            tf = TF(path=p, story="US-0099", title="Orphan", sprint=1, status="dev")
+            write_tf(tf)
+            self.assertTrue(p.exists())
+            changes = do_sync(sprints_dir, 1, [], prune=True)
+            self.assertFalse(p.exists())
+            pruned = [c for c in changes if "pruned" in c and "US-0099" in c]
+            self.assertTrue(pruned)
+
+    def test_no_prune_keeps_file(self):
+        """Default (prune=False) keeps orphaned files and warns."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            p = stories_dir / "US-0099-orphan.md"
+            tf = TF(path=p, story="US-0099", title="Orphan", sprint=1, status="dev")
+            write_tf(tf)
+            changes = do_sync(sprints_dir, 1, [], prune=False)
+            self.assertTrue(p.exists())
+            self.assertTrue(any("--prune" in c for c in changes))
 
 
 class TestStatusCommand(unittest.TestCase):

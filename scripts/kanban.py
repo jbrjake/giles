@@ -4,7 +4,8 @@
 Usage:
     kanban.py transition <story-id> <target-state> [--sprint N]
     kanban.py assign <story-id> --implementer <name> [--reviewer <name>] [--sprint N]
-    kanban.py sync [--sprint N]
+    kanban.py update <story-id> [--pr-number N] [--branch NAME] [--sprint N]
+    kanban.py sync [--sprint N] [--prune]
     kanban.py status [--sprint N]
 
 Source of truth: local tracking files (sprint-{N}/stories/*.md).
@@ -338,11 +339,14 @@ def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
 
 
 # §kanban.do_sync
-def do_sync(sprints_dir: Path, sprint: int, issues: list) -> list[str]:
+def do_sync(sprints_dir: Path, sprint: int, issues: list,
+            *, prune: bool = False) -> list[str]:
     """Bidirectional sync — accepts legal external GitHub changes, creates new stories.
 
     Takes a pre-fetched list of GitHub issue dicts so callers control the API
     query (no GitHub calls made here).  Returns a list of change descriptions.
+    When *prune* is True, orphaned local stories (not found on GitHub) are
+    deleted instead of just warned about.
     """
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)
@@ -420,14 +424,48 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list) -> list[str]:
             local_by_id[story_id] = tf
             changes.append(f"created tracking file for new story {story_id} ({github_state})")
 
-    # Warn about local stories absent from GitHub
+    # Warn (or prune) local stories absent from GitHub
     for story_id, tf in local_by_id.items():
         if story_id not in github_ids:
-            changes.append(
-                f"WARNING: local story {story_id} not found on GitHub"
-            )
+            if prune:
+                tf.path.unlink(missing_ok=True)
+                lock_file = tf.path.with_suffix(".lock")
+                lock_file.unlink(missing_ok=True)
+                changes.append(f"pruned orphaned story {story_id} ({tf.path.name})")
+            else:
+                changes.append(
+                    f"WARNING: local story {story_id} not found on GitHub "
+                    f"(use --prune to remove orphaned files)"
+                )
 
     return changes
+
+
+# §kanban.do_update
+def do_update(tf: TF, **fields: str) -> bool:
+    """Update individual tracking file fields safely.
+
+    Only non-None values are applied.  Writes atomically under lock.
+    Returns True on success.
+    """
+    changed = []
+    for key, value in fields.items():
+        if value is None:
+            continue
+        if not hasattr(tf, key):
+            print(f"Unknown field: {key}", file=sys.stderr)
+            return False
+        old = getattr(tf, key)
+        if old != value:
+            setattr(tf, key, value)
+            changed.append(f"{key}: {old!r} → {value!r}")
+    if changed:
+        atomic_write_tf(tf)
+        for c in changed:
+            print(f"{tf.story}: {c}")
+    else:
+        print(f"{tf.story}: no changes")
+    return True
 
 
 # §kanban.do_status
@@ -490,6 +528,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     sy = sub.add_parser("sync", help="Bidirectional sync with GitHub")
     sy.add_argument("--sprint", type=int, default=None)
+    sy.add_argument("--prune", action="store_true",
+                    help="Delete local tracking files for stories not on GitHub")
+
+    up = sub.add_parser("update", help="Update tracking file fields")
+    up.add_argument("story_id", help="Story ID (e.g., US-0042)")
+    up.add_argument("--pr-number", default=None)
+    up.add_argument("--branch", default=None)
+    up.add_argument("--sprint", type=int, default=None)
 
     st = sub.add_parser("status", help="Show kanban board")
     st.add_argument("--sprint", type=int, default=None)
@@ -527,7 +573,7 @@ def main() -> None:
             sys.exit(1)
         issues = list_milestone_issues(ms["title"])
         with lock_sprint(sprint_dir):
-            changes = do_sync(sprints_dir, sprint, issues)
+            changes = do_sync(sprints_dir, sprint, issues, prune=args.prune)
         if changes:
             for c in changes:
                 print(f"  {c}")
@@ -554,6 +600,11 @@ def main() -> None:
             sys.exit(2)
         with lock_story(tf.path):
             ok = do_assign(tf, implementer=args.implementer, reviewer=args.reviewer)
+        sys.exit(0 if ok else 1)
+
+    if args.command == "update":
+        with lock_story(tf.path):
+            ok = do_update(tf, pr_number=args.pr_number, branch=args.branch)
         sys.exit(0 if ok else 1)
 
 

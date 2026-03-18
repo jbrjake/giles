@@ -124,6 +124,7 @@ what you need without reading entire files.
 | §kanban.atomic_write_tf | `atomic_write_tf()` | Write tracking file atomically via temp file + rename |
 | §kanban.do_transition | `do_transition()` | Validate + update tracking file + sync GitHub label |
 | §kanban.do_assign | `do_assign()` | Set implementer/reviewer in tracking file + GitHub labels |
+| §kanban.do_update | `do_update()` | Update individual tracking file fields (pr_number, branch, etc.) |
 | §kanban.do_sync | `do_sync()` | Pull external GitHub label changes into local tracking files |
 | §kanban.do_status | `do_status()` | Print kanban board (stories grouped by state) |
 | §kanban.main | `main()` | CLI entry point: transition, assign, sync, status subcommands |
