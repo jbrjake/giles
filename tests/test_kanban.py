@@ -607,6 +607,40 @@ class TestSyncCommand(unittest.TestCase):
             warnings = [c for c in changes if "WARNING" in c and "US-0099" in c]
             self.assertTrue(warnings, f"Expected warning, got: {changes}")
 
+    # BH22-105: find_story warns on multiple matches
+    def test_find_story_warns_on_multiple_matches(self):
+        """find_story emits a warning when multiple files match the same ID."""
+        import io
+        from contextlib import redirect_stderr
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+            # Create two files that both match US-0042
+            for name in ("US-0042-first.md", "US-0042-second.md"):
+                tf = TF(path=stories_dir / name, story="US-0042",
+                        title="Dupe", sprint=1, status="todo")
+                write_tf(tf)
+            buf = io.StringIO()
+            with redirect_stderr(buf):
+                result = find_story("US-0042", sprints_dir, sprint=1)
+            self.assertIsNotNone(result)
+            self.assertIn("multiple tracking files", buf.getvalue())
+
+    # BH22-114: Malformed issue titles skip tracking file creation
+    def test_sync_skips_malformed_issue_title(self):
+        """Issues with no recognizable story ID produce a warning, not a file."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            # Issue with just a colon — extract_story_id falls back to UNKNOWN
+            issues = [self._issue(99, ":", labels=["kanban:todo"])]
+            changes = do_sync(sprints_dir, 1, issues)
+            warnings = [c for c in changes if "WARNING" in c and "no recognizable" in c]
+            self.assertTrue(warnings, f"Expected skip warning, got: {changes}")
+            # No tracking file should be created
+            stories = list((sprints_dir / "sprint-1" / "stories").glob("*.md"))
+            self.assertEqual(len(stories), 0)
+
 
 class TestStatusCommand(unittest.TestCase):
     """do_status() renders a board view from local tracking files."""

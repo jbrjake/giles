@@ -168,11 +168,16 @@ def create_from_issue(
     issue: dict, sprint: int, d: Path, pr: dict | None
 ) -> tuple[TF, list[str]]:
     sid = extract_story_id(issue["title"])
-    slug = slug_from_title(issue["title"])
+    short = short_title(issue["title"])
+    slug = slug_from_title(short)
+    # BH22-117: Match kanban.py do_sync filename convention — uppercase story
+    # ID prefix, lowercase slug suffix.  This prevents duplicate tracking files
+    # when both sync paths run on a fresh sprint.
+    story_id_upper = sid.upper()
+    filename = f"{story_id_upper}-{slug}.md" if slug else f"{story_id_upper}.md"
     # BH21-012: kanban_from_labels now handles closed-issue override internally
     status = kanban_from_labels(issue)
-    short = short_title(issue["title"])
-    target = d / f"{slug}.md"
+    target = d / filename
     # BH-016: Detect slug collision — if a file exists with a different story ID,
     # append issue number to make the slug unique.
     if target.is_file():

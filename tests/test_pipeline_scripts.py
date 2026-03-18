@@ -1404,24 +1404,24 @@ class TestExtractStoryId(unittest.TestCase):
         self.assertEqual(extract_story_id("PROJ-42: Widget"), "PROJ-42")
 
     def test_no_match_falls_back_to_slug(self):
-        """P5-19: Fallback produces a sanitized slug, not raw text."""
-        self.assertEqual(extract_story_id("setup: init project"), "setup")
+        """P5-19: Fallback produces a sanitized uppercase slug, not raw text."""
+        self.assertEqual(extract_story_id("setup: init project"), "SETUP")
 
     def test_no_colon_returns_sanitized_slug(self):
-        """P5-19: Full title without colon becomes a lowercase slug."""
+        """P5-19: Full title without colon becomes an uppercase slug."""
         result = extract_story_id("no colon here")
-        self.assertEqual(result, "no-colon-here")
+        self.assertEqual(result, "NO-COLON-HERE")
         # Slug should be filesystem-safe
-        self.assertRegex(result, r'^[a-z0-9_-]+$')
+        self.assertRegex(result, r'^[A-Z0-9_-]+$')
 
     def test_special_chars_sanitized(self):
         """P5-19: Special characters become dashes in the slug."""
         result = extract_story_id("Add authentication: security module")
-        self.assertEqual(result, "add-authentication")
+        self.assertEqual(result, "ADD-AUTHENTICATION")
 
     def test_empty_title_returns_unknown(self):
-        """P5-19: Empty title returns 'unknown' as fallback."""
-        self.assertEqual(extract_story_id(""), "unknown")
+        """P5-19: Empty title returns 'UNKNOWN' as fallback."""
+        self.assertEqual(extract_story_id(""), "UNKNOWN")
 
     def test_slug_truncated_at_40(self):
         """P5-19: Long slugs are truncated to prevent filesystem issues."""

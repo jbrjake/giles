@@ -66,9 +66,9 @@ class TestExtractStoryId:
         # Standard IDs are PREFIX-NNN — always safe
         if re.match(r"^[A-Z]+-\d+$", result):
             return
-        # Fallback slugs or "unknown" — must be lowercase alphanumeric + dash/underscore
+        # Fallback slugs or "UNKNOWN" — must be uppercase alphanumeric + dash/underscore
         assert re.match(
-            r"^[a-z0-9_-]+$", result
+            r"^[A-Z0-9_-]+$", result
         ), f"Unsafe slug {result!r} for title={title!r}"
 
     @given(st.text(min_size=0, max_size=200))

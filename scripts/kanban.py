@@ -203,18 +203,27 @@ def find_story(story_id: str, sprints_dir: Path, sprint: int) -> TF | None:
 
     Matches files whose stem begins with the story ID (e.g.
     ``US-0042-some-feature.md`` matches story ID ``US-0042``).  Returns a
-    populated :class:`TF` on the first match, or ``None`` if not found.
+    populated :class:`TF` on the first sorted match.  If multiple files
+    match, a warning is printed to stderr listing all matches.
+    Returns ``None`` if not found.
     """
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     if not stories_dir.is_dir():
         return None
     prefix = story_id.upper()
+    matches: list[Path] = []
     for md_file in sorted(stories_dir.glob("*.md")):
         stem = md_file.stem.upper()
         # Match exact ID or ID followed by a dash (slug separator)
         if stem == prefix or stem.startswith(prefix + "-"):
-            return read_tf(md_file)
-    return None
+            matches.append(md_file)
+    if not matches:
+        return None
+    if len(matches) > 1:
+        names = ", ".join(m.name for m in matches)
+        print(f"Warning: multiple tracking files match {story_id}: {names}. "
+              "Using first match.", file=sys.stderr)
+    return read_tf(matches[0])
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +398,13 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list) -> list[str]:
                 )
         else:
             # New story from GitHub — create local tracking file
+            # BH22-114: skip issues with no recognizable story ID
+            if story_id == "UNKNOWN":
+                changes.append(
+                    f"WARNING: issue #{issue_num} ({title!r}) has no recognizable "
+                    f"story ID — skipping tracking file creation"
+                )
+                continue
             slug = slug_from_title(short_title(title))
             filename = f"{story_id}-{slug}.md" if slug else f"{story_id}.md"
             path = stories_dir / filename

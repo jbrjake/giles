@@ -943,10 +943,12 @@ def extract_story_id(title: str) -> str:
     m = re.match(r"([A-Z]+-\d+)", title)
     if m:
         return m.group(1)
-    # Fallback: sanitize the prefix before any colon into a safe slug
+    # Fallback: sanitize the prefix before any colon into a safe slug.
+    # BH22-111: Return uppercase to match [A-Z]+-\d+ convention; callers
+    # should not need to remember to call .upper() on the result.
     prefix = title.split(":")[0].strip()
-    slug = re.sub(r"[^a-zA-Z0-9_-]", "-", prefix).strip("-").lower()
-    return slug[:40] if slug else "unknown"
+    slug = re.sub(r"[^a-zA-Z0-9_-]", "-", prefix).strip("-").upper()
+    return slug[:40] if slug else "UNKNOWN"
 
 
 # §validate_config.short_title
