@@ -33,6 +33,7 @@ NAMESPACE_MAP: dict[str, str] = {
     "manage_epics": "scripts/manage_epics.py",
     "manage_sagas": "scripts/manage_sagas.py",
     "commit": "scripts/commit.py",
+    "kanban": "scripts/kanban.py",
     # Skill scripts (nested under skills/)
     "bootstrap_github": "skills/sprint-setup/scripts/bootstrap_github.py",
     "populate_issues": "skills/sprint-setup/scripts/populate_issues.py",

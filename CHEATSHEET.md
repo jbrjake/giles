@@ -127,10 +127,6 @@ what you need without reading entire files.
 | _(removed: BH21-016)_ | `find_milestone()` | Uses shared `validate_config.find_milestone()` directly |
 | §sync_tracking._fetch_all_prs | `_fetch_all_prs()` | Batch-fetch all PRs (one API call for entire sync) |
 | §sync_tracking.get_linked_pr | `get_linked_pr()` | Find PR linked to issue via timeline, fallback to branch |
-| §sync_tracking.slug_from_title | `slug_from_title()` | Slugify issue title for tracking filename |
-| §sync_tracking.TF | `TF` | Tracking file dataclass (story metadata) |
-| §sync_tracking.read_tf | `read_tf()` | Parse YAML frontmatter from story file |
-| §sync_tracking.write_tf | `write_tf()` | Write story file with frontmatter |
 | §sync_tracking.sync_one | `sync_one()` | Reconcile one story: GitHub vs local |
 | §sync_tracking.create_from_issue | `create_from_issue()` | Create local tracking file from GitHub issue |
 
