@@ -8,9 +8,9 @@
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
-| HIGH     | 8    | 0        | 0        |
-| MEDIUM   | 15   | 0        | 0        |
-| LOW      | 17   | 0        | 0        |
+| HIGH     | 0    | 8        | 0        |
+| MEDIUM   | 0    | 15       | 0        |
+| LOW      | 0    | 17       | 0        |
 
 ## Prioritized Action Items
 
