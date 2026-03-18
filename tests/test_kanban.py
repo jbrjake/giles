@@ -544,5 +544,19 @@ class TestCLI(unittest.TestCase):
         self.assertIn("status", result.stdout)
 
 
+class TestMainIntegration(unittest.TestCase):
+    """Integration test calling kanban.main() to satisfy meta-test coverage."""
+
+    def test_main_status_no_config(self):
+        """main() with status exits 1 when no sprint-config exists."""
+        from unittest.mock import patch as _patch
+        import kanban
+        with _patch("sys.argv", ["kanban.py", "status"]):
+            with self.assertRaises(SystemExit) as ctx:
+                kanban.main()
+            # Exits 1 because load_config() fails (no sprint-config/)
+            self.assertEqual(ctx.exception.code, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
