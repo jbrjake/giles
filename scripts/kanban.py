@@ -139,16 +139,17 @@ def atomic_write_tf(tf: TF) -> None:
     Creates parent directories as needed.  The destination file either
     contains the complete new content or the old content; there is no
     observable window with a partial write.
+
+    Does NOT mutate ``tf.path`` — writes to a temp file via a shallow
+    copy to avoid visible side effects on the caller's TF object.
     """
     tf.path.parent.mkdir(parents=True, exist_ok=True)
     tmp = tf.path.with_suffix(".tmp")
-    original_path = tf.path
-    tf.path = tmp
-    try:
-        write_tf(tf)
-    finally:
-        tf.path = original_path
-    os.rename(str(tmp), str(original_path))
+    # Write via a shallow copy so tf.path is never mutated
+    import dataclasses
+    tmp_tf = dataclasses.replace(tf, path=tmp)
+    write_tf(tmp_tf)
+    os.rename(str(tmp), str(tf.path))
 
 
 # ---------------------------------------------------------------------------
@@ -159,13 +160,15 @@ def atomic_write_tf(tf: TF) -> None:
 
 @contextmanager
 def lock_story(tracking_path: Path) -> Generator[None, None, None]:
-    """Acquire an exclusive POSIX lock on *tracking_path* for the duration of
-    the ``with`` block.
+    """Acquire an exclusive POSIX lock for a story via a sentinel file.
 
-    The file must already exist.  If concurrent processes race, they block
-    until the lock is released.
+    Uses ``tracking_path.with_suffix('.lock')`` as the lock target so that
+    ``atomic_write_tf``'s inode-replacing rename does not invalidate the
+    lock.  The sentinel file is stable across renames.
     """
-    with open(tracking_path, "r", encoding="utf-8") as fh:
+    lock_path = tracking_path.with_suffix(".lock")
+    lock_path.touch(exist_ok=True)
+    with open(lock_path, "r", encoding="utf-8") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
         try:
             yield
@@ -256,10 +259,16 @@ def do_transition(tf: TF, target: str) -> bool:
         print(f"{tf.story}: {old_status} → {target}")
         return True
     except RuntimeError as exc:
-        tf.status = old_status
-        atomic_write_tf(tf)
-        print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
-              file=sys.stderr)
+        try:
+            tf.status = old_status
+            atomic_write_tf(tf)
+            print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
+                  file=sys.stderr)
+        except Exception as rollback_exc:
+            print(f"{tf.story}: CRITICAL — GitHub update failed ({exc}) AND "
+                  f"local rollback failed ({rollback_exc}). Local and GitHub "
+                  f"state may be inconsistent. Run 'kanban.py sync' to reconcile.",
+                  file=sys.stderr)
         return False
 
 
@@ -300,11 +309,17 @@ def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
                 gh(["issue", "edit", issue_num, "--body", new_body])
         return True
     except RuntimeError as exc:
-        tf.implementer = old_implementer
-        tf.reviewer = old_reviewer
-        atomic_write_tf(tf)
-        print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
-              file=sys.stderr)
+        try:
+            tf.implementer = old_implementer
+            tf.reviewer = old_reviewer
+            atomic_write_tf(tf)
+            print(f"{tf.story}: local state reverted. GitHub update failed: {exc}. "
+                  "Note: persona labels already applied on GitHub may persist.",
+                  file=sys.stderr)
+        except Exception as rollback_exc:
+            print(f"{tf.story}: CRITICAL — GitHub update failed ({exc}) AND "
+                  f"local rollback failed ({rollback_exc}). Run 'kanban.py sync'.",
+                  file=sys.stderr)
         return False
 
 
@@ -461,7 +476,7 @@ def main() -> None:
         sys.exit(1)
     sprints_dir = get_sprints_dir(config)
 
-    sprint = args.sprint or detect_sprint(sprints_dir)
+    sprint = detect_sprint(sprints_dir) if args.sprint is None else args.sprint
     if sprint is None:
         print("Cannot detect sprint number. Use --sprint N.", file=sys.stderr)
         sys.exit(1)
