@@ -358,20 +358,16 @@ class TestAssignCommand(unittest.TestCase):
         write_tf(tf)
         return tf
 
-    def _make_gh_side_effect(self):
-        """Return a side_effect that handles view (body) and edit calls."""
-        import json as _json
-
-        def side_effect(args):
-            # gh_json call: ["issue", "view", num, "--json", "body"]
-            # do_assign calls gh_json for view, so this handles the gh mock
-            if "view" in args:
-                return _json.dumps(
-                    {"body": "> **[Unassigned]** \u00b7 Implementation\n\n## Story"}
-                )
-            return ""
-
-        return side_effect
+    def test_assign_reverts_on_github_failure(self):
+        """RuntimeError from gh reverts local file to old personas."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, implementer="old-impl")
+            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")) as mock:
+                result = do_assign(tf, implementer="new-impl")
+                self.assertFalse(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.implementer, "old-impl")
+                self.assertIn("issue", str(mock.call_args))
 
     def test_assign_implementer(self):
         """Assigning implementer adds persona label and updates local file."""
