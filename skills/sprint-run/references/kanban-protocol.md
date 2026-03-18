@@ -48,6 +48,20 @@ integration → done  CI green, merged, issue closed
   2. Story tracking file in `{sprints_dir}/sprint-{N}/`
   3. Sprint status file
 
+<!-- §kanban-protocol.preconditions -->
+## Preconditions
+
+The state machine enforces entry conditions before allowing a transition.
+Use `kanban.py assign` to set fields before `kanban.py transition`.
+
+| Target state | Required fields |
+|---|---|
+| design | `implementer` must be set |
+| dev | `branch` and `pr_number` must be set |
+| review | `implementer` and `reviewer` must be set |
+| done | `pr_number` must be set |
+| todo, integration | (no preconditions) |
+
 <!-- §kanban-protocol.github_label_sync_procedure -->
 ## GitHub Label Sync
 
@@ -57,9 +71,9 @@ All state transitions go through the centralized state machine:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition <story-id> <target-state>
 ```
 
-The script validates the transition is legal, updates the local tracking
-file, and syncs the GitHub issue label atomically. Never use raw
-`gh issue edit` for kanban labels — always use `kanban.py`.
+The script validates the transition is legal, checks preconditions, updates
+the local tracking file, and syncs the GitHub issue label atomically. Never
+use raw `gh issue edit` for kanban labels — always use `kanban.py`.
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
@@ -68,12 +82,12 @@ file, and syncs the GitHub issue label atomically. Never use raw
 > constraints. No code enforces these limits — they rely on the AI personas
 > self-regulating during sprint execution.
 
-| State | Max stories (whole team) |
-|---|---|
-| design | No limit |
-| dev | 1 per persona |
-| review | 2 per reviewer persona |
-| integration | 3 |
+| State | Scope | Max stories |
+|---|---|---|
+| design | whole team | No limit |
+| dev | per persona | 1 |
+| review | per reviewer | 2 |
+| integration | whole team | 3 |
 
 If a WIP limit is reached, the team must pull stories through the bottleneck
 before starting new work.

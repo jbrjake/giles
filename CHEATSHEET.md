@@ -41,6 +41,10 @@ what you need without reading entire files.
 | §validate_config.find_milestone | `find_milestone()` | Look up GitHub milestone by sprint number |
 | §validate_config.list_milestone_issues | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
 | §validate_config.warn_if_at_limit | `warn_if_at_limit()` | Warn if API response is at pagination limit |
+| §validate_config.TABLE_ROW | `TABLE_ROW` | Regex for markdown table rows in tracking files |
+| §validate_config._yaml_safe | `_yaml_safe()` | Quote values with YAML-sensitive chars (bools, colons, numerics) |
+| §validate_config.frontmatter_value | `frontmatter_value()` | Extract single value from YAML frontmatter by key |
+| §validate_config.short_title | `short_title()` | Strip story ID prefix from title (everything after first colon) |
 
 ### scripts/sprint_init.py
 | Anchor | Function | Purpose |
@@ -84,6 +88,7 @@ what you need without reading entire files.
 | Anchor | Function | Purpose |
 |--------|----------|---------|
 | §populate_issues.Story | `Story` | Dataclass: story_id, title, saga, sp, priority, sprint, ACs |
+| §populate_issues._safe_compile_pattern | `_safe_compile_pattern()` | Validate user-supplied regex is safe to compile |
 | §populate_issues._build_row_regex | `_build_row_regex()` | Build/validate story table row regex from config |
 | §populate_issues.parse_milestone_stories | `parse_milestone_stories()` | Extract stories from all milestone files |
 | §populate_issues._infer_sprint_number | `_infer_sprint_number()` | Guess sprint number from filename (content-first) |
@@ -113,6 +118,8 @@ what you need without reading entire files.
 | §kanban.TRANSITIONS | `TRANSITIONS` | Allowed state transitions dict (source → set of targets) |
 | §kanban.validate_transition | `validate_transition()` | Raise ValueError if transition is not in TRANSITIONS |
 | §kanban.check_preconditions | `check_preconditions()` | Enforce WIP limits and other preconditions before transition |
+| §kanban.lock_story | `lock_story()` | Exclusive POSIX lock via sentinel file for per-story serialization |
+| §kanban.lock_sprint | `lock_sprint()` | Exclusive POSIX lock via sentinel file for sprint-level serialization |
 | §kanban.find_story | `find_story()` | Locate tracking file by story ID across sprint directories |
 | §kanban.atomic_write_tf | `atomic_write_tf()` | Write tracking file atomically via temp file + rename |
 | §kanban.do_transition | `do_transition()` | Validate + update tracking file + sync GitHub label |
@@ -284,6 +291,7 @@ what you need without reading entire files.
 ### skills/sprint-run/SKILL.md
 | Anchor | Section |
 |--------|---------|
+| §sprint-run.state_management | State management (kanban.py integration) |
 | §sprint-run.config_prerequisites | Config and prerequisites |
 | §sprint-run.phase_detection_reads_sprint_status_md | Phase detection (reads SPRINT-STATUS.md) |
 | §sprint-run.phase_1_sprint_kickoff_interactive | Phase 1: Sprint kickoff (INTERACTIVE) |
