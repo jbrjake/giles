@@ -42,9 +42,9 @@ completed:
 ```
 
 The `status` field mirrors kanban states: `todo`, `design`, `dev`,
-`review`, `integration`, `done`. GitHub is the source of truth for story state;
-`sync_tracking.py` updates local tracking files to match GitHub.
-If they diverge, GitHub wins.
+`review`, `integration`, `done`. Local tracking files are the source of
+truth for story state; `kanban.py` syncs changes to GitHub on every
+mutation. Use `kanban.py sync` to accept legal external GitHub changes.
 
 <!-- §tracking-formats.file_map_where_each_tracking_file_lives -->
 ## File Map

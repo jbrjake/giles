@@ -253,3 +253,7 @@ Do not proceed to development until:
 2. All blocking questions are resolved or have a resolution plan
 3. The team has confirmed commitment to the sprint scope
 4. The kickoff doc is written and saved
+5. Every story's persona assignment is synced to GitHub:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign {story_id} --implementer {impl} --reviewer {rev}
+   ```

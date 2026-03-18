@@ -51,12 +51,15 @@ integration → done  CI green, merged, issue closed
 <!-- §kanban-protocol.github_label_sync_procedure -->
 ## GitHub Label Sync
 
-On each transition, execute these steps in order:
+All state transitions go through the centralized state machine:
 
-1. Remove the old `kanban:*` label from the GitHub issue
-2. Add the new `kanban:*` label to the GitHub issue
-3. Update the project board column if using GitHub Projects
-4. Log the transition in the story tracking file with a timestamp
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition <story-id> <target-state>
+```
+
+The script validates the transition is legal, updates the local tracking
+file, and syncs the GitHub issue label atomically. Never use raw
+`gh issue edit` for kanban labels — always use `kanban.py`.
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits

@@ -107,6 +107,20 @@ what you need without reading entire files.
 | §setup_ci._LANG_EXTENSIONS | `_LANG_EXTENSIONS` | File extensions per language (for doc lint) |
 | §setup_ci.generate_ci_yaml | `generate_ci_yaml()` | Build complete workflow YAML from config |
 
+### scripts/kanban.py
+| Anchor | Function | Purpose |
+|--------|----------|---------|
+| §kanban.TRANSITIONS | `TRANSITIONS` | Allowed state transitions dict (source → set of targets) |
+| §kanban.validate_transition | `validate_transition()` | Raise ValueError if transition is not in TRANSITIONS |
+| §kanban.check_preconditions | `check_preconditions()` | Enforce WIP limits and other preconditions before transition |
+| §kanban.find_story | `find_story()` | Locate tracking file by story ID across sprint directories |
+| §kanban.atomic_write_tf | `atomic_write_tf()` | Write tracking file atomically via temp file + rename |
+| §kanban.do_transition | `do_transition()` | Validate + update tracking file + sync GitHub label |
+| §kanban.do_assign | `do_assign()` | Set implementer/reviewer in tracking file + GitHub labels |
+| §kanban.do_sync | `do_sync()` | Pull external GitHub label changes into local tracking files |
+| §kanban.do_status | `do_status()` | Print kanban board (stories grouped by state) |
+| §kanban.main | `main()` | CLI entry point: transition, assign, sync, status subcommands |
+
 ### skills/sprint-run/scripts/sync_tracking.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
