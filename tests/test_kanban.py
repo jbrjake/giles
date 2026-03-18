@@ -36,6 +36,20 @@ class TestTrackingFileIO(unittest.TestCase):
             self.assertEqual(loaded.status, "dev")
             self.assertEqual(loaded.pr_number, "42")
 
+    # BH22-060: Empty field round-trip
+    def test_round_trip_empty_fields(self):
+        """Write a TF with empty persona/branch fields and read back."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0002-empty.md"
+            tf = TF(path=p, story="US-0002", title="Empty fields",
+                    sprint=1, implementer="", reviewer="", branch="", pr_number="")
+            write_tf(tf)
+            loaded = read_tf(p)
+            self.assertEqual(loaded.implementer, "")
+            self.assertEqual(loaded.reviewer, "")
+            self.assertEqual(loaded.branch, "")
+            self.assertEqual(loaded.pr_number, "")
+
 
 # ---------------------------------------------------------------------------
 # Chunk 2 tests: Transition table, preconditions, atomic writes, locking,
@@ -198,6 +212,27 @@ class TestAtomicWrite(unittest.TestCase):
             loaded = read_tf(p)
             self.assertEqual(loaded.title, "Check updated")
 
+    # BH22-055: atomic_write_tf exception safety
+    def test_atomic_write_preserves_original_on_failure(self):
+        """If write_tf raises, the original file is untouched."""
+        from unittest.mock import patch as _patch
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0003-fail.md"
+            tf = TF(path=p, story="US-0003", title="Original", sprint=1, status="todo")
+            atomic_write_tf(tf)
+            # Now try to overwrite with a failing write.
+            # Patch kanban.write_tf because atomic_write_tf uses the name as
+            # imported into the kanban module (not validate_config.write_tf).
+            tf.status = "dev"
+            with _patch("kanban.write_tf", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    atomic_write_tf(tf)
+            # Original file should still have status=todo
+            loaded = read_tf(p)
+            self.assertEqual(loaded.status, "todo")
+            # tf.path should not have been mutated
+            self.assertEqual(tf.path, p)
+
 
 class TestFileLocking(unittest.TestCase):
     """lock_story() and lock_sprint() acquire and release without deadlock."""
@@ -269,6 +304,38 @@ class TestFindStory(unittest.TestCase):
             result = find_story("BUG-0007", sprints_dir, sprint=2)
             self.assertIsNotNone(result)
             self.assertEqual(result.story, "BUG-0007")
+
+    # BH22-057: find_story case insensitivity and prefix collision
+    def test_find_story_case_insensitive(self):
+        """find_story matches regardless of case in the search ID."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+            tf = TF(path=stories_dir / "us-0010-lowercase.md",
+                    story="US-0010", title="Test", sprint=1, status="todo")
+            write_tf(tf)
+            # Search with different casing
+            result = find_story("us-0010", sprints_dir, sprint=1)
+            self.assertIsNotNone(result)
+            self.assertEqual(result.story, "US-0010")
+
+    def test_find_story_no_prefix_collision(self):
+        """US-0042 should NOT match US-00420-other.md."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td)
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+            # Create both files
+            tf1 = TF(path=stories_dir / "US-0042-real.md",
+                     story="US-0042", title="Real", sprint=1, status="dev")
+            write_tf(tf1)
+            tf2 = TF(path=stories_dir / "US-00420-other.md",
+                     story="US-00420", title="Other", sprint=1, status="todo")
+            write_tf(tf2)
+            result = find_story("US-0042", sprints_dir, sprint=1)
+            self.assertIsNotNone(result)
+            self.assertEqual(result.story, "US-0042")  # not US-00420
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +458,21 @@ class TestAssignCommand(unittest.TestCase):
                 # Verify gh was called with persona label
                 self.assertIn("persona:rae", str(mock_gh.call_args_list))
 
+    # BH22-053: Reviewer-only assign
+    def test_assign_reviewer_only(self):
+        """Assigning only reviewer skips body update and only adds reviewer label."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            with patch_gh("kanban.gh") as mock_gh:
+                result = do_assign(tf, reviewer="chen")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.reviewer, "chen")
+                all_calls = str(mock_gh.call_args_list)
+                self.assertIn("persona:chen", all_calls)
+                # No body view should have been called (gh_json not patched)
+                self.assertNotIn("view", all_calls)
+
     def test_assign_both(self):
         """Assigning both implementer and reviewer adds both persona labels."""
         with tempfile.TemporaryDirectory() as td:
@@ -427,7 +509,10 @@ class TestSyncCommand(unittest.TestCase):
                labels: list | None = None) -> dict:
         if labels is None:
             labels = [f"kanban:{state}"] if state != "open" else ["kanban:todo"]
-        return {"number": number, "title": title, "state": "open", "labels": labels}
+        issue_state = "open"
+        if state == "closed":
+            issue_state = "closed"
+        return {"number": number, "title": title, "state": issue_state, "labels": labels, "closedAt": None}
 
     def _write_tf(self, sprints_dir: Path, sprint: int, **kwargs) -> TF:
         stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
@@ -485,6 +570,42 @@ class TestSyncCommand(unittest.TestCase):
             self.assertIsNotNone(result)
             self.assertEqual(result.story, "US-0099")
             self.assertEqual(result.status, "todo")
+
+    # BH22-050: Closed-issue sync coverage
+    def test_sync_closed_issue_becomes_done(self):
+        """Closed GitHub issue with no kanban label syncs as 'done'."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0047", status="review")
+            issues = [{"number": 47, "title": "US-0047: Feature C",
+                       "state": "closed", "labels": [],
+                       "closedAt": "2026-03-18T00:00:00Z"}]
+            changes = do_sync(sprints_dir, 1, issues)
+            result = find_story("US-0047", sprints_dir, 1)
+            self.assertEqual(result.status, "done")
+
+    def test_sync_closed_issue_overrides_stale_label(self):
+        """Closed issue with stale kanban:dev label still syncs as 'done'."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0048", status="dev")
+            issues = [{"number": 48, "title": "US-0048: Feature D",
+                       "state": "closed",
+                       "labels": [{"name": "kanban:dev"}],
+                       "closedAt": "2026-03-18T00:00:00Z"}]
+            changes = do_sync(sprints_dir, 1, issues)
+            result = find_story("US-0048", sprints_dir, 1)
+            self.assertEqual(result.status, "done")
+
+    # BH22-056: Local story absent from GitHub warning
+    def test_sync_warns_about_local_story_absent_from_github(self):
+        """Local story not on GitHub produces a warning."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0099", status="dev")
+            changes = do_sync(sprints_dir, 1, [])  # empty issues list
+            warnings = [c for c in changes if "WARNING" in c and "US-0099" in c]
+            self.assertTrue(warnings, f"Expected warning, got: {changes}")
 
 
 class TestStatusCommand(unittest.TestCase):

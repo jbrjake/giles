@@ -360,6 +360,19 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list) -> list[str]:
             if tf.status == github_state:
                 # No-op: states match
                 continue
+            # BH22-050: A closed GitHub issue is always authoritative — the
+            # issue has been explicitly closed, so force local state to done
+            # regardless of the kanban transition graph.
+            issue_closed = issue.get("state") == "closed"
+            if issue_closed and github_state == "done":
+                old = tf.status
+                tf.status = "done"
+                atomic_write_tf(tf)
+                changes.append(
+                    f"accepted external transition {story_id}: {old} → done "
+                    f"(issue closed on GitHub)"
+                )
+                continue
             # States diverge — validate the external transition
             err = validate_transition(tf.status, github_state)
             if err is None:

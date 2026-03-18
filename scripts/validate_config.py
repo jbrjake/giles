@@ -902,10 +902,14 @@ def frontmatter_value(frontmatter: str, key: str) -> str | None:
     The unescape order (quotes then backslashes) must match _yaml_safe()
     in sync_tracking.py.
     """
-    m = re.search(rf"^{key}:\s*(.+)", frontmatter, re.MULTILINE)
+    # BH22-060: Use [^\n]* instead of .+ to prevent \s* from consuming
+    # the newline and matching the next line when a field has an empty value.
+    m = re.search(rf"^{key}:[ \t]*([^\n]*)", frontmatter, re.MULTILINE)
     if not m:
         return None
     val = m.group(1).strip()
+    if not val:
+        return None
     # Strip surrounding double quotes and unescape (reverse of _yaml_safe)
     if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
         val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
