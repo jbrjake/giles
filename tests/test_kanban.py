@@ -1,6 +1,7 @@
 """Tests for kanban state machine and shared tracking file I/O."""
 from __future__ import annotations
 
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -517,6 +518,30 @@ class TestStatusCommand(unittest.TestCase):
             self.assertIn("US-0041", output)
             self.assertIn("US-0042", output)
             self.assertIn("US-0043", output)
+
+
+class TestCLI(unittest.TestCase):
+    def test_no_command_exits_2(self):
+        """Running kanban.py with no subcommand exits with code 2."""
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "kanban.py")],
+            capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 2)
+
+    def test_help_flag(self):
+        """--help exits 0 and shows subcommands."""
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent.parent / "scripts" / "kanban.py"), "--help"],
+            capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("transition", result.stdout)
+        self.assertIn("assign", result.stdout)
+        self.assertIn("sync", result.stdout)
+        self.assertIn("status", result.stdout)
 
 
 if __name__ == "__main__":

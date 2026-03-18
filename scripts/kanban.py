@@ -18,7 +18,8 @@ import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator, Iterator
+import argparse
+from typing import Generator
 
 try:
     import fcntl
@@ -414,3 +415,98 @@ def do_status(sprints_dir: Path, sprint: int) -> str:
             persona_str = f" ({' → '.join(persona_parts)})" if persona_parts else ""
             lines.append(f"  {tf.story}{persona_str}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# §kanban.build_parser
+# §kanban.main
+# ---------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Kanban state machine for sprint story management.")
+    sub = parser.add_subparsers(dest="command")
+
+    tr = sub.add_parser("transition", help="Transition a story to a new state")
+    tr.add_argument("story_id", help="Story ID (e.g., US-0042)")
+    tr.add_argument("target", help="Target kanban state")
+    tr.add_argument("--sprint", type=int, default=None)
+
+    asn = sub.add_parser("assign", help="Assign personas to a story")
+    asn.add_argument("story_id", help="Story ID (e.g., US-0042)")
+    asn.add_argument("--implementer", default="")
+    asn.add_argument("--reviewer", default="")
+    asn.add_argument("--sprint", type=int, default=None)
+
+    sy = sub.add_parser("sync", help="Bidirectional sync with GitHub")
+    sy.add_argument("--sprint", type=int, default=None)
+
+    st = sub.add_parser("status", help="Show kanban board")
+    st.add_argument("--sprint", type=int, default=None)
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(2)
+
+    try:
+        config = load_config()
+    except ConfigError:
+        sys.exit(1)
+    sprints_dir = get_sprints_dir(config)
+
+    sprint = args.sprint or detect_sprint(sprints_dir)
+    if sprint is None:
+        print("Cannot detect sprint number. Use --sprint N.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.command == "status":
+        print(do_status(sprints_dir, sprint))
+        return
+
+    if args.command == "sync":
+        sprint_dir = sprints_dir / f"sprint-{sprint}"
+        ms = find_milestone(sprint)
+        if not ms:
+            print(f"No GitHub milestone for Sprint {sprint}", file=sys.stderr)
+            sys.exit(1)
+        issues = list_milestone_issues(ms["title"])
+        with lock_sprint(sprint_dir):
+            changes = do_sync(sprints_dir, sprint, issues)
+        if changes:
+            for c in changes:
+                print(f"  {c}")
+        else:
+            print("Everything in sync")
+        return
+
+    # transition and assign need a story
+    tf = find_story(args.story_id, sprints_dir, sprint)
+    if tf is None:
+        print(f"{args.story_id}: no tracking file found in sprint {sprint}. "
+              "Run 'kanban.py sync' to pull new issues from GitHub.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    if args.command == "transition":
+        with lock_story(tf.path):
+            ok = do_transition(tf, args.target)
+        sys.exit(0 if ok else 1)
+
+    if args.command == "assign":
+        if not args.implementer and not args.reviewer:
+            print("Provide --implementer and/or --reviewer", file=sys.stderr)
+            sys.exit(2)
+        with lock_story(tf.path):
+            ok = do_assign(tf, implementer=args.implementer, reviewer=args.reviewer)
+        sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()
