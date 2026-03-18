@@ -6,8 +6,12 @@ Usage: python sync_tracking.py <sprint-number>
 Config-driven: reads sprints_dir, team_dir, and repo from project.toml
 via validate_config.load_config(). No hardcoded project-specific values.
 
-GitHub is authoritative. Local tracking files are updated to match.
-Missing files are created; stale statuses are corrected.
+Reconciliation role: this script accepts GitHub state for fields that
+kanban.py does not manage (PR linkage, branch, completion dates). For
+kanban state mutations, use kanban.py (local-first, then syncs to GitHub).
+For reconciliation, this script fills in PR/branch metadata and corrects
+stale statuses. Both paths are complementary, not competing.
+
 Idempotent -- prints "Everything in sync" when nothing to fix.
 """
 from __future__ import annotations

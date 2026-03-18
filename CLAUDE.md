@@ -125,7 +125,7 @@ Template: `references/skeletons/project.toml.tmpl`
 - **Symlink-based config**: `sprint_init.py` creates symlinks from `sprint-config/` to existing project files. Teardown removes symlinks without touching originals. Exception: Giles is copied (plugin-owned), not symlinked.
 - **Custom TOML parser**: §validate_config.parse_simple_toml is a minimal TOML parser (no `tomllib` dependency) supporting strings, ints, bools, arrays, sections.
 - **Scripts import chain**: All skill scripts do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up.
-- **GitHub as source of truth**: `sync_tracking.py` treats GitHub issue/PR state as authoritative and updates local tracking files to match.
+- **Two-path state management**: `kanban.py` is the mutation path (local-first, syncs to GitHub on every write). `sync_tracking.py` is the reconciliation path (accepts GitHub state for PR linkage, branch, and completion metadata). For kanban transitions and persona assignment, use `kanban.py`. For filling in PR/branch fields and correcting stale statuses, use `sync_tracking.py`.
 - **Idempotent scripts**: All bootstrap and monitoring scripts skip resources that already exist.
 - **Cross-skill dependency**: `scripts/sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/` for backlog auto-sync. This is an intentional coupling — sync_backlog reuses the idempotent creation functions rather than duplicating them.
 
