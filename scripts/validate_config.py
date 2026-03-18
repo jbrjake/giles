@@ -1042,6 +1042,7 @@ def _yaml_safe(value: str) -> str:
         or '\\' in value  # BH-007: backslash must be quoted
         or '\n' in value  # BH21-005: newline breaks YAML frontmatter
         or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
+        or re.match(r'^\d+\.?\d*$', value)  # BH22-108: numeric strings need quoting
     )
     if needs_quoting:
         # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"
@@ -1086,9 +1087,9 @@ def write_tf(tf: "TF") -> None:
         f"story: {_yaml_safe(tf.story)}",
         f"title: {_yaml_safe(tf.title)}",
         f"sprint: {tf.sprint}",
-        f"implementer: {tf.implementer}",
-        f"reviewer: {tf.reviewer}",
-        f"status: {tf.status}",
+        f"implementer: {_yaml_safe(tf.implementer)}",
+        f"reviewer: {_yaml_safe(tf.reviewer)}",
+        f"status: {tf.status}",  # status is always a safe kanban state slug
         f"branch: {_yaml_safe(tf.branch)}",
         f"pr_number: {tf.pr_number}",
         f"issue_number: {tf.issue_number}",

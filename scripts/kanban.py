@@ -304,9 +304,14 @@ def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
             new_body = _PERSONA_HEADER_PATTERN.sub(
                 f"> **[{implementer}]** · Implementation",
                 body,
+                count=1,  # BH22-104: replace only first match
             )
             if new_body != body:
                 gh(["issue", "edit", issue_num, "--body", new_body])
+            else:
+                print(f"{tf.story}: issue body has no [Unassigned] header to replace. "
+                      "Body update skipped — update manually if needed.",
+                      file=sys.stderr)
         return True
     except RuntimeError as exc:
         try:
