@@ -1442,6 +1442,45 @@ class TestDoReleaseIntegration(unittest.TestCase):
         self.assertIn('[project]', toml_text)
         self.assertIn('name = "TestProject"', toml_text)
 
+    def test_commit_failure_restores_toml(self):
+        """BH23-127: When commit.py fails, project.toml is restored to original."""
+        fake_gh = self.fake
+        _real_run = subprocess.run
+
+        toml_path = Path(self.tmpdir) / "sprint-config" / "project.toml"
+        original_toml = toml_path.read_text(encoding="utf-8")
+
+        call_count = [0]
+
+        def _failing_commit_run(cmd, **kwargs):
+            if isinstance(cmd, list) and cmd and cmd[0] == "gh":
+                return fake_gh.handle(cmd[1:])
+            if isinstance(cmd, list) and cmd and cmd[0] == "git":
+                return _real_run(cmd, **kwargs)
+            # commit.py call fails
+            if isinstance(cmd, list) and "commit.py" in str(cmd):
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=1, stdout="", stderr="hook failed",
+                )
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="", stderr="",
+            )
+
+        with patch("release_gate.subprocess.run", _failing_commit_run):
+            config = {
+                "project": {"name": "TestProject", "repo": "owner/repo"},
+                "ci": {},
+                "paths": {"sprints_dir": "sprints"},
+                "_config_dir": "sprint-config",
+            }
+            result = do_release("Sprint 1: Walking Skeleton", config)
+
+        self.assertFalse(result, "do_release should fail when commit fails")
+        # project.toml should be restored to its pre-release content
+        restored_toml = toml_path.read_text(encoding="utf-8")
+        self.assertEqual(restored_toml, original_toml,
+                         "project.toml should be restored after commit failure")
+
 
 # ---------------------------------------------------------------------------
 # P6-20: do_release pre-flight distinguishes git errors from dirty tree
