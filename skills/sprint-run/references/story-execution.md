@@ -152,7 +152,7 @@ before proceeding to integration.
    ```
 5. Update burndown:
    ```bash
-   python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py"
+   python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py" {sprint_number}
    ```
 6. Run sync to record completion date from GitHub's `closedAt` field:
    ```bash
