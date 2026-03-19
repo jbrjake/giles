@@ -183,9 +183,12 @@ def create_from_issue(
     if target.is_file():
         existing = read_tf(target)
         if existing.story and existing.story != sid:
+            # BH23-204: Keep story ID prefix in collision fallback filename
+            # so find_story() can still locate the file by ID.
             slug = f"{slug}-{issue['number']}"
-            target = d / f"{slug}.md"
-            print(f"  Warning: slug collision for {sid}, using {slug}.md",
+            filename = f"{story_id_upper}-{slug}.md"
+            target = d / filename
+            print(f"  Warning: slug collision for {sid}, using {filename}",
                   file=sys.stderr)
     tf = TF(
         path=target,

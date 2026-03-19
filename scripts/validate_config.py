@@ -1042,6 +1042,7 @@ def _yaml_safe(value: str) -> str:
         or value.endswith(':')
         or value[0] in '\'\"[{>|*&!%@`'
         or '#' in value
+        or ',' in value  # BH23-200: commas create YAML flow-sequence ambiguity
         or value.startswith('- ')
         or value.startswith('? ')
         or value.lower() in _YAML_BOOL_KEYWORDS

@@ -275,6 +275,9 @@ def do_transition(tf: TF, target: str) -> bool:
             print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
                   file=sys.stderr)
         except Exception as rollback_exc:
+            # BH23-201: Always restore caller's tf.status even when disk
+            # rollback fails, so the in-memory object is consistent.
+            tf.status = old_status
             print(f"{tf.story}: CRITICAL — GitHub update failed ({exc}) AND "
                   f"local rollback failed ({rollback_exc}). Local and GitHub "
                   f"state may be inconsistent. Run 'kanban.py sync' to reconcile.",
@@ -441,19 +444,30 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
     return changes
 
 
+# Fields that do_update is allowed to modify.  Immutable fields like
+# path and story are excluded to prevent accidental file relocation.
+_UPDATABLE_FIELDS = frozenset({
+    "pr_number", "branch", "implementer", "reviewer",
+    "started", "completed", "title",
+})
+
+
 # §kanban.do_update
 def do_update(tf: TF, **fields: str) -> bool:
     """Update individual tracking file fields safely.
 
-    Only non-None values are applied.  Writes atomically under lock.
-    Returns True on success.
+    Only non-None values are applied.  Only fields in ``_UPDATABLE_FIELDS``
+    can be set — ``path``, ``story``, ``sprint``, and ``status`` are
+    immutable (use ``transition`` or ``sync`` to change those).
+    Writes atomically under lock.  Returns True on success.
     """
     changed = []
     for key, value in fields.items():
         if value is None:
             continue
-        if not hasattr(tf, key):
-            print(f"Unknown field: {key}", file=sys.stderr)
+        if key not in _UPDATABLE_FIELDS:
+            print(f"Cannot update field '{key}' — "
+                  f"allowed fields: {sorted(_UPDATABLE_FIELDS)}", file=sys.stderr)
             return False
         old = getattr(tf, key)
         if old != value:

@@ -36,6 +36,17 @@ class TestTrackingFileIO(unittest.TestCase):
             self.assertEqual(loaded.status, "dev")
             self.assertEqual(loaded.pr_number, "42")
 
+    # BH23-200: Comma-containing values must survive round-trip
+    def test_round_trip_comma_title(self):
+        """Titles with commas are quoted by _yaml_safe and read back intact."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0003-comma.md"
+            tf = TF(path=p, story="US-0003", title="Parse, validate, transform",
+                    sprint=1, status="todo")
+            write_tf(tf)
+            loaded = read_tf(p)
+            self.assertEqual(loaded.title, "Parse, validate, transform")
+
     # BH22-060: Empty field round-trip
     def test_round_trip_empty_fields(self):
         """Write a TF with empty persona/branch fields and read back."""
@@ -61,6 +72,7 @@ from kanban import (  # noqa: E402 — conftest.py puts scripts/ on sys.path
     validate_transition,
     check_preconditions,
     atomic_write_tf,
+    _UPDATABLE_FIELDS,
     lock_story,
     lock_sprint,
     find_story,
@@ -394,6 +406,21 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertIn("42", call_str)
                 self.assertIn("kanban:design", call_str)
 
+    # BH23-201: Double-fault restores tf.status on caller's object
+    def test_transition_double_fault_restores_tf_status(self):
+        """When both GitHub sync AND rollback fail, tf.status is still restored."""
+        from unittest.mock import patch as _patch
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            # First call (gh sync) fails, then rollback (atomic_write_tf) also fails
+            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")):
+                with _patch("kanban.atomic_write_tf",
+                            side_effect=[None, OSError("disk full")]):
+                    result = do_transition(tf, "design")
+            self.assertFalse(result)
+            # The caller's tf.status must be restored to "todo" even on double fault
+            self.assertEqual(tf.status, "todo")
+
     def test_transition_to_done_closes_issue(self):
         """Transitioning to done calls both label swap and issue close."""
         with tempfile.TemporaryDirectory() as td:
@@ -693,6 +720,23 @@ class TestUpdateCommand(unittest.TestCase):
             tf = self._make_tf(td, pr_number="42")
             ok = do_update(tf, pr_number="42")
             self.assertTrue(ok)
+
+    # BH23-230: Immutable field protection
+    def test_update_rejects_immutable_fields(self):
+        """Cannot update path, story, sprint, or status via do_update."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            ok = do_update(tf, path="/tmp/evil.md")
+            self.assertFalse(ok)
+            ok = do_update(tf, story="HACKED")
+            self.assertFalse(ok)
+            ok = do_update(tf, status="done")
+            self.assertFalse(ok)
+            ok = do_update(tf, sprint="99")
+            self.assertFalse(ok)
+            # Verify the TF was not mutated
+            self.assertEqual(tf.story, "US-0050")
+            self.assertEqual(tf.status, "design")
 
 
 class TestSyncPrune(unittest.TestCase):
