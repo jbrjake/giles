@@ -269,6 +269,22 @@ class TestFixMode(unittest.TestCase):
         content = (md_dir / "SKILL.md").read_text()
         self.assertIn("<!-- §sprint-run.kickoff -->", content)
 
+    def test_fix_constant_definition(self):
+        """BH23-120: fix_missing_anchors handles CONSTANT = value definitions."""
+        (self.tmpdir / "DOC.md").write_text("§mymod.CONST\n")
+        fixed = fix_missing_anchors(
+            root=self.tmpdir,
+            doc_files=["DOC.md"],
+            namespace_map=self.ns_map,
+        )
+        self.assertEqual(fixed, 1)
+        content = (self.tmpdir / "scripts" / "mymod.py").read_text()
+        self.assertIn("# §mymod.CONST", content)
+        # Anchor should be above the constant assignment
+        lines = content.splitlines()
+        anchor_idx = next(i for i, l in enumerate(lines) if "§mymod.CONST" in l)
+        self.assertIn("CONST", lines[anchor_idx + 1])
+
     def test_fix_reports_unfixable(self):
         (self.tmpdir / "DOC.md").write_text("§mymod.nonexistent\n")
         fixed = fix_missing_anchors(

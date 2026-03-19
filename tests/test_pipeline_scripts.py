@@ -92,7 +92,7 @@ class TestTeamVoices(unittest.TestCase):
 # Task 1: Traceability
 # ---------------------------------------------------------------------------
 
-from traceability import build_traceability, parse_stories, parse_requirements
+from traceability import build_traceability, parse_stories, parse_requirements, format_report
 
 
 class TestTraceability(unittest.TestCase):
@@ -150,6 +150,21 @@ class TestTraceability(unittest.TestCase):
         # Each requirement maps to at least one story
         for req_id, data in reqs.items():
             self.assertGreater(len(data["stories"]), 0, f"{req_id} has no story links")
+
+    def test_format_report_includes_gaps(self):
+        """BH23-117: format_report lists uncovered stories by name."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic = Path(tmp) / "E-0101-test.md"
+            epic.write_text(
+                "### US-8888: Untested Feature\n\n"
+                "| Field | Value |\n|---|---|\n| Story Points | 5 |\n"
+            )
+            report = build_traceability(epics_dir=tmp)
+            formatted = format_report(report)
+            self.assertIn("Stories Without Test Coverage", formatted)
+            self.assertIn("US-8888", formatted)
+            self.assertIn("Untested Feature", formatted)
 
 
 # ---------------------------------------------------------------------------

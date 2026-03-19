@@ -267,6 +267,44 @@ class TestValidateGates(unittest.TestCase):
         self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
         self.patcher.start()
 
+    def test_timeout_in_gate_tests_stops_validation(self):
+        """BH23-107: validate_gates short-circuits when gate_tests times out."""
+        self._add_closed_milestone()
+        self.fake.runs.append({
+            "name": "CI", "status": "completed",
+            "conclusion": "success", "headBranch": "main",
+        })
+        self.patcher.stop()
+
+        fake_gh = self.fake
+        _real_patched = make_patched_subprocess(fake_gh)
+
+        def _timeout_run(args, *a, **kw):
+            if kw.get("shell"):
+                raise subprocess.TimeoutExpired(cmd=args, timeout=300)
+            return _real_patched(args, *a, **kw)
+
+        with patch("subprocess.run", _timeout_run):
+            config = {
+                "project": {"base_branch": "main"},
+                "ci": {
+                    "check_commands": ["sleep 999"],
+                    "build_command": "make build",
+                },
+            }
+            passed, results = validate_gates("Sprint 1", config)
+
+        self.assertFalse(passed)
+        # Stories, CI, PRs pass; Tests fails; Build never runs
+        self.assertEqual(len(results), 4)
+        tests_result = results[3]
+        self.assertEqual(tests_result[0], "Tests")
+        self.assertFalse(tests_result[1])
+        self.assertIn("timed out", tests_result[2])
+
+        self.patcher = patch("subprocess.run", make_patched_subprocess(self.fake))
+        self.patcher.start()
+
     def test_test_gate_failure_stops_before_build(self):
         """BH-007: When gate_tests fails, gate_build does not run.
 
