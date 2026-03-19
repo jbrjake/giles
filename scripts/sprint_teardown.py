@@ -466,6 +466,9 @@ def main() -> None:
             print(f"  {name}  ✗ MISSING")
             all_ok = False
 
+    # BH23-005: These are heuristic fallback paths — sprint-config is
+    # already torn down so project.toml is unavailable. Common project
+    # layouts use docs/dev-team/ but the actual path may differ.
     dev_team = project_root / "docs" / "dev-team"
     if dev_team.exists():
         count = len(list(dev_team.glob("*.md")))

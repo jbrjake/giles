@@ -296,7 +296,9 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
     release_section = re.search(r"^(?!#)\[release\]", text, re.MULTILINE)
     if release_section:
         start = release_section.start()
-        # Match section headers like [other] but not array-of-tables [[x]] or ["a"]
+        # Match section headers like [other] but not array-of-tables [[x]],
+        # quoted keys (["a"]), or malformed [  spaced] headers.
+        # BH23-219: conservative — excludes more than strictly needed but safe.
         next_section = re.search(r"^\[(?![\[\s\"\'])", text[start + 1:], re.MULTILINE)
         end = (start + 1 + next_section.start()) if next_section else len(text)
 

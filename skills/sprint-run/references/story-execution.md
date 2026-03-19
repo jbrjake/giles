@@ -35,9 +35,10 @@ and acceptance criteria, then produces a design.
      --title "{story_id}: {story_title}" \
      --body "{pr_description}"
    ```
-4. Apply labels: persona, sprint, saga, priority, `kanban:design`.
+4. Apply PR labels (persona, sprint, saga, priority) and transition kanban state.
+   Kanban labels are managed by `kanban.py`, not applied directly to PRs.
    ```bash
-   gh pr edit {pr_number} --add-label "persona:{persona},sprint:{N},saga:{saga},priority:{pri},kanban:design"
+   gh pr edit {pr_number} --add-label "persona:{persona},sprint:{N},saga:{saga},priority:{pri}"
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design
    ```
 
