@@ -80,6 +80,15 @@ class TestConfigGeneration(unittest.TestCase):
         self.assertIn("backlog_dir", config["paths"])
         self.assertIn("sprints_dir", config["paths"])
         self.assertIn("check_commands", config["ci"])
+        # BH23-105: Assert values are non-empty, not just present
+        self.assertIsInstance(config["ci"]["check_commands"], list)
+        self.assertTrue(len(config["ci"]["check_commands"]) > 0,
+                        "check_commands should be a non-empty list")
+        self.assertIn("build_command", config["ci"])
+        self.assertTrue(config["ci"]["build_command"],
+                        "build_command should be a non-empty string")
+        self.assertTrue(config["project"]["language"],
+                        "language should be a non-empty string")
         self.assertIn("build_command", config["ci"])
 
     def test_generated_toml_no_wrong_keys(self):
@@ -105,13 +114,17 @@ class TestConfigGeneration(unittest.TestCase):
             self.assertNotEqual(row["role"], "",
                                 f"Role is empty for {row.get('name')}")
 
-    def test_generated_team_index_no_confidence_column(self):
-        """Bug 2: Confidence column should be gone."""
+    def test_generated_team_index_has_expected_columns(self):
+        """BH23-109: Team index has Name, Role, File columns (not obsolete Confidence)."""
         self._generate()
         index_path = self.root / "sprint-config" / "team" / "INDEX.md"
         text = index_path.read_text()
         self.assertNotIn("Confidence", text,
                           "Old 'Confidence' column still present")
+        # Positive assertions for expected column headers
+        self.assertIn("Name", text)
+        self.assertIn("Role", text)
+        self.assertIn("File", text)
 
     def test_generated_config_passes_validation(self):
         """Contract: Generated config must pass validate_project()."""

@@ -118,6 +118,16 @@ class TestCheckAtomicity(unittest.TestCase):
         self.assertTrue(ok)
 
     @patch("commit.subprocess.run")
+    def test_source_plus_test_two_dirs_ok(self, mock_run):
+        """BH23-125: src/ + tests/ is 2 directories — within the 2-dir limit."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0,
+            stdout="src/foo.py\ntests/test_foo.py\n", stderr="",
+        )
+        ok, msg = check_atomicity()
+        self.assertTrue(ok)
+
+    @patch("commit.subprocess.run")
     def test_root_files(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0,
