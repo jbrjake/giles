@@ -30,18 +30,16 @@
 |----------|-------|----------|-----------|
 | HIGH     | 9     | 9        | 0         |
 | MEDIUM   | 18    | 18       | 0         |
-| LOW      | 19    | 17       | 2         |
-| **Total**| **46**| **44**   | **2**     |
+| LOW      | 19    | 19       | 0         |
+| **Total**| **46**| **46**   | **0**     |
 
-## Remaining (2 LOW — deferred)
-- **BH24-025**: 7 scripts have argparse-only main() tests — needs structural rethink of TestEveryScriptMainCovered gate
-- **BH24-018**: _parse_value accepts unquoted garbage — intentional leniency, documented
+## All items resolved.
 
 ## Before/After Metrics
 
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
-| Tests | 889 | 960 | +71 |
+| Tests | 889 | 974 | +85 |
 | Warnings | 6 | 0 | -6 |
 | Coverage (overall) | 85% | ~87% | +2pp |
 | bootstrap_github.py | 71% | 80% | +9pp |
