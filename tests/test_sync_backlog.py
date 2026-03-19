@@ -202,6 +202,25 @@ class TestDoSync(unittest.TestCase):
             self.assertEqual(count_after_first, count_after_second)
 
 
+    def test_do_sync_skips_preexisting_issues(self):
+        """BH23-121: Pre-existing GitHub issues are not duplicated."""
+        fake_gh = FakeGitHub()
+        # Pre-populate with US-0001 already on GitHub
+        fake_gh.issues.append({
+            "number": 99, "title": "US-0001: Setup CI",
+            "state": "open", "labels": [], "body": "",
+            "milestone": {"title": "Milestone 1: Walking Skeleton"},
+        })
+        with tempfile.TemporaryDirectory() as td:
+            config = self._write_config_and_milestones(td)
+            with patch("subprocess.run", make_patched_subprocess(fake_gh)):
+                created = sync_backlog.do_sync(config)
+            # Only US-0002 should be created (US-0001 already exists)
+            self.assertEqual(created["issues"], 1)
+            # Total issues = pre-existing + new
+            self.assertEqual(len(fake_gh.issues), 2)
+
+
 class TestMain(unittest.TestCase):
     """Test the main() entry point end-to-end."""
 

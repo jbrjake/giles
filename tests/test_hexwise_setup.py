@@ -439,6 +439,17 @@ class TestHexwisePipeline(unittest.TestCase):
         self.assertIn("milestones", state)
         self.assertGreaterEqual(len(state["labels"]), 13)  # static labels minimum
         self.assertEqual(len(state["milestones"]), 3)
+        # BH23-111: Verify content, not just structure
+        # labels is a dict: {name: color_hex}
+        label_names = set(state["labels"].keys())
+        self.assertIn("kanban:todo", label_names)
+        self.assertIn("type:story", label_names)
+        self.assertIn("priority:P0", label_names)
+        ms_titles = {m["title"] for m in state["milestones"]}
+        self.assertTrue(
+            any("Core" in t or "Sprint" in t for t in ms_titles),
+            f"Expected milestone with project content, got: {ms_titles}",
+        )
 
 
 if __name__ == "__main__":

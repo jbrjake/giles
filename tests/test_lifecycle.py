@@ -313,8 +313,13 @@ class TestLifecycle(unittest.TestCase):
             populate_test_issues(self.fake_gh, config, populate_issues)
 
         # Verify the pipeline produced expected counts
-        self.assertGreaterEqual(len(self.fake_gh.labels), 15,
-                                "Labels: static + persona + sprint + saga + kanban")
+        # BH23-124: 2-persona project minimum: 6 kanban + 4 type + 4 priority
+        # + 2 persona + 1 giles + 1 sprint + 1 saga = 19.
+        # labels is a dict {name: color}, not a list.
+        self.assertGreaterEqual(len(self.fake_gh.labels), 17,
+                                f"Expected >= 17 labels for 2-persona project, "
+                                f"got {len(self.fake_gh.labels)}: "
+                                f"{list(self.fake_gh.labels.keys())}")
         self.assertEqual(len(self.fake_gh.milestones), 1,
                          "Exactly 1 milestone from milestone-1.md")
         self.assertEqual(len(self.fake_gh.issues), 2,
@@ -415,7 +420,10 @@ class TestLifecycle(unittest.TestCase):
             self.assertTrue(bd_path.exists(), "Burndown file should exist")
             bd_text = bd_path.read_text(encoding="utf-8")
             self.assertIn("Sprint 1 Burndown", bd_text)
-            # 8 done SP out of 13 total
+            # BH23-108: SP calculation from test data above:
+            # US-0101: 3 SP (closed) + US-0102: 5 SP (closed) = 8 done
+            # US-0103: 3 SP (open) + US-0104: 2 SP (open) = 5 remaining
+            # Total: 3+5+3+2 = 13
             self.assertIn("Completed: 8 SP", bd_text)
             self.assertIn("Remaining: 5 SP", bd_text)
 
