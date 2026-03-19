@@ -86,6 +86,41 @@
         "name": "persona:giles",
         "color": "d62728",
         "description": "Assigned to Giles"
+      },
+      "sprint:1": {
+        "name": "sprint:1",
+        "color": "ededed",
+        "description": ""
+      },
+      "saga:S01": {
+        "name": "saga:S01",
+        "color": "ededed",
+        "description": ""
+      },
+      "sprint:2": {
+        "name": "sprint:2",
+        "color": "ededed",
+        "description": ""
+      },
+      "sprint:3": {
+        "name": "sprint:3",
+        "color": "ededed",
+        "description": ""
+      },
+      "saga:S02": {
+        "name": "saga:S02",
+        "color": "ededed",
+        "description": ""
+      },
+      "sprint:4": {
+        "name": "sprint:4",
+        "color": "ededed",
+        "description": ""
+      },
+      "sprint:5": {
+        "name": "sprint:5",
+        "color": "ededed",
+        "description": ""
       }
     },
     "milestones": [
@@ -94,24 +129,27 @@
         "title": "M1: Core \u2014 Parse, Match, Print",
         "description": "The walking skeleton: hand the oracle a color in any format, get back its name,",
         "state": "open",
-        "open_issues": 0,
-        "closed_issues": 0
+        "open_issues": 4,
+        "closed_issues": 0,
+        "created_at": "2026-03-19T20:53:56Z"
       },
       {
         "number": 2,
         "title": "M2: Toolkit \u2014 Contrast and Palettes",
         "description": "The oracle gets opinions. This milestone adds the features that turn Hexwise",
         "state": "open",
-        "open_issues": 0,
-        "closed_issues": 0
+        "open_issues": 4,
+        "closed_issues": 0,
+        "created_at": "2026-03-19T20:53:56Z"
       },
       {
         "number": 3,
         "title": "M3: Polish \u2014 Batch Mode and Resilience",
         "description": "The oracle learns to handle a crowd. Batch mode is the difference between a",
         "state": "open",
-        "open_issues": 0,
-        "closed_issues": 0
+        "open_issues": 3,
+        "closed_issues": 0,
+        "created_at": "2026-03-19T20:53:56Z"
       }
     ],
     "issues": [
@@ -122,19 +160,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:1"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -149,19 +187,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:1"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -176,19 +214,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:1"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -203,19 +241,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:1"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -230,19 +268,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:2"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": {
@@ -257,19 +295,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:2"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": {
@@ -284,19 +322,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:2"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": {
@@ -311,19 +349,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S01"
-          },
-          {
             "name": "sprint:2"
-          },
-          {
-            "name": "priority:P2"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S01"
+          },
+          {
+            "name": "priority:P2"
           }
         ],
         "milestone": {
@@ -338,19 +376,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:3"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -365,19 +403,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:3"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -392,19 +430,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:3"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": {
@@ -419,19 +457,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:4"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": null,
@@ -444,19 +482,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:4"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": null,
@@ -469,19 +507,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:4"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": null,
@@ -494,19 +532,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:5"
-          },
-          {
-            "name": "priority:P1"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P1"
           }
         ],
         "milestone": null,
@@ -519,19 +557,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:5"
-          },
-          {
-            "name": "priority:P2"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P2"
           }
         ],
         "milestone": null,
@@ -544,19 +582,19 @@
         "state": "open",
         "labels": [
           {
-            "name": "saga:S02"
-          },
-          {
             "name": "sprint:5"
-          },
-          {
-            "name": "priority:P0"
           },
           {
             "name": "type:story"
           },
           {
             "name": "kanban:todo"
+          },
+          {
+            "name": "saga:S02"
+          },
+          {
+            "name": "priority:P0"
           }
         ],
         "milestone": null,
@@ -566,7 +604,9 @@
     "prs": [],
     "reviews": [],
     "releases": [],
-    "runs": []
+    "runs": [],
+    "comparisons": {},
+    "commits_data": []
   },
   "file_tree": {
     "sprint-config/.sprint-init-manifest.json": "{\n  \"generated_files\": [\n    \"architecture.md\",\n    \"backlog/INDEX.md\",\n    \"cheatsheet.md\",\n    \"definition-of-done.md\",\n    \"project.toml\",\n    \"team/INDEX.md\",\n    \"team/giles.md\"\n  ],\n  \"symlinks\": [\n    \"backlog/epics\",\n    \"backlog/milestones/milestone-1.md\",\n    \"backlog/milestones/milestone-2.md\",\n    \"backlog/milestones/milestone-3.md\",\n    \"backlog/sagas\",\n    \"backlog/story-map\",\n    \"development.md\",\n    \"prd\",\n    \"rules.md\",\n    \"team/checker.md\",\n    \"team/palette.md\",\n    \"team/rusti.md\",\n    \"team/team-topology.md\",\n    \"test-plan\"\n  ],\n  \"directories\": [\n    \"team/history/\"\n  ]\n}\n",

@@ -7,7 +7,9 @@
     "prs": [],
     "reviews": [],
     "releases": [],
-    "runs": []
+    "runs": [],
+    "comparisons": {},
+    "commits_data": []
   },
   "file_tree": {
     "sprint-config/.sprint-init-manifest.json": "{\n  \"generated_files\": [\n    \"architecture.md\",\n    \"backlog/INDEX.md\",\n    \"cheatsheet.md\",\n    \"definition-of-done.md\",\n    \"project.toml\",\n    \"team/INDEX.md\",\n    \"team/giles.md\"\n  ],\n  \"symlinks\": [\n    \"backlog/epics\",\n    \"backlog/milestones/milestone-1.md\",\n    \"backlog/milestones/milestone-2.md\",\n    \"backlog/milestones/milestone-3.md\",\n    \"backlog/sagas\",\n    \"backlog/story-map\",\n    \"development.md\",\n    \"prd\",\n    \"rules.md\",\n    \"team/checker.md\",\n    \"team/palette.md\",\n    \"team/rusti.md\",\n    \"team/team-topology.md\",\n    \"test-plan\"\n  ],\n  \"directories\": [\n    \"team/history/\"\n  ]\n}\n",
