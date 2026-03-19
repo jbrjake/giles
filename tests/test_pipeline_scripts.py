@@ -941,6 +941,30 @@ class TestRenumberStories(unittest.TestCase):
                 f"Expected 'US-01a, US-01b' in blocked-by lines: {blocked_by_lines}",
             )
 
+    def test_renumber_body_text_multiple_references(self):
+        """BH23-214: Comma-joined replacement in body text is parseable."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic = tmp + "/E-body.md"
+            Path(epic).write_text(
+                "# E-body\n\n"
+                "---\n\n"
+                "### US-0050: Story\n\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Blocked By | US-0050 |\n"
+                "| Blocks | US-0050 |\n",
+                encoding="utf-8",
+            )
+            renumber_stories(epic, "US-0050", ["US-0050a", "US-0050b"])
+            content = Path(epic).read_text(encoding="utf-8")
+            # Heading preserved
+            self.assertIn("### US-0050: Story", content)
+            # Both metadata fields replaced with comma-joined IDs
+            lines = [l for l in content.splitlines() if "US-0050" in l and "|" in l]
+            for line in lines:
+                self.assertIn("US-0050a, US-0050b", line)
+
 
 # ---------------------------------------------------------------------------
 # P2-04: Scanner Heuristic Fixtures — Python Project

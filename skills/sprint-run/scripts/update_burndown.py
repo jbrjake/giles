@@ -102,11 +102,9 @@ def update_sprint_status(
     new_table = "\n".join(table_lines) + "\n"
 
     # Replace existing Active Stories section (up to next ## heading or EOF).
-    # The regex skips any non-table content between the heading and the
-    # actual pipe-delimited rows, preventing orphaned old table rows.
-    # Match Active Stories section up to next ## heading or EOF.
-    # The final line may lack a trailing newline, so we use \n? for the last line.
-    pattern = r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*(?:(?!\n## )[^\n]+\n?)?"
+    # BH23-216: Use exact heading match (not [^\n]*) to avoid matching
+    # similar headings like "## Active Stories (old)".
+    pattern = r"## Active Stories\n(?:(?!\n## )[^\n]*\n)*(?:(?!\n## )[^\n]+\n?)?"
     if re.search(pattern, text):
         text = re.sub(pattern, new_table.rstrip() + "\n", text)
     else:
