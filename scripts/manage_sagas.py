@@ -242,9 +242,13 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
 
     new_section = ["## Team Voices", ""]
     for name, quote in voices.items():
+        # BH23-224: Sanitize inputs to prevent markdown injection.
+        # Strip newlines (which break blockquote structure) and bold markers.
+        safe_name = name.replace("\n", " ").replace("\r", "").replace("**", "")
+        safe_quote = quote.replace("\n", " ").replace("\r", "").replace('"', "'")
         if new_section[-1] != "":
             new_section.append("")
-        new_section.append(f'> **{name}:** "{quote}"')
+        new_section.append(f'> **{safe_name}:** "{safe_quote}"')
 
     new_lines = lines[:start] + new_section + [""] + lines[end:]
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")

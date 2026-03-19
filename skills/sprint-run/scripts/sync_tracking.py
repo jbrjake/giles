@@ -12,6 +12,12 @@ kanban state mutations, use kanban.py (local-first, then syncs to GitHub).
 For reconciliation, this script fills in PR/branch metadata and corrects
 stale statuses. Both paths are complementary, not competing.
 
+Concurrency note (BH23-207): this script does NOT acquire kanban locks
+before writing tracking files. If kanban.py sync and this script run
+concurrently, the last write wins. In practice this is safe because
+sprint-monitor calls this script sequentially, and kanban.py's lock_sprint
+only protects against concurrent kanban.py invocations.
+
 Idempotent -- prints "Everything in sync" when nothing to fix.
 """
 from __future__ import annotations

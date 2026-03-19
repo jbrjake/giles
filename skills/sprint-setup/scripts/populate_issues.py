@@ -338,16 +338,21 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
 
 # §populate_issues.get_existing_issues
 def get_existing_issues() -> set[str]:
-    """Fetch existing issue title prefixes (story IDs) for idempotency."""
+    """Fetch existing issue title prefixes (story IDs) for idempotency.
+
+    BH23-212: Uses gh issue list with a high limit and warns (rather than
+    hard-failing) when the limit is hit.  The 500-issue hard failure was
+    disproportionate — repos with many issues should still be able to run
+    setup, accepting a small dedup risk for issues beyond the limit.
+    """
     try:
-        issues = gh_json(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
+        issues = gh_json([
+            "issue", "list", "--limit", "1000",
+            "--json", "title", "--state", "all",
+        ])
         if not isinstance(issues, list):
             raise RuntimeError(f"Expected list from gh, got {type(issues).__name__}")
-        if warn_if_at_limit(issues, limit=500):
-            raise RuntimeError(
-                "Repository has 500+ issues. Cannot safely deduplicate. "
-                "Use --paginate or increase --limit to fetch all issues."
-            )
+        warn_if_at_limit(issues, limit=1000)
     except RuntimeError as exc:
         print(f"Error: could not fetch existing issues: {exc}", file=sys.stderr)
         raise

@@ -2313,25 +2313,26 @@ class TestBH21_017_EnrichCustomStoryIds(unittest.TestCase):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-class TestBH21_008_GetExistingIssuesAbortAtLimit(unittest.TestCase):
-    """BH21-008: get_existing_issues() must abort when issue count hits limit."""
+class TestBH21_008_GetExistingIssuesAtLimit(unittest.TestCase):
+    """BH21-008 / BH23-212: get_existing_issues() warns at limit but no longer hard-fails."""
 
     @patch("populate_issues.gh_json")
-    def test_raises_when_at_limit(self, mock_gh_json):
-        """If gh returns exactly 500 issues, get_existing_issues must raise
-        RuntimeError to prevent silent duplicate creation."""
-        # Simulate 500 issues returned (the limit)
+    def test_warns_but_succeeds_at_limit(self, mock_gh_json):
+        """BH23-212: At 1000 issues, warns but still returns results."""
+        import io
+        from contextlib import redirect_stderr
         mock_gh_json.return_value = [
-            {"title": f"US-{i:04d}: Story {i}"} for i in range(500)
+            {"title": f"US-{i:04d}: Story {i}"} for i in range(1000)
         ]
-        with self.assertRaises(RuntimeError) as ctx:
-            populate_issues.get_existing_issues()
-        self.assertIn("500+", str(ctx.exception))
-        self.assertIn("Cannot safely deduplicate", str(ctx.exception))
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            result = populate_issues.get_existing_issues()
+        self.assertEqual(len(result), 1000)
+        self.assertIn("1000", buf.getvalue())  # warning emitted
 
     @patch("populate_issues.gh_json")
     def test_succeeds_when_under_limit(self, mock_gh_json):
-        """If gh returns fewer than 500 issues, get_existing_issues succeeds."""
+        """If gh returns fewer than 1000 issues, get_existing_issues succeeds."""
         mock_gh_json.return_value = [
             {"title": f"US-{i:04d}: Story {i}"} for i in range(10)
         ]
