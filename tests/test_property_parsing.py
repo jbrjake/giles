@@ -230,10 +230,15 @@ class TestYamlSafe:
             or value.endswith(':')
             or (value and value[0] in '\'\"[{>|*&!%@`')
             or '#' in value
+            or ',' in value  # BH23-200: commas create YAML flow-sequence ambiguity
             or value.startswith('- ')
             or value.startswith('? ')
             or value.lower() in _YAML_BOOL_KEYWORDS  # BH-007
             or '\\' in value  # BH-007
+            or '\n' in value  # BH21-005: newline breaks YAML frontmatter
+            or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
+            or bool(re.match(r'^\d+\.?\d*$', value))  # BH22-108: numeric strings
+            or value != value.strip()  # BH23-205: leading/trailing whitespace
         )
         result = _yaml_safe(value)
         if dangerous:
