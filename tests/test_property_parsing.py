@@ -26,6 +26,7 @@ from validate_config import (
     extract_sp,
     parse_simple_toml,
     _parse_team_index,
+    frontmatter_value,
 )
 from sync_tracking import _yaml_safe
 
@@ -261,6 +262,18 @@ class TestYamlSafe:
                         f"Unescaped \" at position {i} in {result!r}"
                     )
                 i += 1
+
+    @given(st.text(min_size=0, max_size=200))
+    @settings(max_examples=500)
+    def test_frontmatter_value_roundtrip(self, value: str):
+        """BH23-205: _yaml_safe -> frontmatter_value must recover original value."""
+        safe = _yaml_safe(value)
+        if not value:
+            return  # empty string returns None from frontmatter_value
+        recovered = frontmatter_value(f"key: {safe}", "key")
+        assert recovered == value, (
+            f"Round-trip failed: {value!r} -> {safe!r} -> {recovered!r}"
+        )
 
 
 # ============================================================================

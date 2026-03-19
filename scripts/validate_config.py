@@ -916,9 +916,15 @@ def frontmatter_value(frontmatter: str, key: str) -> str | None:
     val = m.group(1).strip()
     if not val:
         return None
-    # Strip surrounding double quotes and unescape (reverse of _yaml_safe)
+    # Strip surrounding double quotes and unescape (reverse of _yaml_safe).
+    # Single-pass regex avoids order-dependent bugs with chained .replace().
     if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
-        val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
+        _UNESCAPE = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r'}
+        val = re.sub(
+            r'\\(.)',
+            lambda m: _UNESCAPE.get(m.group(1), m.group(0)),
+            val[1:-1],
+        )
     return val
 
 
@@ -1056,6 +1062,7 @@ def _yaml_safe(value: str) -> str:
         or '\n' in value  # BH21-005: newline breaks YAML frontmatter
         or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
         or re.match(r'^\d+\.?\d*$', value)  # BH22-108: numeric strings need quoting
+        or value != value.strip()  # BH23-205: leading/trailing whitespace needs quoting
     )
     if needs_quoting:
         # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"

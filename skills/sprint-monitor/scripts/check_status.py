@@ -438,8 +438,9 @@ def main() -> None:
             r, a = fn()
             report_lines.extend(r)
             action_lines.extend(a)
-        except RuntimeError as exc:
+        except Exception as exc:
             report_lines.append(f"Check failed: {exc}")
+            traceback.print_exc(file=sys.stderr)
 
     if action_lines:
         report_lines += [
