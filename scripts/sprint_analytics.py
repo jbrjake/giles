@@ -90,7 +90,8 @@ def compute_review_rounds(
         prs = []
     warn_if_at_limit(prs)
 
-    # Filter to PRs for this milestone
+    # BH23-217: --search milestone:"title" may over-include on some gh versions.
+    # Post-filter ensures correctness regardless of search behavior.
     sprint_prs = []
     for pr in prs:
         ms = pr.get("milestone") or {}

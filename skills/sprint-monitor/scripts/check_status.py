@@ -104,13 +104,22 @@ def _first_error(log: str) -> str:
         r"\b(?:0|no)\s+(?:errors?|fail(?:ures?|ed)?)(?:\s|[.,;:!)]|$)",
         re.IGNORECASE,
     )
+    # BH23-211: Use word boundaries for keyword matching to avoid
+    # false positives like "assertion_name" or "terror".
+    _ERROR_KW = re.compile(
+        r"\b(?:error|failed|panicked|assert(?:ion)?(?:\s+failed)?)\b",
+        re.IGNORECASE,
+    )
+    _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
     for line in log.splitlines():
-        lower = line.lower()
-        if any(kw in lower for kw in ("error", "failed", "panicked", "assert")):
+        # Strip ANSI codes before matching so \x1b[31mERROR → ERROR
+        cleaned = _ANSI_RE.sub("", line)
+        lower = cleaned.lower()
+        if _ERROR_KW.search(lower):
             if _FALSE_POSITIVE.search(lower):
                 continue
-            cleaned = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
-            return cleaned[:117] + "..." if len(cleaned) > 117 else cleaned
+            trimmed = cleaned.strip()
+            return trimmed[:117] + "..." if len(trimmed) > 117 else trimmed
     return ""
 
 
