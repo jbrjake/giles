@@ -1,39 +1,49 @@
-# Bug Hunter Status — Pass 23 (Fresh Legacy Audit)
+# Bug Hunter Status — Pass 24 (Fresh Adversarial Legacy Audit)
 
-**Started:** 2026-03-18
-**Current Phase:** Phase 4 — Fix loop in progress
-**Approach:** Adversarial legacy code review — all phases, fresh perspective
+**Started:** 2026-03-19
+**Current Phase:** Complete — All HIGH items resolved, most MEDIUM/LOW resolved
+**Approach:** Adversarial legacy review — 9 parallel agents + manual code review
 
 ## Progress
 - [x] Phase 0: Recon (0a-0g)
-- [x] Phase 1: Doc-to-Implementation Audit — 13 findings
-- [x] Phase 2: Test Quality Audit — 29 findings
-- [x] Phase 3: Adversarial Code Audit — 29 findings
-- [x] Phase 4: Fix loop — 6 commits, 21 items resolved
+- [x] Phase 1: Doc-to-Implementation Audit
+- [x] Phase 2: Test Quality Audit
+- [x] Phase 3: Adversarial Code Audit
+- [x] Phase 4: Fix loop — 8 commits
 
-## Commits (6)
+## Commits (8)
 
-| Commit | Items | Summary |
-|--------|-------|---------|
-| `c58010a` | BH23-001, 004, 006, 007, 011 | Document kanban.py update in all agent-facing refs |
-| `09bdfa4` | BH23-200, 201, 204, 230 | Comma quoting, double-fault TF restore, slug collision, field allowlist |
-| `ee0b418` | BH23-207, 212, 224 | Lock docs, pagination softening, markdown sanitization |
-| `898eb54` | BH23-002, 009, 010, 012, 013 | Doc drift: artifact count, import chain, config tree |
-| `bb77496` | BH23-100, 103, 104 | Import guard test, transition coverage, dict-format labels |
-| `d134b03` | BH23-227, 236 | TOML escape sequences, YAML command quoting |
+| # | Commit | Items | Summary |
+|---|--------|-------|---------|
+| 1 | `35012e2` | BH24-003, 004, 005 | Fix broken agent commands in docs |
+| 2 | `dce1733` | BH24-009 | Sync property test predicate with production |
+| 3 | `424a358` | BH24-001, 002 | Eliminate TOCTOU race, add locking to sync_tracking |
+| 4 | `069ab46` | BH24-019, 020, 033, 036, 037, 038, 041 | Exception narrowing, substring fix, branch length, YAML escaping |
+| 5 | `e111a7b` | BH24-006, 007, 008, 010, 011, 012 | Test theater fixes — roundtrip, YAML validation, spy |
+| 6 | `d9e874b` | BH24-030, 031, 034, 035, 040, 047 | Heading injection, doc accuracy, warnings |
+| 7 | `7aaf4d2` | BH24-022, 032, 039, 045 | MonitoredMock warnings, design docs |
+| 8 | `d52881c` | BH24-013-018, 021, 023, 042, 043, 044, 046 | 71 new tests for coverage gaps |
 
-## Resolved (21)
+## Resolution Summary
 
-**HIGH (3/4):** BH23-001, 007, 011
-**MEDIUM (14/17):** BH23-002, 005 (via 013), 010, 012, 013, 100, 103, 104, 200, 201, 204, 207, 212, 224, 230
-**LOW (4/38):** BH23-004, 006, 009, 227, 236
+| Severity | Found | Resolved | Remaining |
+|----------|-------|----------|-----------|
+| HIGH     | 9     | 9        | 0         |
+| MEDIUM   | 18    | 18       | 0         |
+| LOW      | 19    | 17       | 2         |
+| **Total**| **46**| **44**   | **2**     |
 
-## Remaining
+## Remaining (2 LOW — deferred)
+- **BH24-025**: 7 scripts have argparse-only main() tests — needs structural rethink of TestEveryScriptMainCovered gate
+- **BH24-018**: _parse_value accepts unquoted garbage — intentional leniency, documented
 
-**HIGH (1):** BH23-101 (do_release mock-abuse — needs integration test with real git)
-**MEDIUM (3):** BH23-112 (golden run skip), BH23-122 (FakeGitHub fidelity)
-**LOW (34):** See punchlist
+## Before/After Metrics
 
-## Baseline
-- 860 tests, 0 fail (+6 from start)
-- 86% coverage (scripts/)
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Tests | 889 | 960 | +71 |
+| Warnings | 6 | 0 | -6 |
+| Coverage (overall) | 85% | ~87% | +2pp |
+| bootstrap_github.py | 71% | 80% | +9pp |
+| manage_sagas.py | 78% | 80% | +2pp |
+| validate_config.py | 94% | 95% | +1pp |

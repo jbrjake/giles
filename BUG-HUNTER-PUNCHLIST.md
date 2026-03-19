@@ -1,123 +1,143 @@
-# Bug Hunter Punchlist — Pass 23 (Fresh Legacy Audit)
+# Bug Hunter Punchlist — Pass 24 (Adversarial Legacy Audit)
 
-> Generated: 2026-03-19 | Project: giles | Baseline: 854 pass, 0 fail, 0 skip
-> Method: Fresh adversarial audit — doc claims, test quality, code review
-> Detail files: `audit/1-doc-claims.md`, `audit/2-test-quality.md`, `audit/3-code-audit.md`
+> Generated: 2026-03-19 | Project: giles | Baseline: 889 pass, 0 fail, 0 skip, 85% coverage
+> Method: Fresh adversarial audit — manual code review of all 20 scripts + 9 parallel agents
+> Recon: `recon/0a-0g`, Audit: `audit/1-doc-claims.md`, `audit/2a-2c`, `audit/3a`
 
 ## Summary
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
 | CRITICAL | 0    | 0        | 0        |
-| HIGH     | 4    | 0        | 0        |
-| MEDIUM   | 17   | 0        | 0        |
-| LOW      | 38   | 0        | 0        |
+| HIGH     | 9    | 0        | 0        |
+| MEDIUM   | 18   | 0        | 0        |
+| LOW      | 19   | 0        | 0        |
 
-## Prioritized Action Items
+---
 
-### Tier 1 — Fix Now (HIGH)
+## Tier 1 — Fix Now (HIGH)
 
-| ID | Title | Category | Source |
-|----|-------|----------|--------|
-| BH23-001 | kanban.py update subcommand undocumented in all reference docs | doc/missing | Phase 1 |
-| BH23-007 | kanban-protocol.md doesn't document update subcommand needed for dev preconditions | doc/missing | Phase 1 |
-| BH23-011 | implementer.md doesn't tell agents to use kanban.py update for PR/branch | doc/missing | Phase 1 |
-| BH23-101 | do_release happy path mocks 5 layers deep (Mockingbird) | test/mock-abuse | Phase 2 |
+### Concurrency & State Safety
 
-### Tier 2 — Fix Soon (MEDIUM)
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-001 | TOCTOU race: kanban.py reads TF before acquiring lock | bug/race | `find_story()` must be called INSIDE the `lock_story` context, not before it. kanban.py:604 reads, :612 locks — must be reversed. | Refactor main() so lock_story wraps find_story+operation. Test: thread A reads TF, thread B modifies TF, thread A writes stale — must be impossible after fix. |
+| BH24-002 | sync_tracking.py writes TF without file locking | bug/race | sync_tracking.py must import and use lock_story before every `write_tf()` call (lines 271, 277) | `grep -n 'write_tf' skills/sprint-run/scripts/sync_tracking.py` — every hit must be inside a `with lock_story(...)` block. Integration test: concurrent kanban+sync writes produce correct state. |
 
-| ID | Title | Category | Source |
-|----|-------|----------|--------|
-| BH23-002 | kanban-protocol.md claims 3-artifact updates, only 2 happen | doc/drift | Phase 1 |
-| BH23-005 | sprint_teardown.py hardcodes docs/dev-team paths | doc/drift | Phase 1 |
-| BH23-010 | sync_tracking.py status mutation overlaps kanban.py role | doc/drift | Phase 1 |
-| BH23-012 | kanban-protocol.md Rules section incorrect about script acceptance | doc/drift | Phase 1 |
-| BH23-013 | CLAUDE.md config tree mixes required vs runtime files | doc/drift | Phase 1 |
-| BH23-100 | Green Bar Addict — import_guard test asserts module attrs exist | test/bogus | Phase 2 |
-| BH23-103 | do_transition only tests 2 of 6 legal transitions | test/missing | Phase 2 |
-| BH23-104 | do_sync tests use inconsistent label format (strings vs dicts) | test/missing | Phase 2 |
-| BH23-112 | Golden run silently skips without recordings | test/fragile | Phase 2 |
-| BH23-122 | FakeGitHub fidelity tests cover only 2 of 8+ handlers | test/missing | Phase 2 |
-| BH23-200 | _yaml_safe doesn't quote comma-containing values | bug/logic | Phase 3 |
-| BH23-201 | do_transition mutates caller's TF on rollback double-fault | bug/state | Phase 3 |
-| BH23-204 | create_from_issue slug collision drops story ID prefix | bug/logic | Phase 3 |
-| BH23-207 | sync_tracking.py doesn't acquire kanban locks | bug/state | Phase 3 |
-| BH23-212 | get_existing_issues hard-fails on 500+ issues | design/inconsistency | Phase 3 |
-| BH23-224 | update_team_voices doesn't sanitize markdown input | bug/security | Phase 3 |
-| BH23-230 | do_update allows mutation of immutable TF fields (path, story) | bug/logic | Phase 3 |
+### Doc-to-Implementation Gaps (Agent-Facing)
 
-### Tier 3 — Fix When Convenient (LOW)
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-003 | story-execution.md calls update_burndown.py without required sprint arg | doc/broken | Command must include `<sprint-number>` argument | `grep 'update_burndown' skills/sprint-run/references/story-execution.md` shows `update_burndown.py {sprint_number}` |
+| BH24-004 | context-recovery.md calls sync_tracking.py without required sprint arg | doc/broken | Command must include `<sprint-number>` argument | `grep 'sync_tracking' skills/sprint-run/references/context-recovery.md` shows sprint arg |
+| BH24-005 | context-recovery.md uses wrong label format `sprint-{N}` instead of `sprint:{N}` | doc/broken | Label must use colon separator matching bootstrap_github.py | `grep 'sprint-' skills/sprint-run/references/context-recovery.md` returns 0 matches (all converted to `sprint:`) |
 
-| ID | Title | Category | Source |
-|----|-------|----------|--------|
-| BH23-003 | story-execution.md applies kanban label directly via gh pr edit | doc/drift | Phase 1 |
-| BH23-004 | implementer.md hardcodes sprints_dir path | doc/drift | Phase 1 |
-| BH23-006 | story-execution.md step 6 redundant with kanban.py transition done | doc/drift | Phase 1 |
-| BH23-008 | CLAUDE.md parse_simple_toml doc omits float gap and literal strings | doc/drift | Phase 1 |
-| BH23-009 | CLAUDE.md "four directories up" claim only applies to skill scripts | doc/drift | Phase 1 |
-| BH23-102 | Inspector Clouseau — check_ci test checks mock call_args format | test/fragile | Phase 2 |
-| BH23-105 | Rubber Stamp — config key tests check presence not values | test/shallow | Phase 2 |
-| BH23-106 | Time Bomb — _hours() tests use wall clock time | test/fragile | Phase 2 |
-| BH23-107 | gate_tests/build timeout not tested through validate_gates | test/missing | Phase 2 |
-| BH23-108 | monitoring pipeline hardcodes SP values | test/fragile | Phase 2 |
-| BH23-109 | Obsolete negative test for removed Confidence column | test/bogus | Phase 2 |
-| BH23-110 | check_prs not tested with mixed review states | test/missing | Phase 2 |
-| BH23-111 | test_state_dump checks structure not content | test/shallow | Phase 2 |
-| BH23-113 | do_assign body-update not tested for edge cases | test/shallow | Phase 2 |
-| BH23-114 | Lock contention never tested | test/shallow | Phase 2 |
-| BH23-115 | _yaml_safe property tests miss numeric strings | test/missing | Phase 2 |
-| BH23-116 | TestSyncOne never writes TF to disk | test/shallow | Phase 2 |
-| BH23-117 | Traceability tests only check report structure | test/shallow | Phase 2 |
-| BH23-118 | manage_epics remove_story not tested for missing ID | test/missing | Phase 2 |
-| BH23-119 | Multiple tests use assertIsNotNone without content checks | test/shallow | Phase 2 |
-| BH23-120 | fix_missing_anchors CONSTANT definition path untested | test/missing | Phase 2 |
-| BH23-121 | sync_backlog do_sync not tested with pre-existing issues | test/missing | Phase 2 |
-| BH23-123 | compute_workload not tested with mixed milestones | test/missing | Phase 2 |
-| BH23-124 | full_pipeline label count bound too loose | test/shallow | Phase 2 |
-| BH23-125 | check_atomicity 2-directory boundary not tested | test/missing | Phase 2 |
-| BH23-126 | do_status output doesn't verify assignee names | test/shallow | Phase 2 |
-| BH23-127 | do_release rollback never verified end-to-end | test/missing | Phase 2 |
-| BH23-128 | hexwise_setup shares mutable state across tests | test/fragile | Phase 2 |
-| BH23-202 | do_assign partial GitHub state on rollback | bug/state | Phase 3 |
-| BH23-205 | frontmatter_value unescaping order may fail on backslash-quote | bug/logic | Phase 3 |
-| BH23-210 | write_tf doesn't quote pr_number/issue_number fields | bug/logic | Phase 3 |
-| BH23-211 | _first_error false positive exclusion may flag "error-handling" | bug/logic | Phase 3 |
-| BH23-214 | renumber_stories replaces IDs in body text (cosmetic) | bug/logic | Phase 3 |
-| BH23-217 | compute_review_rounds --search milestone filtering reliability | bug/logic | Phase 3 |
-| BH23-219 | write_version_to_toml next-section regex excludes space-leading sections | bug/logic | Phase 3 |
-| BH23-220 | gh() error messages may leak sensitive body content | bug/security | Phase 3 |
-| BH23-225 | manage_epics.main accepts untrusted JSON without full sanitization | bug/security | Phase 3 |
-| BH23-227 | setup_ci._yaml_safe_command doesn't escape internal double quotes | bug/logic | Phase 3 |
-| BH23-228 | bootstrap_github milestone titles not sanitized for control chars | bug/security | Phase 3 |
-| BH23-231 | check_status main catches only RuntimeError, not KeyError/TypeError | bug/error-handling | Phase 3 |
-| BH23-232 | read_tf doesn't handle concurrent file deletion | bug/error-handling | Phase 3 |
-| BH23-235 | do_release doesn't check for existing tag before creating | bug/error-handling | Phase 3 |
-| BH23-236 | _unescape_toml_string missing \b, \f, \r escape handling | bug/logic | Phase 3 |
+### Test Theater (Look Good, Prove Nothing)
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-006 | test_release_notes_contain_correct_sections asserts tag_name not notes content | test/rubber-stamp | Test must read release notes file and verify section headers (## Features, ## Fixes, etc.) | Test assertion references `notes` content, not just `tag_name` |
+| BH24-007 | CI generation tests check keyword presence, not YAML validity | test/green-bar | At least one CI test must parse output YAML and validate structure (valid YAML, has `jobs:`, `runs-on:`) | `import yaml; yaml.safe_load(output)` in test doesn't raise |
+| BH24-008 | TestSyncOneGitHubAuthoritative spy is tautologically true | test/vacuous | The test claims sync_one doesn't call GitHub, but the spy can never fire because sync_one never calls subprocess. Must patch `sync_tracking.gh` or `sync_tracking.gh_json` instead. | Replace subprocess spy with mock of `sync_tracking.gh_json`; assert `mock.assert_not_called()` |
+| BH24-009 | Property test _yaml_safe predicate is stale — missing 4 production conditions | test/stale-mirror | The `_should_be_quoted` predicate in test_property_parsing.py:224-242 is missing comma, newline, CR, and whitespace conditions added in BH21-005/BH22-108/BH23-200/BH23-205. Hypothesis can't catch regressions in these conditions. | Predicate in test must match production `_yaml_safe` exactly. Test: remove comma quoting from prod → property test fails. |
+
+---
+
+## Tier 2 — Fix Soon (MEDIUM)
+
+### Roundtrip Fragility
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-010 | _yaml_safe and frontmatter_value escape sets don't match | bug/roundtrip | Define escape/unescape in ONE shared dict. Both functions derive from it. | `_YAML_ESCAPES` dict exists in validate_config.py; `_yaml_safe` and `frontmatter_value` both reference it |
+| BH24-011 | frontmatter_value _UNESCAPE missing `\t` and `\b` | bug/roundtrip | Add 't': '\t', 'b': '\b' to _UNESCAPE to match _unescape_toml_string | Test: `frontmatter_value('title: "has\\ttab"', 'title')` returns string with real tab |
+| BH24-012 | kanban.py test round-trip only verifies 4 of 10 TF fields | test/shallow | Round-trip test must assert ALL TF fields: story, title, sprint, implementer, reviewer, status, branch, pr_number, issue_number, started, completed | Count of assertions ≥ 10 in test_round_trip |
+
+### Coverage Gaps (6 modules under 80%)
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-013 | test_coverage.py at 68% — ironic | test/missing | Tests for scan_project_tests(), detect_test_functions() | `pytest --cov=scripts/test_coverage -q` ≥ 85% |
+| BH24-014 | update_burndown.py at 74% | test/missing | Tests for empty milestone, all-closed, mixed SP | `pytest --cov=skills/sprint-run/scripts/update_burndown -q` ≥ 85% |
+| BH24-015 | bootstrap_github.py at 71% | test/missing | Tests for prereq failures, milestone errors | `pytest --cov=skills/sprint-setup/scripts/bootstrap_github -q` ≥ 80% |
+| BH24-016 | populate_issues.py at 77% | test/missing | Tests for enrich_from_epics conflicts, create_issue failure | `pytest --cov=skills/sprint-setup/scripts/populate_issues -q` ≥ 85% |
+| BH24-017 | manage_sagas.py at 78% | test/missing | Tests for update_sprint_allocation, update_voices | `pytest --cov=scripts/manage_sagas -q` ≥ 85% |
+| BH24-018 | sprint_teardown.py at 76% | test/missing | Tests for symlink/file classification, error during removal | `pytest --cov=scripts/sprint_teardown -q` ≥ 85% |
+
+### Logic & Error Handling
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-019 | check_status.py catches bare Exception masking programming errors | bug/error-handling | Replace `except Exception` at L405 and L450 with specific types | `grep -c 'except Exception' skills/sprint-monitor/scripts/check_status.py` returns 0 |
+| BH24-020 | enrich_from_epics substring-matches story IDs (US-001 matches US-0012) | bug/logic | Use word-boundary regex `\bUS-001\b` instead of `sid in content` | Test: epic mentioning US-0012 doesn't false-match US-001 |
+| BH24-021 | generate_release_notes never directly tested (7 formatting branches) | test/missing | Add TestGenerateReleaseNotes with cases for feats, fixes, breaking, compare link, initial release | ≥ 5 tests in a dedicated class |
+| BH24-022 | MonitoredMock warnings: 6 test_kanban tests don't verify call_args | test/shallow | Assert call_args or add explicit `# call_args intentionally unchecked: <reason>` | `python -m pytest tests/test_kanban.py -W error::UserWarning` exits 0 |
+| BH24-023 | determine_bump never directly tested (edge cases: empty list, breaking fix, docs-only) | test/missing | Add TestDetermineBump with ≥ 5 edge cases | Tests exist for empty commits, `fix!:`, docs-only, multiple commits with mixed types |
+| BH24-024 | enrich_from_epics substring match: US-001 matches inside US-0012 | bug/logic | Use word-boundary regex `\bUS-001\b` instead of `sid in content` | Test: epic mentioning US-0012 doesn't false-match US-001's sprint |
+| BH24-025 | 7 scripts have argparse-only main() tests (--help/no-args) that satisfy gate but test nothing | test/paper-tiger | update_burndown, manage_epics, manage_sagas need main() tests that exercise core logic paths | TestEveryScriptMainCovered should require non-argparse assertions |
+
+---
+
+## Tier 3 — Fix When Convenient (LOW)
+
+### Doc Drift (Non-Breaking)
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-030 | CLAUDE.md bootstrap_github function list missing 5 functions | doc/drift | Add create_sprint_labels, create_saga_labels, create_label, _parse_saga_labels_from_backlog, check_prerequisites | `grep -c 'create_sprint_labels\|create_saga_labels' CLAUDE.md` ≥ 2 |
+| BH24-031 | CLAUDE.md marks team/giles.md REQUIRED but validate_config doesn't check it | doc/drift | Either add giles.md to _REQUIRED_FILES or change CLAUDE.md to "runtime" | Consistent labeling between CLAUDE.md and _REQUIRED_FILES |
+| BH24-032 | kanban-protocol.md omits --sprint flag from commands (inconsistent with implementer.md) | doc/inconsistency | All kanban.py examples should show --sprint flag or document auto-detection | Consistent --sprint usage across all reference docs |
+
+### Edge Cases & Hardening
+
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH24-033 | create_from_issue doesn't validate branch name length | bug/logic | Branch names from long titles must be truncated ≤ 255 bytes | Test: 300-char title → branch ≤ 255 bytes |
+| BH24-034 | _sanitize_md doesn't strip # characters (heading injection) | bug/security | Story IDs with ### are escaped | Test: `_format_story_section(id="US ### Inject")` has no extra heading |
+| BH24-035 | _infer_sprint_number silently defaults to 1 | bug/default | Should warn when falling back | Test: _infer_sprint_number("backlog.md") with no sprint headers produces stderr warning |
+| BH24-036 | validate_project doesn't check definition-of-done.md is non-empty | test/missing | Empty DoD should fail validation (like rules.md) | Test: empty DoD file → validation error |
+| BH24-037 | setup_ci _job_name_from_command: "lint-test" matches as "Test" | bug/logic | Substring match should require word boundary | Test: `_job_name_from_command("npm run lint-test", 0)` → "Lint" |
+| BH24-038 | generate_ci_yaml doesn't escape base_branch for YAML | bug/injection | Metachar branch names produce valid YAML | Test: branch "main]" doesn't break YAML syntax |
+| BH24-039 | do_assign returns True when body update can't find [Unassigned] header | bug/logic | Should return False or warning flag on body-update failure | Test: do_assign on already-assigned issue → distinct return value |
+| BH24-040 | compute_velocity shows 0% when all SP=0 (missing data, not zero velocity) | design/inconsistency | Should warn when planned_sp==0 | Test: all-zero-SP milestone → warning on stderr |
+| BH24-041 | check_ci doesn't catch RuntimeError from gh_json (can crash monitor) | bug/error-handling | Wrap gh_json call in try/except | Test: mock gh_json raising RuntimeError → graceful report line |
+| BH24-042 | test_lifecycle.py has zero error-path tests | test/missing | Add ≥ 2 error-path tests (e.g., FakeGitHub error, missing config) | Error-path test methods exist |
+| BH24-043 | gate_prs 500-limit truncation safety gate is untested | test/missing | Add test returning 500 milestone-matching PRs → gate fails | Dedicated test for the truncation path at release_gate.py:186-190 |
+| BH24-044 | get_linked_pr isinstance(linked, dict) normalization path never tested | test/missing | Test with timeline API returning single dict instead of list | Test exercises the `isinstance(linked, dict)` branch at sync_tracking.py:75-76 |
+| BH24-045 | release notes markdown injection from commit subjects | bug/security | Commit subjects with `[link](url)` syntax should be escaped in notes | Test: commit with markdown link → notes contain escaped or literal text |
+| BH24-046 | do_status empty sprint directory path untested | test/missing | Test with nonexistent stories dir → "(no stories found)" | Assertion on exact output string |
+| BH24-047 | read_tf catches FileNotFoundError but not PermissionError | bug/error-handling | Add PermissionError to except clause, or document that it propagates | Test: read_tf on unreadable file → graceful fallback or documented exception |
+
+---
 
 ## Emerging Patterns
 
-### PAT-23-001: kanban.py update subcommand invisible to agents
-**Instances:** BH23-001, BH23-007, BH23-011
-**Root Cause:** The `update` subcommand was added (BH22-113) but no reference docs were updated to mention it. All three ceremony/execution/agent docs reference the workflow gap without bridging it.
-**Systemic Fix:** Add `kanban.py update` to kanban-protocol.md, story-execution.md, and implementer.md in a single doc pass.
-**Detection Rule:** `grep -rL "kanban.py update" skills/sprint-run/references/ skills/sprint-run/agents/`
+### PAT-24-001: Locking discipline inconsistent across write paths
+**Instances:** BH24-001, BH24-002
+**Root Cause:** kanban.py introduced file locking but the TOCTOU gap (read before lock) and sync_tracking.py (no locks at all) mean concurrent writes can corrupt state.
+**Systemic Fix:** Read-under-lock pattern: acquire lock FIRST, then read, modify, write. sync_tracking.py imports lock_story from kanban.py.
+**Detection Rule:** `grep -rn 'write_tf\|atomic_write_tf' scripts/ skills/ --include='*.py'` — every hit must be traceable to a lock context.
 
-### PAT-23-002: Tests verify structure but not computed values
-**Instances:** BH23-105, BH23-111, BH23-117, BH23-119, BH23-124, BH23-126
-**Root Cause:** Many tests use `assertIn`, `assertIsNotNone`, `assertGreaterEqual` instead of exact value assertions. This pattern emerged from property-test and smoke-test contexts but leaked into functional tests where exact values are knowable.
-**Systemic Fix:** Review each functional test: if the expected output is deterministic, assert the exact value. Reserve loose bounds for genuine non-determinism (timestamps, counts that depend on external state).
+### PAT-24-002: Coverage ≤78% in 6 modules, 80% floor not enforced
+**Instances:** BH24-013 through BH24-018
+**Root Cause:** Test suite grew reactively (regression tests for specific bugs) not proactively (branch coverage per module). main() and prereq paths are the common gap.
+**Systemic Fix:** Add `--cov-fail-under=80` to CI. Test main() dispatch via `sys.argv` mocking.
+**Detection Rule:** `pytest --cov --cov-fail-under=80` in CI gate.
 
-### PAT-23-003: Happy Path Tourist — untested state transitions
-**Instances:** BH23-103, BH23-110, BH23-113, BH23-118, BH23-121
-**Root Cause:** Kanban state machine, PR classification, and sync operations each have multiple distinct code paths, but tests only exercise 1-2 of them. The production code has if/elif chains with 3+ branches but only the first branch is tested.
-**Systemic Fix:** For each function with N code paths, require at least N/2 test cases targeting different branches.
+### PAT-24-003: _yaml_safe / frontmatter_value are mathematical inverses that evolved separately
+**Instances:** BH24-010, BH24-011, BH24-012, plus 8+ prior-pass fixes
+**Root Cause:** Escape set and unescape set maintained in different locations. Patches to one don't automatically propagate to the other.
+**Systemic Fix:** Single `_YAML_ESCAPES` mapping, both functions derived from it. Hypothesis roundtrip test generating ALL edge characters.
+**Detection Rule:** Property test in test_property_parsing.py with `@given(st.text())` covering the full write_tf→read_tf cycle.
 
-### PAT-23-004: Insufficient input sanitization at CLI/markdown boundaries
-**Instances:** BH23-220, BH23-224, BH23-225, BH23-227, BH23-228
-**Root Cause:** CLI arguments and markdown file content flow through to `gh` API calls, markdown output, and YAML serialization without consistent sanitization. Each module has its own ad-hoc escaping, but there's no centralized sanitization layer.
-**Systemic Fix:** Create a `sanitize_for_markdown(s)` and `sanitize_for_gh_arg(s)` helper in validate_config.py, and use them consistently at all CLI→API and CLI→markdown boundaries.
+### PAT-24-004: Doc commands give agents broken invocations
+**Instances:** BH24-003, BH24-004, BH24-005
+**Root Cause:** Script CLI interfaces evolved (required args added) without updating all reference docs that invoke them.
+**Systemic Fix:** Automated doc-command validation: extract command strings from reference docs, dry-run them, verify exit code 0.
+**Detection Rule:** Script that parses `python ...` and `gh ...` commands from `skills/*/references/*.md` and validates argument counts.
 
-### PAT-23-005: State mutation before confirmation of durability
-**Instances:** BH23-201, BH23-202, BH23-207, BH23-230
-**Root Cause:** Functions mutate shared state (TF objects, tracking files) before confirming the operation succeeded (GitHub sync, disk write). When the confirmation fails, rollback is attempted but may leave the shared object in an inconsistent state.
-**Systemic Fix:** Prefer copy-on-write patterns — mutate a copy, then swap on success. For file I/O, the `atomic_write_tf` pattern is correct; apply the same discipline to in-memory TF objects.
+### PAT-24-005: Tests that look like coverage but prove nothing
+**Instances:** BH24-006, BH24-007, BH24-008, BH24-009, BH24-025
+**Root Cause:** Tests assert structural presence (keywords, types, non-None) rather than behavioral correctness. Mock spies verify call sequences not outcomes. Property tests duplicate production predicates instead of referencing them (stale mirror). Gate tests count invocations not substance.
+**Systemic Fix:** For every HIGH/MEDIUM test fix: write the failing test first, then verify the existing code passes it. If the existing code passes a tautological assertion, the assertion is wrong. Property test predicates must be derived from production code, not hand-rolled mirrors.
+**Detection Rule:** Review all `assertIn(keyword, output)` patterns — replace with structural parsing where output has structure (YAML, JSON, markdown).

@@ -1,37 +1,29 @@
-# 0g — Recon Summary (Pass 23)
+# 0g - Recon Summary (Pass 24)
 
-## Baseline
-- **854 tests**, 0 fail, 0 skip, 13.95s
-- **86% coverage** (scripts/), 3 files under 80% (test_coverage 68%, sprint_teardown 76%, manage_sagas 78%)
-- **~8,400 LOC** production Python, **~15,500 LOC** test Python
+## Project Profile
+- 20 Python scripts, ~8700 lines production code
+- 16 test files, ~15200 lines test code, 889 tests, 85% coverage
+- All tests pass, 0 skipped, 0 failures
+- 22 prior bug-hunting passes, ~140+ fixes applied (BH-prefix comments)
 
-## Hot Zones (audit priority order)
-1. **validate_config.py** (1190 LOC, 14 changes/50 commits) — god module: TOML parser, config loader, gh wrappers, TF I/O, kanban state, slug generation. Every script imports from it.
-2. **kanban.py** (612 LOC, 9 changes) — new state machine with locking, atomic writes, rollback. Fresh code, many recent fixes.
-3. **sync_tracking.py** (280 LOC, 9 changes) — reconciliation path, tension with kanban.py's mutation path.
-4. **populate_issues.py** (553 LOC, 4 changes) — markdown table parsing, sprint inference.
-5. **release_gate.py** (745 LOC) — semver calc, multi-gate validation, rollback orchestration.
-6. **sprint_init.py** (996 LOC) — heuristic project scanner, many detection paths.
+## High-Risk Areas (from churn + coverage analysis)
+1. **kanban.py** (82% coverage, 12 touches in 50 commits, 9+ distinct bug fixes)
+2. **validate_config.py** (94% coverage but TOML parser + YAML writer repeatedly patched)
+3. **sync_tracking.py** (88% coverage, 5 touches, concurrent write path with kanban.py)
+4. **release_gate.py** (89% coverage, complex rollback chain, had P0 null-byte crash)
 
-## Test Infrastructure
-- FakeGitHub (992 LOC) reimplements gh CLI — major fidelity risk
-- MonitoredMock prevents unchecked mock returns — good anti-pattern defense
-- MockProject scaffolds temp projects — well-structured
-- Golden recording/replay — covers full setup pipeline
-- No pytest configuration, no type checking, coverage not wired into CI
+## Lowest Coverage Modules (targets for test audit)
+- test_coverage.py: 68%
+- bootstrap_github.py: 71%
+- update_burndown.py: 74%
+- sprint_teardown.py: 76%
+- populate_issues.py: 77%
+- manage_sagas.py: 78%
 
-## Key Risk Vectors
-1. **Custom TOML parser** — subset impl, edge cases in escaping/quoting/multiline
-2. **Custom YAML frontmatter parser** — `frontmatter_value` regex + `_yaml_safe` roundtrip
-3. **Shell injection surface** — 8 files shell out via subprocess, user-controlled values in args
-4. **Two-path state management** — kanban.py (local-first) vs sync_tracking.py (GitHub-first), both write same files
-5. **sys.path.insert chain** — fragile import mechanism, 4 dirs deep
-6. **FakeGitHub fidelity** — tests may pass while production breaks differently
-7. **No linting/type checking** — only py_compile in CI, no static analysis
-
-## Clean Areas (lower priority)
-- 0 skipped tests, 0 xfail, empty _KNOWN_UNTESTED
-- No bare excepts, no wildcard imports, no mutable defaults
-- All scripts have `if __name__ == "__main__"` guards
-- 91% return-type annotation coverage in scripts/
-- All broad exception catches are justified and logged
+## Structural Concerns
+- Two parallel write paths to tracking files (kanban.py + sync_tracking.py)
+- Only kanban.py uses file locking; sync_tracking.py doesn't
+- TOCTOU window: kanban.py reads TF before acquiring lock in main()
+- Custom TOML parser with 10+ patches across 4 bug-hunting passes
+- _yaml_safe/frontmatter_value must be exact inverses (complex invariant)
+- 6 MonitoredMock warnings suggest unchecked mock contracts in test_kanban.py
