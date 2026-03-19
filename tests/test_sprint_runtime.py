@@ -53,7 +53,12 @@ class TestCheckCI(unittest.TestCase):
         report, actions = check_status.check_ci()
         self.assertIn("1 passing", report[0])
         self.assertEqual(len(actions), 0)
-        # BH-P11-063: Verify query requests correct JSON fields
+
+    @patch("check_status.gh_json")
+    def test_queries_run_endpoint_with_json(self, mock_gh):
+        """BH23-102: Contract test — check_ci queries the run endpoint with JSON fields."""
+        mock_gh.return_value = []
+        check_status.check_ci()
         call_args = mock_gh.call_args[0][0]
         self.assertIn("run", call_args)
         self.assertIn("--json", call_args)
@@ -70,7 +75,17 @@ class TestCheckCI(unittest.TestCase):
         report, actions = check_status.check_ci()
         self.assertIn("1 failing", report[0])
         self.assertTrue(len(actions) > 0)
-        # BH22-061: Verify the log fetch used the correct run database ID
+
+    @patch("check_status.gh")
+    @patch("check_status.gh_json")
+    def test_failing_run_log_uses_database_id(self, mock_gh_json, mock_gh):
+        """BH23-102: Contract test — log fetch uses the correct run database ID."""
+        mock_gh_json.return_value = [
+            {"status": "completed", "conclusion": "failure",
+             "name": "CI", "headBranch": "feat/x", "databaseId": 42},
+        ]
+        mock_gh.return_value = "error: something broke"
+        check_status.check_ci()
         self.assertIn("42", str(mock_gh.call_args))
 
 
