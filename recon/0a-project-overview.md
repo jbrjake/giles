@@ -1,141 +1,98 @@
-# Project Overview — giles
+# 0a — Project Overview
 
-## Purpose
+## What it is
 
-giles is a Claude Code plugin that runs agile sprints with persona-based development. It
-orchestrates GitHub issues, PRs, CI, kanban tracking, and sprint ceremonies (kickoff, demo,
-retro) using fictional team personas that implement and review code in-character. The tagline:
-"agile agentic development that takes it too far."
+Giles is a Claude Code plugin (v0.6.1, MIT license) that orchestrates agile sprints using fictional team personas. It manages the full sprint lifecycle — kickoff, story execution with TDD, code review, demo, and retrospective — with all artifacts flowing through GitHub (issues, PRs, labels, milestones). A built-in scrum master persona ("Giles") facilitates ceremonies. Stories move through a six-state kanban (TODO, DESIGN, DEV, REVIEW, INTEGRATION, DONE) with WIP limits and label sync. Implementer and reviewer subagents write code and review PRs in character. Retrospectives produce actual edits to project documentation.
 
-## Plugin Structure
+## Architecture
 
-```
-.claude-plugin/plugin.json   — manifest (name, version, author)
-skills/                      — 5 skill entry points (each has a SKILL.md)
-  sprint-setup/              — one-time bootstrap: GitHub labels, milestones, issues, CI
-  sprint-run/                — sprint execution: kickoff → stories → demo → retro
-  sprint-monitor/            — designed for /loop 5m; checks CI/PR/burndown/drift
-  sprint-release/            — milestone gates, semver tag, GitHub Release
-  sprint-teardown/           — safe symlink removal without touching originals
-scripts/                     — shared Python scripts (all stdlib-only)
-references/skeletons/        — 19 .tmpl files used by sprint_init.py to scaffold sprint-config/
-evals/evals.json             — skill evaluation scenarios
-```
+### Layers
 
-**Skill lifecycle:** sprint-setup → sprint-run (repeats) → sprint-release → sprint-teardown
+1. **Plugin manifest**: `.claude-plugin/plugin.json` — declares 5 skills in `skills/`.
+2. **Skills** (each has a `SKILL.md` entry point read by Claude Code):
+   - `sprint-setup` — one-time bootstrap: scan project, generate config, create GitHub labels/milestones/issues, set up CI.
+   - `sprint-run` — full sprint execution: kickoff ceremony, story execution via subagents, demo, retro.
+   - `sprint-monitor` — continuous loop: backlog sync, CI checks, PR babysitting, burndown updates.
+   - `sprint-release` — gate validation, semver tagging, GitHub Release creation.
+   - `sprint-teardown` — safe removal of `sprint-config/` (symlinks removed, originals untouched).
+3. **Shared scripts** (`scripts/`): 14 production Python files (see below).
+4. **Skill-local scripts** (`skills/*/scripts/`): 6 additional Python files.
+5. **Reference docs** (`skills/*/references/`): markdown files defining protocols (kanban states, ceremonies, persona guide, tracking formats, context recovery).
+6. **Skeleton templates** (`references/skeletons/`): 21 `.tmpl` files used by `sprint_init.py` to scaffold `sprint-config/`.
 
-## Key Scripts and Responsibilities
+### Config system
 
-| Script | Responsibility |
-|--------|---------------|
-| `scripts/validate_config.py` | TOML parser, config loader, shared helpers (gh(), gh_json(), TF dataclass, read_tf/write_tf, kanban_from_labels, detect_sprint, etc.) |
-| `scripts/kanban.py` | Kanban state machine CLI: transition, assign, sync, status |
-| `scripts/sprint_init.py` | Auto-detect project layout → generate sprint-config/ with symlinks |
-| `scripts/sprint_teardown.py` | Classify and safely remove sprint-config/ entries |
-| `scripts/sync_backlog.py` | Debounced/throttled backlog auto-sync; imports bootstrap_github + populate_issues (intentional cross-skill coupling) |
-| `scripts/sprint_analytics.py` | Velocity, review-round counts, workload metrics |
-| `skills/sprint-setup/scripts/bootstrap_github.py` | Create GitHub labels and milestones (idempotent) |
-| `skills/sprint-setup/scripts/populate_issues.py` | Parse milestone .md files → create GitHub issues |
-| `skills/sprint-setup/scripts/setup_ci.py` | Generate .github/workflows/ci.yml for Rust/Python/Node/Go |
-| `skills/sprint-run/scripts/sync_tracking.py` | Reconcile local tracking files with GitHub (GitHub is source of truth for sprint-run) |
-| `skills/sprint-run/scripts/update_burndown.py` | Update burndown from GitHub milestone progress |
-| `skills/sprint-monitor/scripts/check_status.py` | CI status, open PRs, milestone progress, branch divergence, direct-push detection |
-| `skills/sprint-release/scripts/release_gate.py` | Gate checks, semver calculation, release notes, GitHub Release publishing |
+All project-specific values live in `sprint-config/project.toml`, parsed by a custom TOML parser in `validate_config.py` (no `tomllib` dependency). Config directory uses symlinks to existing project files (team personas, rules, backlog). Generated files (project.toml, INDEX.md) are plugin-owned. Giles persona is copied, not symlinked.
 
-## The New kanban.py State Machine
+Required TOML sections: `[project]`, `[paths]`, `[ci]`. Optional: `[conventions]`, `[release]`, deep-doc paths (PRD, test plans, sagas, epics, story map, team topology).
 
-**File:** `scripts/kanban.py`
+### State management (two paths)
 
-**Source of truth:** local tracking files (`sprint-{N}/stories/*.md`). GitHub is a downstream
-reflection, synced on every mutation. This inverts the direction used by sync_tracking.py
-(where GitHub is authoritative) — kanban.py owns writes, sync_tracking.py reads.
+- `kanban.py` — mutation path: local-first state transitions, syncs to GitHub on every write.
+- `sync_tracking.py` — reconciliation path: accepts GitHub state for PR linkage, branch, completion metadata.
 
-**State machine (6 states, linear with one loop-back):**
-```
-todo → design → dev → review → integration → done
-                 ↑       |
-                 └───────┘  (review can return to dev)
-```
+Both paths read/write YAML frontmatter tracking files under `sprint-config/sprints/`.
 
-**TRANSITIONS dict** enforces legal edges. `validate_transition()` is pure (no I/O).
+## Key design constraints
 
-**Preconditions per target state:**
-- `design` — implementer must be set
-- `dev` — branch and pr_number must be set
-- `review` — implementer and reviewer must be set
-- `done` — pr_number must be set
-- `todo`, `integration` — no preconditions
+1. **stdlib-only runtime** — no pip packages required for users. Dev dependencies (pytest, hypothesis) are allowed. External CLI tools (`gh`, `jq`) are acceptable runtime dependencies.
+2. **Custom TOML parser** — avoids `tomllib` (Python 3.11+) to support Python 3.10. Supports strings, ints, bools, arrays, sections. Not a full TOML implementation.
+3. **sys.path.insert import chain** — skill scripts reach shared `scripts/validate_config.py` via relative path insertion four directories up. No package installation.
+4. **Idempotent scripts** — all bootstrap and monitoring scripts skip resources that already exist. Designed for repeated invocation.
+5. **Symlink-based config** — teardown removes symlinks without touching originals. Constrains what can be stored in `sprint-config/`.
+6. **GitHub is source of truth** — local tracking files reconcile from GitHub state. Requires `gh` CLI and authentication.
+7. **Cross-skill coupling** — `sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/`. Intentional reuse, but creates a dependency from shared scripts into a specific skill.
 
-**Concurrency:** POSIX `fcntl` file locking. `lock_story()` locks a single tracking file;
-`lock_sprint()` locks a sentinel `.kanban.lock` file to serialize all sprint mutations.
-Fails fast on non-POSIX (e.g., plain Windows without WSL).
+## Technology
 
-**Atomic writes:** `atomic_write_tf()` writes to a `.tmp` sibling then `os.rename()` — no
-partial-write window observable by concurrent readers.
+- **Python**: 3.10+ (stdlib only for runtime; custom TOML parser avoids 3.11 `tomllib`)
+- **External CLIs**: `gh` (GitHub CLI, required), `jq` (optional)
+- **Test framework**: pytest + hypothesis (property-based testing). 17 test files, ~15,500 LOC of tests.
+- **Test infrastructure**: `tests/fake_github.py` (991 LOC) mocks `gh` CLI calls; `tests/mock_project.py` scaffolds temp project dirs.
+- **No CI in-repo** — CI is generated per-project by `setup_ci.py` (supports Rust, Python, Node.js, Go).
 
-**do_sync():** Bidirectional. Accepts legal external GitHub transitions; warns on illegal
-ones. Creates local tracking files for stories that appear on GitHub but have no local file.
-Warns about local stories absent from GitHub (does not delete them).
+## File counts and LOC
 
-**do_assign():** Updates local TF, adds persona labels on GitHub, rewrites the `[Unassigned]`
-header in the issue body to the implementer's name.
+| Category | Files | LOC |
+|----------|------:|----:|
+| Production Python (`scripts/` + `skills/*/scripts/`) | 19 | ~8,400 |
+| Test Python (`tests/`) | 23 | ~15,500 |
+| Markdown (skills, references, docs) | ~90 | ~9,600 |
+| Templates (`.tmpl`) | 21 | ~600 |
+| **Total project files** | **~142** | **~34,100** |
 
-**Integration point:** kanban.py imports `TF`, `read_tf`, `write_tf`, `slug_from_title`, and
-`KANBAN_STATES` from validate_config.py. The TF dataclass and its I/O routines now live in
-the shared module.
+### Largest production files
 
-## TF Dataclass and I/O (validate_config.py, lines 1006–1103)
+| File | LOC | Role |
+|------|----:|------|
+| `scripts/validate_config.py` | 1,190 | Config validation, TOML parser, shared helpers (gh wrapper, kanban states, TF read/write) |
+| `scripts/sprint_init.py` | 996 | Project scanner + config generator |
+| `skills/sprint-release/scripts/release_gate.py` | 745 | Release gates, versioning, notes |
+| `scripts/kanban.py` | 612 | Kanban state machine, transitions, assign, sync |
+| `skills/sprint-setup/scripts/populate_issues.py` | 553 | Milestone parsing, issue creation |
+| `scripts/sprint_teardown.py` | 497 | Safe config removal |
+| `skills/sprint-monitor/scripts/check_status.py` | 464 | CI/PR/milestone/drift checking |
 
-`TF` is a dataclass holding all tracking-file fields: `story`, `title`, `sprint`,
-`implementer`, `reviewer`, `status`, `branch`, `pr_number`, `issue_number`, `started`,
-`completed`, `body_text`, plus `path` (used by write_tf for the target file).
+## Risk areas for audit
 
-`read_tf(path)` — parses YAML frontmatter (handles BOM, uses `frontmatter_value()` helper).
-`write_tf(tf)` — serializes fields using `_yaml_safe()` to quote YAML-sensitive characters.
-`slug_from_title(title)` — URL-safe slug for tracking file names.
-`_yaml_safe(value)` — quotes strings containing `: `, `#`, boolean keywords, backslashes,
-and embedded newlines (fixes for BH-007, BH21-005).
+1. **`validate_config.py` (1,190 LOC)** — single largest file; acts as a "god module" providing TOML parsing, config validation, GitHub CLI wrappers, kanban state constants, tracking file I/O (`read_tf`/`write_tf`), slug generation, milestone detection, and more. Every other script imports from it. High coupling, high blast radius for any bug.
 
-## Configuration System
+2. **Custom TOML parser (`parse_simple_toml`)** — hand-rolled parser supporting a subset of TOML. Edge cases in quoting, escaping, nested arrays, multiline strings are likely under-tested compared to a standard library parser.
 
-All skills load `sprint-config/project.toml` via `validate_config.load_config()`.
+3. **`sys.path.insert` import chain** — all skill scripts manipulate `sys.path` to find `validate_config.py` four directories up. Fragile if directory structure changes. No `__init__.py` or package structure.
 
-**Required TOML keys:** `project.name`, `project.repo`, `project.language`,
-`paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`,
-`ci.build_command`.
+4. **Shell-out surface via `subprocess`** — 8 production files shell out via `subprocess.run` (to `gh`, `git`, build commands). Injection risk if user-controlled values (story titles, branch names, persona names) reach command construction without proper quoting.
 
-**Optional:** `project.base_branch` (defaults to `main`); `[conventions]` keys
-(`branch_pattern`, `commit_style`) are informational only — not read by scripts.
+5. **Cross-skill import coupling** — `sync_backlog.py` imports from `skills/sprint-setup/scripts/`. If those scripts change their interface, `sync_backlog` breaks silently (no type checking, no package boundary).
 
-**Optional deep-doc keys:** `paths.prd_dir`, `paths.test_plan_dir`, `paths.sagas_dir`,
-`paths.epics_dir`, `paths.story_map`, `paths.team_topology`.
+6. **YAML frontmatter parsing in tracking files** — `read_tf`/`write_tf` in `validate_config.py` handle YAML between `---` fences. Custom parsing logic (not a YAML library) is a rich source of edge cases around quoting, special characters, and numeric values.
 
-**sprint-config/ layout:** symlinks to existing project files (teardown-safe). Giles's
-persona file is copied, not symlinked (plugin-owned). `definition-of-done.md` evolves
-through retro sessions.
+7. **`sprint_init.py` (996 LOC)** — project scanner that auto-detects language, team files, backlog structure, rules files. Heuristic-heavy detection logic; many code paths for different project shapes.
 
-## Dependency Policy
+8. **`release_gate.py` (745 LOC)** — conventional commit parsing, semver calculation, multi-gate validation. Complex state machine with many exit paths.
 
-**Runtime (user-facing scripts):** stdlib-only Python 3.10+. No pip installs required.
-Custom TOML parser (`parse_simple_toml`) avoids `tomllib`. External CLI tools (`gh`, `jq`)
-are acceptable runtime dependencies — the prerequisites checklist detects and guides install.
+9. **`fake_github.py` (991 LOC)** — large test mock for `gh` CLI. If it drifts from real `gh` behavior, tests pass but production breaks. Has its own fidelity test suite (`test_fakegithub_fidelity.py`) but that only covers what was thought to test.
 
-**Dev/test:** hypothesis, pyjq, and similar tools are fine as dev dependencies.
+10. **Two-path state management** — `kanban.py` and `sync_tracking.py` both mutate tracking files. Concurrent or out-of-order execution could produce inconsistent state. The design doc acknowledges this split but it remains a coordination risk.
 
-## Key Architectural Decisions
-
-1. **Config-driven** — nothing hardcoded to a specific project; all values from project.toml.
-2. **Symlink-based config** — sprint-config/ symlinks to project files; teardown removes
-   symlinks without touching originals.
-3. **Scripts import chain** — all skill scripts do `sys.path.insert(0, ...)` to reach
-   `scripts/validate_config.py` (which is four directories up from skill scripts).
-4. **Dual source-of-truth** — kanban.py makes local TF the authoritative state and pushes
-   to GitHub; sync_tracking.py reads GitHub as authoritative and updates local files. These
-   are complementary, not contradictory — kanban.py is used during active story work,
-   sync_tracking.py reconciles after external changes.
-5. **Idempotent bootstrap** — all setup scripts skip resources that already exist.
-6. **Cross-skill coupling** — sync_backlog.py imports bootstrap_github and populate_issues
-   intentionally, reusing their idempotent creation logic.
-7. **POSIX-only locking** — kanban.py uses fcntl and will refuse to run on plain Windows.
-8. **GitHub label-driven kanban** — `kanban_from_labels()` derives story state from
-   `kanban:*` labels; closed issues override to `done` regardless of label (BH21-012).
+11. **File I/O atomicity** — `atomic_write_tf` in kanban.py suggests prior issues with partial writes. Worth verifying the atomicity guarantees actually hold (temp file + rename on the same filesystem).

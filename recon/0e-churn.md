@@ -1,75 +1,92 @@
-# 0e — Git Churn Analysis (last 50 commits)
+# 0e — Git Churn Analysis
 
-## Top changed files
+Generated: 2026-03-18
+Window: last 50 commits
 
-| Changes | File |
-|---------|------|
-| 15 | BUG-HUNTER-PUNCHLIST.md |
-| 14 | scripts/validate_config.py |
-| 12 | BUG-HUNTER-STATUS.md |
-| 10 | tests/test_verify_fixes.py |
-|  9 | tests/test_sprint_runtime.py |
-|  8 | skills/sprint-run/scripts/sync_tracking.py |
-|  7 | tests/test_kanban.py |
-|  6 | skills/sprint-setup/scripts/populate_issues.py |
-|  6 | scripts/manage_epics.py |
-|  5 | tests/test_bugfix_regression.py |
-|  4 | tests/fake_github.py |
-|  4 | skills/sprint-run/scripts/update_burndown.py |
-|  4 | scripts/sprint_init.py |
-|  4 | scripts/kanban.py |
-|  3 | scripts/sprint_teardown.py |
-|  2 | tests/test_pipeline_scripts.py |
-|  2 | tests/test_lifecycle.py |
-|  2 | tests/test_hexwise_setup.py |
-|  2 | skills/sprint-setup/scripts/bootstrap_github.py |
-|  2 | skills/sprint-run/SKILL.md |
+## Top 20 Most-Changed Files (production code only)
 
-## Recent commits (last 20)
+Excludes test files, docs-only files (BUG-HUNTER-*.md), and blank lines from git log.
 
-```
-6f4de6c feat: centralized kanban state machine (scripts/kanban.py)
-d84bf6d test: add kanban.main() integration test for meta-test coverage
-3d7ca21 docs: replace gh issue edit with kanban.py across all prompts and docs
-80fef38 feat: kanban CLI entry point with argparse subcommands
-689dbf9 fix: add assign rollback test, remove dead _make_gh_side_effect helper
-d1d37eb feat: kanban GitHub sync — do_transition, do_assign, do_sync, do_status
-680339e fix: kanban code quality review fixes
-4ef967f feat: kanban core state machine — transitions, preconditions, atomic writes, locking
-3d5f942 fix: place §validate_config.TF anchor before @dataclass decorator
-41f76a1 refactor: extract TF, read_tf, write_tf into validate_config.py
-ccdd1d1 docs: kanban state machine implementation plan
-dfaef6b docs: address spec review feedback for kanban state machine
-8b2baf9 docs: kanban state machine design spec
-59427e2 fix: use ${CLAUDE_PLUGIN_ROOT} for all script paths in skills
-0ab9254 fix: plugin.json skills field uses directory path, bump to 0.6.1
-074d7fa chore: bump version to 0.6.0
-6d1fa52 chore: P21 complete — 22/27 items resolved, 5 deferred (all LOW/MEDIUM)
-d59eee6 fix: issue dedup abort, monitor hardening, label arg check (BH21-007/008/019/022/023)
-7bbf41b fix: ReDoS multi-char probe, epic enrichment custom IDs, splitlines consistency (BH21-011/017/021)
-9c5c37d refactor: consolidate duplicated logic, remove dead wrappers, fix FakeGitHub PR schema (BH21-009/012-016/018)
-```
+| Rank | Changes | File | Lines | Functions |
+|------|---------|------|-------|-----------|
+| 1 | 14 | `scripts/validate_config.py` | 1190 | 42 |
+| 2 | 9 | `skills/sprint-run/scripts/sync_tracking.py` | 280 | 5 |
+| 3 | 9 | `scripts/kanban.py` | 612 | 13 |
+| 4 | 5 | `CHEATSHEET.md` | — | — |
+| 5 | 4 | `skills/sprint-setup/scripts/populate_issues.py` | 553 | 16 |
+| 6 | 4 | `CLAUDE.md` | — | — |
+| 7 | 3 | `skills/sprint-run/scripts/update_burndown.py` | 225 | — |
+| 8 | 3 | `skills/sprint-run/references/story-execution.md` | — | — |
+| 9 | 3 | `scripts/manage_epics.py` | 410 | — |
+| 10 | 2 | `skills/sprint-run/SKILL.md` | — | — |
+| 11 | 2 | `skills/sprint-run/references/kanban-protocol.md` | — | — |
+| 12 | 2 | `skills/sprint-run/references/ceremony-kickoff.md` | — | — |
+| 13 | 2 | `skills/sprint-run/agents/implementer.md` | — | — |
+| 14 | 2 | `skills/sprint-monitor/scripts/check_status.py` | 464 | — |
+| 15 | 2 | `scripts/validate_anchors.py` | 337 | — |
+| 16 | 2 | `scripts/traceability.py` | 222 | — |
+| 17 | 2 | `scripts/sprint_init.py` | 996 | — |
+| 18 | 2 | `scripts/manage_sagas.py` | 291 | — |
 
-## Analysis
+Note: test files excluded from ranking but for reference: `tests/test_kanban.py` (11 changes), `tests/test_sprint_runtime.py` (8), `tests/test_verify_fixes.py` (7), `tests/test_bugfix_regression.py` (4), `tests/fake_github.py` (4).
 
-**Hot spots and why:**
+## Most Recently Changed Files (last 5 commits)
 
-- **BUG-HUNTER-PUNCHLIST.md / BUG-HUNTER-STATUS.md** (15, 12 hits): Pure tracking docs updated every bug-hunter pass. Not a code risk signal.
+These files were touched in HEAD~5..HEAD:
 
-- **scripts/validate_config.py** (14 hits): The shared library that everything imports. High churn because it's the integration point — new features (TF dataclass, kanban states, get_base_branch, etc.) land here. High-value target for bugs since errors here propagate everywhere.
+| File | Category |
+|------|----------|
+| `scripts/kanban.py` | production |
+| `scripts/validate_config.py` | production |
+| `skills/sprint-run/scripts/sync_tracking.py` | production |
+| `skills/sprint-run/references/kanban-protocol.md` | reference doc |
+| `CHEATSHEET.md` | docs |
+| `CLAUDE.md` | docs |
+| `tests/test_kanban.py` | test |
+| `tests/test_pipeline_scripts.py` | test |
+| `tests/test_property_parsing.py` | test |
+| `tests/test_sprint_runtime.py` | test |
 
-- **tests/test_verify_fixes.py** (10 hits): Growing regression test file. Added new test classes for every bug-hunter pass. Size and complexity have grown significantly.
+## Hot Zones (appear in both lists)
 
-- **tests/test_sprint_runtime.py** (9 hits): Core runtime behavior tests, heavily updated alongside sync_tracking.py and kanban.py changes.
+Files that are both high-churn overall AND actively changing in the last 5 commits:
 
-- **skills/sprint-run/scripts/sync_tracking.py** (8 hits): Frequently adjusted — this is the "GitHub as source of truth" sync logic, touched by both new features and bug fixes.
+| File | Total changes (50 commits) | Lines | Functions | Verdict |
+|------|---------------------------|-------|-----------|---------|
+| **`scripts/validate_config.py`** | 14 | 1190 | 42 | CRITICAL |
+| **`scripts/kanban.py`** | 9 | 612 | 13 | HIGH |
+| **`skills/sprint-run/scripts/sync_tracking.py`** | 9 | 280 | 5 | HIGH |
 
-- **tests/test_kanban.py** (7 hits): New test file for the just-added kanban.py state machine (last ~10 commits).
+## Risk Assessment
 
-- **skills/sprint-setup/scripts/populate_issues.py** (6 hits): Milestone→issue parsing has had several fix passes (sprint detection, enrichment edge cases, dedup).
+### CRITICAL: `scripts/validate_config.py`
+- **Why**: Highest churn (14/50 commits), largest file (1190 lines), most functions (42). This is the shared foundation imported by every other script. It contains the TOML parser, config loader, all path helpers, GitHub wrappers, kanban state constants, and tracking file I/O (`read_tf`/`write_tf`). A bug here propagates everywhere.
+- **Complexity factors**: Custom TOML parser (no external lib), YAML-like frontmatter read/write, slug generation, date parsing, GitHub CLI wrappers — many distinct responsibilities in one file.
+- **Recent fix areas**: `_yaml_safe` numeric quoting (BH22-104), `write_tf` persona safety (BH22-108), state management model clarification (BH22-005/110).
 
-- **scripts/manage_epics.py** (6 hits): Epic CRUD. Multiple bug-fix passes suggest complex parsing logic.
+### HIGH: `scripts/kanban.py`
+- **Why**: 9 changes in 50 commits, 612 lines, 13 functions. This is a new subsystem (introduced in the last 20 commits) implementing the kanban state machine with GitHub sync, locking, atomic writes, and rollback. New code that has been through multiple rounds of bug fixes is a classic risk profile.
+- **Complexity factors**: State machine transitions, file locking (sentinel files), atomic write with rollback, GitHub label/assignee sync, argparse CLI entry point.
+- **Recent fix areas**: `lock_story` sentinel (BH22-100), `atomic_write_tf` mutation (BH22-101), rollback safety (BH22-102/103/107), filename casing (BH22-117), multi-match warning (BH22-105), `assign` body match (BH22-109).
 
-- **scripts/kanban.py** (4 hits): Newly added in the last 10 commits (centralized state machine).
+### HIGH: `skills/sprint-run/scripts/sync_tracking.py`
+- **Why**: 9 changes in 50 commits. This is the reconciliation path for local tracking files vs GitHub state. It works in tension with `kanban.py` (the mutation path), and the two-path model was itself a recent bug fix target (BH22-005/110).
+- **Complexity factors**: Must handle partial data from GitHub, merge with local state, avoid overwriting kanban.py mutations. Only 5 functions / 280 lines, but the contract with kanban.py is subtle.
 
-**Emerging pattern:** The kanban state machine (kanban.py, validate_config.py TF extraction, sync_tracking.py) is the current active surface. validate_config.py and sync_tracking.py are the two files most likely to harbor latent bugs given their role as shared infrastructure under continuous change.
+### MEDIUM: `skills/sprint-setup/scripts/populate_issues.py`
+- **Why**: 4 changes, 553 lines, 16 functions. Parses milestone markdown into GitHub issues. Parsing logic is always fragile.
+- **Complexity factors**: Markdown parsing (story tables, detail blocks), milestone-to-sprint mapping, epic enrichment, GitHub issue creation.
+
+### MEDIUM: `scripts/manage_epics.py`
+- **Why**: 3 changes, 410 lines. Markdown file manipulation (add/remove/reorder stories in epic files). Markdown manipulation is inherently brittle.
+
+### LOW-MEDIUM: `skills/sprint-run/scripts/update_burndown.py`
+- **Why**: 3 changes, 225 lines. Reads GitHub milestone data and writes burndown. Lower complexity but touches both GitHub API and file I/O.
+
+## Commit Pattern Context
+
+The last 20 commits show a concentrated bug-hunting cycle (BH22-* identifiers). The kanban subsystem was built and then immediately stress-tested, producing fixes across `kanban.py`, `validate_config.py`, and `sync_tracking.py`. This means:
+
+1. **Many bugs have already been found and fixed** in these files — good.
+2. **The fixes themselves are fresh and may introduce new issues** — the "fix creates a bug" pattern. Each fix should be reviewed for unintended side effects.
+3. **The kanban/sync_tracking interaction** is the most architecturally risky area. Two subsystems with overlapping write paths to the same tracking files, coordinated by convention rather than a shared lock.

@@ -1,371 +1,730 @@
-# Phase 3: Adversarial Code Audit
+# Phase 3 — Code Audit (Bug-Hunter Pass 23)
 
-Audit date: 2026-03-18
-Auditor: Claude Sonnet 4.6
-Files audited: `scripts/kanban.py`, `scripts/validate_config.py` (lines 880–1183),
-`skills/sprint-run/scripts/sync_tracking.py`, integration references.
-
----
-
-### BH22-100: lock_story holds stale file descriptor after atomic_write_tf rename
-**Severity:** HIGH
-**Category:** `bug/race`
-**Location:** `scripts/kanban.py:161-173`, `scripts/kanban.py:136-151`
-
-**Problem:** `lock_story` opens the tracking file in `"r"` mode and acquires an exclusive `flock` on that file descriptor. `atomic_write_tf` then writes to a `.tmp` sibling and calls `os.rename(tmp, original)`, which atomically replaces the inode at the path. On Linux and macOS, `rename()` does not affect the old inode — the lock file descriptor now points to the unlinked (or replaced) inode, not to the new file content. Any competing process that opens the *new* file at the same path gets a fresh, unrelated file descriptor and can acquire its own `flock` independently because the lock is attached to the old inode.
-
-Concrete race window: process A calls `lock_story`, opens fd #5 on inode X, flocks it. It then calls `atomic_write_tf`, which renames `.tmp` (inode Y) over the path, destroying inode X's directory entry. Process B now calls `lock_story`, opens fd #6 on inode Y (the new file at the same path), and acquires `LOCK_EX` on inode Y. Both processes now hold "exclusive" locks on different inodes and will simultaneously write, corrupting the file.
-
-The sentinel-file approach in `lock_sprint` (`.kanban.lock`) avoids this because `lock_sprint`'s sentinel is never renamed. `lock_story` needs the same sentinel strategy.
-
-**Acceptance Criteria:**
-- [ ] `lock_story` uses a stable sentinel file (e.g., `tracking_path.with_suffix(".lock")`) that is never atomically replaced
-- [ ] The lock file is created with `touch(exist_ok=True)` before opening, so the path always exists
-- [ ] Tests confirm two concurrent processes cannot both complete a transition on the same story
+Auditor: Claude Opus 4.6 (1M context)
+Date: 2026-03-19
+Files audited: 18 production Python scripts (~8,400 LOC)
 
 ---
 
-### BH22-101: atomic_write_tf mutates tf.path — visible side effect under concurrent use
+## Findings
+
+### BH23-200: `_yaml_safe` does not quote comma-containing values
 **Severity:** MEDIUM
-**Category:** `bug/race`
-**Location:** `scripts/kanban.py:143-151`
-
-**Problem:** `atomic_write_tf` temporarily sets `tf.path = tmp` to redirect `write_tf` to the temp file, then restores `tf.path = original_path` in `finally`. If any code reads `tf.path` between the mutation and the `finally` (e.g., a debugger, a signal handler, or a multi-threaded caller), it will see the `.tmp` path. More practically: the `finally` only restores `tf.path` — if `write_tf` raises *before* the rename, `tf.path` is correctly restored but the caller's `TF` object now has a path pointing to where the write did not complete. A subsequent unconditional read of `tf.path` on the error path could pick up stale data from a previous on-disk state.
-
-The bug is latent today (no multi-threaded callers), but the mutation of a shared dataclass field inside a utility function is a correctness hazard. The canonical fix is to write directly to the temp path without mutating `tf`.
-
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:1031-1058`
+**Problem:** `_yaml_safe()` quotes values containing many YAML-sensitive characters, but does not check for commas. In YAML flow sequences, a bare comma creates ambiguity. A story title like `"Parse, validate, transform"` would be written unquoted to frontmatter as `title: Parse, validate, transform`. When read back by `frontmatter_value()`, the full value is retrieved correctly because the regex captures to end-of-line. However, if this file is ever parsed by a real YAML parser (e.g., during migration or tooling), the comma-separated value would be misinterpreted. The current roundtrip works only because `frontmatter_value` is not a real YAML parser.
+**Evidence:**
+```python
+needs_quoting = (
+    ': ' in value
+    or value.endswith(':')
+    or value[0] in '\'\"[{>|*&!%@`'
+    or '#' in value
+    # ... no comma check
+)
+```
 **Acceptance Criteria:**
-- [ ] `atomic_write_tf` does not mutate `tf.path`; instead, create a separate `TF` with `path=tmp` (or write the YAML directly without a TF)
-- [ ] `tf.path` remains unchanged if `write_tf` raises during the temp write
+- [ ] `_yaml_safe("Parse, validate, transform")` returns a quoted string
+- [ ] Round-trip test: write_tf then read_tf preserves comma-containing titles
 
 ---
 
-### BH22-102: do_transition rollback fails silently if second atomic_write_tf also raises
-**Severity:** HIGH
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:258-263`
-
-**Problem:** In `do_transition`, if the GitHub `gh()` call fails, the rollback path sets `tf.status = old_status` and calls `atomic_write_tf(tf)`. If this *second* `atomic_write_tf` call also raises (e.g., disk full, permission error, concurrent deletion of the stories directory), the exception propagates out of the `except RuntimeError` block uncaught. The story is now in `target` state on disk and `old_status` in memory, and the caller sees an exception rather than `False`. The function's documented contract ("returns False on failure, with local state reverted") is violated.
-
-The disk is now inconsistent: local file says `target`, GitHub says `old_status`. The next `kanban.py sync` will accept the GitHub state as authoritative and silently overwrite the local file, but only if sync runs before the next transition attempt. Until then, any `validate_transition` call sees `target` as the current state and may allow or block transitions based on incorrect state.
-
+### BH23-201: `do_transition` mutates caller's TF object on rollback failure
+**Severity:** MEDIUM
+**Category:** bug/state
+**Location:** `scripts/kanban.py:240-282`
+**Problem:** `do_transition()` mutates `tf.status` in-place at line 260 before attempting GitHub sync. If the GitHub call fails AND the rollback also fails (the double-fault path at line 277), the caller's `tf` object has `status = target` but the local file has been reverted (or is in an unknown state). The caller now holds a `tf` that disagrees with disk. This is acknowledged in the CRITICAL error message but the function returns `False` without restoring `tf.status` to `old_status` on the caller's object in the double-fault case.
+**Evidence:**
 ```python
-# do_transition lines 258-263 — rollback exception is not caught
+tf.status = target          # mutates caller's object
+atomic_write_tf(tf)          # writes target state to disk
+try:
+    gh(...)                  # GitHub sync
 except RuntimeError as exc:
-    tf.status = old_status
-    atomic_write_tf(tf)          # <-- uncaught if this raises
-    print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
-          file=sys.stderr)
-    return False
+    try:
+        tf.status = old_status    # rollback attempt
+        atomic_write_tf(tf)
+    except Exception as rollback_exc:
+        # tf.status is still 'target' but disk may be old_status
+        # Caller's tf is now inconsistent
 ```
-
 **Acceptance Criteria:**
-- [ ] The rollback `atomic_write_tf` is wrapped in a `try/except` that logs the dual-failure case and still returns `False`
-- [ ] The error message in the dual-failure case explicitly states that both local and GitHub states are uncertain and `kanban.py sync` should be run
-- [ ] Same pattern applied to `do_assign`'s rollback path (lines 303–307)
+- [ ] In the double-fault path, `tf.status` is set back to `old_status` before returning (even if disk write failed)
+- [ ] Or: `do_transition` operates on a copy of tf and only updates the caller's object on success
 
 ---
 
-### BH22-103: do_assign partial-success leaves GitHub and local file inconsistent
-**Severity:** HIGH
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:285-308`
-
-**Problem:** `do_assign` performs multiple sequential GitHub writes: add `persona:{implementer}` label, then add `persona:{reviewer}` label, then fetch the issue body, then update the issue body. Each step can fail independently. The rollback only reverts the *local* tracking file — it does not undo any GitHub labels already written.
-
-If the reviewer label write succeeds but the body update fails:
-1. GitHub has `persona:{implementer}` and `persona:{reviewer}` labels on the issue
-2. The issue body still shows `[Unassigned]`
-3. The local tracking file is reverted to old values
-
-This produces a GitHub state that is inconsistent with both the old and new local state, and the local rollback hides the inconsistency. A subsequent `kanban.py assign` will add duplicate persona labels (GitHub's `--add-label` does not error on duplicates, so they silently stack).
-
-**Acceptance Criteria:**
-- [ ] Error message on partial failure explicitly states which GitHub operations succeeded before the failure
-- [ ] A `--force` flag or idempotency guard prevents duplicate persona labels on retry
-- [ ] Alternatively: the issue body pattern is made a `sub(..., count=1)` (see BH22-104) and a subsequent full re-run is safe
-
----
-
-### BH22-104: _PERSONA_HEADER_PATTERN replaces ALL matches; no match is silently ignored
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:222-224`, `scripts/kanban.py:295-300`
-
-**Problem 1 — multiple matches:** `_PERSONA_HEADER_PATTERN` matches `> **[Unassigned]** · Implementation` with `re.sub`, which replaces all non-overlapping occurrences. If an issue body was manually edited to include the header twice (e.g., copy-paste in GitHub's web UI), both occurrences are replaced. This produces a body with two persona headers, which is visually confusing and breaks the intent of the one-implementer assignment model.
-
-The fix is `_PERSONA_HEADER_PATTERN.sub(..., body, count=1)` — replace only the first occurrence.
-
-**Problem 2 — no match:** If the issue body was manually edited before `do_assign` runs (e.g., the `[Unassigned]` text was removed or the body was rewritten), the regex finds no match. `new_body == body`, so the `if new_body != body:` guard skips the edit silently. The local tracking file is updated with the implementer name, but the GitHub issue body still shows whatever the manual edit left. No warning is printed. The operator has no indication that the body was not updated.
-
-**Acceptance Criteria:**
-- [ ] Replace only the first occurrence using `count=1` in `re.sub` to prevent double-replacement
-- [ ] Log a warning to stderr when `new_body == body` (no pattern match found), advising manual update of the issue body
-
----
-
-### BH22-105: find_story prefix match has false positive for numeric story IDs
+### BH23-202: `do_assign` partial GitHub state on rollback
 **Severity:** LOW
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:208-213`
-
-**Problem:** `find_story` matches files whose uppercased stem `startswith(prefix + "-")`. The intent is to match `US-0042-some-feature.md` for story ID `US-0042`. However, if story IDs are purely numeric after the prefix (e.g., `US-1` and `US-10` both exist), the comparison for `US-1` would match `US-1-foo.md` correctly, but would also match `US-10-bar.md` because `"US-10-BAR".startswith("US-1" + "-")` is `False` — this specific example is actually safe.
-
-The real hazard: IDs like `US-001` and `US-0011`. The `startswith("US-001-")` check for story `US-001` would NOT falsely match `US-0011-feature.md` because the separator is `"-"`, not a digit. But `extract_story_id` uses `re.match(r"([A-Z]+-\d+)", title)`, which matches `US-0011` in the title `US-0011: Feature`. So `find_story("US-0011", ...)` calls `prefix = "US-0011"`, and only files starting with `US-0011-` are matched. This is safe.
-
-The *actual* false positive occurs with the exact-stem match (`stem == prefix`). If a file is named exactly `US-0042.md` (no slug), and story ID `US-0042` is searched, the `stem == prefix` check matches correctly. But if someone creates `US-0042.md` for story `US-042` (extra zero), both `stem == "US-0042"` and `stem.startswith("US-042-")` paths miss each other — no false positive but potentially a missed story.
-
-The more dangerous case: `find_story` returns the *first* sorted match and silently ignores subsequent matches. If two files match (possible when a story is duplicated by `do_sync`), the second is silently ignored. No warning is logged.
-
-**Acceptance Criteria:**
-- [ ] When `find_story` finds more than one matching file, log a warning to stderr listing all matches and return the first
-- [ ] Document the exact matching semantics in the docstring
-
----
-
-### BH22-106: lock_story requires the file to exist — fails if called on a new story
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:168`
-
-**Problem:** `lock_story` opens `tracking_path` in `"r"` mode. If the file does not exist, `open()` raises `FileNotFoundError`. The `main()` function calls `find_story` first and only calls `lock_story(tf.path)` if a TF was returned, which guarantees the file exists for the `transition` and `assign` commands.
-
-However, `do_sync` calls `atomic_write_tf` to create *new* tracking files without any lock. There is no protection against two concurrent `kanban.py sync` processes both deciding that the same new story does not exist locally and both creating a file for it — the second rename clobbers the first silently. This is a coordination gap between `do_sync` (which uses `lock_sprint`) and new-file creation within that lock (which is correctly protected), but the documentation of `lock_story` ("The file must already exist") creates a maintenance trap if a future caller tries to use it on a new story.
-
-A secondary issue: `do_sync` is called inside `lock_sprint`, which protects the sprint directory's `.kanban.lock` sentinel. This provides sprint-level serialization for `sync` commands. But `transition` and `assign` only use `lock_story`, not `lock_sprint` — so a concurrent `sync` and `transition` can race on the same story if `sync` is creating a new file for that story at the same time.
-
-**Acceptance Criteria:**
-- [ ] Document clearly that `lock_story` must only be called on existing files
-- [ ] `do_sync`'s new-file creation path is already inside `lock_sprint` — confirm this is documented as the reason no additional lock is needed
-- [ ] Add a guard in `main()` for `transition` and `assign` that acquires `lock_sprint` first, then `lock_story`, to prevent the sync+transition race (or document why this race is acceptable)
-
----
-
-### BH22-107: sprint=0 accepted silently when detect_sprint() returns None
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:464`
-
-**Problem:** The sprint resolution is:
+**Category:** bug/state
+**Location:** `scripts/kanban.py:286-338`
+**Problem:** `do_assign()` adds persona labels to GitHub, then tries to update the issue body. If the body update fails, the rollback reverts local state but persona labels already applied on GitHub are NOT removed. The warning message at line 332 acknowledges this ("Note: persona labels already applied on GitHub may persist"), but the function returns `False` suggesting the operation failed completely, when in fact GitHub state was partially mutated. This is a documented limitation, not a bug per se, but callers may retry the full operation, creating duplicate labels or confusing error messages.
+**Evidence:**
 ```python
-sprint = args.sprint or detect_sprint(sprints_dir)
+# Labels applied successfully
+gh(["issue", "edit", issue_num, "--add-label", f"persona:{implementer}"])
+# Body update fails
+gh(["issue", "edit", issue_num, "--body", new_body])  # RuntimeError
+# Rollback: reverts local, but labels persist on GitHub
 ```
-If `args.sprint` is `0` (passed explicitly as `--sprint 0`), Python evaluates `0 or detect_sprint(sprints_dir)`, which calls `detect_sprint` because `0` is falsy. If `detect_sprint` returns a valid integer, that integer is used — silently ignoring the user's explicit `--sprint 0`. If `detect_sprint` also returns `None`, the `if sprint is None` check correctly exits. But if the user genuinely meant sprint 0 (not a typical sprint number but not impossible), their explicit argument is silently discarded.
-
-More practically: if a user accidentally types `--sprint 0`, they get behavior from the auto-detected sprint with no indication their flag was ignored.
-
 **Acceptance Criteria:**
-- [ ] Replace `args.sprint or detect_sprint(sprints_dir)` with `detect_sprint(sprints_dir) if args.sprint is None else args.sprint`
-- [ ] This matches the pattern used elsewhere in the codebase for optional int arguments
+- [ ] Document in docstring that partial GitHub state is possible on failure
+- [ ] Or: attempt to remove labels in rollback path
 
 ---
 
-### BH22-108: frontmatter_value regex `.+` can consume a multiline value's first line only, returning truncated data
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/validate_config.py:905`
-
-**Problem:** The regex `rf"^{key}:\s*(.+)"` uses `.+` without `re.DOTALL`, so `.` does not match `\n`. This is intentional for YAML: each field is one line. However, `_yaml_safe` now escapes `\n` as `\\n` (literal backslash-n) before quoting, so a value containing a real newline is stored as `"line1\\nline2"` in the frontmatter. When read back, `frontmatter_value` captures `"line1\\nline2"` as a single line (correct), strips quotes, and unescapes `\\"` and `\\\\`. But the unescape order is `replace('\\"', '"').replace('\\\\', '\\')`.
-
-**Actual exploit path for empty implementer:** If an implementer name is the empty string `""`, `_yaml_safe("")` returns `""` (falsy early return, no quoting). `write_tf` writes `implementer: ` (no value). When `frontmatter_value` is called with `key="implementer"`, the regex `r"^implementer:\s*(.+)"` requires at least one character after the optional whitespace. An empty value matches nothing — `m` is `None` — and the function returns `None`. The caller `read_tf` uses `v("implementer") or ""` so the empty string is correctly recovered. This path is safe.
-
-**The real bug:** `_yaml_safe` does not quote values that are purely numeric strings (e.g., a persona named `"007"` or a branch named `"123"`). `write_tf` emits `implementer: 007`. When read back by a real YAML parser (not `frontmatter_value`), `007` is an octal literal. `frontmatter_value` is not a real YAML parser so it returns the string `"007"` correctly — but any tool or script that passes tracking files through a real YAML parser will misread numeric-looking values. This is a latent cross-tool compatibility bug.
-
+### BH23-203: `find_story` case-insensitive match but case-sensitive dict keys in `do_sync`
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/kanban.py:202-227` and `scripts/kanban.py:342-441`
+**Problem:** `find_story()` performs case-insensitive matching (uppercases both the prefix and stem at line 214/218). However, `do_sync()` builds `local_by_id` with `tf.story.upper()` as keys and compares against `story_id = extract_story_id(title).upper()`. This is consistent within `do_sync`, but if a tracking file was created with a lowercase story ID (e.g., by an older version or manual edit), `find_story` would find it but `do_sync` would also find it correctly because both sides uppercase. No actual bug here -- the design is consistent. Noting for completeness.
+**Evidence:** Both paths use `.upper()` consistently.
 **Acceptance Criteria:**
-- [ ] `_yaml_safe` should quote values that are purely numeric strings (match `r"^\d+$"`) to prevent YAML parser misinterpretation by third-party tools
-- [ ] Add a test case for `_yaml_safe("007")` returning `'"007"'`
+- [ ] N/A -- no fix needed, but worth a comment noting the case-normalization contract
 
 ---
 
-### BH22-109: write_tf does not apply _yaml_safe to implementer, reviewer, status, pr_number, issue_number, started, completed
+### BH23-204: `sync_tracking.create_from_issue` slug collision fix creates wrong filename
 **Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/validate_config.py:1088-1096`
-
-**Problem:** `write_tf` calls `_yaml_safe` on `story`, `title`, and `branch`, but writes `implementer`, `reviewer`, `status`, `pr_number`, `issue_number`, `started`, and `completed` as raw interpolated strings:
-
+**Category:** bug/logic
+**Location:** `skills/sprint-run/scripts/sync_tracking.py:181-189`
+**Problem:** When a slug collision is detected (another story already has a file at the target path), the code appends the issue number to the slug and creates `f"{slug}-{issue['number']}.md"`. But this drops the story ID prefix -- the original format was `f"{story_id_upper}-{slug}.md"` but the collision fallback uses just `f"{slug}.md"`. The resulting filename like `some-feature-42.md` lacks the story ID prefix, making it harder to find and potentially breaking `find_story()` which matches by story ID prefix.
+**Evidence:**
 ```python
-f"implementer: {tf.implementer}",
-f"reviewer: {tf.reviewer}",
-f"status: {tf.status}",
+filename = f"{story_id_upper}-{slug}.md" if slug else f"{story_id_upper}.md"
+target = d / filename
+if target.is_file():
+    existing = read_tf(target)
+    if existing.story and existing.story != sid:
+        slug = f"{slug}-{issue['number']}"
+        target = d / f"{slug}.md"  # BUG: missing story_id_upper prefix
 ```
-
-A persona name containing a YAML-sensitive character — e.g., `implementer: "Alice: the Architect"` — would write `implementer: Alice: the Architect`, which is an invalid YAML mapping value (looks like a nested key). `frontmatter_value` would still parse it correctly (it just grabs everything after `implementer:\s+`), but the file would be malformed YAML for any real YAML parser.
-
-More importantly, a reviewer name like `null` or `true` or `yes` would be written unquoted and misread by a YAML parser as boolean/null. The `_yaml_safe` function explicitly handles these YAML keywords, but it is not applied to these fields.
-
-In practice, persona names come from controlled config and are unlikely to contain YAML-special characters. The `status` field is always one of the six KANBAN_STATES (all lowercase alpha, safe). `pr_number` and `issue_number` are always digit strings or empty. `started` and `completed` are ISO date strings (safe). The real risk is `implementer` and `reviewer`, which come from user-controlled config or GitHub labels.
-
 **Acceptance Criteria:**
-- [ ] Apply `_yaml_safe` to `implementer` and `reviewer` fields in `write_tf`
-- [ ] Add a note in `write_tf` explaining which fields are safe to write without quoting and why
+- [ ] Collision fallback filename should be `f"{story_id_upper}-{slug}-{issue['number']}.md"`
+- [ ] `find_story()` can locate tracking files created via the collision path
 
 ---
 
-### BH22-110: sync_tracking.py and kanban.py do_sync are architecturally dual-write with no coordination
-**Severity:** HIGH
-**Category:** `bug/integration`
-**Location:** `skills/sprint-run/scripts/sync_tracking.py:252-259`, `scripts/kanban.py:312-381`
-
-**Problem:** Two independent code paths can modify the same story tracking files:
-
-1. `kanban.py sync` — calls `do_sync()`, acquires `lock_sprint`, fetches issues from GitHub, and writes tracking files via `atomic_write_tf`.
-2. `sync_tracking.py` — called by `sprint-monitor` and by the sprint-run story dispatch path, also fetches issues from GitHub and writes tracking files via `write_tf` (non-atomic).
-
-These two sync paths disagree on several behaviors:
-- `sync_tracking.py` uses non-atomic `write_tf` (not `atomic_write_tf`), so it has no rename safety
-- `sync_tracking.py` accepts *any* state change from GitHub without validating the transition; `do_sync` calls `validate_transition` and logs illegal transitions as warnings
-- `sync_tracking.py` fills in `pr_number`, `branch`, `implementer` (from PR lookup), and `completed` (from `closedAt`); `do_sync` only syncs `status` and creates bare TF objects (no PR linkage at all)
-- Neither holds a lock that prevents the other from running concurrently
-
-If `sprint-monitor` runs `sync_tracking.py` while `sprint-run` uses `kanban.py sync`, the two writes race. The last write wins. The winner depends on OS scheduling, not intent. A `sync_tracking.py` write could clobber a `kanban.py`-written file that had the correct new state from a just-completed transition.
-
-The inconsistency in PR/branch fields is the most damaging: `do_sync` creates a new story TF with empty `pr_number` and `branch`. If the story already has a PR, a subsequent `sync_tracking.py` run will correctly fill those fields in, but until then, `check_preconditions` for `dev` will fail because `tf.pr_number` is empty.
-
-**Acceptance Criteria:**
-- [ ] Define a single canonical sync path. The recommendation: `sync_tracking.py` is the canonical syncer (it fills in all fields); `kanban.py sync` should either call `sync_tracking`'s logic or be deprecated in favor of `sync_tracking.py`
-- [ ] If both are kept: `do_sync` must also populate `pr_number` and `branch` from a PR lookup, matching `sync_tracking.create_from_issue`
-- [ ] Both sync paths must use `lock_sprint` to prevent concurrent writes
-- [ ] `sync_tracking.py` should use `atomic_write_tf` instead of `write_tf`
-
----
-
-### BH22-111: do_sync uses extract_story_id on GitHub issue titles — fallback slug is not uppercase
+### BH23-205: `frontmatter_value` unescaping order inconsistency
 **Severity:** LOW
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:333-334`
-
-**Problem:** `do_sync` calls `extract_story_id(title).upper()` and adds the result to `github_ids`. However, `extract_story_id`'s fallback path (when no `[A-Z]+-\d+` pattern matches) returns a lowercase slug like `"my-story"`. The `.upper()` call converts it to `"MY-STORY"`. The local index `local_by_id` is built with `tf.story.upper()` (line 325). So comparison is consistent.
-
-But when a new TF is created (line 362), it uses `story=story_id` where `story_id` is already `.upper()`'d. So the created TF's `story` field is `"MY-STORY"`, and if the tracking file is later read back and `tf.story` is used for display, it will show in uppercase even though the GitHub title had lowercase. This is a cosmetic issue but could confuse operators comparing story IDs against GitHub titles.
-
-More critically: on the next sync run, `extract_story_id(title)` returns `"my-story"` (lowercase), `.upper()` gives `"MY-STORY"`, `local_by_id["MY-STORY"]` matches, and the story is treated as existing — correct. So there is no infinite re-creation loop. But the root problem is that `extract_story_id` should return uppercase slugs consistently without the caller needing to remember to call `.upper()`.
-
-**Acceptance Criteria:**
-- [ ] `extract_story_id`'s fallback path should return an uppercase result to match the `[A-Z]+-\d+` convention
-- [ ] Or: document clearly that all callers must call `.upper()` on the result and audit all call sites
-
----
-
-### BH22-112: kickoff exit criteria call kanban.py assign before tracking files exist
-**Severity:** HIGH
-**Category:** `bug/integration`
-**Location:** `skills/sprint-run/references/ceremony-kickoff.md:257-259`
-
-**Problem:** The kickoff exit criteria (step 5) instructs:
-```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign {story_id} --implementer {impl} --reviewer {rev}
-```
-But `kanban.py assign` calls `find_story(args.story_id, sprints_dir, sprint)`, which looks for a file in `sprint-{N}/stories/`. Tracking files are created by `sync_tracking.py` or `kanban.py sync`, neither of which is called as part of the kickoff ceremony. The kickoff creates GitHub issues (via Phase 1 in `sprint-run/SKILL.md`), but does not explicitly sync those issues to local tracking files first.
-
-If `find_story` returns `None`, `main()` prints an error and exits with code 1. The kickoff's `assign` step fails silently in an automated run, and the persona assignments are never recorded in the local tracking files or GitHub. Development then starts with stories in an unassigned state, causing the `design` precondition check (`tf.implementer must be set`) to fail.
-
-The ceremony-kickoff.md says to run `assign` at exit, but neither that file nor `SKILL.md` Phase 1 includes a step to run `kanban.py sync` (or `sync_tracking.py`) to create the tracking files first.
-
-**Acceptance Criteria:**
-- [ ] `ceremony-kickoff.md` exit criteria must include a step to run `kanban.py sync --sprint {N}` before the `assign` loop
-- [ ] Or: `kanban.py assign` should auto-create a minimal tracking file if none exists (using `do_sync` internally for the single story)
-- [ ] `SKILL.md` Phase 1 should explicitly state that tracking files are created as part of kickoff before persona assignment
-
----
-
-### BH22-113: implementer.md calls kanban.py transition with story_id from template, but story_id is the US-XXXX ID not the GitHub issue number
-**Severity:** LOW
-**Category:** `design/gap`
-**Location:** `skills/sprint-run/agents/implementer.md:133`
-
-**Problem:** The implementer agent template shows:
-```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design --sprint {sprint_number}
-```
-Where `{story_id}` is documented as e.g. `US-0042`. This is correct — `find_story` matches on the `[A-Z]+-\d+` ID. However, the template also says "After creating the draft PR, update the tracking file with `pr_number` and `branch` fields" but does not show the mechanism. The implementer is expected to manually edit the tracking file YAML frontmatter to set `pr_number` before calling `kanban.py transition {story_id} dev`, since the `dev` precondition requires `pr_number` to be set.
-
-There is no `kanban.py set-field` or similar command to update individual tracking file fields. The only way to set `pr_number` and `branch` is to directly write the YAML frontmatter. This is fragile: the implementer subagent must know the exact YAML frontmatter format, write it correctly without corrupting the file, and not trigger the `frontmatter_value` regex edge cases.
-
-Additionally, `story-execution.md` step 4 shows running `kanban.py transition {story_id} design` *without* first setting `pr_number` or `branch`, then later transitioning to `dev` *with* those fields set. But there is no documented step for how the subagent updates the tracking file between those two transitions.
-
-**Acceptance Criteria:**
-- [ ] Add a `kanban.py update <story_id> --pr-number N --branch NAME` subcommand that safely updates individual tracking file fields
-- [ ] Or: document explicitly in `implementer.md` that the agent should use `write_tf` through a one-liner Python invocation to update fields, with the exact command shown
-- [ ] `story-execution.md` should include an explicit "update tracking file" step between the design and dev transitions
-
----
-
-### BH22-114: slug_from_title returns "untitled" for empty string, but empty title is not guarded upstream
-**Severity:** LOW
-**Category:** `bug/logic`
-**Location:** `scripts/validate_config.py:997-1003`
-
-**Problem:** `slug_from_title("")` strips non-alphanumeric characters, leaving an empty string after `.strip()`, which causes the final `return slug if slug else "untitled"` to return `"untitled"`. This is the correct fallback.
-
-But `do_sync` calls `slug_from_title(short_title(title))` where `short_title(title)` returns `title.split(":", 1)[-1].strip()`. For a GitHub issue titled `:` (just a colon), `short_title(":")` returns `""` (empty string after the colon, stripped). `slug_from_title("")` returns `"untitled"`. `do_sync` creates a file named `"UNKNOWN-untitled.md"` (if `extract_story_id` also falls back). No error is raised.
-
-On the next sync, the issue titled `:` will match the local file because `local_by_id` is keyed by story_id (not slug), so no duplicate is created. But the file is named `UNKNOWN-untitled.md` and the `story` field in frontmatter is `"UNKNOWN"` — a legitimate confusion source and potential collision if two malformed issues exist.
-
-This is an edge case for deliberately malformed issue titles, but worth guarding.
-
-**Acceptance Criteria:**
-- [ ] `do_sync` and `create_from_issue` should log a warning when `extract_story_id` returns the fallback `"unknown"` slug (indicating no real story ID was found), and skip creating a tracking file for such issues
-- [ ] Add a test for a GitHub issue with no recognizable story ID in the title
-
----
-
-### BH22-115: do_transition closes GitHub issue for "done" but does not handle partial success (label edited, close fails)
-**Severity:** MEDIUM
-**Category:** `bug/logic`
-**Location:** `scripts/kanban.py:251-255`
-
-**Problem:** `do_transition` for `target == "done"` makes two sequential GitHub calls:
-1. `gh issue edit ... --remove-label kanban:integration --add-label kanban:done`
-2. `gh issue close {issue_num}`
-
-If call 1 succeeds but call 2 fails, the `except RuntimeError` block reverts the local file to `old_status` (integration) and tries to remove the `kanban:done` label and re-add `kanban:integration`. But the rollback only calls `atomic_write_tf` — it does not undo the GitHub label swap. After the failure:
-- Local file: `integration` (reverted correctly)
-- GitHub labels: `kanban:done` (not reverted)
-- GitHub issue state: open (close failed)
-
-This produces a GitHub issue with `kanban:done` label that is not closed. `kanban_from_labels` will return `"done"`, but the next `sync_tracking.py` run will see a closed-issue override only if the issue is actually closed (it checks `issue.get("state") == "closed"`). Since the issue is *open* with a `kanban:done` label, `kanban_from_labels` returns `"done"` without the override. The sync will write `status=done` to the local file, which conflicts with the reverted `integration` state.
-
-The rollback in `do_transition` needs to undo GitHub labels when reverting, not just the local file.
-
-**Acceptance Criteria:**
-- [ ] When `do_transition` catches a RuntimeError after the label edit but during the close, it must also attempt to revert the GitHub labels (swap `kanban:done` back to `kanban:{old_status}`) and log which reversal operations failed
-- [ ] The error message should include explicit instructions to run `kanban.py sync` to re-establish consistency
-
----
-
-### BH22-116: do_sync ignores local stories absent from GitHub without offering resolution
-**Severity:** LOW
-**Category:** `design/gap`
-**Location:** `scripts/kanban.py:374-379`
-
-**Problem:** When a local story has no corresponding GitHub issue, `do_sync` appends a `WARNING: local story {story_id} not found on GitHub` string to the changes list. This is printed to stdout. No further action is taken — the local file is left as-is.
-
-This creates a class of permanently-warning stories. Every subsequent `kanban.py sync` will repeat the warning. There is no mechanism to acknowledge the warning, delete the orphaned file, or create the missing GitHub issue. In a long-running sprint, operators will habituate to the warning and miss genuinely new orphans.
-
-**Acceptance Criteria:**
-- [ ] Document the expected operator action when this warning fires (e.g., "run `kanban.py sync --repair` to create missing GitHub issues or delete orphaned local files")
-- [ ] Consider adding a `--repair` flag to `kanban.py sync` that offers to delete orphaned local tracking files after confirmation
-
----
-
-### BH22-117: sync_tracking.py create_from_issue uses full title slug (not story ID prefix) for filename
-**Severity:** MEDIUM
-**Category:** `bug/integration`
-**Location:** `skills/sprint-run/scripts/sync_tracking.py:167-171`
-
-**Problem:** `create_from_issue` builds the filename as:
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:914-916`
+**Problem:** `frontmatter_value()` unescapes by first replacing `\\"` with `"`, then `\\\\` with `\\`. This means a value like `\\\"` (literal backslash followed by escaped quote) would be processed as: `\\"` -> first pass replaces `\\"` with `"` producing `\"`, then second pass does nothing. The correct order for roundtrip with `_yaml_safe()` (which escapes `\\` first, then `"`) should be the reverse: unescape `\\\\` -> `\\` first, then `\\"` -> `"`. However, `_yaml_safe` writes `\\\\` before `\\"`, so a string containing a literal backslash followed by a quote would be written as `\\\\\\"` and read back incorrectly.
+**Evidence:**
 ```python
-slug = slug_from_title(issue["title"])
-target = d / f"{slug}.md"
+# _yaml_safe escapes: \ -> \\, then " -> \"
+escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+# frontmatter_value unescapes: \" -> ", then \\\\ -> \\
+val = val[1:-1].replace('\\"', '"').replace('\\\\', '\\')
+# For input 'a\\"b': _yaml_safe produces "a\\\\\\"b"
+# frontmatter_value: replace \\" with " -> "a\\"b" ... wrong
 ```
-This uses the *full* title slug (e.g., `us-0042-implement-the-parser.md`), not the `story_id + "-" + short_title_slug` pattern that `do_sync` in `kanban.py` uses (e.g., `US-0042-implement-the-parser.md`). Specifically: `slug_from_title` lowercases everything, while `do_sync` uses `f"{story_id}-{slug}.md"` where `story_id` is already `.upper()`'d.
+Actually, let me retrace: `_yaml_safe('a\\"b')`:
+- Input: `a\\"b` (python string: `a\\"b` = `a\"b`, length 4: a, \, ", b)
+- Step 1 replace `\` -> `\\`: `a\\\\"b` (python: `a\\"b` -> hmm)
 
-The result: the same GitHub issue produces a file named `us-0042-implement-the-parser.md` when created by `sync_tracking.py`, and `US-0042-implement-the-parser.md` when created by `kanban.py sync`. `find_story` matches with `stem.upper()`, so both files are found correctly. But if both sync paths run on a fresh sprint (no local files yet), whichever runs first creates a file, and the second path uses `d / f"{slug}.md"` or `d / f"{story_id}-{slug}.md"` respectively — they produce different filenames and the second creates a duplicate.
-
-`sync_tracking.py`'s collision detection (lines 174-178) checks for an existing file at the slug path, but the `kanban.py`-generated uppercase filename would not collide with the lowercase path, so the duplicate passes the check.
-
+The actual ordering is: `_yaml_safe` escapes backslash first, then quote. `frontmatter_value` unescapes quote first, then backslash. For a value containing ONLY quotes or ONLY backslashes, this works. For a value containing `\"` (backslash-quote), there's a potential asymmetry. In practice this is extremely unlikely in story titles.
 **Acceptance Criteria:**
-- [ ] Both sync paths should produce identically-named files for the same issue. Standardize on `{STORY_ID}-{short_slug}.md` (uppercase ID, lowercase slug)
-- [ ] `create_from_issue` should use `f"{sid}-{slug_from_title(short_title(issue['title']))}.md"` instead of `f"{slug_from_title(issue['title'])}.md"`
+- [ ] Property test: for any string `s`, `frontmatter_value(f'key: {_yaml_safe(s)}', 'key') == s`
 
+---
+
+### BH23-206: `parse_simple_toml` key regex rejects digit-start keys despite BH20-002 comment
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:193`
+**Problem:** The comment at line 192 says "BH20-002: Allow digit-start keys per TOML spec (bare keys are [A-Za-z0-9_-])" but the regex at line 193 is `^([a-zA-Z0-9_][a-zA-Z0-9_-]*)` which requires the first character to be `[a-zA-Z0-9_]`. This does NOT reject digit-start keys (digits are in the first character class). The code is actually correct; the comment is misleading in suggesting this was a fix. However, the TOML spec says bare keys can start with digits, and this regex does handle that. The regex does reject keys starting with hyphens, which is correct per TOML spec. No actual bug.
+**Evidence:** Regex first char class `[a-zA-Z0-9_]` includes digits. Correct behavior.
+**Acceptance Criteria:**
+- [ ] N/A -- no fix needed
+
+---
+
+### BH23-207: `do_sync` does not lock individual stories during sync
+**Severity:** MEDIUM
+**Category:** bug/state
+**Location:** `scripts/kanban.py:342-441`
+**Problem:** `do_sync()` is called under `lock_sprint()` from `main()`, which serializes all kanban mutations within a sprint. However, `sync_tracking.py`'s `main()` does NOT acquire any kanban locks before writing tracking files. If `kanban.py sync` and `sync_tracking.py` run concurrently (e.g., monitor loop calls sync_tracking while user calls kanban sync), both could read and write the same tracking file simultaneously. The `sync_tracking.py` uses plain `write_tf()` (not `atomic_write_tf()`), making it vulnerable to partial writes.
+
+The CLAUDE.md documents this as "coordinated by convention rather than a shared lock" and the churn analysis notes it as a key risk. But the concrete scenario is: kanban.py holds `lock_sprint` and does `atomic_write_tf`, while sync_tracking.py concurrently does `write_tf` on the same file. The lock is advisory and only applies to processes using `lock_story`/`lock_sprint` -- sync_tracking doesn't use either.
+**Evidence:**
+```python
+# sync_tracking.py main():
+write_tf(existing[sid])   # No lock acquired
+# vs kanban.py main():
+with lock_sprint(sprint_dir):
+    changes = do_sync(...)  # Under lock
+```
+**Acceptance Criteria:**
+- [ ] `sync_tracking.py` acquires `lock_sprint` before writing tracking files
+- [ ] Or: document the concurrency limitation clearly in both files' docstrings
+
+---
+
+### BH23-208: `_strip_inline_comment` doesn't handle escaped single quotes
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:230-243`
+**Problem:** `_strip_inline_comment()` tracks single-quoted strings to avoid stripping `#` inside quotes. When inside a double-quoted string, it correctly handles escaped quotes (`\"`). But for single-quoted strings, TOML spec says there are NO escape sequences -- literal strings contain exactly what's between the quotes. The current code does not check for escaped single quotes inside single-quoted strings, which is correct per TOML spec. However, the code at line 240-241 only checks for escaped double quotes (`quote_char == '"'`), meaning if `quote_char` is `'`, no escape check is done. This is correct behavior for TOML.
+
+No actual bug -- the TOML spec says single-quoted strings have no escaping.
+**Acceptance Criteria:**
+- [ ] N/A -- behavior is correct per TOML spec
+
+---
+
+### BH23-209: `release_gate.do_release` rollback after GitHub release creation can leave orphaned release
+**Severity:** MEDIUM
+**Category:** bug/state
+**Location:** `skills/sprint-release/scripts/release_gate.py:641-647`
+**Problem:** If `gh release create` succeeds but a subsequent step (close milestone, update status) fails, the `_rollback_tag()` and `_rollback_commit()` functions are not called because those failures are not wrapped in the same try/except. The release, tag, and commit all persist. However, looking more carefully, the milestone close (line 658) and status update (line 679) are not wrapped in try/except that would trigger rollback. If `gh api ... -X PATCH -f state=closed` fails for the milestone, execution continues (no rollback). This is acceptable -- the release was published and the tag is correct; milestone close and status update are cosmetic. But if `gh release create` itself fails (line 642-647), `_rollback_tag()` and `_rollback_commit()` are correctly called.
+
+Actually, there's a subtler issue: `_rollback_tag()` and `_rollback_commit()` are defined as nested closures inside the `else` block (non-dry-run path). They reference `pushed_to_remote` via closure. But `_rollback_tag()` is defined at line 582 and `_rollback_commit()` at line 500. After the tag is pushed and `pushed_to_remote = True` at line 610, the `_rollback_commit` closure captures the mutable variable correctly since Python closures capture by reference.
+
+However, if the GitHub release creation fails (line 642), `_rollback_tag()` runs first, which deletes the tag locally and remotely. Then `_rollback_commit()` runs, which does `git revert HEAD` (since `pushed_to_remote` is True). The revert commit message doesn't mention anything about the failed release. This is correct rollback behavior.
+
+No actual bug found in the rollback logic -- it's well-structured.
+**Evidence:** Rollback chain: release fail -> delete tag (local+remote) -> revert commit (push revert). Clean.
+**Acceptance Criteria:**
+- [ ] N/A -- rollback is correct
+
+---
+
+### BH23-210: `write_tf` does not quote `pr_number` or `issue_number` fields
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:1089-1111`
+**Problem:** `write_tf()` writes `pr_number` and `issue_number` as bare values (lines 1100-1101): `f"pr_number: {tf.pr_number}"`. These are stored as strings in the TF dataclass. Since they are always numeric strings (or empty), they will not need YAML quoting. However, if someone sets `pr_number` to a non-numeric value (e.g., through `do_update`), it would be written unquoted and could break frontmatter parsing. The `do_update` function accepts arbitrary string values for any field. Similarly, `started` and `completed` (lines 1102-1103) are written bare -- these are date strings which are safe.
+
+This is a defense-in-depth concern. The values are always numeric in practice, but `_yaml_safe` could be applied for safety.
+**Evidence:**
+```python
+f"pr_number: {tf.pr_number}",       # bare, not _yaml_safe'd
+f"issue_number: {tf.issue_number}",  # bare, not _yaml_safe'd
+f"started: {tf.started}",            # bare date string
+f"completed: {tf.completed}",        # bare date string
+```
+**Acceptance Criteria:**
+- [ ] Apply `_yaml_safe` to all string fields in `write_tf`, or document why specific fields are safe to write bare
+
+---
+
+### BH23-211: `check_status._first_error` false positive exclusion can miss real errors
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `skills/sprint-monitor/scripts/check_status.py:100-114`
+**Problem:** The `_FALSE_POSITIVE` regex at line 103 matches patterns like `0 errors`, `no failures`, etc. But the regex requires trailing space/punctuation/EOL. A line like `"no error handling module loaded"` would match `no error` followed by a space, causing it to be skipped as a false positive. Wait -- the regex is `\b(?:0|no)\s+(?:errors?|fail(?:ures?|ed)?)` which matches "no error" but would it match "no error-handling"? The `(?:\s|[.,;:!)]|$)` after the match requires whitespace or punctuation. In "no error-handling", after "error" there's a hyphen, which is NOT in the allowed set. So "no error-handling" would NOT match the false positive regex, and would be correctly detected as an error line. The BH21-023 comment confirms this fix.
+
+Actually wait, the regex matches "no error" where "error" is followed by the lookahead. Let me re-read: `(?:errors?|fail(?:ures?|ed)?)` -- this matches "error" or "errors" or "fail" etc. For "no error-handling", it would match "no error" and then check `(?:\s|[.,;:!)]|$)` -- the next char after "error" is "-" which is not in the set. So the false positive regex does NOT match, meaning "no error-handling" IS treated as a real error line. This could be a false negative (we'd skip it because "error" is in "error-handling" meaning there's no actual error). But actually, if the line contains "error" as a keyword, it's flagged; the false positive check is only to exclude lines that explicitly say "0 errors". So a line saying "no error-handling found" would be flagged as an error, which is a false positive in CI monitoring.
+
+This is a minor issue -- CI log parsing is inherently heuristic.
+**Evidence:**
+```python
+if any(kw in lower for kw in ("error", "failed", "panicked", "assert")):
+    if _FALSE_POSITIVE.search(lower):
+        continue  # skip "0 errors" / "no failures"
+    # "error" in "error-handling" is not excluded by _FALSE_POSITIVE
+```
+**Acceptance Criteria:**
+- [ ] Consider word-boundary matching for the keyword check itself (not just the false-positive filter)
+
+---
+
+### BH23-212: `populate_issues.get_existing_issues` fails hard on 500+ issues
+**Severity:** MEDIUM
+**Category:** design/inconsistency
+**Location:** `skills/sprint-setup/scripts/populate_issues.py:340-365`
+**Problem:** `get_existing_issues()` fetches up to 500 issues and then raises `RuntimeError` if exactly 500 are returned, saying it "Cannot safely deduplicate." This hard failure blocks all issue creation on repositories with 500+ issues. The fix should use `--paginate` or `gh api` with pagination instead of `gh issue list --limit 500`. Other functions in the codebase (e.g., `list_milestone_issues`) handle pagination via `--limit 1000` with a warning but don't fail hard.
+
+The asymmetry is notable: `list_milestone_issues` uses `--limit 1000` and warns; `get_existing_issues` uses `--limit 500` and dies. For a project with many issues (e.g., 600), setup would fail while monitoring/sync would work fine.
+**Evidence:**
+```python
+issues = gh_json(["issue", "list", "--limit", "500", "--json", "title", "--state", "all"])
+if warn_if_at_limit(issues, limit=500):
+    raise RuntimeError(
+        "Repository has 500+ issues. Cannot safely deduplicate. "
+        "Use --paginate or increase --limit to fetch all issues."
+    )
+```
+**Acceptance Criteria:**
+- [ ] Use `gh api` with `--paginate` to fetch all issues for deduplication
+- [ ] Or: increase limit and use consistent strategy across codebase
+
+---
+
+### BH23-213: `sprint_init.ConfigGenerator._symlink` race condition between exists check and creation
+**Severity:** LOW
+**Category:** bug/state
+**Location:** `scripts/sprint_init.py:549-574`
+**Problem:** `_symlink()` checks if the target exists (line 567), then checks if the link already exists (line 571), then creates the symlink (line 573). Between the existence check and the symlink creation, another process could create a file at the link path. This TOCTOU window is extremely narrow and sprint-init is typically run interactively by a single user, making exploitation impractical. Noting for completeness.
+**Evidence:**
+```python
+if not target_abs.exists():    # check
+    ...
+if link_path.is_symlink() or link_path.exists():  # check
+    link_path.unlink()
+link_path.symlink_to(rel)     # act (race window)
+```
+**Acceptance Criteria:**
+- [ ] N/A -- impractical to exploit in the single-user CLI context
+
+---
+
+### BH23-214: `manage_epics.renumber_stories` replaces all occurrences with comma-joined string
+**Severity:** MEDIUM
+**Category:** bug/logic
+**Location:** `scripts/manage_epics.py:339-359`
+**Problem:** `renumber_stories()` replaces every occurrence of `old_id` with `", ".join(new_ids)`. If `old_id = "US-0102"` and `new_ids = ["US-0102a", "US-0102b"]`, then a table row like `| Blocked By | US-0102 |` becomes `| Blocked By | US-0102a, US-0102b |`. This is reasonable for relationship fields. But if `old_id` appears in body text like "As described in US-0102, the parser...", it becomes "As described in US-0102a, US-0102b, the parser..." which reads strangely. More importantly, if the replacement runs twice (idempotency), the second run would search for "US-0102" which no longer exists (replaced with "US-0102a, US-0102b"), so it's a no-op -- which is correct.
+
+The real issue is that `\b{re.escape(old_id)}\b` word boundary might not work correctly if old_id contains a hyphen. In regex, `\b` is a boundary between `\w` and `\W`. Since `-` is `\W`, `\b` before the hyphen in "US-0102" would match at the boundary between "S" and "-". Let me check: `\bUS-0102\b` on "XUS-0102Y" -- `\b` before U matches (X is `\w`, U is `\w` -- wait, X to U is \w to \w, no boundary). Actually `\b` matches between \w and \W or start/end. "XUS-0102Y": X(\w) U(\w) -- no boundary between X and U. So `\bUS-0102\b` would NOT match "XUS-0102Y", which is correct. And it WOULD match "US-0102" standalone because \b matches at start-of-string before U. The hyphen inside is fine -- regex doesn't care about what's between the \b anchors.
+
+This is working as designed for the story-split use case.
+**Evidence:**
+```python
+new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', lambda m: replacement, line))
+```
+**Acceptance Criteria:**
+- [ ] Add test confirming body text replacement reads correctly for the split scenario
+
+---
+
+### BH23-215: `sync_backlog.do_sync` error path saves state despite failure
+**Severity:** LOW
+**Category:** bug/state
+**Location:** `scripts/sync_backlog.py:224-231`
+**Problem:** When `do_sync()` raises an exception, the `except` block at line 226 explicitly does NOT update hashes (correct), but it DOES call `save_state(config_dir, state)` at line 230. The comment says "state NOT updated" and "next run will retry." But `state` was mutated by `check_sync()` earlier (line 215), which set `pending_hashes`. So saving state here persists the pending_hashes, which means the next run will see pending_hashes != None and current_hashes == pending_hashes (if files haven't changed), leading it to attempt sync again. This is actually the desired retry behavior -- the comment is accurate. The state saved is the "debouncing" state with pending_hashes set, which triggers retry on next invocation.
+
+No actual bug -- the retry logic works correctly because check_sync sees `current_hashes == pending` and `current_hashes != stored`, which produces a "sync" result.
+**Evidence:**
+```python
+except Exception as exc:
+    print(f"sync: do_sync failed — {exc}", file=sys.stderr)
+    print("sync: state NOT updated; next run will retry")
+    save_state(config_dir, state)  # saves pending_hashes for retry
+```
+**Acceptance Criteria:**
+- [ ] N/A -- retry logic is correct
+
+---
+
+### BH23-216: `update_burndown.update_sprint_status` regex may match wrong section
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `skills/sprint-run/scripts/update_burndown.py:104-115`
+**Problem:** The regex pattern `r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*(?:(?!\n## )[^\n]+\n?)?"` matches the "## Active Stories" section up to the next `## ` heading. If the file has a section called "## Active Stories Discussion" or "## Active Stories (Historical)", the regex would match on the first occurrence. The `[^\n]*` after "Active Stories" absorbs any trailing text on the heading line, so "## Active Stories Discussion" would match. This could replace the wrong section.
+
+In practice, SPRINT-STATUS.md is generated by the sprint process with a well-defined format, so this heading collision is unlikely. But it's worth noting.
+**Evidence:**
+```python
+pattern = r"## Active Stories[^\n]*\n(?:(?!\n## )[^\n]*\n)*(?:(?!\n## )[^\n]+\n?)?"
+```
+**Acceptance Criteria:**
+- [ ] Use exact heading match: `r"## Active Stories\n"` instead of `r"## Active Stories[^\n]*\n"`
+
+---
+
+### BH23-217: `sprint_analytics.compute_review_rounds` uses `--search` which may not filter correctly
+**Severity:** MEDIUM
+**Category:** bug/logic
+**Location:** `scripts/sprint_analytics.py:83-98`
+**Problem:** `compute_review_rounds()` fetches PRs with `--search milestone:"Sprint 1: ..."` but then also filters by milestone title at line 97. The `gh pr list --search` parameter uses GitHub's search syntax which treats the milestone title as a search query, not an exact match. A milestone title containing special characters or very common words could return PRs from other milestones. The secondary filter at line 97 corrects this, but the initial query could miss PRs if `--search` doesn't return them (e.g., search pagination limits).
+
+More concerning: `gh pr list --search` may not support milestone filtering at all in some `gh` versions. The `--search` flag is passed to GitHub's search API which uses `milestone:` as a qualifier, but it requires the milestone title to be exact (including quotes). The current code passes `f'milestone:"{milestone_title}"'` which should work with GitHub search syntax.
+**Evidence:**
+```python
+prs = gh_json([
+    "pr", "list", "--state", "all",
+    "--json", "number,title,labels,milestone,reviews",
+    "--limit", "500",
+    "--search", f'milestone:"{milestone_title}"',
+])
+```
+**Acceptance Criteria:**
+- [ ] Verify `--search milestone:"title"` returns correct results across gh CLI versions
+- [ ] Consider using `gh api` with explicit milestone number filter instead
+
+---
+
+### BH23-218: `check_status.check_prs` uses match/case syntax requiring Python 3.10+
+**Severity:** LOW
+**Category:** design/inconsistency
+**Location:** `skills/sprint-monitor/scripts/check_status.py:140-146`
+**Problem:** The `match`/`case` syntax at line 140 requires Python 3.10+. The file header says "No external dependencies -- stdlib only" and the CLAUDE.md says "Python 3.10+", so this is within spec. However, it's the ONLY file in the entire codebase that uses match/case. All other files use if/elif chains. This is a style inconsistency, not a bug.
+**Evidence:**
+```python
+match pr.get("reviewDecision", ""):
+    case "APPROVED":
+        approved.append((entry, ci_ok))
+    case "CHANGES_REQUESTED":
+        changes_req.append(entry)
+    case _:
+        needs_review.append((entry, pr.get("createdAt", "")))
+```
+**Acceptance Criteria:**
+- [ ] N/A -- works correctly, minor style inconsistency
+
+---
+
+### BH23-219: `release_gate.write_version_to_toml` regex for next-section detection is fragile
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `skills/sprint-release/scripts/release_gate.py:296-320`
+**Problem:** The regex `r"^\[(?![\[\s\"\'])"` at line 300 matches section headers but attempts to exclude array-of-tables (`[[x]]`) and quoted keys (`["a"]`). However, this negative lookahead also excludes `[ section]` (section with leading space), which is valid TOML. In practice, the project's own TOML files don't use leading spaces in section headers, so this is unlikely to matter. The detection of the `[release]` section boundary is a heuristic and could be replaced with `parse_simple_toml()` + serialization, but that's a larger refactor.
+**Evidence:**
+```python
+next_section = re.search(r"^\[(?![\[\s\"\'])", text[start + 1:], re.MULTILINE)
+```
+**Acceptance Criteria:**
+- [ ] Use `r"^\[(?!\[)"` instead (only exclude array-of-tables, not spaces)
+- [ ] Or: use `parse_simple_toml` to determine section boundaries
+
+---
+
+### BH23-220: `gh()` error message includes full argument list potentially leaking secrets
+**Severity:** LOW
+**Category:** bug/security
+**Location:** `scripts/validate_config.py:57-69`
+**Problem:** The `gh()` helper logs the full command including arguments in error messages: `f"gh {' '.join(args)}: {r.stderr.strip()}"`. If any argument contains sensitive data (e.g., issue body with API tokens, or milestone titles with internal project names), this could leak information through error messages. In practice, `gh` CLI uses environment variables for authentication (not command-line args), and issue bodies are the main risk surface. The `do_assign` function at `kanban.py:320` passes the entire issue body as a `--body` argument, which could contain anything.
+**Evidence:**
+```python
+def gh(args: list[str], timeout: int = 60) -> str:
+    ...
+    raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
+    # If args contains ["issue", "edit", "42", "--body", "secret API key: sk-..."]
+    # the error message exposes the body
+```
+**Acceptance Criteria:**
+- [ ] Truncate or sanitize the args in error messages (e.g., truncate `--body` values)
+
+---
+
+### BH23-221: `populate_issues._safe_compile_pattern` ReDoS test is best-effort
+**Severity:** LOW
+**Category:** design/inconsistency
+**Location:** `skills/sprint-setup/scripts/populate_issues.py:62-104`
+**Problem:** The ReDoS check at line 92-103 tests 9 probe characters with 25-char strings. This is a heuristic -- there exist pathological patterns that pass this test but still cause catastrophic backtracking on different input shapes. For example, `(a?){25}a{25}` would pass the probes (all match quickly on 25-char input) but catastrophically backtrack on longer input. The 25-char limit was chosen as a trade-off between detection accuracy and test speed.
+
+This is a known limitation, documented in BH21-011. The user-supplied pattern is also constrained to non-capturing groups only (line 72), which significantly reduces the attack surface.
+**Evidence:**
+```python
+for ch in _PROBE_CHARS:
+    test_input = ch * 25 + "!"
+    start = time.monotonic()
+    compiled.search(test_input)
+    elapsed = time.monotonic() - start
+    if elapsed > 0.5:
+        return False
+```
+**Acceptance Criteria:**
+- [ ] N/A -- documented limitation, mitigated by capturing group rejection
+
+---
+
+### BH23-222: `_parse_value` unquoted string fallback accepts potentially invalid TOML
+**Severity:** LOW
+**Category:** design/inconsistency
+**Location:** `scripts/validate_config.py:303-361`
+**Problem:** `_parse_value()` falls back to returning the raw string for values that don't match any known pattern (line 361). This means a typo like `language = Pyhton` (missing quotes) silently produces the string "Pyhton" instead of raising a parse error. The code warns on multi-word unquoted values (line 358-360) but accepts single-word unquoted values silently. The TOML spec says unquoted values that aren't booleans, integers, or other recognized types are invalid, but this parser intentionally accepts them for simplicity.
+
+This is a documented design decision ("intentional leniency") and existing tests likely rely on this behavior.
+**Evidence:**
+```python
+# Fall back to raw string — intentional leniency
+if ' ' in raw and not raw.startswith('#'):
+    print(f"Warning: unquoted TOML value '{raw}' interpreted as raw string.")
+return raw  # silently accepts single-word unquoted values
+```
+**Acceptance Criteria:**
+- [ ] N/A -- documented intentional leniency
+
+---
+
+### BH23-223: `_split_array` does not handle trailing commas
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:364-408`
+**Problem:** `_split_array()` splits by commas and then filters empty parts with `if part.strip()` (line 337 in `_parse_value`). A trailing comma like `["a", "b",]` produces parts `['"a"', ' "b"', '']`. The empty string is filtered, so `["a", "b"]` is returned correctly. This handles trailing commas properly. No bug.
+**Evidence:** Trailing comma produces empty last part which is filtered.
+**Acceptance Criteria:**
+- [ ] N/A -- handled correctly
+
+---
+
+### BH23-224: `manage_sagas.update_team_voices` does not sanitize persona names or quotes for markdown injection
+**Severity:** MEDIUM
+**Category:** bug/security
+**Location:** `scripts/manage_sagas.py:229-250`
+**Problem:** `update_team_voices()` takes a `voices` dict mapping persona names to quote strings and writes them directly into markdown blockquotes: `f'> **{name}:** "{quote}"'`. If a persona name or quote contains markdown formatting characters (e.g., `**`, `*`, `>`, or newlines), the output could corrupt the file structure. More seriously, if the name or quote contains markdown link syntax like `[click](javascript:alert(1))`, it could create a clickable link in rendered markdown (though this is mitigated by most markdown renderers stripping javascript: URLs).
+
+The input comes from CLI arguments (`json.loads(sys.argv[3])` at line 280), so it's user-controlled. In the sprint workflow, voices are generated by the LLM, but the CLI interface accepts arbitrary JSON.
+**Evidence:**
+```python
+new_section.append(f'> **{name}:** "{quote}"')
+# If name = "**Evil**\n> # Heading Injection", file structure is corrupted
+```
+**Acceptance Criteria:**
+- [ ] Sanitize persona names: strip markdown formatting and newlines
+- [ ] Sanitize quotes: escape or strip newlines and blockquote markers
+
+---
+
+### BH23-225: `manage_epics.main` accepts untrusted JSON from CLI argument
+**Severity:** LOW
+**Category:** bug/security
+**Location:** `scripts/manage_epics.py:363-406`
+**Problem:** The `add` command at line 374-376 does `json.loads(sys.argv[3])` and passes the result directly to `add_story()`. The `_format_story_section` function sanitizes the `id` and `title` fields (removing newlines and pipes at line 153-154), but other fields like `acceptance_criteria`, `tasks`, and `personas` are written without sanitization. A malicious JSON payload could inject markdown content into the epic file. This is a defense-in-depth concern -- the CLI is typically invoked by the sprint-run skill, not by untrusted users.
+**Evidence:**
+```python
+story_data = json.loads(story_json)  # untrusted
+add_story(epic_file, story_data)
+# _format_story_section sanitizes id/title but not other fields
+```
+**Acceptance Criteria:**
+- [ ] Sanitize all fields written to markdown (strip newlines, escape pipe chars in table rows)
+
+---
+
+### BH23-226: `extract_story_id` fallback produces inconsistent IDs for non-standard titles
+**Severity:** LOW
+**Category:** design/inconsistency
+**Location:** `scripts/validate_config.py:937-951`
+**Problem:** When a title doesn't match the `[A-Z]+-\d+` pattern, `extract_story_id()` falls back to sanitizing the prefix before the first colon into a slug. This slug is uppercased and truncated to 40 chars. The result could be something like "IMPLEMENT-AUTH-SYSTEM" which looks nothing like a story ID but is treated as one throughout the system. `get_existing_issues()` at populate_issues.py:363 explicitly filters out these fallback slugs with `re.match(r"[A-Z]+-\d+", sid)`, but `do_sync` at kanban.py:406 checks for `"UNKNOWN"` specifically and lets other slugs through.
+
+If a GitHub issue has a title without a standard ID (e.g., "Implement auth system"), kanban.py's do_sync will create a tracking file with story ID "IMPLEMENT-AUTH-SYSTEM", while sync_tracking.py will also create one. The IDs will differ because the sanitization paths are subtly different.
+**Evidence:**
+```python
+# validate_config.py
+prefix = title.split(":")[0].strip()
+slug = re.sub(r"[^a-zA-Z0-9_-]", "-", prefix).strip("-").upper()
+return slug[:40] if slug else "UNKNOWN"
+```
+**Acceptance Criteria:**
+- [ ] Both sync paths should produce identical story IDs for the same title
+- [ ] Consider returning "UNKNOWN" for all non-standard titles to force manual handling
+
+---
+
+### BH23-227: `setup_ci._yaml_safe_command` quoting is incomplete for shell special characters
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `skills/sprint-setup/scripts/setup_ci.py:94-110`
+**Problem:** `_yaml_safe_command()` quotes commands containing YAML-sensitive characters. The quoted form uses double quotes: `f'"{command}"'`. But if the command itself contains double quotes (e.g., `cargo test --features "nightly"`), the output would be `"cargo test --features "nightly""` which is invalid YAML. The function doesn't escape internal double quotes.
+**Evidence:**
+```python
+def _yaml_safe_command(command: str) -> str:
+    if any(c in command for c in ":{}[]|>&*!%@`#,"):
+        return f'"{command}"'  # doesn't escape internal double quotes
+    return command
+```
+**Acceptance Criteria:**
+- [ ] Escape internal double quotes when wrapping in double quotes: `command.replace('"', '\\"')`
+- [ ] Or: use single quotes for YAML (which have no escape sequences, so this only works if the command doesn't contain single quotes)
+
+---
+
+### BH23-228: `bootstrap_github.create_milestones_on_github` does not validate milestone titles for API injection
+**Severity:** LOW
+**Category:** bug/security
+**Location:** `skills/sprint-setup/scripts/bootstrap_github.py:234-301`
+**Problem:** The milestone title is extracted from the first heading of a markdown file (line 257) and passed directly to `gh api` via `-f title={title}`. The `gh` CLI handles argument escaping, so shell injection is not possible. However, the GitHub API could receive a title with unusual characters (newlines, control characters) that might cause unexpected behavior. The `gh` CLI's `-f` flag sends the value as a form parameter, which handles most encoding.
+
+This is a low risk because milestone files are authored by the project team, not by untrusted input.
+**Evidence:**
+```python
+api_args = [
+    "api", "repos/{owner}/{repo}/milestones",
+    "-f", f"title={title}",  # title from markdown heading
+]
+gh(api_args)
+```
+**Acceptance Criteria:**
+- [ ] Strip newlines and control characters from milestone titles before API calls
+
+---
+
+### BH23-229: `traceability.parse_stories` metadata scanning doesn't stop at separator rows
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/traceability.py:43-77`
+**Problem:** The metadata table scanner at lines 54-70 stops at blank lines (line 66) or next heading (line 68-69), but doesn't skip separator rows (like `|---|---|`). The `TABLE_ROW` regex at validate_config.py:864 is `r'^\|\s*(.+?)\s*\|\s*(.+?)\s*\|'` which would match a separator row, producing field="---" and value="---". The `if field != "Field"` check at line 59 filters header rows but not separator rows. However, a separator like `|---|---|` would have field="---" and value="---". The check `field not in ("Field", "---", "")` at manage_epics.py:101 handles this, but traceability.py at line 59 only checks `field == "Test Cases"`, so separator rows where field="---" would be skipped naturally since "---" != "Test Cases".
+
+No actual bug -- separator rows are implicitly skipped because their field value doesn't match "Test Cases".
+**Evidence:**
+```python
+if field == "Test Cases" and value not in ("—", "-", ""):
+    test_cases = [tc.strip() for tc in value.split(",")]
+```
+**Acceptance Criteria:**
+- [ ] N/A -- separator rows are implicitly handled
+
+---
+
+### BH23-230: `do_update` allows mutation of `path` field on TF dataclass
+**Severity:** MEDIUM
+**Category:** bug/logic
+**Location:** `scripts/kanban.py:444-468`
+**Problem:** `do_update()` accepts arbitrary keyword arguments and sets them on the TF object using `setattr(tf, key, value)` at line 460. This includes the `path` field, which is a `Path` object. If called with `do_update(tf, path="/some/other/path")`, it would set `tf.path` to a string (not a Path), and the subsequent `atomic_write_tf(tf)` would write to the wrong location. The CLI parser at line 534-538 only exposes `--pr-number` and `--branch`, so this isn't exploitable from the command line. But the function's API allows it, and other callers could misuse it.
+**Evidence:**
+```python
+def do_update(tf: TF, **fields: str) -> bool:
+    for key, value in fields.items():
+        if not hasattr(tf, key):
+            print(f"Unknown field: {key}", file=sys.stderr)
+            return False
+        setattr(tf, key, value)  # Can set path, sprint, etc.
+    if changed:
+        atomic_write_tf(tf)  # Writes to potentially wrong path
+```
+**Acceptance Criteria:**
+- [ ] Add a denylist of immutable fields: `path`, `story` should not be updatable via `do_update`
+- [ ] Or: explicitly allowlist the fields that can be updated
+
+---
+
+### BH23-231: `check_status` main catches only `RuntimeError` from check functions
+**Severity:** LOW
+**Category:** bug/error-handling
+**Location:** `skills/sprint-monitor/scripts/check_status.py:436-442`
+**Problem:** The check loop at line 436 catches `RuntimeError` from each check function. But check functions could also raise `KeyError` (if API responses are missing expected fields), `TypeError` (if None is passed where a string is expected), or `json.JSONDecodeError` (from malformed API responses, though `gh_json` wraps this). The `RuntimeError` catch comes from `gh()` which converts subprocess failures to RuntimeError. But if `gh_json` returns unexpected data types, the subsequent dictionary access could raise `KeyError` or `TypeError`.
+
+For example, `check_ci()` at line 56 accesses `r.get("conclusion")` which is safe (returns None). But `check_prs()` at line 134 accesses `pr.get('number', '?')` which is also safe. The code is generally defensive with `.get()` calls.
+**Evidence:**
+```python
+for fn in checks:
+    try:
+        r, a = fn()
+    except RuntimeError as exc:
+        report_lines.append(f"Check failed: {exc}")
+```
+**Acceptance Criteria:**
+- [ ] Catch `Exception` instead of just `RuntimeError` to prevent monitor crashes on unexpected API responses
+- [ ] Or: verify all check functions are internally defensive against malformed data
+
+---
+
+### BH23-232: `read_tf` does not handle missing file gracefully
+**Severity:** LOW
+**Category:** bug/error-handling
+**Location:** `scripts/validate_config.py:1062-1086`
+**Problem:** `read_tf(path)` calls `path.read_text(encoding="utf-8")` at line 1064 which raises `FileNotFoundError` if the path doesn't exist. Callers like `find_story()` in kanban.py iterate over `stories_dir.glob("*.md")` so the files should exist, but there's a TOCTOU window where a file could be deleted between globbing and reading. In `do_sync()` at kanban.py:357, `read_tf(md_file)` is called for each globbed file. If a concurrent `--prune` operation deletes a file between the glob and the read, `read_tf` would crash.
+
+In practice, the sprint lock serializes all kanban operations, so this can only happen with `sync_tracking.py` (which doesn't acquire locks, per BH23-207).
+**Evidence:**
+```python
+def read_tf(path: Path) -> "TF":
+    tf = TF(path=path)
+    content = path.read_text(encoding="utf-8")  # FileNotFoundError if deleted
+```
+**Acceptance Criteria:**
+- [ ] Catch `FileNotFoundError` in `read_tf` and return a default TF, or handle it at call sites
+- [ ] Depends on BH23-207 (lock sharing between kanban and sync_tracking)
+
+---
+
+### BH23-233: `_parse_team_index` silently accepts malformed table with wrong column count
+**Severity:** LOW
+**Category:** bug/error-handling
+**Location:** `scripts/validate_config.py:580-617`
+**Problem:** When a table row has fewer cells than headers (line 608), a warning is printed but the row is still processed. The `for i, cell in enumerate(cells)` loop at line 612 clips to `i < len(headers)`, so missing cells simply have no value. But if a row has MORE cells than headers, the extra cells are silently dropped. This could happen if a user adds an extra pipe character in a table row. The warning is only printed for wrong cell count, not for extra cells.
+
+More concerning: if the header row has cells ["name", "role", "file"] and a data row has cells ["alice", "engineer"], the "file" key will be missing from the row dict. The code at line 543-548 handles this: `persona_file = row.get("file", "")`, falling back to generating a name-based path.
+**Evidence:**
+```python
+if len(cells) != len(headers):
+    print(f"Warning: team/INDEX.md row has {len(cells)} cells, expected {len(headers)}")
+row = {}
+for i, cell in enumerate(cells):
+    if i < len(headers):  # extra cells silently dropped
+        row[headers[i]] = cell
+```
+**Acceptance Criteria:**
+- [ ] N/A -- graceful degradation with warning is appropriate for a markdown parser
+
+---
+
+### BH23-234: `sprint_analytics.warn_if_at_limit` called with default limit (500) but data fetched with explicit 500 limit
+**Severity:** LOW
+**Category:** design/inconsistency
+**Location:** `scripts/sprint_analytics.py:52`
+**Problem:** `compute_velocity()` calls `warn_if_at_limit(issues)` without specifying a limit, which defaults to 500. The data was fetched with `--limit 500`. This is consistent. But `compute_workload()` at line 143 calls `warn_if_at_limit(issues, 500)` explicitly. The inconsistency in calling convention (sometimes explicit limit, sometimes default) is a minor style issue.
+**Evidence:**
+```python
+# compute_velocity:
+warn_if_at_limit(issues)        # uses default 500
+# compute_workload:
+warn_if_at_limit(issues, 500)   # explicit 500
+```
+**Acceptance Criteria:**
+- [ ] N/A -- both produce the same result
+
+---
+
+### BH23-235: `release_gate.do_release` does not check for tag existence before creating
+**Severity:** LOW
+**Category:** bug/error-handling
+**Location:** `skills/sprint-release/scripts/release_gate.py:571-580`
+**Problem:** `do_release()` creates a tag at line 572 with `git tag -a v{new_ver}`. If a tag with that name already exists (e.g., from a previous failed release attempt that didn't fully clean up), this command will fail and the error message will say "Tag creation failed." The rollback will then undo the version commit. This is correct error handling, but a more helpful error message could check for the existing tag first and provide guidance (e.g., "Tag v1.2.0 already exists -- delete it with `git tag -d v1.2.0` first").
+**Evidence:**
+```python
+r = subprocess.run(
+    ["git", "tag", "-a", f"v{new_ver}", "-m", ...],
+    capture_output=True, text=True,
+)
+if r.returncode != 0:
+    _rollback_commit()
+    return _fail("create-tag", f"Tag creation failed: {r.stderr.strip()}")
+```
+**Acceptance Criteria:**
+- [ ] Check for existing tag before attempting creation, or include guidance in the error message
+
+---
+
+### BH23-236: `_unescape_toml_string` does not handle `\b`, `\f`, `\r` escape sequences
+**Severity:** LOW
+**Category:** bug/logic
+**Location:** `scripts/validate_config.py:262-300`
+**Problem:** The TOML spec defines escape sequences `\b` (backspace), `\f` (form feed), and `\r` (carriage return) in basic strings. The `_unescape_toml_string()` function handles `\n`, `\t`, `\\`, `\"`, `\u`, and `\U` but not `\b`, `\f`, or `\r`. If a TOML file contains `key = "hello\r\nworld"`, the `\r` would trigger the "unknown escape sequence" warning and be kept as literal `\r` (two characters) instead of being converted to a carriage return character.
+
+In practice, project.toml files are unlikely to contain these escape sequences, but this is a deviation from the TOML spec.
+**Evidence:**
+```python
+if nxt == 'n':
+    result.append('\n')
+elif nxt == 't':
+    result.append('\t')
+elif nxt == '\\':
+    result.append('\\')
+elif nxt == '"':
+    result.append('"')
+# Missing: \b, \f, \r
+else:
+    print(f"Warning: unknown TOML escape sequence '\\{nxt}'")
+```
+**Acceptance Criteria:**
+- [ ] Add handling for `\b` -> `\x08`, `\f` -> `\x0c`, `\r` -> `\r`
+
+---
+
+## Summary
+
+| Severity | Count |
+|----------|-------|
+| CRITICAL | 0 |
+| HIGH | 0 |
+| MEDIUM | 7 |
+| LOW | 22 |
+| N/A (noted, no fix) | 8 |
+
+### MEDIUM findings requiring action:
+
+1. **BH23-200**: `_yaml_safe` doesn't quote comma-containing values
+2. **BH23-201**: `do_transition` mutates caller's TF on rollback failure
+3. **BH23-204**: `create_from_issue` slug collision drops story ID prefix
+4. **BH23-207**: `sync_tracking.py` doesn't acquire kanban locks
+5. **BH23-212**: `get_existing_issues` hard-fails on 500+ issues instead of paginating
+6. **BH23-224**: `update_team_voices` doesn't sanitize markdown-injectable input
+7. **BH23-230**: `do_update` allows mutation of immutable TF fields like `path`
+
+### Assessment
+
+The codebase is in good shape after 22 prior bug-hunter passes. No CRITICAL or HIGH severity bugs were found. The MEDIUM findings are mostly edge cases and defense-in-depth improvements rather than likely-to-trigger production bugs. The most actionable finding is BH23-204 (slug collision filename), which could create tracking files that `find_story` cannot locate. The lock coordination gap (BH23-207) is a known architectural limitation that's been documented since the two-path model was introduced.
