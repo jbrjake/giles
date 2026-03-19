@@ -112,6 +112,35 @@ class TestCheckPRs(unittest.TestCase):
         report, actions = check_status.check_prs()
         self.assertIn("1 needs review", report[0])
 
+    @patch("check_status.gh_json")
+    def test_mixed_review_states(self, mock_gh):
+        """BH23-110: Mixed PR states reported correctly in summary."""
+        mock_gh.return_value = [
+            {"number": 1, "title": "feat: auth",
+             "reviewDecision": "APPROVED",
+             "statusCheckRollup": [
+                 {"status": "COMPLETED", "conclusion": "SUCCESS"},
+             ],
+             "labels": [], "createdAt": "2026-03-09T00:00:00Z"},
+            {"number": 2, "title": "fix: typo",
+             "reviewDecision": "",
+             "statusCheckRollup": [],
+             "labels": [], "createdAt": "2026-03-09T00:00:00Z"},
+            {"number": 3, "title": "feat: API",
+             "reviewDecision": "CHANGES_REQUESTED",
+             "statusCheckRollup": [
+                 {"status": "COMPLETED", "conclusion": "FAILURE"},
+             ],
+             "labels": [], "createdAt": "2026-03-09T00:00:00Z"},
+        ]
+        report, actions = check_status.check_prs()
+        summary = report[0]
+        self.assertIn("3 open", summary)
+        self.assertIn("1 approved", summary)
+        self.assertIn("1 needs review", summary)
+        # Changes-requested PR generates action item
+        self.assertTrue(len(actions) > 0)
+
 
 # ---------------------------------------------------------------------------
 # bootstrap_github.py tests -- create_label with mocked gh

@@ -269,6 +269,23 @@ class TestComputeWorkload(unittest.TestCase):
 
         self.assertEqual(result, {})
 
+    def test_mixed_milestones_counts_only_target(self):
+        """BH23-123: Issues in other milestones are not counted."""
+        self.gh.issues.extend([
+            {"number": 1, "labels": [{"name": "persona:rusti"}],
+             "milestone": {"title": "Sprint 1"}, "state": "closed"},
+            {"number": 2, "labels": [{"name": "persona:rusti"}],
+             "milestone": {"title": "Sprint 2"}, "state": "closed"},
+            {"number": 3, "labels": [{"name": "persona:palette"}],
+             "milestone": {"title": "Sprint 1"}, "state": "closed"},
+        ])
+
+        with patch("subprocess.run", self.patched):
+            result = sprint_analytics.compute_workload("Sprint 1")
+
+        self.assertEqual(result["rusti"], 1)  # only Sprint 1 issue
+        self.assertEqual(result["palette"], 1)
+
 
 class TestFormatReport(unittest.TestCase):
     """Test markdown report formatting."""
