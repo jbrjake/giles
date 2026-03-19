@@ -12,11 +12,8 @@ kanban state mutations, use kanban.py (local-first, then syncs to GitHub).
 For reconciliation, this script fills in PR/branch metadata and corrects
 stale statuses. Both paths are complementary, not competing.
 
-Concurrency note (BH23-207): this script does NOT acquire kanban locks
-before writing tracking files. If kanban.py sync and this script run
-concurrently, the last write wins. In practice this is safe because
-sprint-monitor calls this script sequentially, and kanban.py's lock_sprint
-only protects against concurrent kanban.py invocations.
+Concurrency: BH24-002 — this script now acquires lock_story before each
+write_tf call to prevent clobbering concurrent kanban.py operations.
 
 Idempotent -- prints "Everything in sync" when nothing to fix.
 """
@@ -34,6 +31,7 @@ from validate_config import (
     list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
     warn_if_at_limit, TF, read_tf, write_tf, _yaml_safe, slug_from_title,
 )
+from kanban import lock_story  # BH24-002: acquire locks before writing
 
 
 # §sync_tracking._fetch_all_prs
@@ -268,13 +266,15 @@ def main() -> None:
         if sid in existing:
             changes = sync_one(existing[sid], issue, pr, sprint)
             if changes:
-                write_tf(existing[sid])
+                with lock_story(existing[sid].path):  # BH24-002
+                    write_tf(existing[sid])
                 all_changes.extend(changes)
         else:
             tf, changes = create_from_issue(
                 issue, sprint, stories_dir, pr
             )
-            write_tf(tf)
+            with lock_story(tf.path):  # BH24-002
+                write_tf(tf)
             all_changes.extend(changes)
 
     if all_changes:

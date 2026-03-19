@@ -600,7 +600,10 @@ def main() -> None:
             print("Everything in sync")
         return
 
-    # transition and assign need a story
+    # transition, assign, and update need a story.
+    # BH24-001: find_story first to locate the path, then re-read under
+    # lock to eliminate the TOCTOU window where another process could
+    # modify the file between the initial read and the lock acquisition.
     tf = find_story(args.story_id, sprints_dir, sprint)
     if tf is None:
         print(f"{args.story_id}: no tracking file found in sprint {sprint}. "
@@ -610,6 +613,7 @@ def main() -> None:
 
     if args.command == "transition":
         with lock_story(tf.path):
+            tf = read_tf(tf.path)  # BH24-001: re-read under lock
             ok = do_transition(tf, args.target)
         sys.exit(0 if ok else 1)
 
@@ -618,11 +622,13 @@ def main() -> None:
             print("Provide --implementer and/or --reviewer", file=sys.stderr)
             sys.exit(2)
         with lock_story(tf.path):
+            tf = read_tf(tf.path)  # BH24-001: re-read under lock
             ok = do_assign(tf, implementer=args.implementer, reviewer=args.reviewer)
         sys.exit(0 if ok else 1)
 
     if args.command == "update":
         with lock_story(tf.path):
+            tf = read_tf(tf.path)  # BH24-001: re-read under lock
             ok = do_update(tf, pr_number=args.pr_number, branch=args.branch)
         sys.exit(0 if ok else 1)
 
