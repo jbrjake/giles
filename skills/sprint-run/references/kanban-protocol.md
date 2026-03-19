@@ -52,28 +52,36 @@ integration → done  CI green, merged, issue closed
 ## Preconditions
 
 The state machine enforces entry conditions before allowing a transition.
-Use `kanban.py assign` to set fields before `kanban.py transition`.
+Set required fields before calling `kanban.py transition`:
 
-| Target state | Required fields |
-|---|---|
-| design | `implementer` must be set |
-| dev | `branch` and `pr_number` must be set |
-| review | `implementer` and `reviewer` must be set |
-| done | `pr_number` must be set |
-| todo, integration | (no preconditions) |
+| Target state | Required fields | How to set them |
+|---|---|---|
+| design | `implementer` | `kanban.py assign --implementer {name}` |
+| dev | `branch` and `pr_number` | `kanban.py update --branch {name} --pr-number {N}` |
+| review | `implementer` and `reviewer` | `kanban.py assign --implementer {name} --reviewer {name}` |
+| done | `pr_number` | `kanban.py update --pr-number {N}` |
+| todo, integration | (no preconditions) | — |
 
 <!-- §kanban-protocol.github_label_sync_procedure -->
 ## GitHub Label Sync
 
-All state transitions go through the centralized state machine:
+All state management goes through the centralized state machine:
 
 ```bash
+# State transitions (validates legality, checks preconditions, syncs GitHub label)
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition <story-id> <target-state>
+
+# Persona assignment (sets implementer/reviewer, adds persona labels on GitHub)
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign <story-id> --implementer <name> --reviewer <name>
+
+# Field updates (sets pr_number, branch, or other tracking fields)
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update <story-id> --pr-number <N> --branch <name>
+
+# Sync local tracking files with GitHub state
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync [--prune]
 ```
 
-The script validates the transition is legal, checks preconditions, updates
-the local tracking file, and syncs the GitHub issue label atomically. Never
-use raw `gh issue edit` for kanban labels — always use `kanban.py`.
+Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits

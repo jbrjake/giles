@@ -74,11 +74,11 @@ review style.
    with code changes. Code without updated docs is incomplete work.
 4. Push commits to the branch. Mark PR as ready for review.
    Before transitioning, ensure the tracking file has `branch` and `pr_number`
-   fields set (the implementer writes these after creating the draft PR in the
-   previous phase). The `dev` precondition requires both fields.
+   fields set — the `dev` precondition requires both.
    ```bash
    git push origin {branch_name}
    gh pr ready {pr_number}
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update {story_id} --pr-number {pr_number} --branch {branch_name}
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} dev
    ```
 
@@ -153,7 +153,10 @@ before proceeding to integration.
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/skills/sprint-run/scripts/update_burndown.py"
    ```
-6. Update story tracking file: set status = done, record completion date.
+6. Run sync to record completion date from GitHub's `closedAt` field:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync
+   ```
 7. Update `SPRINT-STATUS.md` with the completed story.
 
 ---

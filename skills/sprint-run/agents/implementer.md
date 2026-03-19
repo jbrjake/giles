@@ -128,14 +128,15 @@ The PR description is CRITICAL — the reviewer will work entirely from it. The 
 - Design decisions you made and why
 - Use the PR template from `skills/sprint-setup/references/github-conventions.md`
 
-After creating the draft PR, update the tracking file with `pr_number` and `branch` fields. Then transition:
+After creating the draft PR, set `pr_number` and `branch` in the tracking file, then transition:
 ```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update {story_id} --pr-number {pr_number} --branch {branch_name} --sprint {sprint_number}
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design --sprint {sprint_number}
 ```
 
 <!-- §implementer.design -->
 ### 2. Design
-Write design notes in the story tracking file at `docs/dev-team/sprints/sprint-{N}/stories/{story_file}`.
+Write design notes in the story tracking file at `{sprints_dir}/sprint-{N}/stories/{story_file}`.
 Think through the approach IN CHARACTER — what would {persona_name} prioritize? What concerns would they raise?
 
 ```bash
