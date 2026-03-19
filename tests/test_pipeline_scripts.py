@@ -1628,5 +1628,594 @@ class TestParseWorkflowRuns(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+# ---------------------------------------------------------------------------
+# BH24-015: bootstrap_github.py — check_prerequisites failure paths and
+# create_milestones_on_github error handling
+# ---------------------------------------------------------------------------
+
+import tempfile
+import subprocess as _subprocess
+from unittest.mock import patch, MagicMock
+
+import bootstrap_github
+import populate_issues
+
+
+class TestCheckPrerequisitesFailures(unittest.TestCase):
+    """BH24-015: check_prerequisites() exits on gh/git failures."""
+
+    def _make_run_result(self, returncode=0, stdout="", stderr=""):
+        result = MagicMock()
+        result.returncode = returncode
+        result.stdout = stdout
+        result.stderr = stderr
+        return result
+
+    @patch("subprocess.run")
+    def test_gh_not_installed_exits_1(self, mock_run):
+        """Exit 1 when gh --version fails (gh not installed)."""
+        mock_run.return_value = self._make_run_result(returncode=1)
+        with self.assertRaises(SystemExit) as ctx:
+            bootstrap_github.check_prerequisites()
+        self.assertEqual(ctx.exception.code, 1)
+        # Should have only called gh --version (stopped there)
+        self.assertEqual(mock_run.call_count, 1)
+        self.assertEqual(mock_run.call_args[0][0], ["gh", "--version"])
+
+    @patch("subprocess.run")
+    def test_gh_not_authenticated_exits_1(self, mock_run):
+        """Exit 1 when gh auth status fails (not logged in)."""
+        def side_effect(cmd, **kwargs):
+            if cmd == ["gh", "--version"]:
+                return self._make_run_result(returncode=0)
+            if cmd == ["gh", "auth", "status"]:
+                return self._make_run_result(returncode=1)
+            return self._make_run_result(returncode=0)
+        mock_run.side_effect = side_effect
+        with self.assertRaises(SystemExit) as ctx:
+            bootstrap_github.check_prerequisites()
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("subprocess.run")
+    def test_no_git_remote_exits_1(self, mock_run):
+        """Exit 1 when git remote -v returns empty (no remote configured)."""
+        def side_effect(cmd, **kwargs):
+            if cmd == ["gh", "--version"]:
+                return self._make_run_result(returncode=0)
+            if cmd == ["gh", "auth", "status"]:
+                return self._make_run_result(returncode=0)
+            if cmd == ["git", "remote", "-v"]:
+                return self._make_run_result(returncode=0, stdout="")
+            return self._make_run_result(returncode=0)
+        mock_run.side_effect = side_effect
+        with self.assertRaises(SystemExit) as ctx:
+            bootstrap_github.check_prerequisites()
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(mock_run.call_count, 3)
+
+    @patch("subprocess.run")
+    def test_git_remote_fails_exits_1(self, mock_run):
+        """Exit 1 when git remote -v itself fails (returncode != 0)."""
+        def side_effect(cmd, **kwargs):
+            if cmd == ["gh", "--version"]:
+                return self._make_run_result(returncode=0)
+            if cmd == ["gh", "auth", "status"]:
+                return self._make_run_result(returncode=0)
+            if cmd == ["git", "remote", "-v"]:
+                return self._make_run_result(returncode=1, stdout="")
+            return self._make_run_result(returncode=0)
+        mock_run.side_effect = side_effect
+        with self.assertRaises(SystemExit) as ctx:
+            bootstrap_github.check_prerequisites()
+        self.assertEqual(ctx.exception.code, 1)
+
+    @patch("subprocess.run")
+    def test_all_pass_prints_ok(self, mock_run):
+        """No exit when all checks pass; prints confirmation."""
+        def side_effect(cmd, **kwargs):
+            if cmd == ["git", "remote", "-v"]:
+                return self._make_run_result(returncode=0, stdout="origin\tgit@github.com:o/r.git (fetch)")
+            return self._make_run_result(returncode=0)
+        mock_run.side_effect = side_effect
+        # Should NOT raise
+        bootstrap_github.check_prerequisites()
+        self.assertEqual(mock_run.call_count, 3)
+
+
+class TestCreateMilestonesErrorHandling(unittest.TestCase):
+    """BH24-015: create_milestones_on_github() error and edge-case paths."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="giles-bh24015-")
+        self.root = Path(self.tmpdir)
+        backlog = self.root / "backlog" / "milestones"
+        backlog.mkdir(parents=True)
+        (backlog / "milestone-1.md").write_text(
+            "# Milestone Alpha\n\nFirst milestone.\n\n"
+            "### Sprint 1: Foundation\n\n"
+            "| US-0101 | Setup | S01 | 3 | P0 |\n",
+            encoding="utf-8",
+        )
+        (backlog / "milestone-2.md").write_text(
+            "# Milestone Beta\n\nSecond milestone.\n\n"
+            "### Sprint 2: Polish\n\n"
+            "| US-0201 | Polish | S01 | 2 | P1 |\n",
+            encoding="utf-8",
+        )
+        self.config = {
+            "project": {"name": "test", "repo": "owner/repo"},
+            "paths": {"backlog_dir": str(self.root / "backlog")},
+        }
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @patch("bootstrap_github.gh")
+    def test_runtime_error_non_duplicate_counts_as_error(self, mock_gh):
+        """Non-duplicate RuntimeError increments error count and warns on stderr."""
+        mock_gh.side_effect = RuntimeError("403 Forbidden")
+        import io, contextlib
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            created = bootstrap_github.create_milestones_on_github(self.config)
+        self.assertEqual(created, 0)
+        self.assertIn("failed to create", captured.getvalue())
+
+    @patch("bootstrap_github.gh")
+    def test_already_exists_not_counted_as_error(self, mock_gh):
+        """RuntimeError with 'already_exists' is silently noted, not an error."""
+        mock_gh.side_effect = RuntimeError("already_exists")
+        import io, contextlib
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            created = bootstrap_github.create_milestones_on_github(self.config)
+        self.assertEqual(created, 0)
+        # No warning printed to stderr
+        self.assertNotIn("failed to create", captured.getvalue())
+
+    @patch("bootstrap_github.gh")
+    def test_mixed_success_and_error(self, mock_gh):
+        """One milestone succeeds, one fails — returns correct count."""
+        call_count = [0]
+        def side_effect(args):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return "created"
+            raise RuntimeError("rate limited")
+        mock_gh.side_effect = side_effect
+        created = bootstrap_github.create_milestones_on_github(self.config)
+        self.assertEqual(created, 1)
+
+    def test_no_milestone_files(self):
+        """Returns 0 and prints message when no milestone files exist."""
+        empty_config = {
+            "project": {"name": "test", "repo": "owner/repo"},
+            "paths": {"backlog_dir": str(self.root / "nonexistent")},
+        }
+        created = bootstrap_github.create_milestones_on_github(empty_config)
+        self.assertEqual(created, 0)
+
+    @patch("bootstrap_github.gh")
+    def test_milestone_file_missing_heading_uses_fallback_title(self, mock_gh):
+        """Milestone file without # heading falls back to filename-based title."""
+        mock_gh.return_value = "created"
+        # Overwrite milestone file with no heading
+        backlog = self.root / "backlog" / "milestones"
+        (backlog / "milestone-1.md").write_text(
+            "No heading here, just text.\n\n"
+            "### Sprint 1: Foundation\n",
+            encoding="utf-8",
+        )
+        config = {
+            "project": {"name": "test", "repo": "owner/repo"},
+            "paths": {"backlog_dir": str(self.root / "backlog")},
+        }
+        # Only use milestone-1 to isolate the test
+        from validate_config import get_milestones
+        with patch("bootstrap_github.get_milestones",
+                    return_value=[str(backlog / "milestone-1.md")]):
+            created = bootstrap_github.create_milestones_on_github(config)
+        self.assertEqual(created, 1)
+        # The title should contain "Sprint 1" (from content) or "1" (from filename)
+        call_args = mock_gh.call_args[0][0]
+        title_idx = call_args.index("title=Sprint 1") if "title=Sprint 1" in call_args else -1
+        # Verify title arg was passed (it's in the -f flag)
+        title_args = [a for a in call_args if a.startswith("title=")]
+        self.assertEqual(len(title_args), 1)
+        self.assertIn("Sprint 1", title_args[0])
+
+
+# ---------------------------------------------------------------------------
+# BH24-016: populate_issues.py — enrich_from_epics conflicting sprints and
+# create_issue failure path
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichFromEpicsConflictingSprints(unittest.TestCase):
+    """BH24-016: enrich_from_epics when epic references stories from different sprints."""
+
+    def test_conflicting_sprints_uses_most_common(self):
+        """When an epic references stories from different sprints,
+        new stories use the most common sprint number."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh24016-")
+        try:
+            epics_dir = Path(tmpdir) / "epics"
+            epics_dir.mkdir()
+
+            # Epic file referencing stories from sprints 1 and 2,
+            # with sprint 1 being more common, plus a new story
+            epic_content = (
+                "# E-0001 — Mixed Sprint Epic\n"
+                "\n"
+                "References: US-0001, US-0002, US-0003\n"
+                "\n"
+                "### US-0099: New Story From Epic\n"
+                "\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Saga | S01 |\n"
+                "| Story Points | 5 |\n"
+                "| Priority | P2 |\n"
+                "\n"
+            )
+            (epics_dir / "E-0001-mixed.md").write_text(epic_content, encoding="utf-8")
+
+            # Existing stories: 2 in sprint 1, 1 in sprint 2
+            existing_stories = [
+                populate_issues.Story(
+                    story_id="US-0001", title="First", saga="S01",
+                    sp=3, priority="P1", sprint=1,
+                ),
+                populate_issues.Story(
+                    story_id="US-0002", title="Second", saga="S01",
+                    sp=2, priority="P1", sprint=1,
+                ),
+                populate_issues.Story(
+                    story_id="US-0003", title="Third", saga="S01",
+                    sp=4, priority="P2", sprint=2,
+                ),
+            ]
+            config = {"paths": {"epics_dir": str(epics_dir)}}
+
+            result = populate_issues.enrich_from_epics(existing_stories, config)
+            # US-0099 should be added with sprint=1 (most common)
+            new_story = next((s for s in result if s.story_id == "US-0099"), None)
+            self.assertIsNotNone(new_story, "US-0099 should be added from epic")
+            self.assertEqual(new_story.sprint, 1,
+                             "New story should use most common sprint (1)")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_enrich_merges_detail_into_existing_story(self):
+        """Detail block fields (user_story, AC) merge into existing stories."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh24016-merge-")
+        try:
+            epics_dir = Path(tmpdir) / "epics"
+            epics_dir.mkdir()
+
+            epic_content = (
+                "# E-0001 — Enrichment Epic\n"
+                "\n"
+                "### US-0001: Setup Project\n"
+                "\n"
+                "**As a** developer **I want to** set up the project "
+                "**so that** I can start coding\n"
+                "\n"
+                "**Acceptance Criteria:**\n"
+                "- [ ] `AC-1`: Project compiles\n"
+                "- [ ] `AC-2`: Tests pass\n"
+                "\n"
+            )
+            (epics_dir / "E-0001-setup.md").write_text(epic_content, encoding="utf-8")
+
+            existing = [
+                populate_issues.Story(
+                    story_id="US-0001", title="Setup Project", saga="S01",
+                    sp=3, priority="P1", sprint=1,
+                ),
+            ]
+            config = {"paths": {"epics_dir": str(epics_dir)}}
+
+            result = populate_issues.enrich_from_epics(existing, config)
+            enriched = next(s for s in result if s.story_id == "US-0001")
+            self.assertIn("developer", enriched.user_story)
+            self.assertEqual(len(enriched.acceptance_criteria), 2)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_enrich_no_epics_dir_returns_unchanged(self):
+        """When epics_dir is not configured, stories are returned unchanged."""
+        stories = [
+            populate_issues.Story(
+                story_id="US-0001", title="Solo", saga="S01",
+                sp=1, priority="P1", sprint=1,
+            ),
+        ]
+        config = {"paths": {}}
+        result = populate_issues.enrich_from_epics(stories, config)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].story_id, "US-0001")
+
+
+class TestCreateIssueFailurePath(unittest.TestCase):
+    """BH24-016: create_issue() returns False on gh failure."""
+
+    @patch("populate_issues.gh")
+    def test_gh_runtime_error_returns_false(self, mock_gh):
+        """create_issue returns False when gh raises RuntimeError."""
+        mock_gh.side_effect = RuntimeError("API rate limit exceeded")
+        story = populate_issues.Story(
+            story_id="US-0042", title="Doomed Story",
+            saga="S01", sp=3, priority="P1", sprint=1,
+        )
+        result = populate_issues.create_issue(
+            story, milestone_numbers={}, milestone_titles={},
+        )
+        self.assertFalse(result)
+
+    @patch("populate_issues.gh")
+    def test_gh_success_returns_true(self, mock_gh):
+        """create_issue returns True on success."""
+        mock_gh.return_value = "https://github.com/owner/repo/issues/42"
+        story = populate_issues.Story(
+            story_id="US-0042", title="Good Story",
+            saga="S01", sp=3, priority="P1", sprint=1,
+        )
+        result = populate_issues.create_issue(
+            story, milestone_numbers={"Sprint 1": 1},
+            milestone_titles={1: "Sprint 1"},
+        )
+        self.assertTrue(result)
+        # Verify --milestone was passed since sprint mapping exists
+        call_args = mock_gh.call_args[0][0]
+        self.assertIn("--milestone", call_args)
+
+    @patch("populate_issues.gh")
+    def test_create_issue_includes_labels(self, mock_gh):
+        """create_issue passes correct labels including saga and priority."""
+        mock_gh.return_value = "https://github.com/owner/repo/issues/1"
+        story = populate_issues.Story(
+            story_id="US-0001", title="Labelled Story",
+            saga="S01", sp=2, priority="P1", sprint=1, epic="E-0101",
+        )
+        populate_issues.create_issue(
+            story, milestone_numbers={}, milestone_titles={},
+        )
+        call_args = mock_gh.call_args[0][0]
+        # Collect all label arguments
+        label_indices = [i for i, a in enumerate(call_args) if a == "--label"]
+        labels = [call_args[i + 1] for i in label_indices]
+        self.assertIn("sprint:1", labels)
+        self.assertIn("type:story", labels)
+        self.assertIn("kanban:todo", labels)
+        self.assertIn("saga:S01", labels)
+        self.assertIn("priority:P1", labels)
+
+
+# ---------------------------------------------------------------------------
+# BH24-017: manage_sagas.py — update_sprint_allocation table structure and
+# update_team_voices table structure
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateSprintAllocationStructure(unittest.TestCase):
+    """BH24-017: Verify update_sprint_allocation rewrites table correctly."""
+
+    def _make_saga(self, tmp_path: Path) -> Path:
+        """Create a minimal saga with Sprint Allocation section."""
+        saga = tmp_path / "S01-test.md"
+        saga.write_text(
+            "# S01 — Test Saga\n"
+            "\n"
+            "| Field | Value |\n"
+            "|-------|-------|\n"
+            "| Stories | 4 |\n"
+            "| Epics | 2 |\n"
+            "| Total SP | 20 |\n"
+            "\n"
+            "## Epic Index\n"
+            "\n"
+            "| Epic | Name | Stories | SP |\n"
+            "|------|------|---------|-----|\n"
+            "| E-0101 | Parser | 2 | 8 |\n"
+            "\n"
+            "## Sprint Allocation\n"
+            "\n"
+            "| Sprint | Stories | SP |\n"
+            "|--------|---------|-----|\n"
+            "| Sprint 1 | US-0101 | 5 |\n"
+            "| Sprint 2 | US-0102 | 8 |\n"
+            "\n"
+            "## Team Voices\n"
+            "\n"
+            "> **Ada:** \"Types first.\"\n",
+            encoding="utf-8",
+        )
+        return saga
+
+    def test_table_header_structure(self):
+        """Rewritten table has proper markdown header and separator rows."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            new_alloc = [
+                {"sprint": "Sprint 1", "stories": "US-0101, US-0102", "sp": "10"},
+                {"sprint": "Sprint 2", "stories": "US-0103", "sp": "5"},
+                {"sprint": "Sprint 3", "stories": "US-0104, US-0105", "sp": "12"},
+            ]
+            update_sprint_allocation(str(saga_path), new_alloc)
+            content = saga_path.read_text(encoding="utf-8")
+            lines = content.split("\n")
+
+            # Find the Sprint Allocation section
+            alloc_idx = next(i for i, l in enumerate(lines) if l.strip() == "## Sprint Allocation")
+            # Next non-blank line should be the table header
+            table_lines = [l for l in lines[alloc_idx + 1:] if l.strip()]
+            self.assertEqual(table_lines[0], "| Sprint | Stories | SP |")
+            self.assertEqual(table_lines[1], "|--------|---------|-----|")
+            # Data rows
+            self.assertIn("US-0101, US-0102", table_lines[2])
+            self.assertIn("US-0103", table_lines[3])
+            self.assertIn("US-0104, US-0105", table_lines[4])
+
+    def test_three_rows_written(self):
+        """Correct number of data rows written."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            new_alloc = [
+                {"sprint": "Sprint 1", "stories": "US-0101", "sp": "3"},
+                {"sprint": "Sprint 2", "stories": "US-0102", "sp": "5"},
+                {"sprint": "Sprint 3", "stories": "US-0103", "sp": "8"},
+            ]
+            update_sprint_allocation(str(saga_path), new_alloc)
+            result = parse_saga(str(saga_path))
+            self.assertEqual(len(result["sprint_allocation"]), 3)
+            self.assertEqual(result["sprint_allocation"][2]["sprint"], "Sprint 3")
+            self.assertEqual(result["sprint_allocation"][2]["sp"], "8")
+
+    def test_surrounding_sections_preserved(self):
+        """Epic Index and Team Voices sections survive sprint allocation rewrite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            new_alloc = [{"sprint": "Sprint 1", "stories": "US-0001", "sp": "5"}]
+            update_sprint_allocation(str(saga_path), new_alloc)
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn("## Epic Index", content)
+            self.assertIn("E-0101", content)
+            self.assertIn("## Team Voices", content)
+            self.assertIn("Ada", content)
+            self.assertIn("# S01", content)
+
+    def test_empty_allocation_produces_empty_table(self):
+        """An empty allocation list produces a table with headers but no data rows."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            update_sprint_allocation(str(saga_path), [])
+            result = parse_saga(str(saga_path))
+            self.assertEqual(result["sprint_allocation"], [])
+            # Headers should still be present in the file
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn("## Sprint Allocation", content)
+            self.assertIn("| Sprint | Stories | SP |", content)
+
+    def test_no_sprint_allocation_section_is_noop(self):
+        """If the saga has no Sprint Allocation section, nothing changes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = Path(tmp) / "no-alloc.md"
+            original = (
+                "# S99 — No Allocation\n\n"
+                "## Team Voices\n\n"
+                "> **Ada:** \"Hello.\"\n"
+            )
+            saga_path.write_text(original, encoding="utf-8")
+            update_sprint_allocation(str(saga_path), [{"sprint": "Sprint 1", "stories": "US-0001", "sp": "5"}])
+            self.assertEqual(saga_path.read_text(encoding="utf-8"), original)
+
+
+class TestUpdateTeamVoicesStructure(unittest.TestCase):
+    """BH24-017: Verify update_team_voices rewrites blockquotes correctly."""
+
+    def _make_saga(self, tmp_path: Path) -> Path:
+        """Create a saga with Team Voices and surrounding sections."""
+        saga = tmp_path / "S01-test.md"
+        saga.write_text(
+            "# S01 — Test Saga\n"
+            "\n"
+            "Metadata paragraph.\n"
+            "\n"
+            "## Sprint Allocation\n"
+            "\n"
+            "| Sprint | Stories | SP |\n"
+            "|--------|---------|-----|\n"
+            "| Sprint 1 | US-0101 | 5 |\n"
+            "\n"
+            "## Team Voices\n"
+            "\n"
+            "> **Original:** \"Old quote.\"\n"
+            "\n"
+            "## Dependency Graph\n"
+            "\n"
+            "Dependencies go here.\n",
+            encoding="utf-8",
+        )
+        return saga
+
+    def test_voices_use_blockquote_format(self):
+        """Each voice uses > **Name:** \"quote\" format."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            voices = {"Rusti": "Ownership matters", "Palette": "Make it beautiful"}
+            update_team_voices(str(saga_path), voices)
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn('> **Rusti:** "Ownership matters"', content)
+            self.assertIn('> **Palette:** "Make it beautiful"', content)
+
+    def test_old_voices_removed(self):
+        """Previous voice content is replaced, not appended."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            update_team_voices(str(saga_path), {"New": "Fresh take"})
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertNotIn("Original", content)
+            self.assertNotIn("Old quote", content)
+            self.assertIn("New", content)
+
+    def test_surrounding_sections_preserved(self):
+        """Sprint Allocation and Dependency Graph survive voice rewrite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            update_team_voices(str(saga_path), {"Ada": "Types rule"})
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn("## Sprint Allocation", content)
+            self.assertIn("US-0101", content)
+            self.assertIn("## Dependency Graph", content)
+            self.assertIn("Dependencies go here.", content)
+            self.assertIn("# S01", content)
+
+    def test_empty_voices_clears_section(self):
+        """Empty voices dict clears the section content but keeps the heading."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            update_team_voices(str(saga_path), {})
+            content = saga_path.read_text(encoding="utf-8")
+            self.assertIn("## Team Voices", content)
+            self.assertNotIn("Original", content)
+            self.assertNotIn("> **", content)
+
+    def test_no_team_voices_section_is_noop(self):
+        """If the saga has no Team Voices section, nothing changes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = Path(tmp) / "no-voices.md"
+            original = (
+                "# S99 — No Voices\n\n"
+                "## Sprint Allocation\n\n"
+                "| Sprint | Stories | SP |\n"
+                "|--------|---------|-----|\n"
+                "| Sprint 1 | US-0001 | 5 |\n"
+            )
+            saga_path.write_text(original, encoding="utf-8")
+            update_team_voices(str(saga_path), {"Ada": "Hello"})
+            self.assertEqual(saga_path.read_text(encoding="utf-8"), original)
+
+    def test_markdown_injection_sanitized(self):
+        """BH23-224: Newlines and bold markers in voice inputs are sanitized."""
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._make_saga(Path(tmp))
+            voices = {
+                "Evil\nName": "quote with\nnewline",
+                "**Bold**": 'say "hello"',
+            }
+            update_team_voices(str(saga_path), voices)
+            content = saga_path.read_text(encoding="utf-8")
+            # Newlines in name/quote should be replaced with spaces
+            self.assertNotIn("Evil\nName", content)
+            self.assertIn("Evil Name", content)
+            self.assertNotIn("quote with\nnewline", content)
+            # Bold markers in name should be stripped
+            self.assertNotIn("****Bold****", content)
+            # Double quotes in quote should be replaced with single quotes
+            self.assertIn("say 'hello'", content)
+
+
 if __name__ == "__main__":
     unittest.main()

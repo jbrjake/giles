@@ -2088,6 +2088,214 @@ class TestTestCoverageScanProject(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+# ---------------------------------------------------------------------------
+# BH24-013: Additional test_coverage.py coverage for detect/scan functions
+# ---------------------------------------------------------------------------
+
+
+class TestDetectTestFunctionsEdgeCases(unittest.TestCase):
+    """BH24-013: Edge cases for detect_test_functions and scan_project_tests."""
+
+    def test_detect_empty_source_returns_empty(self):
+        """detect_test_functions returns [] for empty source code."""
+        for lang in ("python", "rust", "javascript", "go"):
+            result = test_coverage_mod.detect_test_functions(lang, "")
+            self.assertEqual(result, [], f"{lang}: empty source should yield empty list")
+
+    def test_detect_python_no_test_prefix(self):
+        """Python functions without 'test_' prefix are not detected."""
+        source = "def helper_method():\n    pass\ndef check_value():\n    pass\n"
+        result = test_coverage_mod.detect_test_functions("python", source)
+        self.assertEqual(result, [])
+
+    def test_detect_rust_no_test_attr(self):
+        """Rust functions without #[test] attribute are not detected."""
+        source = "fn helper() {}\nfn setup() {}\n"
+        result = test_coverage_mod.detect_test_functions("rust", source)
+        self.assertEqual(result, [])
+
+    def test_detect_rust_async_std_test(self):
+        """detect_test_functions handles #[async_std::test] attribute."""
+        source = "#[async_std::test]\nasync fn test_something() {\n}\n"
+        result = test_coverage_mod.detect_test_functions("rust", source)
+        self.assertIn("test_something", result)
+
+    def test_detect_javascript_both_it_and_test(self):
+        """detect_test_functions finds both it() and test() blocks in JS."""
+        source = (
+            "it('handles nulls', () => {});\n"
+            "test('handles empty', () => {});\n"
+        )
+        result = test_coverage_mod.detect_test_functions("javascript", source)
+        self.assertIn("handles nulls", result)
+        self.assertIn("handles empty", result)
+
+    def test_detect_case_insensitive_language(self):
+        """detect_test_functions accepts uppercase language names."""
+        source = "def test_foo():\n    pass\n"
+        result = test_coverage_mod.detect_test_functions("Python", source)
+        self.assertIn("test_foo", result)
+        result2 = test_coverage_mod.detect_test_functions("PYTHON", source)
+        self.assertIn("test_foo", result2)
+
+    def test_detect_multiple_python_tests(self):
+        """detect_test_functions returns all matches from a single source."""
+        source = (
+            "def test_alpha(): pass\n"
+            "def test_beta(): pass\n"
+            "def test_gamma(): pass\n"
+        )
+        result = test_coverage_mod.detect_test_functions("python", source)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result, ["test_alpha", "test_beta", "test_gamma"])
+
+    def test_scan_deduplicates_test_functions(self):
+        """scan_project_tests deduplicates function names across files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-dedup-")
+        try:
+            root = Path(tmpdir)
+            # Two test files with the same function name
+            (root / "test_a.py").write_text("def test_shared(): pass\n")
+            (root / "test_b.py").write_text("def test_shared(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertEqual(result.count("test_shared"), 1,
+                             "Duplicate function names should be deduplicated")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_returns_sorted_results(self):
+        """scan_project_tests returns results in sorted order."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-sorted-")
+        try:
+            root = Path(tmpdir)
+            (root / "test_funcs.py").write_text(
+                "def test_zebra(): pass\n"
+                "def test_alpha(): pass\n"
+                "def test_middle(): pass\n"
+            )
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertEqual(result, sorted(result),
+                             "Results should be sorted alphabetically")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_skips_vendor_dir(self):
+        """scan_project_tests skips files under vendor/ directory."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-vendor-")
+        try:
+            root = Path(tmpdir)
+            vendor = root / "vendor" / "lib"
+            vendor.mkdir(parents=True)
+            (vendor / "test_vendored.py").write_text("def test_vendored(): pass\n")
+            (root / "test_real.py").write_text("def test_mine(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_mine", result)
+            self.assertNotIn("test_vendored", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_skips_target_dir(self):
+        """scan_project_tests skips files under target/ directory."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-target-")
+        try:
+            root = Path(tmpdir)
+            target = root / "target" / "debug"
+            target.mkdir(parents=True)
+            (target / "test_built.py").write_text("def test_built(): pass\n")
+            (root / "test_real.py").write_text("def test_actual(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_actual", result)
+            self.assertNotIn("test_built", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_skips_sprint_config_dir(self):
+        """scan_project_tests skips files under sprint-config/ directory."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-sc-")
+        try:
+            root = Path(tmpdir)
+            sc = root / "sprint-config"
+            sc.mkdir()
+            (sc / "test_config.py").write_text("def test_config(): pass\n")
+            (root / "test_main.py").write_text("def test_main(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_main", result)
+            self.assertNotIn("test_config", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_skips_git_dir(self):
+        """scan_project_tests skips files under .git/ directory."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-git-")
+        try:
+            root = Path(tmpdir)
+            git = root / ".git" / "hooks"
+            git.mkdir(parents=True)
+            (git / "test_hook.py").write_text("def test_hook(): pass\n")
+            (root / "test_app.py").write_text("def test_app(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "python")
+            self.assertIn("test_app", result)
+            self.assertNotIn("test_hook", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_unknown_language_returns_empty(self):
+        """scan_project_tests returns empty list for unknown language."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-unknown-")
+        try:
+            root = Path(tmpdir)
+            (root / "test_thing.py").write_text("def test_thing(): pass\n")
+            result = test_coverage_mod.scan_project_tests(str(root), "fortran")
+            self.assertEqual(result, [])
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_rust_finds_test_files(self):
+        """scan_project_tests finds Rust test functions in tests/ dir."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-rust-scan-")
+        try:
+            root = Path(tmpdir)
+            tests = root / "tests"
+            tests.mkdir()
+            (tests / "integration.rs").write_text(
+                "#[test]\nfn test_integration() {\n}\n"
+            )
+            result = test_coverage_mod.scan_project_tests(str(root), "rust")
+            self.assertIn("test_integration", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_go_finds_test_files(self):
+        """scan_project_tests finds Go test functions in *_test.go files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-go-scan-")
+        try:
+            root = Path(tmpdir)
+            (root / "math_test.go").write_text(
+                "package main\n\nfunc TestMath(t *testing.T) {\n}\n"
+            )
+            result = test_coverage_mod.scan_project_tests(str(root), "go")
+            self.assertIn("TestMath", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_scan_javascript_finds_spec_files(self):
+        """scan_project_tests finds JS tests in *.spec.* and *.test.* files."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-js-scan-")
+        try:
+            root = Path(tmpdir)
+            (root / "math.test.js").write_text(
+                "test('adds numbers', () => {});\n"
+            )
+            (root / "util.spec.js").write_text(
+                "it('formats dates', () => {});\n"
+            )
+            result = test_coverage_mod.scan_project_tests(str(root), "javascript")
+            self.assertIn("adds numbers", result)
+            self.assertIn("formats dates", result)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 class TestBH21003QuotedTomlKeys(unittest.TestCase):
     """BH21-003: Quoted TOML keys should raise ValueError, not be silently dropped."""
 

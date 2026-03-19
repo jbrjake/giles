@@ -2088,3 +2088,332 @@ class TestSlugFromTitle(unittest.TestCase):
         s1 = sync_tracking.slug_from_title("Add auth")
         s2 = sync_tracking.slug_from_title("Add auth module")
         self.assertNotEqual(s1, s2)
+
+
+# ---------------------------------------------------------------------------
+# BH24-044: get_linked_pr dict normalization
+# ---------------------------------------------------------------------------
+
+
+class TestGetLinkedPrDictNormalization(unittest.TestCase):
+    """BH24-044: Timeline API returning a single dict (not a list) is normalized."""
+
+    def test_single_dict_normalized_to_list(self):
+        """When timeline API returns a single dict instead of a list,
+        get_linked_pr normalizes it and extracts the PR correctly."""
+        fake = FakeGitHub()
+        # Register timeline events for issue 10 — FakeGitHub stores them
+        # as a list, but we need the jq filter to return a single dict.
+        # With the jq package, the jq expression applied to these events
+        # produces a list. To test the dict-normalization path, we mock
+        # gh_json directly to return a dict (simulating an API quirk).
+        single_dict = {
+            "number": 77,
+            "state": "open",
+            "pull_request": {"merged_at": None},
+        }
+
+        def mock_gh_json(args):
+            if "timeline" in str(args):
+                return single_dict
+            return []
+
+        with patch("sync_tracking.gh_json", side_effect=mock_gh_json):
+            result = sync_tracking.get_linked_pr(
+                10, story_id="US-0099", all_prs=[],
+            )
+
+        self.assertIsNotNone(result, "Should handle a single dict return")
+        self.assertEqual(result["number"], 77)
+        self.assertFalse(result["merged"])
+
+
+# ---------------------------------------------------------------------------
+# BH24-014: update_burndown.py — write_burndown() and build_rows() tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRows(unittest.TestCase):
+    """BH24-014: build_rows produces burndown rows from GitHub issue data."""
+
+    def _make_issue(self, title, labels=None, state="open", body="", closed_at=""):
+        """Helper to create a GitHub-style issue dict."""
+        issue = {
+            "title": title,
+            "labels": labels or [],
+            "state": state,
+            "body": body,
+        }
+        if closed_at:
+            issue["closedAt"] = closed_at
+        return issue
+
+    def test_empty_milestone_no_issues(self):
+        """build_rows with no issues returns an empty list."""
+        rows = update_burndown.build_rows([])
+        self.assertEqual(rows, [])
+
+    def test_all_closed_milestone(self):
+        """All issues closed — every row should have status 'done'."""
+        issues = [
+            self._make_issue(
+                "US-0001: Setup project",
+                labels=[{"name": "kanban:done"}],
+                state="closed",
+                body="Story Points: 3",
+                closed_at="2026-03-10T12:00:00Z",
+            ),
+            self._make_issue(
+                "US-0002: Add auth",
+                labels=[{"name": "kanban:done"}],
+                state="closed",
+                body="Story Points: 5",
+                closed_at="2026-03-12T14:00:00Z",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertEqual(row["status"], "done")
+        total_sp = sum(r["sp"] for r in rows)
+        self.assertEqual(total_sp, 8)
+
+    def test_mixed_open_closed_with_sp(self):
+        """Mix of open and closed issues with various SP values."""
+        issues = [
+            self._make_issue(
+                "US-0001: Walking skeleton",
+                labels=[{"name": "kanban:done"}],
+                state="closed",
+                body="Story Points: 5",
+                closed_at="2026-03-10T10:00:00Z",
+            ),
+            self._make_issue(
+                "US-0002: API endpoints",
+                labels=[{"name": "kanban:dev"}],
+                state="open",
+                body="Story Points: 8",
+            ),
+            self._make_issue(
+                "US-0003: Frontend shell",
+                labels=[{"name": "kanban:todo"}],
+                state="open",
+                body="Story Points: 3",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 3)
+
+        done_rows = [r for r in rows if r["status"] == "done"]
+        self.assertEqual(len(done_rows), 1)
+        self.assertEqual(done_rows[0]["sp"], 5)
+
+        dev_rows = [r for r in rows if r["status"] == "dev"]
+        self.assertEqual(len(dev_rows), 1)
+        self.assertEqual(dev_rows[0]["sp"], 8)
+
+        todo_rows = [r for r in rows if r["status"] == "todo"]
+        self.assertEqual(len(todo_rows), 1)
+        self.assertEqual(todo_rows[0]["sp"], 3)
+
+    def test_missing_sp_data_defaults_to_zero(self):
+        """Issues without SP data should default to 0 SP."""
+        issues = [
+            self._make_issue(
+                "US-0001: No SP info",
+                labels=[{"name": "kanban:dev"}],
+                state="open",
+                body="No story points here",
+            ),
+            self._make_issue(
+                "US-0002: Also no SP",
+                labels=[],
+                state="open",
+                body="",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertEqual(row["sp"], 0, f"Expected 0 SP for {row['story_id']}")
+
+    def test_build_rows_with_tracking_metadata(self):
+        """build_rows merges tracking metadata (assignee, PR)."""
+        issues = [
+            self._make_issue(
+                "US-0001: Setup project",
+                labels=[{"name": "kanban:dev"}],
+                state="open",
+                body="Story Points: 3",
+            ),
+        ]
+        tracking = {
+            "US-0001": {"assignee": "Marcus", "pr": "#42"},
+        }
+        rows = update_burndown.build_rows(issues, tracking)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["assignee"], "Marcus")
+        self.assertEqual(rows[0]["pr"], "#42")
+
+    def test_build_rows_without_tracking_defaults_dash(self):
+        """Without tracking metadata, assignee and pr default to em-dash."""
+        issues = [
+            self._make_issue(
+                "US-0001: No tracking",
+                labels=[{"name": "kanban:todo"}],
+                state="open",
+                body="Story Points: 2",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["assignee"], "\u2014")
+        self.assertEqual(rows[0]["pr"], "\u2014")
+
+    def test_build_rows_extracts_story_id(self):
+        """build_rows correctly extracts story IDs from titles."""
+        issues = [
+            self._make_issue("US-0042: Dashboard widget", labels=[], state="open", body="SP = 1"),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["story_id"], "US-0042")
+
+    def test_build_rows_extracts_short_title(self):
+        """build_rows correctly extracts the short title."""
+        issues = [
+            self._make_issue("US-0001: My Feature Title", labels=[], state="open", body="SP = 1"),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["short_title"], "My Feature Title")
+
+    def test_closed_date_included(self):
+        """build_rows includes the closed date for closed issues."""
+        issues = [
+            self._make_issue(
+                "US-0001: Done thing",
+                labels=[{"name": "kanban:done"}],
+                state="closed",
+                body="Story Points: 2",
+                closed_at="2026-03-15T09:30:00Z",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["closed"], "2026-03-15")
+
+    def test_open_issue_closed_date_is_dash(self):
+        """build_rows uses em-dash for open issues' closed date."""
+        issues = [
+            self._make_issue(
+                "US-0001: In progress",
+                labels=[{"name": "kanban:dev"}],
+                state="open",
+                body="Story Points: 3",
+            ),
+        ]
+        rows = update_burndown.build_rows(issues)
+        self.assertEqual(rows[0]["closed"], "\u2014")
+
+
+class TestWriteBurndown(unittest.TestCase):
+    """BH24-014: write_burndown produces correct burndown markdown files."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.sprints_dir = Path(self._tmpdir.name)
+        self.now = datetime(2026, 3, 15, 14, 30, tzinfo=timezone.utc)
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _make_row(self, story_id, sp, status, closed="\u2014",
+                  short_title="Feature", assignee="\u2014", pr="\u2014"):
+        return {
+            "story_id": story_id,
+            "short_title": short_title,
+            "sp": sp,
+            "status": status,
+            "closed": closed,
+            "assignee": assignee,
+            "pr": pr,
+        }
+
+    def test_empty_rows_writes_zero_progress(self):
+        """write_burndown with no rows creates a burndown file with 0% progress."""
+        path = update_burndown.write_burndown(1, [], self.now, self.sprints_dir)
+        self.assertTrue(path.exists())
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("Sprint 1 Burndown", content)
+        self.assertIn("Planned: 0 SP", content)
+        self.assertIn("Completed: 0 SP", content)
+        self.assertIn("Remaining: 0 SP", content)
+        self.assertIn("Progress: 0%", content)
+
+    def test_all_done_shows_100_percent(self):
+        """write_burndown with all done rows shows 100% progress."""
+        rows = [
+            self._make_row("US-0001", 5, "done", closed="2026-03-10"),
+            self._make_row("US-0002", 3, "done", closed="2026-03-12"),
+        ]
+        path = update_burndown.write_burndown(2, rows, self.now, self.sprints_dir)
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("Planned: 8 SP", content)
+        self.assertIn("Completed: 8 SP", content)
+        self.assertIn("Remaining: 0 SP", content)
+        self.assertIn("Progress: 100%", content)
+
+    def test_mixed_progress(self):
+        """write_burndown with mixed statuses calculates correct progress."""
+        rows = [
+            self._make_row("US-0001", 5, "done", closed="2026-03-10"),
+            self._make_row("US-0002", 3, "dev"),
+            self._make_row("US-0003", 2, "todo"),
+        ]
+        path = update_burndown.write_burndown(1, rows, self.now, self.sprints_dir)
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("Planned: 10 SP", content)
+        self.assertIn("Completed: 5 SP", content)
+        self.assertIn("Remaining: 5 SP", content)
+        self.assertIn("Progress: 50%", content)
+
+    def test_creates_sprint_directory(self):
+        """write_burndown creates sprint-N directory if it does not exist."""
+        rows = [self._make_row("US-0001", 3, "todo")]
+        path = update_burndown.write_burndown(7, rows, self.now, self.sprints_dir)
+        self.assertTrue((self.sprints_dir / "sprint-7").is_dir())
+        self.assertEqual(path, self.sprints_dir / "sprint-7" / "burndown.md")
+
+    def test_burndown_has_markdown_table(self):
+        """write_burndown includes a markdown table with story rows."""
+        rows = [
+            self._make_row("US-0001", 5, "done", closed="2026-03-10",
+                           short_title="Setup"),
+            self._make_row("US-0002", 3, "dev", short_title="API"),
+        ]
+        path = update_burndown.write_burndown(1, rows, self.now, self.sprints_dir)
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("| Story | SP | Status | Completed |", content)
+        self.assertIn("US-0001", content)
+        self.assertIn("US-0002", content)
+        self.assertIn("Setup", content)
+        self.assertIn("API", content)
+
+    def test_burndown_includes_timestamp(self):
+        """write_burndown includes the update timestamp."""
+        rows = [self._make_row("US-0001", 2, "todo")]
+        path = update_burndown.write_burndown(1, rows, self.now, self.sprints_dir)
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("2026-03-15 14:30 UTC", content)
+
+    def test_burndown_rows_sorted_by_story_id(self):
+        """write_burndown sorts rows by story_id in the table."""
+        rows = [
+            self._make_row("US-0003", 2, "todo"),
+            self._make_row("US-0001", 5, "done"),
+            self._make_row("US-0002", 3, "dev"),
+        ]
+        path = update_burndown.write_burndown(1, rows, self.now, self.sprints_dir)
+        content = path.read_text(encoding="utf-8")
+        idx_001 = content.index("US-0001")
+        idx_002 = content.index("US-0002")
+        idx_003 = content.index("US-0003")
+        self.assertLess(idx_001, idx_002)
+        self.assertLess(idx_002, idx_003)

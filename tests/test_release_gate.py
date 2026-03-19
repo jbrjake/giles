@@ -23,7 +23,9 @@ sys.path.insert(0, str(ROOT / "tests"))
 from release_gate import (
     bump_version,
     calculate_version,
+    determine_bump,
     validate_gates,
+    gate_prs,
     gate_tests,
     gate_build,
     do_release,
@@ -1829,6 +1831,274 @@ class TestDoReleaseGitMissing(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertIn("git", buf.getvalue().lower())
+
+
+# ---------------------------------------------------------------------------
+# BH24-023: determine_bump unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestDetermineBump(unittest.TestCase):
+    """Direct tests for determine_bump() covering all bump categories."""
+
+    def test_empty_commits_returns_patch(self):
+        """No commits at all -> defaults to 'patch'."""
+        self.assertEqual(determine_bump([]), "patch")
+
+    def test_only_docs_commits_returns_patch(self):
+        """Only 'docs:' commits (no feat/fix) -> 'patch'."""
+        commits = [
+            {"subject": "docs: update README", "body": ""},
+            {"subject": "docs(api): add endpoint reference", "body": ""},
+        ]
+        self.assertEqual(determine_bump(commits), "patch")
+
+    def test_bang_in_subject_returns_major(self):
+        """'fix!:' subject (bang suffix) -> 'major'."""
+        commits = [
+            {"subject": "fix!: remove deprecated endpoint", "body": ""},
+        ]
+        self.assertEqual(determine_bump(commits), "major")
+
+    def test_breaking_change_in_body_returns_major(self):
+        """'BREAKING CHANGE:' in body -> 'major'."""
+        commits = [
+            {"subject": "refactor: overhaul auth", "body": "BREAKING CHANGE: token format changed"},
+        ]
+        self.assertEqual(determine_bump(commits), "major")
+
+    def test_mixed_feat_and_fix_returns_minor(self):
+        """feat + fix commits -> 'minor' (feat wins over fix)."""
+        commits = [
+            {"subject": "fix: handle null input", "body": ""},
+            {"subject": "feat: add search endpoint", "body": ""},
+            {"subject": "fix: correct typo", "body": ""},
+        ]
+        self.assertEqual(determine_bump(commits), "minor")
+
+
+# ---------------------------------------------------------------------------
+# BH24-043: gate_prs truncation warning
+# ---------------------------------------------------------------------------
+
+
+class TestGatePrsTruncation(unittest.TestCase):
+    """gate_prs must FAIL when the PR list hits the 500 limit."""
+
+    def test_500_prs_fails_with_truncation_warning(self):
+        """Exactly 500 PRs returned -> gate fails with truncation message."""
+        fake = FakeGitHub()
+        # Populate 500 open PRs — none matching the milestone, but the
+        # truncation guard fires before milestone filtering.
+        for i in range(500):
+            fake.prs.append({
+                "number": i + 1,
+                "title": f"PR-{i + 1}",
+                "state": "OPEN",
+                "milestone": {"title": "Sprint 1"},
+                "headRefName": f"feat/pr-{i + 1}",
+                "mergedAt": None,
+            })
+
+        with patch("subprocess.run", make_patched_subprocess(fake)):
+            passed, detail = gate_prs("Sprint 1")
+
+        self.assertFalse(passed)
+        self.assertIn("truncated", detail.lower())
+
+
+# ---------------------------------------------------------------------------
+# BH24-021: generate_release_notes direct tests
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateReleaseNotes(unittest.TestCase):
+    """BH24-021: Direct tests for generate_release_notes()."""
+
+    def _config(self, repo="owner/repo"):
+        return {"project": {"repo": repo}}
+
+    def _tag_exists_side_effect(self, existing_tags=None):
+        """Return a subprocess.run side_effect that knows which tags exist."""
+        if existing_tags is None:
+            existing_tags = set()
+
+        def _side_effect(cmd, **kwargs):
+            if (isinstance(cmd, list) and len(cmd) >= 4
+                    and cmd[0] == "git" and cmd[1] == "rev-parse"
+                    and cmd[2] == "--verify"):
+                tag_ref = cmd[3]
+                tag_name = tag_ref.replace("refs/tags/", "")
+                if tag_name in existing_tags:
+                    return subprocess.CompletedProcess(
+                        args=cmd, returncode=0, stdout="abc123", stderr="",
+                    )
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=128, stdout="",
+                    stderr=f"fatal: Needed a single revision",
+                )
+            return subprocess.CompletedProcess(
+                args=cmd, returncode=0, stdout="", stderr="",
+            )
+        return _side_effect
+
+    @patch("release_gate.subprocess.run")
+    def test_only_feat_commits(self, mock_run):
+        """Only feat commits -> Highlights has feats, Features section present."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {"subject": "feat: add dashboard", "body": ""},
+            {"subject": "feat(api): new endpoint", "body": ""},
+            {"subject": "feat: user profiles", "body": ""},
+        ]
+        notes = generate_release_notes(
+            "1.1.0", "1.0.0", commits, "Sprint 1: Walking Skeleton",
+            self._config(),
+        )
+        self.assertIn("## Highlights", notes)
+        self.assertIn("## Features", notes)
+        self.assertIn("feat: add dashboard", notes)
+        self.assertIn("feat(api): new endpoint", notes)
+        self.assertIn("feat: user profiles", notes)
+        # No fixes or breaking changes
+        self.assertNotIn("## Fixes", notes)
+        self.assertNotIn("## Breaking Changes", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_only_fix_commits(self, mock_run):
+        """Only fix commits -> Highlights has fixes, Fixes section present."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {"subject": "fix: null pointer in auth", "body": ""},
+            {"subject": "fix(db): connection leak", "body": ""},
+        ]
+        notes = generate_release_notes(
+            "1.0.1", "1.0.0", commits, "Sprint 2: Stability",
+            self._config(),
+        )
+        self.assertIn("## Highlights", notes)
+        self.assertIn("## Fixes", notes)
+        self.assertIn("fix: null pointer in auth", notes)
+        self.assertIn("fix(db): connection leak", notes)
+        # Highlights should contain fixes when no feats
+        self.assertNotIn("## Features", notes)
+        self.assertNotIn("## Breaking Changes", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_breaking_change_in_body(self, mock_run):
+        """Breaking change in body -> Breaking Changes section present."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {
+                "subject": "feat: redesign API",
+                "body": "BREAKING CHANGE: removed /v1 endpoints",
+            },
+        ]
+        notes = generate_release_notes(
+            "2.0.0", "1.0.0", commits, "Sprint 3: API v2",
+            self._config(),
+        )
+        self.assertIn("## Breaking Changes", notes)
+        self.assertIn("feat: redesign API", notes)
+        # Breaking changes should list the subject
+        self.assertIn("## Features", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_mixed_commits_all_sections(self, mock_run):
+        """Mixed commits -> all sections present."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {"subject": "feat: add search", "body": ""},
+            {"subject": "fix: typo in config", "body": ""},
+            {
+                "subject": "feat!: new auth flow",
+                "body": "BREAKING CHANGE: tokens expire after 1h",
+            },
+            {"subject": "docs: update readme", "body": ""},
+        ]
+        notes = generate_release_notes(
+            "2.0.0", "1.0.0", commits, "Sprint 4: Full Release",
+            self._config(),
+        )
+        self.assertIn("## Highlights", notes)
+        self.assertIn("## Features", notes)
+        self.assertIn("## Fixes", notes)
+        self.assertIn("## Breaking Changes", notes)
+        self.assertIn("## Full Changelog", notes)
+        # Verify the compare link
+        self.assertIn("https://github.com/owner/repo/compare/v1.0.0...v2.0.0", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_first_release_no_prior_tag(self, mock_run):
+        """First release (no prior tag) -> 'initial release' text instead of compare link."""
+        # prev_version == version signals first release (no prior tag exists)
+        mock_run.side_effect = self._tag_exists_side_effect(set())
+        commits = [
+            {"subject": "feat: initial implementation", "body": ""},
+        ]
+        # When prev_version != version but tag doesn't exist in git,
+        # the function falls back to "initial release" text.
+        notes = generate_release_notes(
+            "0.2.0", "0.1.0", commits, "Sprint 1: Bootstrap",
+            self._config(),
+        )
+        self.assertIn("initial release", notes.lower())
+        # Should NOT contain a compare link
+        self.assertNotIn("/compare/", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_title_includes_version_and_milestone(self, mock_run):
+        """The notes title includes the milestone name and version."""
+        mock_run.side_effect = self._tag_exists_side_effect(set())
+        commits = [{"subject": "feat: hello world", "body": ""}]
+        notes = generate_release_notes(
+            "0.2.0", "0.1.0", commits, "Sprint 1: Hello",
+            self._config(),
+        )
+        self.assertTrue(notes.startswith("# Sprint 1: Hello"))
+        self.assertIn("v0.2.0", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_breaking_change_hyphenated_form(self, mock_run):
+        """BREAKING-CHANGE: (hyphenated) is also recognized."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {
+                "subject": "refactor: restructure modules",
+                "body": "BREAKING-CHANGE: import paths changed",
+            },
+        ]
+        notes = generate_release_notes(
+            "2.0.0", "1.0.0", commits, "Sprint 5: Refactor",
+            self._config(),
+        )
+        self.assertIn("## Breaking Changes", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_bang_suffix_breaking(self, mock_run):
+        """Subject with '!' suffix (e.g., 'feat!:') is a breaking change."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [
+            {"subject": "feat!: completely new API", "body": ""},
+        ]
+        notes = generate_release_notes(
+            "2.0.0", "1.0.0", commits, "Sprint 6: New API",
+            self._config(),
+        )
+        self.assertIn("## Breaking Changes", notes)
+        self.assertIn("## Features", notes)
+
+    @patch("release_gate.subprocess.run")
+    def test_compare_link_when_prior_tag_exists(self, mock_run):
+        """When the prior tag exists in git, a compare link is generated."""
+        mock_run.side_effect = self._tag_exists_side_effect({"v1.0.0"})
+        commits = [{"subject": "fix: patch", "body": ""}]
+        notes = generate_release_notes(
+            "1.0.1", "1.0.0", commits, "Sprint 2: Patch",
+            self._config(repo="myorg/myrepo"),
+        )
+        self.assertIn("## Full Changelog", notes)
+        self.assertIn("https://github.com/myorg/myrepo/compare/v1.0.0...v1.0.1", notes)
 
 
 if __name__ == "__main__":

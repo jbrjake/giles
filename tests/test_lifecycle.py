@@ -444,5 +444,52 @@ class TestLifecycle(unittest.TestCase):
             self.assertIn("8/13 SP", report_text)
 
 
+    # -- Test 15: FakeGitHub rejects duplicate milestone (BH24-042) ----------
+
+    def test_15_duplicate_milestone_rejected(self):
+        """BH24-042: Creating a milestone with a duplicate title fails."""
+        config = self._generate_config()
+        with patch("subprocess.run", make_patched_subprocess(self.fake_gh)):
+            # First creation succeeds
+            bootstrap_github.create_milestones_on_github(config)
+            first_count = len(self.fake_gh.milestones)
+            self.assertGreaterEqual(first_count, 1)
+
+            # Second creation should be idempotent — bootstrap checks existing
+            # milestones before creating. But if we force a direct API call
+            # with a duplicate title, FakeGitHub must reject it.
+            from validate_config import gh
+            try:
+                gh([
+                    "api", "repos/{owner}/{repo}/milestones",
+                    "-f", f"title={self.fake_gh.milestones[0]['title']}",
+                ])
+                # If we get here, the duplicate was NOT rejected
+                self.fail("FakeGitHub should reject duplicate milestone title")
+            except RuntimeError as exc:
+                self.assertIn("already exists", str(exc))
+
+    # -- Test 16: missing TOML key raises ConfigError (BH24-042) -----------
+
+    def test_16_missing_config_key_raises_error(self):
+        """BH24-042: validate_project detects missing required TOML key."""
+        config = self._generate_config()
+        toml_path = self.root / "sprint-config" / "project.toml"
+
+        # Remove a required key by rewriting the TOML without project.repo
+        text = toml_path.read_text(encoding="utf-8")
+        lines = [
+            line for line in text.splitlines()
+            if not line.strip().startswith("repo")
+        ]
+        toml_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        config_dir = str(self.root / "sprint-config")
+        ok, errors = validate_project(config_dir)
+        self.assertFalse(ok, "Validation should fail with missing 'repo' key")
+        error_text = " ".join(errors)
+        self.assertIn("repo", error_text.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
