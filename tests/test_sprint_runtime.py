@@ -456,6 +456,29 @@ class TestInferSprintNumber(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# populate_issues.py tests -- _most_common_sprint
+# ---------------------------------------------------------------------------
+
+class TestMostCommonSprint(unittest.TestCase):
+    """P13-012: Direct tests for populate_issues._most_common_sprint."""
+
+    def test_clear_winner(self):
+        self.assertEqual(populate_issues._most_common_sprint([1, 1, 1, 2, 3]), 1)
+
+    def test_tie_picks_lowest(self):
+        self.assertEqual(populate_issues._most_common_sprint([2, 2, 3, 3]), 2)
+
+    def test_empty_returns_zero(self):
+        self.assertEqual(populate_issues._most_common_sprint([]), 0)
+
+    def test_single_element(self):
+        self.assertEqual(populate_issues._most_common_sprint([5]), 5)
+
+    def test_all_same(self):
+        self.assertEqual(populate_issues._most_common_sprint([3, 3, 3]), 3)
+
+
+# ---------------------------------------------------------------------------
 # sync_tracking.py tests -- find_milestone_title with mocked gh
 # ---------------------------------------------------------------------------
 
