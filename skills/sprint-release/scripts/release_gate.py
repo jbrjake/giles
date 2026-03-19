@@ -569,6 +569,16 @@ def do_release(
         completed_steps.append("commit-version")
 
         # 4-5. Tag and push
+        # BH23-235: Check for existing tag before creation
+        r = subprocess.run(
+            ["git", "tag", "-l", f"v{new_ver}"],
+            capture_output=True, text=True,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            _rollback_commit()
+            return _fail("create-tag",
+                         f"Tag v{new_ver} already exists. "
+                         f"Delete it first: git tag -d v{new_ver}")
         r = subprocess.run(
             ["git", "tag", "-a", f"v{new_ver}",
              "-m", f"Release {new_ver}: {milestone_title}"],

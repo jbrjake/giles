@@ -1083,7 +1083,10 @@ def _yaml_safe(value: str) -> str:
 # §validate_config.read_tf
 def read_tf(path: Path) -> "TF":
     tf = TF(path=path)
-    content = path.read_text(encoding="utf-8")
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return tf  # return default TF — callers check tf.story for validity
     # BH21-006: Strip BOM if present (common from Windows editors)
     if content.startswith('\ufeff'):
         content = content[1:]

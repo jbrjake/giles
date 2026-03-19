@@ -672,8 +672,8 @@ class TestDoRelease(unittest.TestCase):
         self.assertEqual(args[0][0], "1.1.0")
 
         # subprocess.run called for: git status, rev-parse, git add, commit,
-        # git tag, git push, tag-verify
-        self.assertGreaterEqual(mock_run.call_count, 6)
+        # git tag -l (existence check), git tag -a, git push, etc.
+        self.assertGreaterEqual(mock_run.call_count, 7)
         run_cmds = [call[0][0] for call in mock_run.call_args_list]
         # git status (pre-flight)
         self.assertEqual(run_cmds[0][0], "git")
@@ -684,12 +684,17 @@ class TestDoRelease(unittest.TestCase):
         # git add
         self.assertEqual(run_cmds[2][0], "git")
         self.assertEqual(run_cmds[2][1], "add")
-        # git tag
+        # git tag -l (BH23-235: existence check)
         self.assertEqual(run_cmds[4][0], "git")
         self.assertEqual(run_cmds[4][1], "tag")
-        # git push
+        self.assertEqual(run_cmds[4][2], "-l")
+        # git tag -a (create)
         self.assertEqual(run_cmds[5][0], "git")
-        self.assertEqual(run_cmds[5][1], "push")
+        self.assertEqual(run_cmds[5][1], "tag")
+        self.assertEqual(run_cmds[5][2], "-a")
+        # git push
+        self.assertEqual(run_cmds[6][0], "git")
+        self.assertEqual(run_cmds[6][1], "push")
 
         # gh() called for: release create, milestone close, release view
         self.assertGreaterEqual(mock_gh.call_count, 2)
