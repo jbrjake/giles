@@ -369,8 +369,12 @@ def _parse_value(raw: str):
     # Fall back to raw string — intentional leniency: unquoted values like
     # ``key = hello`` are accepted as plain strings rather than raising.
     # This keeps the minimal parser forgiving for simple unquoted usage.
-    if ' ' in raw and not raw.startswith('#'):
-        print(f"Warning: unquoted TOML value '{raw}' interpreted as raw string. "
+    # BH24-018: also warn on values with HTML-like or shell-like patterns.
+    _suspicious = (
+        ' ' in raw and not raw.startswith('#')
+    ) or any(c in raw for c in '<>`$')
+    if _suspicious:
+        print(f"Warning: unquoted TOML value {raw!r} interpreted as raw string. "
               f"Did you mean to quote it?", file=sys.stderr)
     return raw
 

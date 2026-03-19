@@ -1268,6 +1268,17 @@ class TestEveryScriptMainCovered(unittest.TestCase):
     # This set should remain empty going forward.
     _KNOWN_UNTESTED = frozenset()
 
+    # BH24-025: Scripts where argparse-only main() tests are accepted
+    # because their core logic is tested via dedicated function-level tests
+    # elsewhere (not in the main() test class). Add here with a comment
+    # pointing to the real coverage location.
+    _ARGPARSE_ONLY_ACCEPTED = frozenset({
+        "sprint_analytics",  # core: TestComputeVelocity etc in test_sprint_analytics.py
+        "sprint_teardown",   # core: TestClassifyEntries etc in test_sprint_teardown.py
+        "team_voices",       # core: TestExtractVoices in test_pipeline_scripts.py
+        "test_coverage",     # core: TestDetectTestFunctionsEdgeCases in test_verify_fixes.py
+    })
+
     def test_every_script_main_has_test(self):
         """Every script with def main() should have a test calling module.main()."""
         import re
@@ -1310,6 +1321,73 @@ class TestEveryScriptMainCovered(unittest.TestCase):
                 f"Scripts with def main() but no test calling module.main(): "
                 f"{', '.join(untested)}. Add a main() integration test or "
                 f"add to _KNOWN_UNTESTED (not recommended for new scripts)."
+            )
+
+    def test_main_tests_are_not_argparse_only(self):
+        """BH24-025: main() tests must exercise core logic, not just --help/exit.
+
+        Scans test files for main() test methods. If a test class ONLY
+        contains SystemExit assertions (--help exits 0, bad-args exits 1)
+        and no calls to the module's other functions, it's flagged.
+
+        Scripts listed in _ARGPARSE_ONLY_ACCEPTED are exempted because
+        their core logic is tested in separate, dedicated test classes.
+        """
+        import re
+
+        test_dir = ROOT / "tests"
+
+        # Discover all scripts with main()
+        script_dirs = [
+            ROOT / "scripts",
+            ROOT / "skills" / "sprint-setup" / "scripts",
+            ROOT / "skills" / "sprint-run" / "scripts",
+            ROOT / "skills" / "sprint-monitor" / "scripts",
+            ROOT / "skills" / "sprint-release" / "scripts",
+        ]
+        scripts_with_main: list[str] = []
+        for d in script_dirs:
+            if not d.is_dir():
+                continue
+            for py in sorted(d.glob("*.py")):
+                text = py.read_text()
+                if re.search(r"^def main\(\)", text, re.MULTILINE):
+                    scripts_with_main.append(py.stem)
+
+        # For each script, check if test files contain non-argparse assertions
+        # involving that module (calls to module.function other than .main)
+        argparse_only = []
+        for module_name in scripts_with_main:
+            if module_name in self._ARGPARSE_ONLY_ACCEPTED:
+                continue
+            # Check if any test file calls module.something_other_than_main()
+            has_function_test = False
+            for tf in sorted(test_dir.glob("test_*.py")):
+                text = tf.read_text()
+                # Look for calls like: module.function_name( — excluding .main(
+                if re.search(
+                    rf"\b{re.escape(module_name)}\.(?!main\b)\w+\(",
+                    text,
+                ):
+                    has_function_test = True
+                    break
+                # Also accept: from module import function
+                if re.search(
+                    rf"from {re.escape(module_name)} import ",
+                    text,
+                ):
+                    has_function_test = True
+                    break
+            if not has_function_test:
+                argparse_only.append(module_name)
+
+        if argparse_only:
+            self.fail(
+                f"Scripts with main()-only tests (no function-level tests): "
+                f"{', '.join(argparse_only)}. Either:\n"
+                f"  1. Add function-level tests for core logic, OR\n"
+                f"  2. Add to _ARGPARSE_ONLY_ACCEPTED with a comment "
+                f"pointing to where core logic IS tested."
             )
 
     def test_known_untested_not_stale(self):
@@ -2385,6 +2463,57 @@ class TestBH21TomlEscapeHandling(unittest.TestCase):
         # Single-quoted strings are TOML literal strings — no escape processing
         result = parse_simple_toml("path = 'C:\\new_folder'")
         self.assertEqual(result["path"], "C:\\new_folder")  # Literal backslash preserved
+
+
+class TestBH24018UnquotedGarbageWarning(unittest.TestCase):
+    """BH24-018: _parse_value warns on unquoted values with suspicious chars."""
+
+    def test_html_like_value_warns(self):
+        import io
+        stderr = io.StringIO()
+        old = sys.stderr
+        sys.stderr = stderr
+        try:
+            result = parse_simple_toml('name = <script>')
+        finally:
+            sys.stderr = old
+        self.assertEqual(result["name"], "<script>")
+        self.assertIn("unquoted", stderr.getvalue().lower())
+
+    def test_shell_like_value_warns(self):
+        import io
+        stderr = io.StringIO()
+        old = sys.stderr
+        sys.stderr = stderr
+        try:
+            result = parse_simple_toml('cmd = $(whoami)')
+        finally:
+            sys.stderr = old
+        self.assertIn("unquoted", stderr.getvalue().lower())
+
+    def test_backtick_value_warns(self):
+        import io
+        stderr = io.StringIO()
+        old = sys.stderr
+        sys.stderr = stderr
+        try:
+            parse_simple_toml('val = `echo hi`')
+        finally:
+            sys.stderr = old
+        self.assertIn("unquoted", stderr.getvalue().lower())
+
+    def test_simple_unquoted_no_warning(self):
+        """Plain alphanumeric unquoted values should NOT warn."""
+        import io
+        stderr = io.StringIO()
+        old = sys.stderr
+        sys.stderr = stderr
+        try:
+            result = parse_simple_toml('name = hello')
+        finally:
+            sys.stderr = old
+        self.assertEqual(result["name"], "hello")
+        self.assertEqual(stderr.getvalue(), "")
 
 
 class TestBH21012KanbanOverrideCentralized(unittest.TestCase):
