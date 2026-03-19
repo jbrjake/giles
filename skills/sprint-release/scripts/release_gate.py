@@ -51,7 +51,9 @@ def find_latest_semver_tag() -> str | None:
     return None
 
 
-_COMMIT_DELIM = "\x00--END--\x00"
+# Delimiter for git log --format: must not appear in commit messages.
+# Avoid null bytes — subprocess.run raises ValueError on Python 3.10+.
+_COMMIT_DELIM = "---@@END-COMMIT@@---"
 
 
 # §release_gate.parse_commits_since

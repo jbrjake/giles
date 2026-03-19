@@ -1346,6 +1346,104 @@ class TestDoReleaseFakeGH(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# BH23-101: do_release integration with real calculate_version + write_version_to_toml
+# ---------------------------------------------------------------------------
+
+
+class TestDoReleaseIntegration(unittest.TestCase):
+    """BH23-101: do_release with real git history and real TOML writes.
+
+    Only subprocess.run is intercepted: gh calls go to FakeGitHub,
+    git calls go to real git, and commit.py is stubbed as a no-op.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmpdir.name
+        self._orig_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+
+        # Set up real git repo with an initial commit and tag
+        def _git(*args):
+            r = subprocess.run(
+                ["git", *args], cwd=self.tmpdir,
+                capture_output=True, text=True,
+            )
+            assert r.returncode == 0, f"git {args}: {r.stderr}"
+            return r
+
+        _git("init")
+        _git("config", "user.email", "test@test.com")
+        _git("config", "user.name", "Test")
+
+        # Create sprint-config/project.toml (real file)
+        sc_dir = Path(self.tmpdir) / "sprint-config"
+        sc_dir.mkdir()
+        (sc_dir / "project.toml").write_text(_MINIMAL_TOML, encoding="utf-8")
+
+        # Create sprints/SPRINT-STATUS.md
+        sprints_dir = Path(self.tmpdir) / "sprints"
+        sprints_dir.mkdir()
+        (sprints_dir / "SPRINT-STATUS.md").write_text(
+            "| Sprint | Status | Date | Notes | Version |\n"
+            "|--------|--------|------|-------|---------|\n",
+            encoding="utf-8",
+        )
+
+        # Create commit.py stub (do_release calls it)
+        scripts_dir = Path(self.tmpdir) / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "commit.py").write_text(
+            "import sys; sys.exit(0)\n", encoding="utf-8",
+        )
+
+        # Initial commit + v1.0.0 tag
+        _git("add", ".")
+        _git("commit", "-m", "chore: initial setup")
+        _git("tag", "-a", "v1.0.0", "-m", "v1.0.0")
+
+        # Add a feature commit after the tag
+        (Path(self.tmpdir) / "feature.py").write_text("# new feature\n")
+        _git("add", "feature.py")
+        _git("commit", "-m", "feat: add dashboard feature")
+
+        self.fake = FakeGitHub()
+        self.fake.milestones = [
+            {"number": 1, "title": "Sprint 1: Walking Skeleton", "state": "open"},
+        ]
+
+    def tearDown(self):
+        os.chdir(self._orig_cwd)
+        self._tmpdir.cleanup()
+
+    def test_real_version_calculation_and_toml_write(self):
+        """calculate_version parses real git history; write_version_to_toml writes real TOML.
+
+        Only calculate_version and write_version_to_toml run un-mocked.
+        do_release still needs subprocess mocking for git tag/push/commit.
+        """
+        fake_gh = self.fake
+
+        # Step 1: calculate_version with real git (no mock)
+        version, base, bump, commits = calculate_version()
+        self.assertEqual(base, "1.0.0")
+        self.assertEqual(version, "1.1.0")
+        self.assertEqual(bump, "minor")
+        self.assertEqual(len(commits), 1)
+        self.assertIn("feat", commits[0]["subject"])
+
+        # Step 2: write_version_to_toml with real file (no mock)
+        toml_path = Path(self.tmpdir) / "sprint-config" / "project.toml"
+        write_version_to_toml(version, toml_path)
+        toml_text = toml_path.read_text(encoding="utf-8")
+        self.assertIn("[release]", toml_text)
+        self.assertIn('version = "1.1.0"', toml_text)
+        # Original content preserved
+        self.assertIn('[project]', toml_text)
+        self.assertIn('name = "TestProject"', toml_text)
+
+
+# ---------------------------------------------------------------------------
 # P6-20: do_release pre-flight distinguishes git errors from dirty tree
 # ---------------------------------------------------------------------------
 
@@ -1475,10 +1573,10 @@ class TestDoReleaseDryRunIntegration(unittest.TestCase):
                 return subprocess.CompletedProcess(
                     cmd, 0, stdout="v1.0.0\n", stderr="",
                 )
-            # git log (commits since tag) — must use the \x00--END--\x00 delimiter
-            # that parse_commits_since expects from --format="%s\n%b\x00--END--\x00"
+            # git log (commits since tag) — must use the _COMMIT_DELIM delimiter
+            # that parse_commits_since expects from its --format string
             if "git" in joined and "log" in joined:
-                delim = "\x00--END--\x00"
+                delim = "---@@END-COMMIT@@---"
                 return subprocess.CompletedProcess(
                     cmd, 0,
                     stdout=f"feat: add new feature\n{delim}fix: resolve bug\n{delim}",
@@ -1568,7 +1666,7 @@ class TestParseCommitsSince(unittest.TestCase):
     @patch("release_gate.subprocess.run")
     def test_with_tag(self, mock_run):
         """Parses commits since a given tag."""
-        delim = "\x00--END--\x00"
+        delim = "---@@END-COMMIT@@---"
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0,
             stdout=f"feat: add login\n\nbody text{delim}fix: typo{delim}",
@@ -1583,7 +1681,7 @@ class TestParseCommitsSince(unittest.TestCase):
     @patch("release_gate.subprocess.run")
     def test_no_tag_all_commits(self, mock_run):
         """No tag → parses all commits."""
-        delim = "\x00--END--\x00"
+        delim = "---@@END-COMMIT@@---"
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0,
             stdout=f"initial commit{delim}",
