@@ -53,10 +53,14 @@ def _truncate_log(log: str) -> str:
 
 # §check_status.check_ci
 def check_ci() -> tuple[list[str], list[str]]:
-    runs = gh_json([
-        "run", "list", "--limit", "5",
-        "--json", "status,conclusion,name,headBranch,databaseId",
-    ])
+    # BH24-041: wrap gh_json in try/except so proxy HTML errors don't crash monitor
+    try:
+        runs = gh_json([
+            "run", "list", "--limit", "5",
+            "--json", "status,conclusion,name,headBranch,databaseId",
+        ])
+    except RuntimeError as exc:
+        return [f"CI: query failed — {exc}"], []
     if not runs:
         return ["CI: no recent runs"], []
 
@@ -402,7 +406,9 @@ def main() -> None:
         try:
             sync_status = sync_backlog_main()
             report_lines.append(f"Sync: {sync_status}")
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError, ImportError) as exc:
+            # BH24-019: narrow from bare Exception to let programming
+            # errors (KeyError, TypeError, AttributeError) propagate
             report_lines.append(f"Sync: error — {exc}")
             traceback.print_exc(file=sys.stderr)
 
@@ -447,7 +453,9 @@ def main() -> None:
             r, a = fn()
             report_lines.extend(r)
             action_lines.extend(a)
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError) as exc:
+            # BH24-019: narrow from bare Exception to let programming
+            # errors (KeyError, TypeError, AttributeError) propagate
             report_lines.append(f"Check failed: {exc}")
             traceback.print_exc(file=sys.stderr)
 

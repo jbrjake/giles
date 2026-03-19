@@ -6,6 +6,7 @@ project.toml via validate_config.load_config(). Supports Rust, Python,
 Node.js, and Go out of the box. No hardcoded project-specific values.
 """
 
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -246,6 +247,11 @@ def generate_ci_yaml(config: dict) -> str:
         setup = f"      # TODO: Add setup steps for {language}"
 
     base_branch = config.get("project", {}).get("base_branch", "main")
+    # BH24-038: quote branch name if it contains YAML metacharacters
+    if any(c in base_branch for c in ':{}[]|>&*!%@`#,'):
+        safe_branch = f'"{base_branch}"'
+    else:
+        safe_branch = base_branch
 
     # Header
     lines = [
@@ -253,9 +259,9 @@ def generate_ci_yaml(config: dict) -> str:
         "",
         "on:",
         "  push:",
-        f"    branches: [{base_branch}]",
+        f"    branches: [{safe_branch}]",
         "  pull_request:",
-        f"    branches: [{base_branch}]",
+        f"    branches: [{safe_branch}]",
         "",
         "permissions:",
         "  contents: read",
@@ -321,7 +327,8 @@ def _job_name_from_command(cmd: str, index: int) -> str:
         return "Lint"
     if "type" in cmd_lower or "mypy" in cmd_lower:
         return "Type Check"
-    if "test" in cmd_lower or "pytest" in cmd_lower:
+    # BH24-037: use word boundary to avoid matching "lint-test" as "Test"
+    if re.search(r'\btest\b', cmd_lower) or "pytest" in cmd_lower:
         return "Test"
     if "audit" in cmd_lower:
         return "Audit"
@@ -333,7 +340,8 @@ def _job_name_from_command(cmd: str, index: int) -> str:
 def _find_test_command(commands: list[str]) -> str:
     """Find the test command among check commands, if any."""
     for cmd in commands:
-        if "test" in cmd.lower() or "pytest" in cmd.lower():
+        # BH24-037: word boundary so "lint-test" isn't misidentified as test
+        if re.search(r'\btest\b', cmd.lower()) or "pytest" in cmd.lower():
             return cmd
     return ""
 

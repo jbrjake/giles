@@ -202,7 +202,7 @@ def create_from_issue(
         status=status,
         issue_number=str(issue["number"]),
         pr_number=str(pr["number"]) if pr else "",
-        branch=f"sprint-{sprint}/{slug}",
+        branch=f"sprint-{sprint}/{slug}"[:255],  # BH24-033: git branch name limit
     )
     if tf.status == "done":
         tf.completed = parse_iso_date(issue.get("closedAt", ""))

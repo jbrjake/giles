@@ -306,10 +306,12 @@ def enrich_from_epics(stories: list[Story], config: dict) -> list[Story]:
         # Infer sprint from stories already parsed in this epic file.
         # BH21-017: Use by_id keys instead of hardcoded US-\d{4} pattern
         # so custom story ID patterns (e.g. PROJ-\d{4}) get enrichment.
+        # BH24-020: Use word-boundary regex instead of substring `in` to
+        # prevent US-001 from matching inside US-0012.
         known_sprints = [
             by_id[sid].sprint
             for sid in by_id
-            if sid in content
+            if re.search(rf'\b{re.escape(sid)}\b', content)
         ]
         sprint = _most_common_sprint(known_sprints)
         parsed = parse_detail_blocks(content, sprint=sprint, source_file=str(epic_file), config=config)

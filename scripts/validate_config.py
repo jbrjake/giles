@@ -581,7 +581,8 @@ def validate_project(
     # ------------------------------------------------------------------
     # 6. rules.md and development.md are non-empty
     # ------------------------------------------------------------------
-    for name in ("rules.md", "development.md"):
+    # BH24-036: include definition-of-done.md in non-empty check
+    for name in ("rules.md", "development.md", "definition-of-done.md"):
         fpath = config_path / name
         if fpath.is_file():
             if fpath.stat().st_size == 0:
@@ -927,7 +928,7 @@ def frontmatter_value(frontmatter: str, key: str) -> str | None:
     # Strip surrounding double quotes and unescape (reverse of _yaml_safe).
     # Single-pass regex avoids order-dependent bugs with chained .replace().
     if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
-        _UNESCAPE = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r'}
+        _UNESCAPE = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r', 't': '\t', 'b': '\b'}
         val = re.sub(
             r'\\(.)',
             lambda m: _UNESCAPE.get(m.group(1), m.group(0)),
