@@ -445,6 +445,43 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertTrue(close_calls, "gh issue close must be called for done")
 
 
+    # BH23-103: Test additional transition paths
+    def test_transition_design_to_dev(self):
+        """design→dev requires branch + pr_number set."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="design", implementer="rae",
+                               branch="sprint-1/US-0042-feat", pr_number="55")
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(tf, "dev")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.status, "dev")
+
+    def test_transition_review_to_integration(self):
+        """review→integration is a legal transition."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="review", implementer="rae",
+                               reviewer="chen", branch="sprint-1/US-0042-feat",
+                               pr_number="55")
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(tf, "integration")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.status, "integration")
+
+    def test_transition_review_to_dev_rejection_cycle(self):
+        """review→dev is legal (reviewer requests changes)."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="review", implementer="rae",
+                               reviewer="chen", branch="sprint-1/US-0042-feat",
+                               pr_number="55")
+            with patch_gh("kanban.gh"):
+                result = do_transition(tf, "dev")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.status, "dev")
+
+
 class TestAssignCommand(unittest.TestCase):
     """do_assign() updates local file and adds persona labels on GitHub."""
 
@@ -543,8 +580,12 @@ class TestSyncCommand(unittest.TestCase):
 
     def _issue(self, number: int, title: str, state: str = "open",
                labels: list | None = None) -> dict:
+        # BH23-104: Use dict-format labels to match real gh_json output.
+        # kanban_from_labels handles both formats, but tests should use
+        # the same format production code receives from GitHub.
         if labels is None:
-            labels = [f"kanban:{state}"] if state != "open" else ["kanban:todo"]
+            label_name = f"kanban:{state}" if state != "open" else "kanban:todo"
+            labels = [{"name": label_name}]
         issue_state = "open"
         if state == "closed":
             issue_state = "closed"
@@ -567,7 +608,7 @@ class TestSyncCommand(unittest.TestCase):
             self._write_tf(sprints_dir, 1, story="US-0045", status="todo",
                            implementer="rae")
             issues = [self._issue(45, "US-0045: Feature A",
-                                  labels=["kanban:design"])]
+                                  labels=[{"name": "kanban:design"}])]
             changes = do_sync(sprints_dir, 1, issues)
             # Change accepted
             accepted = [c for c in changes if "accepted" in c and "US-0045" in c]
@@ -583,7 +624,7 @@ class TestSyncCommand(unittest.TestCase):
             sprints_dir = self._sprints_dir(td)
             self._write_tf(sprints_dir, 1, story="US-0046", status="todo")
             issues = [self._issue(46, "US-0046: Feature B",
-                                  labels=["kanban:review"])]
+                                  labels=[{"name": "kanban:review"}])]
             changes = do_sync(sprints_dir, 1, issues)
             # Warning issued
             warnings = [c for c in changes if "WARNING" in c and "US-0046" in c]
@@ -598,7 +639,7 @@ class TestSyncCommand(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             sprints_dir = self._sprints_dir(td)
             issues = [self._issue(99, "US-0099: Brand new story",
-                                  labels=["kanban:todo"])]
+                                  labels=[{"name": "kanban:todo"}])]
             changes = do_sync(sprints_dir, 1, issues)
             created = [c for c in changes if "created" in c and "US-0099" in c]
             self.assertTrue(created, f"Expected creation entry, got: {changes}")
@@ -669,7 +710,7 @@ class TestSyncCommand(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             sprints_dir = self._sprints_dir(td)
             # Issue with just a colon — extract_story_id falls back to UNKNOWN
-            issues = [self._issue(99, ":", labels=["kanban:todo"])]
+            issues = [self._issue(99, ":", labels=[{"name": "kanban:todo"}])]
             changes = do_sync(sprints_dir, 1, issues)
             warnings = [c for c in changes if "WARNING" in c and "no recognizable" in c]
             self.assertTrue(warnings, f"Expected skip warning, got: {changes}")
