@@ -36,7 +36,12 @@ class TestHexwiseSetup(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Copy fixture to a temp dir, git-init it, and scan."""
+        """Copy fixture to a temp dir, git-init it, and scan.
+
+        WARNING: Shared mutable state — cls.project_dir and cls.config_dir
+        are shared across all test methods.  Tests MUST NOT modify files in
+        config_dir or project_dir.  Read-only assertions only.
+        """
         cls._tmpdir_obj = tempfile.TemporaryDirectory()
         cls.project_dir = Path(cls._tmpdir_obj.name) / "hexwise"
         shutil.copytree(FIXTURE_DIR, cls.project_dir)

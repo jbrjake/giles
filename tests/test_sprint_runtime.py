@@ -1361,6 +1361,32 @@ class TestSyncOne(unittest.TestCase):
         self.assertTrue(any("sprint" in c for c in changes))
 
 
+    def test_sync_one_roundtrip_to_disk(self):
+        """BH23-116: sync_one writes TF to disk and read_tf recovers it."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0010-roundtrip.md"
+            tf = sync_tracking.TF(
+                path=p, story="US-0010", title="Round-trip test",
+                status="dev", sprint=1, issue_number="10",
+            )
+            sync_tracking.write_tf(tf)  # initial write
+            issue = {
+                "state": "closed", "labels": [{"name": "kanban:done"}],
+                "closedAt": "2026-03-15T10:30:00Z", "number": 10,
+            }
+            pr = {"number": 99, "state": "merged", "merged": True,
+                  "headRefName": "sprint-1/US-0010-roundtrip"}
+            sync_tracking.sync_one(tf, issue, pr, 1)
+            sync_tracking.write_tf(tf)  # write after sync
+            loaded = sync_tracking.read_tf(p)
+            self.assertEqual(loaded.story, "US-0010")
+            self.assertEqual(loaded.title, "Round-trip test")
+            self.assertEqual(loaded.status, "done")
+            self.assertEqual(loaded.pr_number, "99")
+            self.assertEqual(loaded.completed, "2026-03-15")
+            self.assertEqual(loaded.sprint, 1)
+
+
 class TestSyncOneGitHubAuthoritative(unittest.TestCase):
     """BH-P11-007: sync_one() must NOT push local state back to GitHub.
 

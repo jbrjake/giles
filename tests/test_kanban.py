@@ -296,7 +296,10 @@ class TestFindStory(unittest.TestCase):
             write_tf(tf)
             result = find_story("US-0042", sprints_dir, sprint=1)
             self.assertIsNotNone(result)
+            # BH23-119: Verify at least 3 fields of the returned TF
             self.assertEqual(result.story, "US-0042")
+            self.assertEqual(result.title, "Some feature")
+            self.assertEqual(result.sprint, 1)
             self.assertEqual(result.path, p)
 
     def test_returns_none_for_missing_story(self):
