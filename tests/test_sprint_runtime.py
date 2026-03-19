@@ -1698,40 +1698,71 @@ class TestFirstError(unittest.TestCase):
 
 
 class TestHours(unittest.TestCase):
-    """P5-17: _hours parses ISO 8601 timestamps."""
+    """P5-17: _hours parses ISO 8601 timestamps.
+
+    BH23-106: Uses a fixed reference time to avoid wall-clock flakiness.
+    """
+    # Fixed reference time: 2026-03-19T12:00:00Z
+    _NOW = datetime(2026, 3, 19, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _patch_now(self):
+        """Patch datetime.now in check_status to return fixed time."""
+        from unittest.mock import patch
+        real_dt = datetime
+        class FakeDatetime(real_dt):
+            @classmethod
+            def now(cls, tz=None):
+                return TestHours._NOW if tz else TestHours._NOW.replace(tzinfo=None)
+        return patch("check_status.datetime", FakeDatetime)
 
     def test_empty_string_returns_zero(self):
         self.assertEqual(check_status._hours(""), 0.0)
 
     def test_recent_iso_returns_small_hours(self):
-        recent = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
-        h = check_status._hours(recent)
-        self.assertAlmostEqual(h, 0.5, delta=0.1)
+        ts = (self._NOW - timedelta(minutes=30)).isoformat()
+        with self._patch_now():
+            h = check_status._hours(ts)
+        self.assertAlmostEqual(h, 0.5, delta=0.01)
 
     def test_zulu_suffix_parsed(self):
-        ts = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
-        self.assertAlmostEqual(check_status._hours(ts), 3.0, delta=0.1)
+        ts = (self._NOW - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with self._patch_now():
+            self.assertAlmostEqual(check_status._hours(ts), 3.0, delta=0.01)
 
     def test_invalid_format_returns_zero(self):
         self.assertEqual(check_status._hours("not-a-date"), 0.0)
 
 
 class TestAge(unittest.TestCase):
-    """P5-17: _age formats time deltas as human-readable strings."""
+    """P5-17: _age formats time deltas as human-readable strings.
+
+    BH23-106: Uses a fixed reference time for deterministic results.
+    """
+    _NOW = datetime(2026, 3, 19, 12, 0, 0, tzinfo=timezone.utc)
+
+    def _patch_now(self):
+        from unittest.mock import patch
+        real_dt = datetime
+        class FakeDatetime(real_dt):
+            @classmethod
+            def now(cls, tz=None):
+                return TestAge._NOW if tz else TestAge._NOW.replace(tzinfo=None)
+        return patch("check_status.datetime", FakeDatetime)
 
     def test_minutes(self):
-        ts = (datetime.now(timezone.utc) - timedelta(minutes=45)).isoformat()
-        self.assertTrue(check_status._age(ts).endswith("m"))
+        ts = (self._NOW - timedelta(minutes=45)).isoformat()
+        with self._patch_now():
+            self.assertTrue(check_status._age(ts).endswith("m"))
 
     def test_hours(self):
-        ts = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
-        self.assertIn("h", check_status._age(ts))
+        ts = (self._NOW - timedelta(hours=5)).isoformat()
+        with self._patch_now():
+            self.assertIn("h", check_status._age(ts))
 
     def test_days(self):
-        ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
-        self.assertIn("d", check_status._age(ts))
+        ts = (self._NOW - timedelta(days=3)).isoformat()
+        with self._patch_now():
+            self.assertIn("d", check_status._age(ts))
 
 
 # ---------------------------------------------------------------------------

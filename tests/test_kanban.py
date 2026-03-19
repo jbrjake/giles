@@ -278,6 +278,36 @@ class TestFileLocking(unittest.TestCase):
                 lock_file = sprint_dir / ".kanban.lock"
                 self.assertTrue(lock_file.exists())
 
+    def test_concurrent_lock_serializes(self):
+        """BH23-114: Two threads holding the same lock are serialized."""
+        import threading
+        import time
+        with tempfile.TemporaryDirectory() as td:
+            sprint_dir = Path(td) / "sprint-1"
+            sprint_dir.mkdir()
+            acquired = threading.Event()
+            results = []
+
+            def holder():
+                with lock_sprint(sprint_dir):
+                    acquired.set()
+                    time.sleep(0.2)  # hold lock briefly
+                    results.append("holder-done")
+
+            def waiter():
+                acquired.wait(timeout=2)  # wait for holder to grab lock
+                with lock_sprint(sprint_dir):
+                    results.append("waiter-done")
+
+            t1 = threading.Thread(target=holder)
+            t2 = threading.Thread(target=waiter)
+            t1.start()
+            t2.start()
+            t1.join(timeout=5)
+            t2.join(timeout=5)
+            # Lock serialized: holder always finishes before waiter
+            self.assertEqual(results, ["holder-done", "waiter-done"])
+
 
 class TestFindStory(unittest.TestCase):
     """find_story() locates a tracking file by story ID."""
