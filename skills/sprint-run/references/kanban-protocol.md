@@ -32,9 +32,9 @@ integration → done  CI green, merged, issue closed
 ## Rules
 
 > **Note:** These rules are process guidelines for the AI team personas, not
-> programmatically enforced constraints. Scripts like `sync_tracking.py` accept
-> any kanban label — enforcement is the responsibility of the LLM orchestrating
-> the sprint, not the tooling.
+> programmatically enforced constraints. `sync_tracking.py` accepts any valid
+> kanban state from GitHub without validating the transition. `kanban.py sync`
+> validates transitions and warns about illegal external changes.
 
 - Allow only ONE story per persona in `dev` state at a time. This prevents
   context thrashing. A persona may have multiple stories in `design` because
@@ -43,10 +43,11 @@ integration → done  CI green, merged, issue closed
   changes-requested, escalate to the user for guidance.
 - Moving to `done` requires ALL criteria in `sprint-config/definition-of-done.md`
   to be satisfied. Read that file before marking any story complete.
-- Every transition updates three artifacts:
-  1. GitHub issue label (swap old kanban label for new one)
-  2. Story tracking file in `{sprints_dir}/sprint-{N}/`
-  3. Sprint status file
+- Every transition updates two artifacts:
+  1. Story tracking file in `{sprints_dir}/sprint-{N}/stories/`
+  2. GitHub issue label (swap old kanban label for new one)
+
+  Burndown and SPRINT-STATUS.md are updated separately by `update_burndown.py`.
 
 <!-- §kanban-protocol.preconditions -->
 ## Preconditions

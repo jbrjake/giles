@@ -93,17 +93,17 @@ All skills read from `sprint-config/project.toml` via `validate_config.load_conf
 
 ```
 sprint-config/
-├── project.toml          — [project], [paths], [ci], [conventions], [release]
-├── definition-of-done.md — evolving DoD (baseline + retro-driven additions)
-├── team/INDEX.md          — markdown table: Name | Role | File
-├── team/{name}.md         — persona files (symlinks to project docs)
-├── team/giles.md          — built-in scrum master (copied, not symlinked)
-├── team/history/          — Sprint History files (written by Giles during retro)
-├── team/insights.md       — motivation distillation (LLM-generated at kickoff, regenerated per sprint)
-├── backlog/INDEX.md       — backlog routing table
-├── backlog/milestones/    — one .md per milestone with story tables
-├── rules.md               — project conventions (symlink)
-└── development.md         — dev process guide (symlink)
+├── project.toml          — REQUIRED — [project], [paths], [ci], [conventions], [release]
+├── definition-of-done.md — REQUIRED — evolving DoD (baseline + retro-driven additions)
+├── team/INDEX.md          — REQUIRED — markdown table: Name | Role | File
+├── team/{name}.md         — REQUIRED — persona files (symlinks to project docs)
+├── team/giles.md          — REQUIRED — built-in scrum master (copied, not symlinked)
+├── team/history/          — runtime — Sprint History files (written by Giles during retro)
+├── team/insights.md       — runtime — motivation distillation (LLM-generated at kickoff)
+├── backlog/INDEX.md       — REQUIRED — backlog routing table
+├── backlog/milestones/    — REQUIRED — one .md per milestone with story tables
+├── rules.md               — REQUIRED — project conventions (symlink)
+└── development.md         — REQUIRED — dev process guide (symlink)
 ```
 
 Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command` (see §validate_config._REQUIRED_TOML_KEYS).
@@ -124,8 +124,8 @@ Template: `references/skeletons/project.toml.tmpl`
 - **Config-driven**: Nothing is hardcoded to a specific project. All project-specific values come from `sprint-config/project.toml`.
 - **Symlink-based config**: `sprint_init.py` creates symlinks from `sprint-config/` to existing project files. Teardown removes symlinks without touching originals. Exception: Giles is copied (plugin-owned), not symlinked.
 - **Custom TOML parser**: §validate_config.parse_simple_toml is a minimal TOML parser (no `tomllib` dependency) supporting strings, ints, bools, arrays, sections.
-- **Scripts import chain**: All skill scripts do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up.
-- **Two-path state management**: `kanban.py` is the mutation path (local-first, syncs to GitHub on every write). `sync_tracking.py` is the reconciliation path (accepts GitHub state for PR linkage, branch, and completion metadata). For kanban transitions and persona assignment, use `kanban.py`. For filling in PR/branch fields and correcting stale statuses, use `sync_tracking.py`.
+- **Scripts import chain**: Skill scripts in `skills/*/scripts/` do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up. Scripts in the top-level `scripts/` directory use a single-level parent path.
+- **Two-path state management**: `kanban.py` is the mutation path (local-first, syncs to GitHub on every write). `sync_tracking.py` is the reconciliation path (accepts GitHub state for PR linkage, branch, and completion metadata). Both paths can write `status` — `kanban.py` validates transitions, `sync_tracking.py` accepts any valid state from GitHub. For kanban transitions and persona assignment, use `kanban.py`. For field updates (`pr_number`, `branch`), use `kanban.py update`. For filling in PR/branch fields from GitHub and correcting stale statuses, use `sync_tracking.py`.
 - **Idempotent scripts**: All bootstrap and monitoring scripts skip resources that already exist.
 - **Cross-skill dependency**: `scripts/sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/` for backlog auto-sync. This is an intentional coupling — sync_backlog reuses the idempotent creation functions rather than duplicating them.
 
