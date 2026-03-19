@@ -232,5 +232,83 @@ class TestMilestoneCounters(unittest.TestCase):
         self.assertEqual(ms["closed_issues"], 0)
 
 
+# ---------------------------------------------------------------------------
+# BH23-122: Issue label manipulation fidelity
+# ---------------------------------------------------------------------------
+
+
+class TestIssueLabelOps(unittest.TestCase):
+    """BH23-122: FakeGitHub add-label and remove-label match real gh behavior."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+        self.fake.handle([
+            "issue", "create", "--title", "US-0001: Test",
+            "--body", "body", "--label", "kanban:todo",
+        ])
+
+    def test_add_label(self):
+        """issue edit --add-label adds to existing labels."""
+        self.fake.handle(["issue", "edit", "1", "--add-label", "persona:rae"])
+        issue = self.fake.issues[0]
+        label_names = {l["name"] for l in issue["labels"]}
+        self.assertIn("kanban:todo", label_names)
+        self.assertIn("persona:rae", label_names)
+
+    def test_remove_label(self):
+        """issue edit --remove-label removes from existing labels."""
+        self.fake.handle(["issue", "edit", "1", "--add-label", "persona:rae"])
+        self.fake.handle(["issue", "edit", "1", "--remove-label", "kanban:todo"])
+        issue = self.fake.issues[0]
+        label_names = {l["name"] for l in issue["labels"]}
+        self.assertNotIn("kanban:todo", label_names)
+        self.assertIn("persona:rae", label_names)
+
+    def test_add_multiple_labels_separate_flags(self):
+        """Multiple --add-label flags each add their label (production pattern)."""
+        self.fake.handle([
+            "issue", "edit", "1",
+            "--add-label", "sprint:1",
+            "--add-label", "saga:S01",
+        ])
+        issue = self.fake.issues[0]
+        label_names = {l["name"] for l in issue["labels"]}
+        self.assertIn("sprint:1", label_names)
+        self.assertIn("saga:S01", label_names)
+        self.assertIn("kanban:todo", label_names)  # original preserved
+
+
+# ---------------------------------------------------------------------------
+# BH23-122: Release creation fidelity
+# ---------------------------------------------------------------------------
+
+
+class TestReleaseCreateFidelity(unittest.TestCase):
+    """BH23-122: FakeGitHub release create returns expected fields."""
+
+    def setUp(self):
+        self.fake = FakeGitHub()
+
+    def test_release_create_returns_url(self):
+        """release create returns a URL string (like real gh)."""
+        result = self.fake.handle([
+            "release", "create", "v1.0.0",
+            "--title", "v1.0.0",
+            "--notes", "Release notes",
+        ])
+        self.assertIsInstance(result.stdout, str)
+        self.assertIn("v1.0.0", result.stdout)
+
+    def test_release_stored_with_tag(self):
+        """Release stored with correct tag_name in state."""
+        self.fake.handle([
+            "release", "create", "v2.0.0",
+            "--title", "v2.0.0",
+            "--notes", "Notes",
+        ])
+        self.assertEqual(len(self.fake.releases), 1)
+        self.assertEqual(self.fake.releases[0]["tag_name"], "v2.0.0")
+
+
 if __name__ == "__main__":
     unittest.main()
