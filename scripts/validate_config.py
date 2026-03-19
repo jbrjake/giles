@@ -54,6 +54,14 @@ def parse_iso_date(iso: str, fmt: str = "%Y-%m-%d", default: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 # §validate_config.gh
+def _sanitize_gh_args(args: list[str], max_len: int = 200) -> str:
+    """Summarize gh args for error messages, truncating long values."""
+    parts = []
+    for a in args:
+        parts.append(a if len(a) <= max_len else a[:max_len] + "...[truncated]")
+    return " ".join(parts)
+
+
 def gh(args: list[str], timeout: int = 60) -> str:
     """Run a gh CLI command and return stdout. Raises RuntimeError on failure."""
     try:
@@ -62,10 +70,10 @@ def gh(args: list[str], timeout: int = 60) -> str:
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(
-            f"gh {' '.join(args)}: timed out after {timeout}s"
+            f"gh {_sanitize_gh_args(args)}: timed out after {timeout}s"
         ) from None
     if r.returncode != 0:
-        raise RuntimeError(f"gh {' '.join(args)}: {r.stderr.strip()}")
+        raise RuntimeError(f"gh {_sanitize_gh_args(args)}: {r.stderr.strip()}")
     return r.stdout.strip()
 
 

@@ -272,6 +272,9 @@ def create_milestones_on_github(config: dict) -> int:
                 num_m = re.search(r"(\d+)", mf.stem)
                 title = f"Sprint {num_m.group(1)}" if num_m else f"Sprint {mf.stem}"
 
+        # BH23-228: Strip newlines and control characters from title/description
+        title = re.sub(r'[\x00-\x1f\x7f]', ' ', title).strip()
+        description = re.sub(r'[\x00-\x1f\x7f]', ' ', description).strip()
         api_args = [
             "api", "repos/{owner}/{repo}/milestones",
             "-f", f"title={title}",

@@ -144,16 +144,17 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
 
 
 # §manage_epics._format_story_section
+def _sanitize_md(value: str) -> str:
+    """Strip newlines and pipe chars from a value for safe markdown table insertion."""
+    return value.replace("\n", " ").replace("\r", " ").replace("|", "-")
+
+
 def _format_story_section(story_data: dict) -> str:
     """Format a story data dict as a markdown section."""
-    sid = story_data.get("id", "US-XXXX")
-    title = story_data.get("title", "Untitled")
-    # P15: Sanitize newlines in heading fields to prevent file corruption
-    # BH19-010: Also sanitize pipe chars to prevent markdown table corruption
-    sid = sid.replace("\n", " ").replace("\r", " ").replace("|", "-")
-    title = title.replace("\n", " ").replace("\r", " ").replace("|", "-")
+    sid = _sanitize_md(story_data.get("id", "US-XXXX"))
+    title = _sanitize_md(story_data.get("title", "Untitled"))
     sp = story_data.get("story_points", 0)
-    priority = story_data.get("priority", "medium")
+    priority = _sanitize_md(str(story_data.get("priority", "medium")))
     lines = [
         f"### {sid}: {title}",
         "",
@@ -167,22 +168,22 @@ def _format_story_section(story_data: dict) -> str:
         personas = story_data["personas"]
         if isinstance(personas, list):
             personas = ", ".join(personas)
-        lines.append(f"| Personas | {personas} |")
+        lines.append(f"| Personas | {_sanitize_md(str(personas))} |")
 
     blocked_by = story_data.get("blocked_by", [])
     if isinstance(blocked_by, list):
         blocked_by = ", ".join(blocked_by) if blocked_by else "\u2014"
-    lines.append(f"| Blocked By | {blocked_by} |")
+    lines.append(f"| Blocked By | {_sanitize_md(str(blocked_by))} |")
 
     blocks = story_data.get("blocks", [])
     if isinstance(blocks, list):
         blocks = ", ".join(blocks) if blocks else "\u2014"
-    lines.append(f"| Blocks | {blocks} |")
+    lines.append(f"| Blocks | {_sanitize_md(str(blocks))} |")
 
     test_cases = story_data.get("test_cases", [])
     if isinstance(test_cases, list):
         test_cases = ", ".join(test_cases) if test_cases else "\u2014"
-    lines.append(f"| Test Cases | {test_cases} |")
+    lines.append(f"| Test Cases | {_sanitize_md(str(test_cases))} |")
 
     # Acceptance criteria
     if story_data.get("acceptance_criteria"):
