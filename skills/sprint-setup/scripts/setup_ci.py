@@ -106,7 +106,9 @@ def _yaml_safe_command(command: str) -> str:
         command = first_line
     # Quote if it contains characters that could break YAML
     if any(c in command for c in ":{}[]|>&*!%@`#,"):
-        return f'"{command}"'
+        # BH23-227: Escape internal double quotes before wrapping
+        escaped = command.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{escaped}"'
     return command
 
 

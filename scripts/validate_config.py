@@ -260,7 +260,7 @@ def _has_closing_bracket(s: str) -> bool:
 
 
 def _unescape_toml_string(s: str) -> str:
-    """Process basic TOML escape sequences: \\n, \\t, \\\\, \\"."""
+    """Process TOML basic string escape sequences per the TOML spec."""
     result: list[str] = []
     i = 0
     while i < len(s):
@@ -270,6 +270,12 @@ def _unescape_toml_string(s: str) -> str:
                 result.append('\n')
             elif nxt == 't':
                 result.append('\t')
+            elif nxt == 'r':
+                result.append('\r')
+            elif nxt == 'b':
+                result.append('\b')
+            elif nxt == 'f':
+                result.append('\f')
             elif nxt == '\\':
                 result.append('\\')
             elif nxt == '"':

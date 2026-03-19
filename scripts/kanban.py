@@ -13,7 +13,6 @@ GitHub is a downstream reflection synced on every mutation.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
