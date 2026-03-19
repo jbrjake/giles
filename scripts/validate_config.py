@@ -1104,10 +1104,10 @@ def write_tf(tf: "TF") -> None:
         f"reviewer: {_yaml_safe(tf.reviewer)}",
         f"status: {tf.status}",  # status is always a safe kanban state slug
         f"branch: {_yaml_safe(tf.branch)}",
-        f"pr_number: {tf.pr_number}",
-        f"issue_number: {tf.issue_number}",
-        f"started: {tf.started}",
-        f"completed: {tf.completed}",
+        f"pr_number: {_yaml_safe(tf.pr_number)}",
+        f"issue_number: {_yaml_safe(tf.issue_number)}",
+        f"started: {_yaml_safe(tf.started)}",
+        f"completed: {_yaml_safe(tf.completed)}",
         "---",
     ]
     if tf.body_text:

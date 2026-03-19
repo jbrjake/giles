@@ -210,6 +210,8 @@ def find_story(story_id: str, sprints_dir: Path, sprint: int) -> TF | None:
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     if not stories_dir.is_dir():
         return None
+    # Case-normalized: both lookup key and file stems are uppercased,
+    # matching the .upper() convention in do_sync's local_by_id dict.
     prefix = story_id.upper()
     matches: list[Path] = []
     for md_file in sorted(stories_dir.glob("*.md")):
@@ -289,6 +291,10 @@ def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
     """Assign personas: update local → add persona labels on GitHub → update issue body.
 
     Returns True on success, False on failure (with local state reverted).
+
+    Note: On partial failure, persona labels already applied to the GitHub
+    issue may persist even after local rollback.  Run ``kanban.py sync``
+    to reconcile state if this happens.
     """
     old_implementer = tf.implementer
     old_reviewer = tf.reviewer
