@@ -194,6 +194,9 @@ def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
     m = re.search(r"(\d+)", name)
     if m:
         return int(m.group(1))
+    # BH24-035: warn on silent fallback to sprint 1
+    print(f"Warning: {mf.name} has no sprint headers and no number in "
+          f"filename — defaulting to sprint 1", file=sys.stderr)
     return 1
 
 

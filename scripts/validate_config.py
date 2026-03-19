@@ -1086,7 +1086,8 @@ def read_tf(path: Path) -> "TF":
     tf = TF(path=path)
     try:
         content = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
+        # BH24-047: also handle PermissionError gracefully
         return tf  # return default TF — callers check tf.story for validity
     # BH21-006: Strip BOM if present (common from Windows editors)
     if content.startswith('\ufeff'):

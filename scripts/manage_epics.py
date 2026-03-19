@@ -145,8 +145,9 @@ def _parse_stories(lines: list[str]) -> tuple[list[dict], list[dict]]:
 
 # §manage_epics._format_story_section
 def _sanitize_md(value: str) -> str:
-    """Strip newlines and pipe chars from a value for safe markdown table insertion."""
-    return value.replace("\n", " ").replace("\r", " ").replace("|", "-")
+    """Strip newlines, pipes, and heading chars for safe markdown insertion."""
+    # BH24-034: strip # to prevent heading injection via story IDs
+    return value.replace("\n", " ").replace("\r", " ").replace("|", "-").replace("#", "")
 
 
 def _format_story_section(story_data: dict) -> str:

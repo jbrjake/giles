@@ -65,6 +65,10 @@ def compute_velocity(
             delivered_count += 1
 
     pct = round(delivered_sp / planned_sp * 100) if planned_sp else 0
+    # BH24-040: warn when all SP are 0 — likely missing data, not zero velocity
+    if story_count > 0 and planned_sp == 0:
+        print("Warning: all stories have 0 SP — story point data may be missing "
+              "from issue bodies/labels", file=sys.stderr)
 
     return {
         "planned_sp": planned_sp,
