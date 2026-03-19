@@ -346,6 +346,9 @@ def generate_release_notes(
     breaking: list[str] = []
     other: list[str] = []
 
+    # BH24-045: Commit subjects are placed into markdown as-is. Markdown link
+    # injection is theoretically possible ([text](url)) but the commit author
+    # already has code execution via the commit itself, so this is accepted.
     for c in commits:
         subj = c["subject"]
         body = c["body"]

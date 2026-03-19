@@ -70,16 +70,16 @@ All state management goes through the centralized state machine:
 
 ```bash
 # State transitions (validates legality, checks preconditions, syncs GitHub label)
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition <story-id> <target-state>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition <story-id> <target-state> [--sprint N]
 
 # Persona assignment (sets implementer/reviewer, adds persona labels on GitHub)
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign <story-id> --implementer <name> --reviewer <name>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign <story-id> --implementer <name> --reviewer <name> [--sprint N]
 
 # Field updates (sets pr_number, branch, or other tracking fields)
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update <story-id> --pr-number <N> --branch <name>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update <story-id> --pr-number <N> --branch <name> [--sprint N]
 
 # Sync local tracking files with GitHub state
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync [--prune]
+python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync [--sprint N] [--prune]
 ```
 
 Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.

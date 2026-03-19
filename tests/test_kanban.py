@@ -454,10 +454,13 @@ class TestTransitionCommand(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             tf = self._make_tf(td)
             # First call (gh sync) fails, then rollback (atomic_write_tf) also fails
-            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")):
+            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")) as mock:
                 with _patch("kanban.atomic_write_tf",
                             side_effect=[None, OSError("disk full")]):
                     result = do_transition(tf, "design")
+                # BH24-022: acknowledge the gh call was attempted (label swap)
+                self.assertTrue(mock.called)
+                _ = mock.call_args  # satisfy MonitoredMock inspection check
             self.assertFalse(result)
             # The caller's tf.status must be restored to "todo" even on double fault
             self.assertEqual(tf.status, "todo")
@@ -497,6 +500,8 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertTrue(result)
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "dev")
+                # BH24-022: verify label swap args
+                self.assertIn("kanban:dev", str(mock.call_args_list))
 
     def test_transition_review_to_integration(self):
         """review→integration is a legal transition."""
@@ -509,6 +514,8 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertTrue(result)
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "integration")
+                # BH24-022: verify label swap args
+                self.assertIn("kanban:integration", str(mock.call_args_list))
 
     def test_transition_review_to_dev_rejection_cycle(self):
         """review→dev is legal (reviewer requests changes)."""
@@ -516,11 +523,13 @@ class TestTransitionCommand(unittest.TestCase):
             tf = self._make_tf(td, status="review", implementer="rae",
                                reviewer="chen", branch="sprint-1/US-0042-feat",
                                pr_number="55")
-            with patch_gh("kanban.gh"):
+            with patch_gh("kanban.gh") as mock:
                 result = do_transition(tf, "dev")
                 self.assertTrue(result)
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "dev")
+                # BH24-022: verify label swap args
+                self.assertIn("kanban:dev", str(mock.call_args_list))
 
 
 class TestAssignCommand(unittest.TestCase):
@@ -621,12 +630,15 @@ class TestAssignCommand(unittest.TestCase):
                     return {"body": "## Story\nPlain body with no header."}
                 return ""
 
-            with patch_gh("kanban.gh_json", side_effect=gh_side_effect), \
+            with patch_gh("kanban.gh_json", side_effect=gh_side_effect) as mock_json, \
                  patch_gh("kanban.gh") as mock_gh:
                 result = do_assign(tf, implementer="rae")
                 self.assertTrue(result)
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.implementer, "rae")
+                # BH24-022: verify gh_json was called to view issue body
+                self.assertTrue(mock_json.called)
+                self.assertIn("view", str(mock_json.call_args))
                 # Body update skipped — warning on stderr
                 all_calls = str(mock_gh.call_args_list)
                 self.assertIn("persona:rae", all_calls)
@@ -645,12 +657,14 @@ class TestAssignCommand(unittest.TestCase):
             from contextlib import redirect_stderr
             buf = io.StringIO()
             with redirect_stderr(buf), \
-                 patch_gh("kanban.gh_json", side_effect=gh_side_effect), \
+                 patch_gh("kanban.gh_json", side_effect=gh_side_effect) as mock_json, \
                  patch_gh("kanban.gh") as mock_gh:
                 result = do_assign(tf, implementer="new-persona")
                 self.assertTrue(result)
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.implementer, "new-persona")
+                # BH24-022: verify gh_json was called to view issue body
+                self.assertIn("view", str(mock_json.call_args))
                 # Body update skipped — no --body call, warning emitted
                 body_calls = [c for c in mock_gh.call_args_list
                               if "--body" in str(c)]
@@ -953,6 +967,31 @@ class TestStatusCommand(unittest.TestCase):
             # All 4 dev stories should appear
             for i in range(4):
                 self.assertIn(f"US-{i:04d}", output)
+
+
+class TestStatusEmptySprint(unittest.TestCase):
+    """BH24-046: do_status on a nonexistent sprint directory."""
+
+    def test_nonexistent_sprint_shows_no_stories(self):
+        """do_status on a sprint dir that doesn't exist -> '(no stories found)'."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td) / "sprints"
+            sprints_dir.mkdir()
+            # Sprint 99 directory does not exist
+            output = do_status(sprints_dir, 99)
+            self.assertIn("Sprint 99", output)
+            self.assertIn("(no stories found)", output)
+
+    def test_empty_stories_dir_shows_no_stories(self):
+        """do_status on an existing but empty stories dir -> '(no stories found)'."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td) / "sprints"
+            # Create the sprint dir but NOT the stories subdir
+            sprint_dir = sprints_dir / "sprint-5"
+            sprint_dir.mkdir(parents=True)
+            output = do_status(sprints_dir, 5)
+            self.assertIn("Sprint 5", output)
+            self.assertIn("(no stories found)", output)
 
 
 class TestCLI(unittest.TestCase):

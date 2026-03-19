@@ -327,6 +327,9 @@ def do_assign(tf: TF, implementer: str = "", reviewer: str = "") -> bool:
             if new_body != body:
                 gh(["issue", "edit", issue_num, "--body", new_body])
             else:
+                # BH24-039: The assignment itself (labels + TF) succeeded;
+                # the body cosmetic update is best-effort.  Return True
+                # because the core operation completed.
                 print(f"{tf.story}: issue body has no [Unassigned] header to replace. "
                       "Body update skipped — update manually if needed.",
                       file=sys.stderr)
