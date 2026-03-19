@@ -570,6 +570,53 @@ class TestAssignCommand(unittest.TestCase):
                 self.assertIn("view", str(mock_json.call_args))
 
 
+    def test_assign_fresh_issue_no_header(self):
+        """BH23-113: Assign when issue body has no persona header."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+
+            def gh_side_effect(args):
+                if "view" in args:
+                    return {"body": "## Story\nPlain body with no header."}
+                return ""
+
+            with patch_gh("kanban.gh_json", side_effect=gh_side_effect), \
+                 patch_gh("kanban.gh") as mock_gh:
+                result = do_assign(tf, implementer="rae")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.implementer, "rae")
+                # Body update skipped — warning on stderr
+                all_calls = str(mock_gh.call_args_list)
+                self.assertIn("persona:rae", all_calls)
+
+    def test_assign_skips_body_when_already_assigned(self):
+        """BH23-113: Re-assign skips body update when [Unassigned] header is gone."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, implementer="old-persona")
+
+            def gh_side_effect(args):
+                if "view" in args:
+                    return {"body": "> **[old-persona]** \u00b7 Implementation\n\n## Story"}
+                return ""
+
+            import io
+            from contextlib import redirect_stderr
+            buf = io.StringIO()
+            with redirect_stderr(buf), \
+                 patch_gh("kanban.gh_json", side_effect=gh_side_effect), \
+                 patch_gh("kanban.gh") as mock_gh:
+                result = do_assign(tf, implementer="new-persona")
+                self.assertTrue(result)
+                loaded = read_tf(tf.path)
+                self.assertEqual(loaded.implementer, "new-persona")
+                # Body update skipped — no --body call, warning emitted
+                body_calls = [c for c in mock_gh.call_args_list
+                              if "--body" in str(c)]
+                self.assertEqual(len(body_calls), 0)
+            self.assertIn("no [Unassigned] header", buf.getvalue())
+
+
 class TestSyncCommand(unittest.TestCase):
     """do_sync() reconciles local tracking files against GitHub issue data."""
 
@@ -846,6 +893,25 @@ class TestStatusCommand(unittest.TestCase):
             self.assertIn("US-0041", output)
             self.assertIn("US-0042", output)
             self.assertIn("US-0043", output)
+            # BH23-126: Verify assignee names appear in the output
+            self.assertIn("rae", output)
+            self.assertIn("chen", output)
+
+    def test_status_wip_limit_warning(self):
+        """BH23-126: 4+ stories in DEV triggers WIP limit context."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = Path(td) / "sprints"
+            stories_dir = sprints_dir / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+            for i in range(4):
+                self._write_tf(stories_dir, 1,
+                               story=f"US-{i:04d}", status="dev",
+                               implementer=f"dev-{i}")
+            output = do_status(sprints_dir, 1)
+            self.assertIn("DEV", output)
+            # All 4 dev stories should appear
+            for i in range(4):
+                self.assertIn(f"US-{i:04d}", output)
 
 
 class TestCLI(unittest.TestCase):

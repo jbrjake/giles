@@ -263,6 +263,15 @@ class TestYamlSafe:
                     )
                 i += 1
 
+    @given(st.from_regex(r"^\d+\.?\d*$", fullmatch=True))
+    @settings(max_examples=200)
+    def test_numeric_strings_always_quoted(self, value: str):
+        """BH23-115: Numeric-looking strings must be quoted to prevent YAML type coercion."""
+        result = _yaml_safe(value)
+        assert result.startswith('"') and result.endswith('"'), (
+            f"Numeric string not quoted: {value!r} -> {result!r}"
+        )
+
     @given(st.text(min_size=0, max_size=200))
     @settings(max_examples=500)
     def test_frontmatter_value_roundtrip(self, value: str):
