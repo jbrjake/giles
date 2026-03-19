@@ -1,37 +1,39 @@
-# Bug Hunter Status — Pass 22 (Post-Kanban State Machine)
+# Bug Hunter Status — Pass 23 (Fresh Legacy Audit)
 
 **Started:** 2026-03-18
-**Current Phase:** COMPLETE — all items resolved
-**Approach:** Fresh adversarial audit — doc consistency, test quality, adversarial code review
+**Current Phase:** Phase 4 — Fix loop in progress
+**Approach:** Adversarial legacy code review — all phases, fresh perspective
 
-## Results
-- **Baseline:** 839 tests, 0 fail
-- **Final:** 854 tests, 0 fail (+15 net new)
-- **Punchlist:** 40 items — 40 resolved, 0 remaining
-- **Bugs found by new tests:** 2 (frontmatter_value newline crossing, closed-issue sync bypass)
+## Progress
+- [x] Phase 0: Recon (0a-0g)
+- [x] Phase 1: Doc-to-Implementation Audit — 13 findings
+- [x] Phase 2: Test Quality Audit — 29 findings
+- [x] Phase 3: Adversarial Code Audit — 29 findings
+- [x] Phase 4: Fix loop — 6 commits, 21 items resolved
 
-## Commits (10)
+## Commits (6)
 
 | Commit | Items | Summary |
 |--------|-------|---------|
-| `11d2532` | BH22-001, 002 | Register kanban namespace, remove stale CHEATSHEET anchors |
-| `9805f8b` | BH22-004, 007, 112 | Doc integration gaps — review→done, design→dev prereqs, kickoff sync |
-| `9a0e482` | BH22-100, 101, 102, 103, 107 | lock_story sentinel, atomic_write no mutation, rollback safety |
-| `f566240` | BH22-005, 110 | Clarify two-path state management model |
-| `fe51989` | BH22-104, 108, 109 | _yaml_safe numeric quoting, write_tf persona safety, assign body match |
-| `72f0e5a` | BH22-050, 051, 053, 055, 056, 057, 060 | Missing test coverage + frontmatter_value regex fix + closed-issue sync fix |
-| `29a09f2` | BH22-117, 105, 111, 114 | Filename casing, multi-match warning, fallback ID casing, malformed title guard |
-| `6ce1846` | BH22-052, 054, 058, 059, 061, 062 | Strengthen assertions, fix mock theater, rename misleading tests |
-| `c3e296d` | BH22-003, 006, 008, 009 | Preconditions table, WIP scope column, anchor index drift |
-| `c929f4e` | BH22-113, 116 | kanban update subcommand, sync --prune flag |
+| `c58010a` | BH23-001, 004, 006, 007, 011 | Document kanban.py update in all agent-facing refs |
+| `09bdfa4` | BH23-200, 201, 204, 230 | Comma quoting, double-fault TF restore, slug collision, field allowlist |
+| `ee0b418` | BH23-207, 212, 224 | Lock docs, pagination softening, markdown sanitization |
+| `898eb54` | BH23-002, 009, 010, 012, 013 | Doc drift: artifact count, import chain, config tree |
+| `bb77496` | BH23-100, 103, 104 | Import guard test, transition coverage, dict-format labels |
+| `d134b03` | BH23-227, 236 | TOML escape sequences, YAML command quoting |
 
-## Resolved Items (40)
+## Resolved (21)
 
-**HIGH (8/8):** BH22-001, 002, 004, 100, 101, 102, 103, 112
-**MEDIUM (15/15):** BH22-005, 007, 050, 051, 053, 055, 060, 104, 107, 108, 109, 110, 115, 117
-**LOW (17/17):** BH22-003, 006, 008, 009, 052, 054, 056, 057, 058, 059, 061, 062, 105, 111, 113, 114, 116
+**HIGH (3/4):** BH23-001, 007, 011
+**MEDIUM (14/17):** BH23-002, 005 (via 013), 010, 012, 013, 100, 103, 104, 200, 201, 204, 207, 212, 224, 230
+**LOW (4/38):** BH23-004, 006, 009, 227, 236
 
-## Key Patterns Addressed
-- **PAT-22-001 (atomic rename breaks flock):** Fixed — lock_story uses sentinel files now
-- **PAT-22-002 (dual sync paths):** Clarified — roles documented, filename convention unified
-- **PAT-22-003 (ceremony-to-state-machine glue):** Fixed — sync before assign, two-step done transition, update subcommand for pr/branch fields
+## Remaining
+
+**HIGH (1):** BH23-101 (do_release mock-abuse — needs integration test with real git)
+**MEDIUM (3):** BH23-112 (golden run skip), BH23-122 (FakeGitHub fidelity)
+**LOW (34):** See punchlist
+
+## Baseline
+- 860 tests, 0 fail (+6 from start)
+- 86% coverage (scripts/)

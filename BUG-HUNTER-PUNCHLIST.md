@@ -1,87 +1,123 @@
-# Bug Hunter Punchlist — Pass 22 (Post-Kanban State Machine)
+# Bug Hunter Punchlist — Pass 23 (Fresh Legacy Audit)
 
-> Generated: 2026-03-18 | Project: giles | Baseline: 839 pass, 0 fail, 0 skip
-> Method: Fresh adversarial audit — doc consistency, test quality, adversarial code review
+> Generated: 2026-03-19 | Project: giles | Baseline: 854 pass, 0 fail, 0 skip
+> Method: Fresh adversarial audit — doc claims, test quality, code review
 > Detail files: `audit/1-doc-claims.md`, `audit/2-test-quality.md`, `audit/3-code-audit.md`
 
 ## Summary
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
-| HIGH     | 0    | 8        | 0        |
-| MEDIUM   | 0    | 15       | 0        |
-| LOW      | 0    | 17       | 0        |
+| CRITICAL | 0    | 0        | 0        |
+| HIGH     | 4    | 0        | 0        |
+| MEDIUM   | 17   | 0        | 0        |
+| LOW      | 38   | 0        | 0        |
 
 ## Prioritized Action Items
 
-### Tier 1 — Fix Now (HIGH, blocks correct operation)
+### Tier 1 — Fix Now (HIGH)
 
-| ID | Title | Category | File |
-|----|-------|----------|------|
-| BH22-100 | lock_story holds stale fd after atomic rename | `bug/race` | `kanban.py:161` |
-| BH22-110 | sync_tracking.py and kanban.py are unsynchronized dual-write paths | `bug/integration` | `kanban.py + sync_tracking.py` |
-| BH22-004 | story-execution.md tells agents to do illegal review→done transition | `doc/inconsistency` | `story-execution.md:128` |
-| BH22-112 | kickoff assign runs before tracking files exist | `bug/integration` | `ceremony-kickoff.md:257` |
-| BH22-102 | do_transition rollback can fail uncaught, leaving inconsistent state | `bug/logic` | `kanban.py:258` |
-| BH22-103 | do_assign partial-success leaves GitHub labels without local state | `bug/logic` | `kanban.py:285` |
-| BH22-001 | kanban namespace missing from validate_anchors NAMESPACE_MAP | `doc/inconsistency` | `validate_anchors.py:23` |
-| BH22-002 | CHEATSHEET.md references 4 stale sync_tracking anchors | `doc/stale` | `CHEATSHEET.md:130` |
+| ID | Title | Category | Source |
+|----|-------|----------|--------|
+| BH23-001 | kanban.py update subcommand undocumented in all reference docs | doc/missing | Phase 1 |
+| BH23-007 | kanban-protocol.md doesn't document update subcommand needed for dev preconditions | doc/missing | Phase 1 |
+| BH23-011 | implementer.md doesn't tell agents to use kanban.py update for PR/branch | doc/missing | Phase 1 |
+| BH23-101 | do_release happy path mocks 5 layers deep (Mockingbird) | test/mock-abuse | Phase 2 |
 
-### Tier 2 — Fix Soon (MEDIUM, latent bugs or thin coverage)
+### Tier 2 — Fix Soon (MEDIUM)
 
-| ID | Title | Category | File |
-|----|-------|----------|------|
-| BH22-117 | create_from_issue vs do_sync produce different filenames for same issue | `bug/integration` | `sync_tracking.py:167` |
-| BH22-109 | write_tf skips _yaml_safe on implementer/reviewer fields | `bug/logic` | `validate_config.py:1088` |
-| BH22-107 | sprint=0 silently discarded by or-based resolution | `bug/logic` | `kanban.py:464` |
-| BH22-101 | atomic_write_tf mutates tf.path as visible side effect | `bug/race` | `kanban.py:143` |
-| BH22-115 | do_transition done: label edited but close fails → inconsistent state | `bug/logic` | `kanban.py:251` |
-| BH22-104 | _PERSONA_HEADER_PATTERN replaces all matches; no-match silent | `bug/logic` | `kanban.py:222` |
-| BH22-106 | lock_story requires file to exist — undocumented constraint | `bug/logic` | `kanban.py:168` |
-| BH22-108 | _yaml_safe doesn't quote purely numeric strings | `bug/logic` | `validate_config.py:905` |
-| BH22-005 | Contradictory source-of-truth claims across 4 files | `doc/inconsistency` | multiple |
-| BH22-007 | story-execution.md design→dev missing tracking file update step | `doc/inconsistency` | `story-execution.md:61` |
-| BH22-050 | _issue() test helper hardcodes state:"open", masking closed-issue logic | `test/thin` | `test_kanban.py:426` |
-| BH22-051 | test_assign_implementer doesn't verify body-update was issued | `test/thin` | `test_kanban.py:373` |
-| BH22-053 | No test for reviewer-only assign path | `test/missing` | `test_kanban.py:346` |
-| BH22-055 | atomic_write_tf exception-safety path untested | `test/missing` | `test_kanban.py:187` |
-| BH22-060 | No round-trip test for empty/whitespace tracking file fields | `test/missing` | `test_kanban.py` |
+| ID | Title | Category | Source |
+|----|-------|----------|--------|
+| BH23-002 | kanban-protocol.md claims 3-artifact updates, only 2 happen | doc/drift | Phase 1 |
+| BH23-005 | sprint_teardown.py hardcodes docs/dev-team paths | doc/drift | Phase 1 |
+| BH23-010 | sync_tracking.py status mutation overlaps kanban.py role | doc/drift | Phase 1 |
+| BH23-012 | kanban-protocol.md Rules section incorrect about script acceptance | doc/drift | Phase 1 |
+| BH23-013 | CLAUDE.md config tree mixes required vs runtime files | doc/drift | Phase 1 |
+| BH23-100 | Green Bar Addict — import_guard test asserts module attrs exist | test/bogus | Phase 2 |
+| BH23-103 | do_transition only tests 2 of 6 legal transitions | test/missing | Phase 2 |
+| BH23-104 | do_sync tests use inconsistent label format (strings vs dicts) | test/missing | Phase 2 |
+| BH23-112 | Golden run silently skips without recordings | test/fragile | Phase 2 |
+| BH23-122 | FakeGitHub fidelity tests cover only 2 of 8+ handlers | test/missing | Phase 2 |
+| BH23-200 | _yaml_safe doesn't quote comma-containing values | bug/logic | Phase 3 |
+| BH23-201 | do_transition mutates caller's TF on rollback double-fault | bug/state | Phase 3 |
+| BH23-204 | create_from_issue slug collision drops story ID prefix | bug/logic | Phase 3 |
+| BH23-207 | sync_tracking.py doesn't acquire kanban locks | bug/state | Phase 3 |
+| BH23-212 | get_existing_issues hard-fails on 500+ issues | design/inconsistency | Phase 3 |
+| BH23-224 | update_team_voices doesn't sanitize markdown input | bug/security | Phase 3 |
+| BH23-230 | do_update allows mutation of immutable TF fields (path, story) | bug/logic | Phase 3 |
 
 ### Tier 3 — Fix When Convenient (LOW)
 
-| ID | Title | Category |
-|----|-------|----------|
-| BH22-003 | CLAUDE.md missing lock_story/lock_sprint from kanban.py entry | `doc/missing` |
-| BH22-006 | kanban-protocol.md omits precondition documentation | `doc/missing` |
-| BH22-008 | WIP limits table mixes per-persona and team-wide in one column | `doc/inconsistency` |
-| BH22-009 | 6 defined-but-unreferenced anchors (index drift) | `doc/missing` |
-| BH22-052 | test_assign_both MonitoredMock satisfaction is theater | `test/mock-abuse` |
-| BH22-054 | Revert-on-failure call-args check is trivially satisfied | `test/thin` |
-| BH22-056 | do_sync "local absent from GitHub" warning path untested | `test/missing` |
-| BH22-057 | find_story case-sensitivity and prefix-collision untested | `test/missing` |
-| BH22-058 | Transition test verifies labels via string conversion (brittle) | `test/thin` |
-| BH22-059 | test_main_status_no_config is coverage theater | `test/thin` |
-| BH22-061 | test_failing_run doesn't verify log-fetch call args | `test/thin` |
-| BH22-062 | test_empty_preserves_empty has misleading name | `test/bogus` |
-| BH22-105 | find_story silently ignores multiple matches | `bug/logic` |
-| BH22-111 | extract_story_id fallback returns lowercase | `bug/logic` |
-| BH22-113 | No kanban.py command to update individual tracking file fields | `design/gap` |
-| BH22-114 | Malformed issue titles create UNKNOWN-untitled.md silently | `bug/logic` |
-| BH22-116 | Orphaned local stories warn forever with no resolution path | `design/gap` |
+| ID | Title | Category | Source |
+|----|-------|----------|--------|
+| BH23-003 | story-execution.md applies kanban label directly via gh pr edit | doc/drift | Phase 1 |
+| BH23-004 | implementer.md hardcodes sprints_dir path | doc/drift | Phase 1 |
+| BH23-006 | story-execution.md step 6 redundant with kanban.py transition done | doc/drift | Phase 1 |
+| BH23-008 | CLAUDE.md parse_simple_toml doc omits float gap and literal strings | doc/drift | Phase 1 |
+| BH23-009 | CLAUDE.md "four directories up" claim only applies to skill scripts | doc/drift | Phase 1 |
+| BH23-102 | Inspector Clouseau — check_ci test checks mock call_args format | test/fragile | Phase 2 |
+| BH23-105 | Rubber Stamp — config key tests check presence not values | test/shallow | Phase 2 |
+| BH23-106 | Time Bomb — _hours() tests use wall clock time | test/fragile | Phase 2 |
+| BH23-107 | gate_tests/build timeout not tested through validate_gates | test/missing | Phase 2 |
+| BH23-108 | monitoring pipeline hardcodes SP values | test/fragile | Phase 2 |
+| BH23-109 | Obsolete negative test for removed Confidence column | test/bogus | Phase 2 |
+| BH23-110 | check_prs not tested with mixed review states | test/missing | Phase 2 |
+| BH23-111 | test_state_dump checks structure not content | test/shallow | Phase 2 |
+| BH23-113 | do_assign body-update not tested for edge cases | test/shallow | Phase 2 |
+| BH23-114 | Lock contention never tested | test/shallow | Phase 2 |
+| BH23-115 | _yaml_safe property tests miss numeric strings | test/missing | Phase 2 |
+| BH23-116 | TestSyncOne never writes TF to disk | test/shallow | Phase 2 |
+| BH23-117 | Traceability tests only check report structure | test/shallow | Phase 2 |
+| BH23-118 | manage_epics remove_story not tested for missing ID | test/missing | Phase 2 |
+| BH23-119 | Multiple tests use assertIsNotNone without content checks | test/shallow | Phase 2 |
+| BH23-120 | fix_missing_anchors CONSTANT definition path untested | test/missing | Phase 2 |
+| BH23-121 | sync_backlog do_sync not tested with pre-existing issues | test/missing | Phase 2 |
+| BH23-123 | compute_workload not tested with mixed milestones | test/missing | Phase 2 |
+| BH23-124 | full_pipeline label count bound too loose | test/shallow | Phase 2 |
+| BH23-125 | check_atomicity 2-directory boundary not tested | test/missing | Phase 2 |
+| BH23-126 | do_status output doesn't verify assignee names | test/shallow | Phase 2 |
+| BH23-127 | do_release rollback never verified end-to-end | test/missing | Phase 2 |
+| BH23-128 | hexwise_setup shares mutable state across tests | test/fragile | Phase 2 |
+| BH23-202 | do_assign partial GitHub state on rollback | bug/state | Phase 3 |
+| BH23-205 | frontmatter_value unescaping order may fail on backslash-quote | bug/logic | Phase 3 |
+| BH23-210 | write_tf doesn't quote pr_number/issue_number fields | bug/logic | Phase 3 |
+| BH23-211 | _first_error false positive exclusion may flag "error-handling" | bug/logic | Phase 3 |
+| BH23-214 | renumber_stories replaces IDs in body text (cosmetic) | bug/logic | Phase 3 |
+| BH23-217 | compute_review_rounds --search milestone filtering reliability | bug/logic | Phase 3 |
+| BH23-219 | write_version_to_toml next-section regex excludes space-leading sections | bug/logic | Phase 3 |
+| BH23-220 | gh() error messages may leak sensitive body content | bug/security | Phase 3 |
+| BH23-225 | manage_epics.main accepts untrusted JSON without full sanitization | bug/security | Phase 3 |
+| BH23-227 | setup_ci._yaml_safe_command doesn't escape internal double quotes | bug/logic | Phase 3 |
+| BH23-228 | bootstrap_github milestone titles not sanitized for control chars | bug/security | Phase 3 |
+| BH23-231 | check_status main catches only RuntimeError, not KeyError/TypeError | bug/error-handling | Phase 3 |
+| BH23-232 | read_tf doesn't handle concurrent file deletion | bug/error-handling | Phase 3 |
+| BH23-235 | do_release doesn't check for existing tag before creating | bug/error-handling | Phase 3 |
+| BH23-236 | _unescape_toml_string missing \b, \f, \r escape handling | bug/logic | Phase 3 |
 
 ## Emerging Patterns
 
-### PAT-22-001: Atomic rename breaks POSIX flock
-**Instances:** BH22-100, BH22-101
-**Root cause:** `atomic_write_tf` replaces the inode via `os.rename`, but `lock_story` holds a lock on the old inode's fd. Lock is effectively no-op after the first write.
-**Systemic fix:** Use sentinel files for all locks (like `lock_sprint` already does).
+### PAT-23-001: kanban.py update subcommand invisible to agents
+**Instances:** BH23-001, BH23-007, BH23-011
+**Root Cause:** The `update` subcommand was added (BH22-113) but no reference docs were updated to mention it. All three ceremony/execution/agent docs reference the workflow gap without bridging it.
+**Systemic Fix:** Add `kanban.py update` to kanban-protocol.md, story-execution.md, and implementer.md in a single doc pass.
+**Detection Rule:** `grep -rL "kanban.py update" skills/sprint-run/references/ skills/sprint-run/agents/`
 
-### PAT-22-002: Dual sync paths with divergent behavior
-**Instances:** BH22-110, BH22-117, BH22-005
-**Root cause:** `kanban.py sync` and `sync_tracking.py` both modify tracking files with different validation rules, filename conventions, and field population. Neither coordinates with the other.
-**Systemic fix:** Designate one canonical sync path. Either `do_sync` absorbs `sync_tracking`'s PR-linkage logic, or `sync_tracking` absorbs `do_sync`'s transition validation.
+### PAT-23-002: Tests verify structure but not computed values
+**Instances:** BH23-105, BH23-111, BH23-117, BH23-119, BH23-124, BH23-126
+**Root Cause:** Many tests use `assertIn`, `assertIsNotNone`, `assertGreaterEqual` instead of exact value assertions. This pattern emerged from property-test and smoke-test contexts but leaked into functional tests where exact values are knowable.
+**Systemic Fix:** Review each functional test: if the expected output is deterministic, assert the exact value. Reserve loose bounds for genuine non-determinism (timestamps, counts that depend on external state).
 
-### PAT-22-003: Missing orchestration steps between ceremony and state machine
-**Instances:** BH22-004, BH22-007, BH22-112, BH22-113
-**Root cause:** The prompt files were updated to reference `kanban.py` commands, but the prerequisite steps (create tracking files, set field values, use correct state sequence) weren't added. The state machine enforces preconditions that the docs don't prepare agents for.
-**Systemic fix:** Add a "State Machine Prerequisites" checklist to each ceremony/execution reference that lists exactly what must be true before each `kanban.py` call.
+### PAT-23-003: Happy Path Tourist — untested state transitions
+**Instances:** BH23-103, BH23-110, BH23-113, BH23-118, BH23-121
+**Root Cause:** Kanban state machine, PR classification, and sync operations each have multiple distinct code paths, but tests only exercise 1-2 of them. The production code has if/elif chains with 3+ branches but only the first branch is tested.
+**Systemic Fix:** For each function with N code paths, require at least N/2 test cases targeting different branches.
+
+### PAT-23-004: Insufficient input sanitization at CLI/markdown boundaries
+**Instances:** BH23-220, BH23-224, BH23-225, BH23-227, BH23-228
+**Root Cause:** CLI arguments and markdown file content flow through to `gh` API calls, markdown output, and YAML serialization without consistent sanitization. Each module has its own ad-hoc escaping, but there's no centralized sanitization layer.
+**Systemic Fix:** Create a `sanitize_for_markdown(s)` and `sanitize_for_gh_arg(s)` helper in validate_config.py, and use them consistently at all CLI→API and CLI→markdown boundaries.
+
+### PAT-23-005: State mutation before confirmation of durability
+**Instances:** BH23-201, BH23-202, BH23-207, BH23-230
+**Root Cause:** Functions mutate shared state (TF objects, tracking files) before confirming the operation succeeded (GitHub sync, disk write). When the confirmation fails, rollback is attempted but may leave the shared object in an inconsistent state.
+**Systemic Fix:** Prefer copy-on-write patterns — mutate a copy, then swap on success. For file I/O, the `atomic_write_tf` pattern is correct; apply the same discipline to in-memory TF objects.
