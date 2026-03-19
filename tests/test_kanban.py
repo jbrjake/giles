@@ -20,7 +20,7 @@ class TestTrackingFileIO(unittest.TestCase):
         self.assertEqual(tf.story, "")
 
     def test_round_trip(self):
-        """Write a tracking file and read it back."""
+        """Write a tracking file and read it back — verify ALL fields."""
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "US-0001-test.md"
             tf = TF(
@@ -28,13 +28,21 @@ class TestTrackingFileIO(unittest.TestCase):
                 sprint=1, implementer="rae", reviewer="chen",
                 status="dev", branch="sprint-1/US-0001-test",
                 pr_number="42", issue_number="7",
+                started="2026-03-10", completed="2026-03-15",
             )
             write_tf(tf)
             loaded = read_tf(p)
             self.assertEqual(loaded.story, "US-0001")
+            self.assertEqual(loaded.title, "Test story")
+            self.assertEqual(loaded.sprint, 1)
             self.assertEqual(loaded.implementer, "rae")
+            self.assertEqual(loaded.reviewer, "chen")
             self.assertEqual(loaded.status, "dev")
+            self.assertEqual(loaded.branch, "sprint-1/US-0001-test")
             self.assertEqual(loaded.pr_number, "42")
+            self.assertEqual(loaded.issue_number, "7")
+            self.assertEqual(loaded.started, "2026-03-10")
+            self.assertEqual(loaded.completed, "2026-03-15")
 
     # BH23-200: Comma-containing values must survive round-trip
     def test_round_trip_comma_title(self):

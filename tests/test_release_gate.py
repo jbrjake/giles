@@ -28,6 +28,7 @@ from release_gate import (
     gate_build,
     do_release,
     find_milestone_number,
+    generate_release_notes,
 )
 from fake_github import FakeGitHub, make_patched_subprocess
 
@@ -1294,12 +1295,13 @@ class TestDoReleaseFakeGH(unittest.TestCase):
     @patch("release_gate.calculate_version")
     @patch("release_gate.subprocess.run")
     def test_release_notes_contain_correct_sections(self, mock_run, mock_calc, mock_write):
-        """BH-006: Verify release notes have correct sections for commit types."""
-        mock_calc.return_value = ("2.0.0", "1.0.0", "major", [
+        """BH24-006: Verify release notes have correct sections for commit types."""
+        commits = [
             {"subject": "feat: new dashboard", "body": ""},
             {"subject": "fix: login crash", "body": ""},
             {"subject": "feat!: redesign API", "body": "BREAKING CHANGE: new endpoints"},
-        ])
+        ]
+        mock_calc.return_value = ("2.0.0", "1.0.0", "major", commits)
         mock_write.return_value = None
         mock_run.side_effect = self._make_combined_side_effect()
 
@@ -1312,11 +1314,34 @@ class TestDoReleaseFakeGH(unittest.TestCase):
         result = do_release("Sprint 1: Walking Skeleton", config)
         self.assertTrue(result)
 
-        # Verify release was created with notes
+        # Verify release was created with correct tag
         self.assertTrue(len(self.fake.releases) >= 1)
-        # Release notes file was passed to gh release create via --notes-file,
-        # but we can check the release object for correct tag
         self.assertEqual(self.fake.releases[0]["tag_name"], "v2.0.0")
+
+        # BH24-006: Actually verify the release notes content has expected sections.
+        # generate_release_notes is a pure function (aside from a git tag check
+        # for the changelog link), so call it directly with the same inputs.
+        with patch("release_gate.subprocess.run", side_effect=self._make_combined_side_effect()):
+            notes = generate_release_notes(
+                "2.0.0", "1.0.0", commits, "Sprint 1: Walking Skeleton", config,
+            )
+
+        # Must contain the title header
+        self.assertIn("v2.0.0", notes)
+
+        # Commits include feats → Highlights and Features sections
+        self.assertIn("## Highlights", notes)
+        self.assertIn("## Features", notes)
+        self.assertIn("feat: new dashboard", notes)
+        self.assertIn("feat!: redesign API", notes)
+
+        # Commits include a fix → Fixes section
+        self.assertIn("## Fixes", notes)
+        self.assertIn("fix: login crash", notes)
+
+        # Commits include a breaking change → Breaking Changes section
+        self.assertIn("## Breaking Changes", notes)
+        self.assertIn("feat!: redesign API", notes)
 
     @patch("release_gate.write_version_to_toml")
     @patch("release_gate.calculate_version")

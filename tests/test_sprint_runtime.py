@@ -1412,15 +1412,6 @@ class TestSyncOneGitHubAuthoritative(unittest.TestCase):
 
     def test_no_gh_calls_on_status_disagreement(self):
         """sync_one() with disagreeing states must not call gh CLI."""
-        gh_calls: list[list[str]] = []
-
-        def spy_subprocess(args, *a, **kw):
-            if isinstance(args, list) and args and args[0] == "gh":
-                gh_calls.append(args)
-            return subprocess.CompletedProcess(
-                args=args, returncode=0, stdout="", stderr="",
-            )
-
         # Local says "todo", GitHub says "review" via labels
         tf = sync_tracking.TF(
             path=Path("/tmp/test.md"), story="US-0001",
@@ -1432,23 +1423,20 @@ class TestSyncOneGitHubAuthoritative(unittest.TestCase):
             "number": 5,
         }
 
-        with patch("subprocess.run", spy_subprocess):
+        # BH24-008: Patch gh_json — the only GitHub-calling function
+        # sync_tracking imports — not subprocess.run which it never
+        # invokes directly.  sync_one() should only mutate the in-memory
+        # TF; it must not make any GitHub API calls.
+        with patch("sync_tracking.gh_json") as mock_gh_json:
             changes = sync_tracking.sync_one(tf, issue, None, 1)
 
         # Local TF should be updated to match GitHub
         self.assertEqual(tf.status, "review")
         self.assertTrue(len(changes) > 0)
 
-        # No gh CLI calls should have been made
-        gh_edit_calls = [
-            c for c in gh_calls
-            if len(c) > 2 and c[1] in ("issue", "label")
-        ]
-        self.assertEqual(
-            gh_edit_calls, [],
-            f"sync_one() should not call gh to modify GitHub state, "
-            f"but found: {gh_edit_calls}",
-        )
+        # sync_one() must not call gh_json — it only mutates the
+        # in-memory TF object; GitHub is authoritative.
+        mock_gh_json.assert_not_called()
 
 
 class TestCreateFromIssue(unittest.TestCase):

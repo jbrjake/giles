@@ -754,6 +754,70 @@ class TestCIGeneration(unittest.TestCase):
         # The check commands should still appear
         self.assertIn("cabal test", yaml)
 
+    def test_generated_yaml_has_valid_structure(self):
+        """BH24-007: Validate YAML structure beyond keyword presence.
+
+        Checks that generated CI YAML has proper top-level keys, job
+        structure (runs-on, steps), and consistent indentation — without
+        importing a YAML parser.
+        """
+        config = {
+            "project": {"name": "test", "language": "Python", "repo": "o/r"},
+            "ci": {
+                "check_commands": ["ruff check .", "pytest"],
+                "build_command": "python -m build",
+            },
+        }
+        yaml = generate_ci_yaml(config)
+        lines = yaml.splitlines()
+
+        # Top-level: must start with "name: CI"
+        self.assertTrue(
+            lines[0].startswith("name:"),
+            f"YAML should start with 'name:' key, got: {lines[0]!r}",
+        )
+
+        # Required top-level keys (no leading whitespace)
+        top_keys = [l.split(":")[0] for l in lines if l and not l[0].isspace() and ":" in l]
+        self.assertIn("name", top_keys)
+        self.assertIn("on", top_keys)
+        self.assertIn("jobs", top_keys)
+
+        # "jobs:" must appear and the next non-blank line must be indented
+        jobs_idx = next(i for i, l in enumerate(lines) if l.strip() == "jobs:")
+        next_content = next(
+            (l for l in lines[jobs_idx + 1:] if l.strip()), None,
+        )
+        self.assertIsNotNone(next_content, "Expected content after 'jobs:'")
+        self.assertTrue(
+            next_content.startswith("  "),
+            f"Job definition should be indented under 'jobs:', got: {next_content!r}",
+        )
+
+        # At least one job must have "runs-on:" and "steps:"
+        self.assertTrue(
+            any(l.strip().startswith("runs-on:") for l in lines),
+            "Generated YAML should contain 'runs-on:' in a job definition",
+        )
+        self.assertTrue(
+            any(l.strip().startswith("steps:") for l in lines),
+            "Generated YAML should contain 'steps:' in a job definition",
+        )
+
+        # Steps should use "- name:" or "- uses:" entries (standard GHA format)
+        step_entries = [l for l in lines if l.strip().startswith("- name:") or l.strip().startswith("- uses:")]
+        self.assertGreaterEqual(
+            len(step_entries), 1,
+            "Expected at least one step with '- name:' or '- uses:'",
+        )
+
+        # Indentation consistency: no tabs (YAML best practice)
+        for i, line in enumerate(lines, 1):
+            self.assertNotIn(
+                "\t", line,
+                f"Line {i} contains a tab character; YAML should use spaces",
+            )
+
 
 # ---------------------------------------------------------------------------
 # P2-08: Update Team Voices

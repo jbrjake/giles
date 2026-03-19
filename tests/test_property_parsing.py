@@ -205,7 +205,7 @@ class TestYamlSafe:
             # Unquote using single-pass unescape to avoid \\n vs \n confusion
             # (BH-007, BH21-005). Simple chained .replace() can't handle
             # strings containing literal backslash+n vs escaped newlines.
-            _ESCAPE_MAP = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r'}
+            _ESCAPE_MAP = {'\\': '\\', '"': '"', 'n': '\n', 'r': '\r', 't': '\t', 'b': '\b'}
             inner = re.sub(
                 r'\\(.)',
                 lambda m: _ESCAPE_MAP.get(m.group(1), m.group(0)),
@@ -277,6 +277,8 @@ class TestYamlSafe:
             f"Numeric string not quoted: {value!r} -> {result!r}"
         )
 
+    @example("hello\tworld")
+    @example("back\bspace")
     @given(st.text(min_size=0, max_size=200))
     @settings(max_examples=500)
     def test_frontmatter_value_roundtrip(self, value: str):
