@@ -273,7 +273,7 @@ def check_wip_limit(tf: TF, target: str, sprints_dir: Path, sprint: int,
 # §kanban._count_review_rounds
 def _count_review_rounds(body_text: str) -> int:
     """Count review → dev transitions in the transition log."""
-    return len(re.findall(r"review → dev", body_text))
+    return len(re.findall(r"review (?:→|->|-->) dev", body_text))
 
 
 # §kanban.do_transition
@@ -283,6 +283,9 @@ def do_transition(tf: TF, target: str, *,
                   sprints_dir: Path | None = None,
                   sprint: int | None = None) -> bool:
     """Execute a state transition: validate, update local, sync GitHub.
+
+    **Caller must hold lock_story(tf.path)** before calling this function.
+    The CLI main() does this; direct API callers must do it themselves.
 
     Returns True on success, False on failure (with local state reverted).
     Appends a transition log entry to the tracking file body.
