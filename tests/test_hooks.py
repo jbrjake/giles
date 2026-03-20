@@ -322,6 +322,26 @@ class TestVerifyAgentOutput(unittest.TestCase):
         self.assertEqual(result, ["pytest -k 'test[param]'", "ruff check"])
 
 
+    def test_read_toml_key_escaped_quote_with_bracket(self):
+        """BH26-005: Backslash-escaped quote with ] inside should parse correctly."""
+        toml = (
+            '[ci]\n'
+            'check_commands = [\n'
+            '    "pytest -k \\"test[param]\\"",\n'
+            '    "ruff check",\n'
+            ']\n'
+        )
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[1], "ruff check")
+
+    def test_read_toml_key_inline_comment_after_escaped_quote(self):
+        """BH26-005: Inline comment after escaped-quote value should be stripped."""
+        toml = '[ci]\nsmoke_command = "echo \\"hello\\"" # a comment\n'
+        result = _read_toml_key(toml, "ci", "smoke_command")
+        self.assertEqual(result, 'echo \\"hello\\"')
+
+
 class TestSessionContext(unittest.TestCase):
     """P0-HOOK-3: SessionStart context injection hook."""
 

@@ -24,25 +24,44 @@ from hooks._common import _find_project_root
 # ---------------------------------------------------------------------------
 
 def _strip_inline_comment(val: str) -> str:
-    """Strip an inline TOML comment, respecting quoted strings."""
+    """Strip an inline TOML comment, respecting quoted strings.
+
+    Handles backslash-escaped quotes inside double-quoted TOML strings.
+    Single-quoted strings are TOML literal strings (no escape processing).
+    """
     in_quote = False
     quote_char = ""
-    for j, ch in enumerate(val):
+    i = 0
+    while i < len(val):
+        ch = val[i]
+        if ch == "\\" and in_quote and quote_char == '"':
+            i += 2  # skip escaped char in double-quoted strings
+            continue
         if ch in ('"', "'") and not in_quote:
             in_quote = True
             quote_char = ch
         elif ch == quote_char and in_quote:
             in_quote = False
         elif ch == "#" and not in_quote:
-            return val[:j].rstrip()
+            return val[:i].rstrip()
+        i += 1
     return val
 
 
 def _has_unquoted_bracket(s: str) -> bool:
-    """Check if s contains a ] that is not inside quotes."""
+    """Check if s contains a ] that is not inside quotes.
+
+    Handles backslash-escaped quotes inside double-quoted TOML strings.
+    Single-quoted strings are TOML literal strings (no escape processing).
+    """
     in_quote = False
     quote_char = ""
-    for ch in s:
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and in_quote and quote_char == '"':
+            i += 2  # skip escaped char in double-quoted strings
+            continue
         if ch in ('"', "'") and not in_quote:
             in_quote = True
             quote_char = ch
@@ -50,6 +69,7 @@ def _has_unquoted_bracket(s: str) -> bool:
             in_quote = False
         elif ch == "]" and not in_quote:
             return True
+        i += 1
     return False
 
 
@@ -76,8 +96,9 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
                 while not _has_unquoted_bracket(array_text) and i + 1 < len(lines):
                     i += 1
                     array_text += " " + lines[i].strip()
-                # Match both double and single quoted strings
-                items = re.findall(r'"([^"]*)"|\'([^\']*)\'', array_text)
+                # Match quoted strings; double-quoted handles \" escapes,
+                # single-quoted is literal (TOML spec).
+                items = re.findall(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'', array_text)
                 return [a or b for a, b in items]
             if val.startswith('"') and val.endswith('"'):
                 return val[1:-1]
