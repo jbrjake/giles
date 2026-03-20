@@ -145,6 +145,26 @@ class TestTransitionTable(unittest.TestCase):
         self.assertIsNotNone(validate_transition("todo", "bogus"))
         self.assertIsNotNone(validate_transition("bogus", "design"))
 
+    def test_dev_to_integration_blocked(self):
+        """P0-KANBAN-1: dev → integration must pass through review."""
+        result = validate_transition("dev", "integration")
+        self.assertIsNotNone(result)
+        self.assertIn("review", result.lower(),
+                       "Error should mention 'review' is required")
+
+    def test_dev_to_done_blocked(self):
+        """P0-KANBAN-1: dev → done must pass through review."""
+        result = validate_transition("dev", "done")
+        self.assertIsNotNone(result)
+
+    def test_dev_to_review_allowed(self):
+        """P0-KANBAN-1: dev → review is the correct forward path."""
+        self.assertIsNone(validate_transition("dev", "review"))
+
+    def test_review_to_integration_allowed(self):
+        """P0-KANBAN-1: review → integration is allowed."""
+        self.assertIsNone(validate_transition("review", "integration"))
+
 
 class TestPreconditions(unittest.TestCase):
     """check_preconditions() gate logic."""
@@ -530,6 +550,47 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertEqual(loaded.status, "dev")
                 # BH24-022: verify label swap args
                 self.assertIn("kanban:dev", str(mock.call_args_list))
+
+    def test_transition_writes_log(self):
+        """P0-KANBAN-1: Transition log is written to tracking file body."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            with patch_gh("kanban.gh") as mock:
+                do_transition(tf, "design")
+                _ = mock.call_args  # satisfy MonitoredMock
+            loaded = read_tf(tf.path)
+            self.assertIn("## Transition Log", loaded.body_text)
+            self.assertIn("todo → design", loaded.body_text)
+
+    def test_transition_log_appends(self):
+        """Multiple transitions append to the same log section."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="design", implementer="rae",
+                               branch="sprint-1/US-0042-feat", pr_number="55")
+            with patch_gh("kanban.gh") as mock:
+                do_transition(tf, "dev")
+                tf = read_tf(tf.path)
+                tf.reviewer = "chen"
+                from kanban import atomic_write_tf
+                atomic_write_tf(tf)
+                do_transition(tf, "review")
+                _ = mock.call_args  # satisfy MonitoredMock
+            loaded = read_tf(tf.path)
+            self.assertIn("design → dev", loaded.body_text)
+            self.assertIn("dev → review", loaded.body_text)
+            # Only one ## Transition Log header
+            self.assertEqual(loaded.body_text.count("## Transition Log"), 1)
+
+    def test_dev_to_integration_error_mentions_review(self):
+        """P0-KANBAN-1: dev→integration error mentions 'must pass through review'."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="dev", implementer="rae",
+                               branch="sprint-1/US-0042-feat", pr_number="55")
+            with patch_gh("kanban.gh"):
+                result = do_transition(tf, "integration")
+            self.assertFalse(result)
+            loaded = read_tf(tf.path)
+            self.assertEqual(loaded.status, "dev")  # unchanged
 
 
 class TestAssignCommand(unittest.TestCase):

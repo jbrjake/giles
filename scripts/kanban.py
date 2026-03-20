@@ -243,9 +243,17 @@ def do_transition(tf: TF, target: str) -> bool:
     """Execute a state transition: validate, update local, sync GitHub.
 
     Returns True on success, False on failure (with local state reverted).
+    Appends a transition log entry to the tracking file body.
     """
     err = validate_transition(tf.status, target)
     if err:
+        # Provide a clearer message for the review gate
+        if tf.status == "dev" and target in ("integration", "done"):
+            err = (
+                f"Cannot transition {tf.status!r} → {target!r}: "
+                f"story must pass through review first. "
+                f"Transition to 'review' before '{target}'."
+            )
         print(f"{tf.story}: {err}", file=sys.stderr)
         return False
     err = check_preconditions(tf, target)
@@ -257,8 +265,16 @@ def do_transition(tf: TF, target: str) -> bool:
     if not issue_num:
         print(f"{tf.story}: no issue_number — cannot sync to GitHub", file=sys.stderr)
         return False
-    # Update local state
+    # Update local state and append transition log
     tf.status = target
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    log_entry = f"- {timestamp}: {old_status} → {target}"
+    if tf.body_text and "## Transition Log" in tf.body_text:
+        tf.body_text = tf.body_text.rstrip() + "\n" + log_entry
+    else:
+        prefix = tf.body_text.rstrip() + "\n\n" if tf.body_text.strip() else ""
+        tf.body_text = prefix + "## Transition Log\n" + log_entry
     atomic_write_tf(tf)
     # Sync to GitHub
     try:
