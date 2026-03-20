@@ -24,12 +24,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit, find_milestone
 
-# -- Import sync engine ------------------------------------------------------
+# -- Import sync engine and smoke helpers ------------------------------------
 try:
     from sync_backlog import main as sync_backlog_main
 except ImportError as _import_err:
     print(f"Warning: sync_backlog unavailable: {_import_err}", file=sys.stderr)
     sync_backlog_main = None
+try:
+    from smoke_test import write_history as _write_smoke_history
+except ImportError:
+    _write_smoke_history = None
 
 MAX_LOGS = 10
 _MAX_LOG_LINES = 500          # BH21-019: cap CI log size before scanning
@@ -296,6 +300,13 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
             smoke_cmd, shell=True, capture_output=True, text=True,
             timeout=smoke_timeout,
         )
+        status = "SMOKE PASS" if result.returncode == 0 else "SMOKE FAIL"
+        # Write to smoke history so rate limiting and debt tracking work
+        if _write_smoke_history:
+            _write_smoke_history(
+                str(sprints_dir), status, smoke_cmd,
+                result.stdout or "", result.stderr or "",
+            )
         if result.returncode == 0:
             return ["Smoke: PASS"], []
         else:
@@ -303,10 +314,9 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
             actions = []
             if history_path.is_file():
                 text = history_path.read_text(encoding="utf-8")
-                # Find the second-to-last result
                 result_matches = re.findall(r'SMOKE (PASS|FAIL)', text)
-                if result_matches and result_matches[-1] == "PASS":
-                    # Find most recent merged PR
+                # Check second-to-last (last is the one we just wrote)
+                if len(result_matches) >= 2 and result_matches[-2] == "PASS":
                     try:
                         prs = gh_json(["pr", "list", "--state", "merged",
                                        "--limit", "1", "--json", "number,title"])
@@ -321,6 +331,8 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
             stderr = (result.stderr or "").strip()[:200]
             return [f"Smoke: FAIL — {stderr}"], actions
     except subprocess.TimeoutExpired:
+        if _write_smoke_history:
+            _write_smoke_history(str(sprints_dir), "SMOKE FAIL", smoke_cmd, "", f"timed out after {smoke_timeout}s")
         return [f"Smoke: FAIL — timed out after {smoke_timeout}s"], \
                ["Smoke test timed out"]
     except Exception as exc:

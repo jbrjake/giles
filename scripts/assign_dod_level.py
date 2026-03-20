@@ -67,7 +67,7 @@ def main() -> None:
         sys.exit(1)
 
     sprints_dir = get_sprints_dir(config)
-    sprint = args.sprint or detect_sprint(Path(sprints_dir))
+    sprint = args.sprint if args.sprint is not None else detect_sprint(Path(sprints_dir))
     if sprint is None:
         print("Cannot detect sprint. Use --sprint N.", file=sys.stderr)
         sys.exit(1)

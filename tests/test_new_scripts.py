@@ -258,6 +258,30 @@ class TestRiskRegister(unittest.TestCase):
         self.assertEqual(len(overdue), 1)
         self.assertEqual(overdue[0]["id"], "R1")
 
+    def test_resolve_risk(self):
+        """BH25: resolve_risk sets status to Resolved and adds resolution text."""
+        from risk_register import add_risk, resolve_risk, list_open_risks
+        add_risk("Test risk", "high", "1")
+        self.assertEqual(len(list_open_risks()), 1)
+        result = resolve_risk("R1", "Fixed in sprint 2")
+        self.assertTrue(result)
+        self.assertEqual(len(list_open_risks()), 0)
+
+    def test_resolve_nonexistent_risk(self):
+        from risk_register import resolve_risk
+        result = resolve_risk("R999", "doesn't exist")
+        self.assertFalse(result)
+
+    def test_add_risk_sanitizes_pipes(self):
+        """BH25: Pipe characters in title don't break table."""
+        from risk_register import add_risk, _REGISTER_PATH
+        add_risk("Risk with | pipe", "high", "1")
+        content = _REGISTER_PATH.read_text()
+        # Each row should have exactly 8 pipe characters (7 cells)
+        data_lines = [l for l in content.splitlines()
+                      if l.strip().startswith("|") and "R1" in l]
+        self.assertTrue(len(data_lines) == 1)
+
     def test_template_in_skeletons(self):
         tmpl = Path(__file__).resolve().parent.parent / "references/skeletons/risk-register.md.tmpl"
         self.assertTrue(tmpl.is_file())

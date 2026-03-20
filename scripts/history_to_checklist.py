@@ -39,9 +39,10 @@ def extract_checklist_items(history_text: str,
         # Clean up the line for a checklist item
         cleaned = line.strip().lstrip("-*• ")
         if len(cleaned) > 20:
+            suffix = "..." if len(cleaned) > 80 else ""
             items.append(
                 f"{persona_name} history: check for similar issues "
-                f"({cleaned[:80]}... from {sprint_ref})"
+                f"({cleaned[:80]}{suffix} from {sprint_ref})"
             )
 
     return items

@@ -61,21 +61,25 @@ def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | Non
     body = story.get("body", "")
     branch = story.get("branch", "")
 
+    # Check body text first (no subprocess needed)
     for ep in entry_points:
-        # Check body text for entry point reference
         if ep in body:
             return ep
-        # Check branch diff if branch exists
-        if branch:
-            try:
-                result = subprocess.run(
-                    ["git", "diff", "--name-only", f"HEAD...{branch}"],
-                    capture_output=True, text=True, timeout=10,
-                )
-                if result.returncode == 0 and ep in result.stdout:
-                    return ep
-            except Exception:
-                pass
+
+    # Check branch diff once (not per entry point)
+    if branch:
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only", f"HEAD...{branch}"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                changed_files = result.stdout
+                for ep in entry_points:
+                    if ep in changed_files:
+                        return ep
+        except Exception:
+            pass
     return None
 
 
@@ -143,7 +147,7 @@ def main() -> None:
         sys.exit(1)
 
     sprints_dir = get_sprints_dir(config)
-    sprint = args.sprint or detect_sprint(Path(sprints_dir))
+    sprint = args.sprint if args.sprint is not None else detect_sprint(Path(sprints_dir))
     if sprint is None:
         print("Cannot detect sprint. Use --sprint N.", file=sys.stderr)
         sys.exit(1)

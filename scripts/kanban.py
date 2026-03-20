@@ -325,6 +325,7 @@ def do_transition(tf: TF, target: str, *,
             print(f"{tf.story}: {wip_err}", file=sys.stderr)
             return False
     old_status = tf.status
+    old_body = tf.body_text
     issue_num = tf.issue_number
     if not issue_num:
         print(f"{tf.story}: no issue_number — cannot sync to GitHub", file=sys.stderr)
@@ -351,6 +352,7 @@ def do_transition(tf: TF, target: str, *,
     except RuntimeError as exc:
         try:
             tf.status = old_status
+            tf.body_text = old_body
             atomic_write_tf(tf)
             print(f"{tf.story}: local state reverted. GitHub update failed: {exc}",
                   file=sys.stderr)
@@ -358,6 +360,7 @@ def do_transition(tf: TF, target: str, *,
             # BH23-201: Always restore caller's tf.status even when disk
             # rollback fails, so the in-memory object is consistent.
             tf.status = old_status
+            tf.body_text = old_body
             print(f"{tf.story}: CRITICAL — GitHub update failed ({exc}) AND "
                   f"local rollback failed ({rollback_exc}). Local and GitHub "
                   f"state may be inconsistent. Run 'kanban.py sync' to reconcile.",

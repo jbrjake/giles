@@ -581,6 +581,30 @@ class TestTransitionCommand(unittest.TestCase):
             # Only one ## Transition Log header
             self.assertEqual(loaded.body_text.count("## Transition Log"), 1)
 
+    def test_transition_log_rolled_back_on_gh_failure(self):
+        """BH25: Transition log entry must be removed when GitHub sync fails."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            # First transition succeeds — establishes a log
+            with patch_gh("kanban.gh") as mock:
+                do_transition(tf, "design")
+                _ = mock.call_args
+            loaded = read_tf(tf.path)
+            self.assertIn("todo → design", loaded.body_text)
+            # Second transition: GitHub sync fails
+            tf = read_tf(tf.path)
+            with patch_gh("kanban.gh", side_effect=RuntimeError("network")) as mock:
+                result = do_transition(tf, "dev")
+                _ = mock.call_args
+            self.assertFalse(result)
+            loaded = read_tf(tf.path)
+            # Status should be reverted
+            self.assertEqual(loaded.status, "design")
+            # The failed transition's log entry must NOT be present
+            self.assertNotIn("design → dev", loaded.body_text)
+            # The original successful entry should still be there
+            self.assertIn("todo → design", loaded.body_text)
+
     def test_dev_to_integration_error_mentions_review(self):
         """P0-KANBAN-1: dev→integration error mentions 'must pass through review'."""
         with tempfile.TemporaryDirectory() as td:

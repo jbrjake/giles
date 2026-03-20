@@ -78,6 +78,7 @@ def add_risk(title: str, severity: str, sprint: str = "current") -> str:
     """Add a risk to the register. Returns the assigned ID."""
     text = _read_register()
     rid = _next_id(text)
+    title = title.replace("|", "\\|")
     row = f"| {rid} | {title} | {severity} | Open | Sprint {sprint} | 0 | |\n"
     text = text.rstrip() + "\n" + row
     _REGISTER_PATH.write_text(text, encoding="utf-8")
@@ -87,25 +88,29 @@ def add_risk(title: str, severity: str, sprint: str = "current") -> str:
 def resolve_risk(risk_id: str, resolution: str) -> bool:
     """Resolve a risk by ID. Returns True if found."""
     text = _read_register()
-    pattern = rf'(\|\s*{risk_id}\s*\|[^|]*\|[^|]*\|)\s*Open\s*(\|[^|]*\|[^|]*\|)\s*\|'
-    match = re.search(pattern, text)
-    if not match:
-        return False
-    # Replace Status with Resolved, add resolution
-    old = match.group(0)
-    # Rebuild the row
-    cells = [c.strip() for c in old.split("|")]
-    cells = [c for c in cells if c]
-    if len(cells) >= 6:
-        cells[3] = "Resolved"
-        if len(cells) >= 7:
+    lines = text.splitlines()
+    found = False
+    for i, line in enumerate(lines):
+        if "|" not in line or line.strip().startswith("|--"):
+            continue
+        cells = [c.strip() for c in line.split("|")]
+        # Remove leading/trailing empty from split
+        if cells and cells[0] == "":
+            cells = cells[1:]
+        if cells and cells[-1] == "":
+            cells = cells[:-1]
+        if len(cells) >= 4 and cells[0] == risk_id and cells[3].lower() == "open":
+            cells[3] = "Resolved"
+            # Set resolution in the last column
+            while len(cells) < 7:
+                cells.append("")
             cells[6] = resolution
-        else:
-            cells.append(resolution)
-    new_row = "| " + " | ".join(cells) + " |"
-    text = text.replace(old, new_row)
-    _REGISTER_PATH.write_text(text, encoding="utf-8")
-    return True
+            lines[i] = "| " + " | ".join(cells) + " |"
+            found = True
+            break
+    if found:
+        _REGISTER_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return found
 
 
 def list_open_risks() -> list[dict]:
