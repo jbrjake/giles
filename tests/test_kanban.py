@@ -728,6 +728,110 @@ class TestWIPLimit(unittest.TestCase):
             self.assertTrue(result)
 
 
+    def test_review_wip_blocks_at_limit_2(self):
+        """BH26-003: Review WIP blocks when reviewer has 2 stories in review."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="review", reviewer="chen",
+                     implementer="rae", sprint=1, branch="b1",
+                     pr_number="1", issue_number="1"),
+                dict(story="US-0002", status="review", reviewer="chen",
+                     implementer="sana", sprint=1, branch="b2",
+                     pr_number="2", issue_number="2"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0003-test.md",
+                        story="US-0003", reviewer="chen", implementer="rae",
+                        sprint=1)
+            err = check_wip_limit(new_tf, "review", Path(td), 1)
+            self.assertIsNotNone(err)
+            self.assertIn("chen", err)
+
+    def test_review_wip_allows_different_reviewer(self):
+        """BH26-003: Different reviewers have independent WIP limits."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="review", reviewer="chen",
+                     implementer="rae", sprint=1, branch="b1",
+                     pr_number="1", issue_number="1"),
+                dict(story="US-0002", status="review", reviewer="chen",
+                     implementer="sana", sprint=1, branch="b2",
+                     pr_number="2", issue_number="2"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0003-test.md",
+                        story="US-0003", reviewer="sana", implementer="rae",
+                        sprint=1)
+            err = check_wip_limit(new_tf, "review", Path(td), 1)
+            self.assertIsNone(err)
+
+    def test_review_wip_allows_under_limit(self):
+        """Review WIP allows when reviewer has only 1 of 2 slots used."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="review", reviewer="chen",
+                     implementer="rae", sprint=1, branch="b1",
+                     pr_number="1", issue_number="1"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0002-test.md",
+                        story="US-0002", reviewer="chen", implementer="sana",
+                        sprint=1)
+            err = check_wip_limit(new_tf, "review", Path(td), 1)
+            self.assertIsNone(err)
+
+    def test_integration_wip_blocks_at_limit_3(self):
+        """BH26-003: Integration WIP blocks at 3 stories team-wide."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="integration", implementer="rae",
+                     sprint=1, branch="b1", pr_number="1", issue_number="1"),
+                dict(story="US-0002", status="integration", implementer="chen",
+                     sprint=1, branch="b2", pr_number="2", issue_number="2"),
+                dict(story="US-0003", status="integration", implementer="sana",
+                     sprint=1, branch="b3", pr_number="3", issue_number="3"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0004-test.md",
+                        story="US-0004", implementer="rae", sprint=1)
+            err = check_wip_limit(new_tf, "integration", Path(td), 1)
+            self.assertIsNotNone(err)
+            self.assertIn("3 stories", err)
+
+    def test_integration_wip_is_team_wide(self):
+        """BH26-003: Integration WIP counts all personas, not per-implementer."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="integration", implementer="rae",
+                     sprint=1, branch="b1", pr_number="1", issue_number="1"),
+                dict(story="US-0002", status="integration", implementer="chen",
+                     sprint=1, branch="b2", pr_number="2", issue_number="2"),
+                dict(story="US-0003", status="integration", implementer="sana",
+                     sprint=1, branch="b3", pr_number="3", issue_number="3"),
+            ])
+            # Even a different persona is blocked — team-wide limit
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0004-test.md",
+                        story="US-0004", implementer="new_person", sprint=1)
+            err = check_wip_limit(new_tf, "integration", Path(td), 1)
+            self.assertIsNotNone(err)
+
+    def test_integration_wip_allows_under_limit(self):
+        """Integration WIP allows when under 3."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="integration", implementer="rae",
+                     sprint=1, branch="b1", pr_number="1", issue_number="1"),
+                dict(story="US-0002", status="integration", implementer="chen",
+                     sprint=1, branch="b2", pr_number="2", issue_number="2"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0003-test.md",
+                        story="US-0003", implementer="sana", sprint=1)
+            err = check_wip_limit(new_tf, "integration", Path(td), 1)
+            self.assertIsNone(err)
+
+
 class TestAssignCommand(unittest.TestCase):
     """do_assign() updates local file and adds persona labels on GitHub."""
 
