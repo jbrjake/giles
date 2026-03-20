@@ -16,6 +16,8 @@ from gap_scanner import (
 from test_categories import (
     classify_test_file, count_test_functions, analyze, format_report,
 )
+from assign_dod_level import classify_story
+from history_to_checklist import extract_checklist_items, generate_checklists
 
 
 class TestSmokeTest(unittest.TestCase):
@@ -259,6 +261,67 @@ class TestRiskRegister(unittest.TestCase):
     def test_template_in_skeletons(self):
         tmpl = Path(__file__).resolve().parent.parent / "references/skeletons/risk-register.md.tmpl"
         self.assertTrue(tmpl.is_file())
+
+
+class TestAssignDodLevel(unittest.TestCase):
+    """P2-STATE-5: Automated DoD level assignment."""
+
+    def test_app_level_for_user_facing(self):
+        self.assertEqual(
+            classify_story("user sees bloom effect on screen"), "app"
+        )
+
+    def test_library_level_for_internal(self):
+        self.assertEqual(
+            classify_story("FFT buffer size configurable"), "library"
+        )
+
+    def test_app_level_from_title(self):
+        self.assertEqual(
+            classify_story("internal details", title="Add visible indicator"), "app"
+        )
+
+
+class TestHistoryToChecklist(unittest.TestCase):
+    """P2-STATE-6: Persona history → review checklist generator."""
+
+    def test_extract_from_history(self):
+        """Given history with bug pattern, generates checklist item."""
+        history = (
+            "### Sprint 1 — feature\n"
+            "Caught ARC callback violation in audio capture pipeline.\n"
+            "Fixed the memory leak in buffer management.\n"
+        )
+        items = extract_checklist_items(history, "sana")
+        self.assertTrue(len(items) >= 1)
+        self.assertTrue(any("sana" in i for i in items))
+
+    def test_empty_history(self):
+        """Empty history produces no items."""
+        items = extract_checklist_items("", "test")
+        self.assertEqual(items, [])
+
+    def test_generate_from_directory(self):
+        """Scans history directory for persona files."""
+        with tempfile.TemporaryDirectory() as td:
+            history_dir = Path(td) / "history"
+            history_dir.mkdir()
+            (history_dir / "rae.md").write_text(
+                "### Sprint 1\nFound a regression in the parser.\n"
+            )
+            (history_dir / "chen.md").write_text(
+                "### Sprint 1\nAll good, no issues.\n"
+            )
+            checklists = generate_checklists(td)
+            self.assertIn("rae", checklists)
+            # chen had no bug keywords, so no items
+            self.assertNotIn("chen", checklists)
+
+    def test_missing_history_dir(self):
+        """Missing history directory handled gracefully."""
+        with tempfile.TemporaryDirectory() as td:
+            checklists = generate_checklists(td)
+            self.assertEqual(checklists, {})
 
 
 if __name__ == "__main__":

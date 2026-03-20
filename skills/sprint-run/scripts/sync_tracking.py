@@ -206,6 +206,13 @@ def create_from_issue(
     )
     if tf.status == "done":
         tf.completed = parse_iso_date(issue.get("closedAt", ""))
+    # P1-STATE-3: Initialize verification section in body
+    tf.body_text = (
+        "## Verification\n"
+        "- agent: []\n"
+        "- orchestrator: []\n"
+        "- unverified: []\n"
+    )
     return tf, [f"{sid}: created tracking file {slug}.md (status={status})"]
 
 

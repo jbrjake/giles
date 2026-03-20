@@ -48,6 +48,22 @@ The `status` field mirrors kanban states: `todo`, `design`, `dev`,
 truth for story state; `kanban.py` syncs changes to GitHub on every
 mutation. Use `kanban.py sync` to accept legal external GitHub changes.
 
+<!-- §tracking-formats.verification_section -->
+## Verification Section (story file body)
+
+New story tracking files include a verification section in the body text:
+
+```markdown
+## Verification
+- agent: ["swift build", "swift test"]
+- orchestrator: ["smoke_test.py"]
+- unverified: ["xcodebuild", "app launch"]
+```
+
+The SubagentStop hook (verify_agent_output.py) populates `agent` automatically.
+The `unverified` list is populated from the implementer's Verification Scope
+section in the PR description.
+
 <!-- §tracking-formats.file_map_where_each_tracking_file_lives -->
 ## File Map
 

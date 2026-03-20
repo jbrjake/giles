@@ -143,6 +143,37 @@ Read `references/ceremony-retro.md` for the full ceremony script.
 
 Giles facilitates the retro. Each persona shares reflections, including the PM as a participant (not facilitator). Giles groups feedback into themes, then distills improvements into project docs (`config [paths] rules_file`, `config [paths] dev_guide`, skill references). Write retro notes to `{sprints_dir}/sprint-{N}/retro.md`. Record velocity in `SPRINT-STATUS.md` and set phase to complete.
 
+<!-- §sprint-run.session_learning -->
+## Session Learning
+
+Maintain a session checklist during sprint execution. When a fix attempt fails,
+add the verification step that would have caught it. Before every subsequent
+claim to the user, review the checklist.
+
+The checklist does not persist to disk — it exists only in the current session's
+context. It starts empty and grows as the session encounters failures.
+
+Template:
+```markdown
+## Session Checklist
+- [ ] {verification step learned from a failed fix}
+```
+
+<!-- §sprint-run.escalation_protocol -->
+## Escalation Protocol
+
+Track fix attempt failures during the session. When the same category of
+failure occurs twice (e.g., "app does not launch" twice, "test still fails"
+twice), STOP. Do not attempt fix #3. Instead:
+
+1. Enumerate the two failures
+2. Identify the common category
+3. Ask what the first two attempts missed
+4. Decide on a different approach before proceeding
+
+Failure categories: build failure, test failure, launch failure, runtime error,
+verification mismatch.
+
 ## Reference Files
 
 | Reference | Purpose |
