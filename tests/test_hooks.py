@@ -9,9 +9,10 @@ from pathlib import Path
 # Add .claude-plugin to path so we can import hooks package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude-plugin"))
 
-from hooks.review_gate import check_merge, check_push
+from hooks.review_gate import check_merge, check_push, _log_blocked, _get_base_branch
 from hooks.verify_agent_output import (
     load_check_commands, run_verification, _read_toml_key,
+    update_tracking_verification,
 )
 from hooks.session_context import (
     extract_retro_action_items, extract_dod_retro_additions,
@@ -55,14 +56,29 @@ class TestCheckMerge(unittest.TestCase):
         result = check_merge("gh pr view 42", base="main")
         self.assertEqual(result, "allowed")
 
-    def test_blocked_message_contains_review_required(self):
-        """Blocked attempts produce a message containing 'review' and 'required'."""
-        # The main() function produces the message, but we verify
-        # the check function returns 'blocked' which triggers the message.
+    def test_blocked_when_review_required(self):
+        """REVIEW_REQUIRED decision also returns blocked."""
         result = check_merge(
             "gh pr merge 99 --squash",
             base="main",
             _review_decision="REVIEW_REQUIRED",
+        )
+        self.assertEqual(result, "blocked")
+
+    def test_blocked_bare_merge_no_pr_number(self):
+        """H-013: 'gh pr merge' without a PR number is blocked (fail closed)."""
+        result = check_merge("gh pr merge", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_blocked_merge_with_flags_no_pr_number(self):
+        """H-013: 'gh pr merge --squash' without a PR number is blocked."""
+        result = check_merge("gh pr merge --squash", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_blocked_merge_with_delete_branch_no_pr_number(self):
+        """H-013: 'gh pr merge --squash --delete-branch' without PR number is blocked."""
+        result = check_merge(
+            "gh pr merge --squash --delete-branch", base="main"
         )
         self.assertEqual(result, "blocked")
 
@@ -110,14 +126,112 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push", base="main")
         self.assertEqual(result, "warn")
 
-    def test_block_message_contains_pr_and_base(self):
-        """Block message would contain PR and base branch name.
 
-        This tests that check_push returns 'blocked' — the main()
-        function constructs the message with 'PR' and base branch.
-        """
-        result = check_push("git push origin main", base="main")
-        self.assertEqual(result, "blocked")
+class TestLogBlocked(unittest.TestCase):
+    """H-003: _log_blocked only writes when giles is configured."""
+
+    def test_no_log_without_project_toml(self):
+        """_log_blocked should not create directories when project.toml is missing."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                _log_blocked("gh pr merge 42", "test reason")
+                # sprint-config/ should NOT have been created
+                self.assertFalse(Path("sprint-config").exists())
+            finally:
+                os.chdir(orig)
+
+    def test_log_written_with_project_toml(self):
+        """_log_blocked writes audit log when project.toml exists."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text('[project]\nname = "test"\n')
+                _log_blocked("gh pr merge 42", "test reason")
+                log_path = sc / "sprints" / "hook-audit.log"
+                self.assertTrue(log_path.exists())
+                content = log_path.read_text()
+                self.assertIn("BLOCKED", content)
+                self.assertIn("test reason", content)
+            finally:
+                os.chdir(orig)
+
+
+class TestGetBaseBranch(unittest.TestCase):
+    """H-004: _get_base_branch only reads base_branch from [project] section."""
+
+    def test_reads_base_branch_from_project_section(self):
+        """base_branch in [project] is correctly returned."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    '[project]\nname = "test"\nbase_branch = "develop"\n'
+                )
+                self.assertEqual(_get_base_branch(), "develop")
+            finally:
+                os.chdir(orig)
+
+    def test_ignores_base_branch_in_wrong_section(self):
+        """base_branch in a non-[project] section should be ignored."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    '[project]\nname = "test"\n\n'
+                    '[ci]\nbase_branch = "ci-branch"\n'
+                )
+                # Should return default "main", not "ci-branch"
+                self.assertEqual(_get_base_branch(), "main")
+            finally:
+                os.chdir(orig)
+
+    def test_defaults_to_main_when_no_file(self):
+        """Returns 'main' when project.toml does not exist."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                self.assertEqual(_get_base_branch(), "main")
+            finally:
+                os.chdir(orig)
+
+    def test_defaults_to_main_when_key_missing(self):
+        """Returns 'main' when [project] exists but base_branch is absent."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    '[project]\nname = "test"\nlanguage = "python"\n'
+                )
+                self.assertEqual(_get_base_branch(), "main")
+            finally:
+                os.chdir(orig)
 
 
 class TestVerifyAgentOutput(unittest.TestCase):
@@ -318,6 +432,88 @@ class TestCommitGate(unittest.TestCase):
         self.assertTrue(_matches_check_command("ruff check ."))
         self.assertFalse(_matches_check_command("git status"))
         self.assertFalse(_matches_check_command("echo hello"))
+
+
+class TestUpdateTrackingVerification(unittest.TestCase):
+    """BH25-014: update_tracking_verification writes to YAML frontmatter."""
+
+    def _make_tracking_file(self, tmp_dir, content):
+        """Helper: write a tracking file and return its path."""
+        p = Path(tmp_dir) / "US-0001.md"
+        p.write_text(content, encoding="utf-8")
+        return str(p)
+
+    def test_writes_verification_passed(self):
+        """Writing passed verification adds verification_agent_stop: passed."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = self._make_tracking_file(td, textwrap.dedent("""\
+                ---
+                story: US-0001
+                title: "Test story"
+                sprint: 1
+                status: dev
+                ---
+                body text
+            """))
+            update_tracking_verification(path, True, "VERIFICATION PASSED")
+            content = Path(path).read_text(encoding="utf-8")
+            self.assertIn("verification_agent_stop: passed", content)
+            # Body text must survive
+            self.assertIn("body text", content)
+
+    def test_writes_verification_failed(self):
+        """Writing failed verification adds verification_agent_stop: failed."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = self._make_tracking_file(td, textwrap.dedent("""\
+                ---
+                story: US-0001
+                title: "Test story"
+                sprint: 1
+                status: dev
+                ---
+                body text
+            """))
+            update_tracking_verification(path, False, "VERIFICATION FAILED")
+            content = Path(path).read_text(encoding="utf-8")
+            self.assertIn("verification_agent_stop: failed", content)
+
+    def test_update_does_not_duplicate_field(self):
+        """Writing verification twice updates the field, not duplicates it."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = self._make_tracking_file(td, textwrap.dedent("""\
+                ---
+                story: US-0001
+                title: "Test story"
+                sprint: 1
+                status: dev
+                ---
+                body text
+            """))
+            update_tracking_verification(path, True, "VERIFICATION PASSED")
+            update_tracking_verification(path, False, "VERIFICATION FAILED")
+            content = Path(path).read_text(encoding="utf-8")
+            self.assertIn("verification_agent_stop: failed", content)
+            self.assertNotIn("verification_agent_stop: passed", content)
+            # Must appear exactly once
+            count = content.count("verification_agent_stop:")
+            self.assertEqual(count, 1,
+                             f"Expected 1 occurrence, found {count}")
+
+    def test_no_frontmatter_is_noop(self):
+        """File without YAML frontmatter is left unchanged."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            path = self._make_tracking_file(td, "just plain text\n")
+            update_tracking_verification(path, True, "VERIFICATION PASSED")
+            content = Path(path).read_text(encoding="utf-8")
+            self.assertEqual(content, "just plain text\n")
+
+    def test_missing_file_is_noop(self):
+        """Non-existent file does not raise."""
+        update_tracking_verification("/tmp/nonexistent-tracking.md", True, "ok")
 
 
 if __name__ == "__main__":

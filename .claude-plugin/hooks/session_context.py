@@ -54,10 +54,11 @@ def extract_retro_action_items(sprints_dir: str) -> list[str]:
     if not sd.is_dir():
         return []
 
-    # Find the highest-numbered sprint directory
+    # Find the highest-numbered sprint directory (strict sprint-N pattern)
     sprint_dirs = sorted(
-        [d for d in sd.iterdir() if d.is_dir() and d.name.startswith("sprint-")],
-        key=lambda d: int(re.search(r'\d+', d.name).group()) if re.search(r'\d+', d.name) else 0,
+        [d for d in sd.iterdir()
+         if d.is_dir() and re.match(r'^sprint-\d+$', d.name)],
+        key=lambda d: int(d.name.split("-")[1]),
         reverse=True,
     )
 

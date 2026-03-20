@@ -24,16 +24,22 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 def _get_base_branch() -> str:
-    """Read base_branch from project.toml, defaulting to 'main'."""
+    """Read base_branch from project.toml's [project] section, defaulting to 'main'."""
     try:
         toml_path = Path("sprint-config/project.toml")
         if not toml_path.is_file():
             return "main"
         text = toml_path.read_text(encoding="utf-8")
+        current_section = ""
         for line in text.splitlines():
-            m = re.match(r'\s*base_branch\s*=\s*"([^"]+)"', line)
-            if m:
-                return m.group(1)
+            section_m = re.match(r'^\s*\[([^\]]+)\]', line)
+            if section_m:
+                current_section = section_m.group(1).strip()
+                continue
+            if current_section == "project":
+                m = re.match(r'\s*base_branch\s*=\s*"([^"]+)"', line)
+                if m:
+                    return m.group(1)
     except Exception:
         pass
     return "main"
@@ -69,23 +75,30 @@ def check_merge(command: str, *, base: str = "main",
     Returns ``'allowed'`` if the PR has an APPROVED review,
     ``'blocked'`` otherwise.
 
+    When ``gh pr merge`` is invoked without an explicit PR number we
+    cannot look up the review status, so we fail closed (return
+    ``'blocked'``).
+
     The *_review_decision* parameter is for testing — when provided,
     skips the actual GitHub API call.
     """
+    # Match with an explicit PR number
     m = re.search(r'gh\s+pr\s+merge\s+(\d+)', command)
-    if not m:
-        return "allowed"
+    if m:
+        pr_number = m.group(1)
+        if _review_decision is None:
+            decision = _query_review_decision(pr_number)
+        else:
+            decision = _review_decision
+        if decision == "APPROVED":
+            return "allowed"
+        return "blocked"
 
-    pr_number = m.group(1)
+    # Match without a PR number (e.g. "gh pr merge" or "gh pr merge --squash")
+    if re.search(r'gh\s+pr\s+merge(?:\s|$)', command):
+        return "blocked"
 
-    if _review_decision is None:
-        decision = _query_review_decision(pr_number)
-    else:
-        decision = _review_decision
-
-    if decision == "APPROVED":
-        return "allowed"
-    return "blocked"
+    return "allowed"
 
 
 def check_push(command: str, *, base: str = "main") -> str:
@@ -141,7 +154,13 @@ def check_push(command: str, *, base: str = "main") -> str:
 # ---------------------------------------------------------------------------
 
 def _log_blocked(command: str, reason: str) -> None:
-    """Append a blocked attempt to the hook audit log."""
+    """Append a blocked attempt to the hook audit log.
+
+    Only writes if sprint-config/project.toml exists — avoids creating
+    sprint-config/ directories in projects that don't use giles.
+    """
+    if not Path("sprint-config/project.toml").is_file():
+        return
     log_dir = Path("sprint-config/sprints")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "hook-audit.log"

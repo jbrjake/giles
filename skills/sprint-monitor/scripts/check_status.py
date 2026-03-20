@@ -22,7 +22,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit, find_milestone
+from validate_config import load_config, ConfigError, extract_sp, gh, gh_json, get_base_branch, get_sprints_dir, detect_sprint, warn_if_at_limit, find_milestone, safe_int
 
 # -- Import sync engine and smoke helpers ------------------------------------
 try:
@@ -280,7 +280,7 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
     # Rate limiting: check smoke history for recent runs
     history_path = sprints_dir / "smoke-history.md"
     if history_path.is_file():
-        lines = history_path.read_text(encoding="utf-8").splitlines()
+        lines = [l for l in history_path.read_text(encoding="utf-8").splitlines() if l.strip()]
         if lines:
             last_line = lines[-1]
             # Parse date from "| 2026-03-20 14:30 | ..."
@@ -294,7 +294,7 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
                     pass
 
     # Run smoke test
-    smoke_timeout = int(ci.get("smoke_timeout", 30))
+    smoke_timeout = safe_int(ci.get("smoke_timeout", 30))
     try:
         result = subprocess.run(
             smoke_cmd, shell=True, capture_output=True, text=True,

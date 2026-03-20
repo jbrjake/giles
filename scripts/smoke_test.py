@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from validate_config import load_config, ConfigError, get_sprints_dir
+from validate_config import load_config, ConfigError, get_sprints_dir, safe_int
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ def main() -> None:
 
     ci = config.get("ci", {})
     command = ci.get("smoke_command", "")
-    timeout = int(ci.get("smoke_timeout", 30))
+    timeout = safe_int(ci.get("smoke_timeout", 30))
 
     status, exit_code, stdout, stderr = run_smoke(command, timeout)
     print(status)

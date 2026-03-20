@@ -24,6 +24,9 @@
 ## Integration Debt: 0 sprints
 ```
 
+The `Integration Debt` line is populated by `sprint-monitor` (`check_status.py`),
+not by `update_burndown.py`. It tracks sprints since the last smoke test pass.
+
 <!-- §tracking-formats.story_file_yaml_frontmatter -->
 ## Story File (YAML frontmatter)
 
@@ -63,6 +66,23 @@ New story tracking files include a verification section in the body text:
 The SubagentStop hook (verify_agent_output.py) populates `agent` automatically.
 The `unverified` list is populated from the implementer's Verification Scope
 section in the PR description.
+
+<!-- §tracking-formats.transition_log -->
+## Transition Log (story file body)
+
+`kanban.py do_transition()` appends a log entry to body text on each state
+change. The log is used by `_count_review_rounds()` for the 3-round
+escalation limit.
+
+```markdown
+## Transition Log
+- 2026-03-20T09:00: todo → design
+- 2026-03-20T10:30: design → dev
+- 2026-03-20T14:00: dev → review
+```
+
+Log entries are rolled back if the GitHub sync fails. External transitions
+via `do_sync` or `sync_tracking` do not currently append log entries.
 
 <!-- §tracking-formats.file_map_where_each_tracking_file_lives -->
 ## File Map
