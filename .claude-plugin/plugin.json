@@ -16,6 +16,10 @@
       "event": "PreToolUse",
       "tool": "Bash",
       "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/review_gate.py\""
+    },
+    {
+      "event": "SubagentStop",
+      "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/verify_agent_output.py\""
     }
   ]
 }

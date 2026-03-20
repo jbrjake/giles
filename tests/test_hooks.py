@@ -9,6 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude-plugin"))
 
 from hooks.review_gate import check_merge, check_push
+from hooks.verify_agent_output import (
+    load_check_commands, run_verification, _read_toml_key,
+)
 
 
 class TestCheckMerge(unittest.TestCase):
@@ -102,6 +105,56 @@ class TestCheckPush(unittest.TestCase):
         """
         result = check_push("git push origin main", base="main")
         self.assertEqual(result, "blocked")
+
+
+class TestVerifyAgentOutput(unittest.TestCase):
+    """P0-HOOK-2: SubagentStop verification hook."""
+
+    def test_load_check_commands_from_toml(self):
+        """Given a project.toml with check_commands, they are loaded."""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write('[ci]\ncheck_commands = ["python -m pytest"]\n')
+            f.flush()
+            cmds, smoke = load_check_commands(f.name)
+        self.assertEqual(cmds, ["python -m pytest"])
+        self.assertIsNone(smoke)
+
+    def test_verification_passed_all_exit_zero(self):
+        """When all check commands exit zero, report contains VERIFICATION PASSED."""
+        report, passed = run_verification(["true"])
+        self.assertTrue(passed)
+        self.assertIn("VERIFICATION PASSED", report)
+
+    def test_verification_failed_nonzero_exit(self):
+        """When a check command exits non-zero, report contains VERIFICATION FAILED."""
+        report, passed = run_verification(["false"])
+        self.assertFalse(passed)
+        self.assertIn("VERIFICATION FAILED", report)
+
+    def test_verification_failed_includes_stderr(self):
+        """Failed command stderr appears in the report."""
+        report, passed = run_verification(
+            ["bash -c 'echo badness >&2; exit 1'"]
+        )
+        self.assertFalse(passed)
+        self.assertIn("badness", report)
+
+    def test_verification_skipped_no_commands(self):
+        """No check_commands configured results in SKIPPED."""
+        report, passed = run_verification([])
+        self.assertTrue(passed)
+        self.assertIn("VERIFICATION SKIPPED", report)
+
+    def test_read_toml_key_array(self):
+        toml = '[ci]\ncheck_commands = ["pytest", "ruff check ."]\n'
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest", "ruff check ."])
+
+    def test_read_toml_key_string(self):
+        toml = '[ci]\nsmoke_command = "python -m myapp --health"\n'
+        result = _read_toml_key(toml, "ci", "smoke_command")
+        self.assertEqual(result, "python -m myapp --health")
 
 
 if __name__ == "__main__":
