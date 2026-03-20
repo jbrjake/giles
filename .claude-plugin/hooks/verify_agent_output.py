@@ -215,6 +215,29 @@ def update_tracking_verification(tracking_path: str,
 # Implementer detection
 # ---------------------------------------------------------------------------
 
+def _resolve_tracking_path(relative: str) -> str | None:
+    """Resolve a sprint-N/stories/X.md path to an absolute file path.
+
+    Searches for the file under ``{project_root}/{sprints_dir}/{relative}``
+    using ``paths.sprints_dir`` from project.toml, then falls back to
+    ``{project_root}/{relative}``.  Returns None if not found.
+    """
+    root = _find_project_root()
+    toml_path = root / "sprint-config" / "project.toml"
+    if toml_path.is_file():
+        text = toml_path.read_text(encoding="utf-8")
+        sprints_dir = _read_toml_key(text, "paths", "sprints_dir")
+        if isinstance(sprints_dir, str):
+            candidate = root / sprints_dir / relative
+            if candidate.is_file():
+                return str(candidate)
+    # Fallback: directly under project root
+    candidate = root / relative
+    if candidate.is_file():
+        return str(candidate)
+    return None
+
+
 _IMPLEMENTER_KEYWORDS = re.compile(
     r"commit|pushed|PR\s*#|created\s+branch|implementation",
     re.IGNORECASE,
@@ -261,7 +284,9 @@ def main() -> None:
     # H-006: Update tracking file if a story path is found in the output
     m = _TRACKING_PATH_PATTERN.search(output_text)
     if m:
-        update_tracking_verification(m.group(0), passed, report)
+        resolved = _resolve_tracking_path(m.group(0))
+        if resolved:
+            update_tracking_verification(resolved, passed, report)
 
     # Exit 0 regardless — we inject information, not block.
     # The orchestrator decides whether to accept the agent's output.

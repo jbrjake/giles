@@ -13,6 +13,7 @@ from hooks.review_gate import check_merge, check_push, _log_blocked, _get_base_b
 from hooks.verify_agent_output import (
     load_check_commands, run_verification, _read_toml_key,
     update_tracking_verification, _is_implementer_output,
+    _resolve_tracking_path,
 )
 from hooks._common import _find_project_root
 from hooks.session_context import (
@@ -575,6 +576,94 @@ class TestUpdateTrackingVerification(unittest.TestCase):
     def test_missing_file_is_noop(self):
         """Non-existent file does not raise."""
         update_tracking_verification("/tmp/nonexistent-tracking.md", True, "ok")
+
+
+class TestResolveTrackingPath(unittest.TestCase):
+    """BH26-001: _resolve_tracking_path resolves sprint-relative paths."""
+
+    def test_resolves_via_sprints_dir(self):
+        """Path resolves against sprints_dir from project.toml."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    '[project]\nname = "test"\n\n'
+                    '[paths]\nsprints_dir = "sprints"\n'
+                )
+                stories = Path("sprints/sprint-1/stories")
+                stories.mkdir(parents=True)
+                tf = stories / "US-0001-feat.md"
+                tf.write_text("---\nstory: US-0001\nstatus: dev\n---\nbody\n")
+                resolved = _resolve_tracking_path("sprint-1/stories/US-0001-feat.md")
+                self.assertIsNotNone(resolved)
+                self.assertTrue(Path(resolved).is_file())
+            finally:
+                os.chdir(orig)
+
+    def test_resolves_direct_under_root(self):
+        """Fallback: path found directly under project root."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text('[project]\nname = "test"\n')
+                stories = Path("sprint-1/stories")
+                stories.mkdir(parents=True)
+                tf = stories / "US-0001-feat.md"
+                tf.write_text("---\nstory: US-0001\nstatus: dev\n---\nbody\n")
+                resolved = _resolve_tracking_path("sprint-1/stories/US-0001-feat.md")
+                self.assertIsNotNone(resolved)
+                self.assertTrue(Path(resolved).is_file())
+            finally:
+                os.chdir(orig)
+
+    def test_returns_none_when_not_found(self):
+        """Returns None when the file doesn't exist anywhere."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                resolved = _resolve_tracking_path("sprint-1/stories/US-0001.md")
+                self.assertIsNone(resolved)
+            finally:
+                os.chdir(orig)
+
+    def test_integration_with_update_tracking(self):
+        """BH26-001: End-to-end — resolve path then update verification field."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    '[project]\nname = "test"\n\n'
+                    '[paths]\nsprints_dir = "sprints"\n'
+                )
+                stories = Path("sprints/sprint-1/stories")
+                stories.mkdir(parents=True)
+                tf = stories / "US-0001-feat.md"
+                tf.write_text("---\nstory: US-0001\nstatus: dev\n---\nbody\n")
+                resolved = _resolve_tracking_path("sprint-1/stories/US-0001-feat.md")
+                self.assertIsNotNone(resolved)
+                update_tracking_verification(resolved, True, "PASSED")
+                content = tf.read_text()
+                self.assertIn("verification_agent_stop: passed", content)
+            finally:
+                os.chdir(orig)
 
 
 class TestFindProjectRoot(unittest.TestCase):
