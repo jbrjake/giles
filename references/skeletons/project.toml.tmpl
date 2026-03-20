@@ -6,6 +6,7 @@ name = "TODO-project-name"
 repo = "TODO-owner/repo"       # GitHub owner/repo
 language = "TODO-language"     # rust | python | node | go | java
 base_branch = "main"          # branch that PRs target and CI watches
+# entry_points = ["src/main.py"]  # files that prove the app launches/works
 
 [paths]
 team_dir = "sprint-config/team"
@@ -41,6 +42,8 @@ check_commands = [
 build_command = "TODO-build-command"   # e.g., "cargo build --release"
 # binary_path = "target/release/myapp"  # Optional
 # size_limit_mb = 50                     # Optional
+# smoke_command = "python -m myapp --health-check"  # Optional: app-level verification
+# smoke_timeout = 30                     # Optional: seconds before smoke test is killed
 
 [conventions]
 branch_pattern = "sprint-{N}/US-{ID}-{slug}"
