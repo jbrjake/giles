@@ -136,8 +136,55 @@ def check_commit_allowed(command: str,
     return "allowed"
 
 
+def _load_config_check_commands() -> list[str]:
+    """Read check_commands from project.toml if available.
+
+    Uses the lightweight TOML parser from verify_agent_output to avoid
+    importing validate_config (which requires the full scripts path).
+    Falls back to empty list if config not found.
+    """
+    try:
+        from hooks._common import _find_project_root
+        toml_path = _find_project_root() / "sprint-config" / "project.toml"
+        if not toml_path.is_file():
+            return []
+        text = toml_path.read_text(encoding="utf-8")
+        # Inline minimal extraction — just match array items
+        import re as _re
+        in_section = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("["):
+                in_section = stripped == "[ci]"
+                continue
+            if in_section and stripped.startswith("check_commands"):
+                # Extract quoted strings from the value
+                val = stripped.split("=", 1)[1] if "=" in stripped else ""
+                items = _re.findall(r'"([^"]*)"', val + text[text.find(stripped):])
+                return items if items else []
+    except Exception:
+        pass
+    return []
+
+
+# BH27-004: Cached config commands — loaded once per process.
+_CONFIG_CHECK_COMMANDS: list[str] | None = None
+
+
 def _matches_check_command(command: str) -> bool:
-    """Check if a command matches common check_command patterns."""
+    """Check if a command matches a configured or common check command."""
+    global _CONFIG_CHECK_COMMANDS
+    if _CONFIG_CHECK_COMMANDS is None:
+        _CONFIG_CHECK_COMMANDS = _load_config_check_commands()
+
+    # First check: match against config-defined check_commands
+    for cfg_cmd in _CONFIG_CHECK_COMMANDS:
+        # The configured command might be a prefix of the actual command
+        # (e.g., "pytest" matches "pytest tests/ -v")
+        if cfg_cmd and re.search(re.escape(cfg_cmd.split()[0]), command):
+            return True
+
+    # Fallback: hardcoded patterns for common test runners
     patterns = [
         r'\bpytest\b', r'\bpython\s+-m\s+pytest\b',
         r'\bcargo\s+test\b', r'\bcargo\s+clippy\b',

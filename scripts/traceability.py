@@ -62,8 +62,10 @@ def parse_stories(epics_dir: str) -> dict[str, dict]:
                                 for tc in value.split(",")
                                 if tc.strip()
                             ]
-                    elif lines[j].strip() == "" and j > i + 2:
-                        # Blank line after table ends the metadata block
+                    elif lines[j].strip() == "" and j > i + 1:
+                        # BH27-008: Blank line after at least 1 table row ends
+                        # the metadata block.  Prior guard (j > i + 2) skipped
+                        # short tables, letting body content bleed into metadata.
                         break
                     elif lines[j].startswith("###"):
                         break
