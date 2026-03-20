@@ -10,5 +10,12 @@
   "repository": "https://github.com/jbrjake/giles",
   "license": "MIT",
   "keywords": ["agile", "sprint", "scrum", "burndown", "PR"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": [
+    {
+      "event": "PreToolUse",
+      "tool": "Bash",
+      "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/review_gate.py\""
+    }
+  ]
 }
