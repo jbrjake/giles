@@ -105,6 +105,50 @@ After approval, edit the project docs directly. Verify each change is applied
 correctly. Confirm the file stays under the 500-line target / 750-line hard
 limit.
 
+<!-- §ceremony-retro.fix_failure_analysis -->
+### 4.5. Fix Failure Analysis
+
+For each time during the sprint that something was claimed fixed but wasn't,
+analyze the pattern.  This is separate from Start/Stop/Continue — it's about
+the fix-verify-fix loop.
+
+For each failed fix attempt this sprint:
+- What was claimed?
+- What evidence supported the claim?
+- What evidence would have refuted it?
+- What is the general principle?
+- What checklist item prevents the category?
+
+Feed identified principles into the Principle Extraction step below.
+
+<!-- §ceremony-retro.structural_encoding -->
+### 4.6. Structural Encoding
+
+For each action item, classify:
+
+- **Structural** (can be enforced by hook/script/precondition — specify which
+  file to modify)
+- **Behavioral** (relies on LLM discipline — mark as at-risk)
+
+| Item | Classification | Encoding Target |
+|------|---------------|-----------------|
+
+Target: >50% structural.  Behavioral items are injected as warnings by the
+SessionStart hook.
+
+<!-- §ceremony-retro.principle_extraction -->
+### 4.7. Principle Extraction
+
+Review the action items as a group.  Are any of them instances of the same
+broader principle?  If so, name the principle and record it.
+
+Principles are more durable than rules — "the app target is a different
+artifact than the library" catches multiple bugs that individual rules would
+catch one at a time.
+
+Record principles in a `## Principles` section of the retro doc.  Principles
+carry forward to SessionStart hook context alongside action items.
+
 <!-- §ceremony-retro.5_sprint_analytics -->
 ### 5. Sprint Analytics
 
@@ -159,6 +203,18 @@ Examples of retro-driven DoD additions:
 
 Present proposed changes to the user. Apply only after approval.
 
+<!-- §ceremony-retro.standing_questions -->
+### 8. Standing Questions (mandatory, every retro)
+
+These questions are asked every retro, regardless of sprint outcomes:
+
+1. "Did we verify the product launches this sprint?  What was the smoke test result?"
+2. "What test categories are missing?" (Check `test_categories.py` output)
+3. "Which retro action items from last sprint were structurally encoded vs merely documented?"
+4. "What failure mode have we not yet experienced but could?" (Forward-looking risk)
+
+Record answers in the retro output.
+
 <!-- §ceremony-retro.examples_of_retro_driven_doc_changes -->
 ## Examples of Retro-Driven Doc Changes
 
@@ -208,8 +264,11 @@ Write `{sprints_dir}/sprint-{N}/retro.md` (path from project.toml `[paths]`):
 | {file} | Added X to common pitfalls | {what happened} |
 
 ## Action Items for Next Sprint
-| Item | Owner | Due |
-|---|---|---|
+| Item | Classification | Encoding Target | Owner | Due |
+|---|---|---|---|---|
+
+## Principles
+{broader principles extracted from this sprint's action items}
 
 ## Velocity
 - Planned: {X} SP

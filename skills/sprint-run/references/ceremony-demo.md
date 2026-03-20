@@ -27,6 +27,20 @@ we'll walk the supporting work."
 For ensemble sprints, Giles walks stories in priority order with even time
 allocation.
 
+<!-- §ceremony-demo.smoke_gate -->
+## Step 0: Smoke Gate
+
+Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/smoke_test.py"` before story
+presentations.
+
+- **SMOKE PASS:** Record "Smoke gate: PASSED" in demo doc.  Proceed.
+- **SMOKE FAIL:** The demo cannot proceed to story presentations.  Open with:
+  "The product does not run.  Before we discuss individual stories, we need
+  to address this."
+- **SMOKE SKIP:** Note "Smoke gate: SKIP (not configured)" and proceed.
+
+Save smoke result to `{sprints_dir}/sprint-{N}/demo-artifacts/smoke-result.txt`.
+
 <!-- §ceremony-demo.for_each_story -->
 ## For Each Story
 

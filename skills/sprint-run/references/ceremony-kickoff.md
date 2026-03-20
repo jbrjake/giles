@@ -37,6 +37,14 @@ names it. This frames the team's expectations:
 <!-- §ceremony-kickoff.agenda_opening_team_read_saga_context_goal_story_walk_risks_questions_commitment -->
 ## Agenda
 
+### 0. Previous Sprint Health
+
+Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/smoke_test.py"` and the project's
+`[ci] check_commands`.  If SMOKE FAIL, discuss immediately: the foundation is
+broken and must be fixed before new work begins.  Add a fix story to the sprint.
+
+If SMOKE SKIP (not configured), note it and proceed.
+
 ### 1. Opening
 
 Giles opens the meeting. One sentence to set the tone: "Right then. Sprint {N}.
@@ -97,6 +105,19 @@ He surfaces relevant patterns during persona assignment and story discussion:
 This is not a formal presentation — Giles weaves the data into his facilitation
 naturally. He's the one who remembers what happened last time.
 
+<!-- §ceremony-kickoff.user_facing_delta -->
+### 2.7. User-Facing Delta
+
+Before walking stories, PM declares the user-facing delta:
+
+**PM declares:** "After this sprint, the user will see/experience: ___."
+
+If the delta is "nothing new" (foundational sprint), declare it explicitly:
+"This sprint is foundational. No user-visible change expected."
+
+If declared foundational, record `type: foundational` in SPRINT-STATUS.md.
+Otherwise, at least one story must map to the declared delta.
+
 <!-- §ceremony-kickoff.3_story_walk -->
 ### 3. Story Walk
 
@@ -126,6 +147,15 @@ agenda. They change how Giles facilitates it.
 path), Giles gives it 60% of the story walk time and presents it first. He
 acknowledges the supporting cast: "The remaining stories orbit this one. Let's
 walk them efficiently."
+
+<!-- §ceremony-kickoff.integration_gap_scan -->
+### 3.5. Integration Gap Scan
+
+Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/gap_scanner.py" --config sprint-config/project.toml --sprint {N}`.
+Present results.
+
+If GAP DETECTED, discuss: add an integration story, or defer with explicit
+rationale recorded in kickoff notes.
 
 ### 4. Risk Discussion
 
@@ -252,12 +282,14 @@ Do not proceed to development until:
 1. Every story has an assigned implementer and reviewer
 2. All blocking questions are resolved or have a resolution plan
 3. The team has confirmed commitment to the sprint scope
-4. The kickoff doc is written and saved
-5. Tracking files exist for all sprint stories:
+4. User-facing delta has been declared and at least one story maps to it (unless foundational)
+5. Gap scanner has run; any detected gaps have been addressed or explicitly deferred
+6. The kickoff doc is written and saved
+7. Tracking files exist for all sprint stories:
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync --sprint {N}
    ```
-6. Every story's persona assignment is synced to GitHub:
+8. Every story's persona assignment is synced to GitHub:
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" assign {story_id} --implementer {impl} --reviewer {rev}
    ```
