@@ -238,6 +238,37 @@ _PERSONA_HEADER_PATTERN = re.compile(
 )
 
 
+# §kanban.check_wip_limit
+def check_wip_limit(tf: TF, target: str, sprints_dir: Path, sprint: int,
+                    *, wip_limit: int = 1) -> str | None:
+    """Block transition to dev if the persona already has a story in dev.
+
+    Returns None if WIP limit is not exceeded, or an error message string.
+    Does not modify any files.
+    """
+    if target != "dev" or not tf.implementer:
+        return None
+
+    stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
+    if not stories_dir.is_dir():
+        return None
+
+    in_dev: list[str] = []
+    for md_file in sorted(stories_dir.glob("*.md")):
+        other = read_tf(md_file)
+        if (other.status == "dev"
+                and other.implementer == tf.implementer
+                and other.story != tf.story):
+            in_dev.append(other.story)
+
+    if len(in_dev) >= wip_limit:
+        return (
+            f"WIP limit reached: {tf.implementer} already has "
+            f"{', '.join(in_dev)} in dev. Complete or park it first."
+        )
+    return None
+
+
 # §kanban._count_review_rounds
 def _count_review_rounds(body_text: str) -> int:
     """Count review → dev transitions in the transition log."""
@@ -247,14 +278,18 @@ def _count_review_rounds(body_text: str) -> int:
 
 # §kanban.do_transition
 def do_transition(tf: TF, target: str, *,
-                  force_review_round: bool = False) -> bool:
+                  force_review_round: bool = False,
+                  force_wip: bool = False,
+                  sprints_dir: Path | None = None,
+                  sprint: int | None = None) -> bool:
     """Execute a state transition: validate, update local, sync GitHub.
 
     Returns True on success, False on failure (with local state reverted).
     Appends a transition log entry to the tracking file body.
 
     When *force_review_round* is True, bypasses the review round escalation
-    limit (P1-KANBAN-2).
+    limit (P1-KANBAN-2).  When *force_wip* is True, bypasses the WIP limit
+    check (P1-KANBAN-3).
     """
     err = validate_transition(tf.status, target)
     if err:
@@ -282,6 +317,12 @@ def do_transition(tf: TF, target: str, *,
                 f"Use --force-review-round to override.",
                 file=sys.stderr,
             )
+            return False
+    # P1-KANBAN-3: WIP limit enforcement
+    if target == "dev" and not force_wip and sprints_dir and sprint is not None:
+        wip_err = check_wip_limit(tf, target, sprints_dir, sprint)
+        if wip_err:
+            print(f"{tf.story}: {wip_err}", file=sys.stderr)
             return False
     old_status = tf.status
     issue_num = tf.issue_number
@@ -582,6 +623,8 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--sprint", type=int, default=None)
     tr.add_argument("--force-review-round", action="store_true",
                     help="Override review round escalation limit")
+    tr.add_argument("--force-wip", action="store_true",
+                    help="Override WIP limit")
 
     asn = sub.add_parser("assign", help="Assign personas to a story")
     asn.add_argument("story_id", help="Story ID (e.g., US-0042)")
@@ -661,6 +704,9 @@ def main() -> None:
             ok = do_transition(
                 tf, args.target,
                 force_review_round=args.force_review_round,
+                force_wip=args.force_wip,
+                sprints_dir=sprints_dir,
+                sprint=sprint,
             )
         sys.exit(0 if ok else 1)
 

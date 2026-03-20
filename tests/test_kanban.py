@@ -635,6 +635,75 @@ class TestTransitionCommand(unittest.TestCase):
             self.assertEqual(loaded.status, "dev")
 
 
+class TestWIPLimit(unittest.TestCase):
+    """P1-KANBAN-3: WIP limit enforcement."""
+
+    def _make_stories(self, td, stories):
+        """Create multiple tracking files in a sprint-1/stories dir."""
+        stories_dir = Path(td) / "sprint-1" / "stories"
+        stories_dir.mkdir(parents=True, exist_ok=True)
+        tfs = []
+        for s in stories:
+            p = stories_dir / f"{s['story']}-test.md"
+            tf = TF(path=p, **s)
+            write_tf(tf)
+            tfs.append(tf)
+        return tfs
+
+    def test_wip_limit_blocks_second_dev_story(self):
+        """With one story in dev for persona X, second is blocked."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="dev", implementer="rae",
+                     sprint=1, branch="b1", pr_number="1", issue_number="1"),
+            ])
+            # Now try to check WIP for a second story going to dev
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0002-test.md",
+                        story="US-0002", implementer="rae", sprint=1)
+            err = check_wip_limit(new_tf, "dev", Path(td), 1)
+            self.assertIsNotNone(err)
+            self.assertIn("US-0001", err)
+
+    def test_wip_limit_different_persona_independent(self):
+        """Different personas are independent — Y can enter dev while X is in dev."""
+        from kanban import check_wip_limit
+        with tempfile.TemporaryDirectory() as td:
+            self._make_stories(td, [
+                dict(story="US-0001", status="dev", implementer="rae",
+                     sprint=1, branch="b1", pr_number="1", issue_number="1"),
+            ])
+            new_tf = TF(path=Path(td) / "sprint-1/stories/US-0002-test.md",
+                        story="US-0002", implementer="chen", sprint=1)
+            err = check_wip_limit(new_tf, "dev", Path(td), 1)
+            self.assertIsNone(err)
+
+    def test_wip_limit_force_override(self):
+        """--force-wip bypasses the WIP limit."""
+        with tempfile.TemporaryDirectory() as td:
+            stories_dir = Path(td) / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True, exist_ok=True)
+            # Create existing dev story
+            p1 = stories_dir / "US-0001-test.md"
+            tf1 = TF(path=p1, story="US-0001", status="dev",
+                     implementer="rae", sprint=1, branch="b1",
+                     pr_number="1", issue_number="1")
+            write_tf(tf1)
+            # Create the story trying to enter dev
+            p2 = stories_dir / "US-0002-test.md"
+            tf2 = TF(path=p2, story="US-0002", status="design",
+                     implementer="rae", sprint=1, branch="b2",
+                     pr_number="2", issue_number="2")
+            write_tf(tf2)
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(
+                    tf2, "dev", force_wip=True,
+                    sprints_dir=Path(td), sprint=1,
+                )
+                _ = mock.call_args
+            self.assertTrue(result)
+
+
 class TestAssignCommand(unittest.TestCase):
     """do_assign() updates local file and adds persona labels on GitHub."""
 
