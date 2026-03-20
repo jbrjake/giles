@@ -1402,6 +1402,55 @@ class TestSyncOne(unittest.TestCase):
             self.assertEqual(loaded.sprint, 1)
 
 
+class TestSyncOneTransitionLog(unittest.TestCase):
+    """BH26-002: sync_one appends transition log entries."""
+
+    def test_transition_log_appended_on_status_change(self):
+        """When status changes, a transition log entry is written."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0050-log.md"
+            tf = sync_tracking.TF(
+                path=p, story="US-0050", status="todo", sprint=1,
+                issue_number="50",
+            )
+            sync_tracking.write_tf(tf)
+            issue = {"state": "open", "labels": [{"name": "kanban:design"}], "number": 50}
+            changes = sync_tracking.sync_one(tf, issue, None, 1)
+            self.assertIn("## Transition Log", tf.body_text)
+            self.assertIn("todo → design", tf.body_text)
+            self.assertIn("external: GitHub sync", tf.body_text)
+
+    def test_transition_log_survives_disk_roundtrip(self):
+        """Transition log is preserved after write_tf + read_tf."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0051-roundtrip.md"
+            tf = sync_tracking.TF(
+                path=p, story="US-0051", status="dev", sprint=1,
+                issue_number="51", pr_number="10",
+            )
+            sync_tracking.write_tf(tf)
+            issue = {
+                "state": "open",
+                "labels": [{"name": "kanban:review"}],
+                "number": 51,
+            }
+            sync_tracking.sync_one(tf, issue, None, 1)
+            sync_tracking.write_tf(tf)
+            loaded = sync_tracking.read_tf(p)
+            self.assertIn("dev → review", loaded.body_text)
+            self.assertIn("external: GitHub sync", loaded.body_text)
+
+    def test_no_log_when_status_unchanged(self):
+        """No transition log entry when status already matches."""
+        tf = sync_tracking.TF(
+            path=Path("/tmp/test.md"), story="US-0052",
+            status="todo", sprint=1, issue_number="52",
+        )
+        issue = {"state": "open", "labels": [], "number": 52}
+        sync_tracking.sync_one(tf, issue, None, 1)
+        self.assertNotIn("Transition Log", tf.body_text or "")
+
+
 class TestSyncOneGitHubAuthoritative(unittest.TestCase):
     """BH-P11-007: sync_one() must NOT push local state back to GitHub.
 

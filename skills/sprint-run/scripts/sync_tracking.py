@@ -273,9 +273,12 @@ def main() -> None:
         sid = extract_story_id(issue["title"])
         pr = get_linked_pr(issue["number"], story_id=sid, all_prs=all_prs)
         if sid in existing:
-            changes = sync_one(existing[sid], issue, pr, sprint)
-            if changes:
-                with lock_story(existing[sid].path):  # BH24-002
+            with lock_story(existing[sid].path):  # BH24-002, BH26-002
+                # Re-read under lock to eliminate TOCTOU window where
+                # concurrent kanban.py could write between our read and write.
+                existing[sid] = read_tf(existing[sid].path)
+                changes = sync_one(existing[sid], issue, pr, sprint)
+                if changes:
                     write_tf(existing[sid])
                 all_changes.extend(changes)
         else:
