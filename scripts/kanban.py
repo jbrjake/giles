@@ -306,8 +306,8 @@ def _count_review_rounds(body_text: str) -> int:
     return len(re.findall(r"review (?:→|->|-->) dev", body_text))
 
 
-# §kanban._append_transition_log
-def _append_transition_log(tf: TF, old_status: str, new_status: str,
+# §kanban.append_transition_log
+def append_transition_log(tf: TF, old_status: str, new_status: str,
                            source: str = "") -> None:
     """Append a transition log entry to tf.body_text."""
     timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
@@ -372,7 +372,7 @@ def do_transition(tf: TF, target: str, *,
             print(f"{tf.story}: {wip_err}", file=sys.stderr)
             return False
     # INT-8: Warn when WIP limit not checked due to missing context
-    if target == "dev" and not force_wip and (sprints_dir is None or sprint is None):
+    if target in ("dev", "review", "integration") and not force_wip and (sprints_dir is None or sprint is None):
         print(f"{tf.story}: warning: WIP limit not checked (sprints_dir/sprint not provided)",
               file=sys.stderr)
     old_status = tf.status
@@ -383,7 +383,7 @@ def do_transition(tf: TF, target: str, *,
         return False
     # Update local state and append transition log
     tf.status = target
-    _append_transition_log(tf, old_status, target)
+    append_transition_log(tf, old_status, target)
     atomic_write_tf(tf)
     # Sync to GitHub
     try:
@@ -517,7 +517,7 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
             issue_closed = issue.get("state") == "closed"
             if issue_closed and github_state == "done":
                 old = tf.status
-                _append_transition_log(tf, old, "done", "external: GitHub sync")
+                append_transition_log(tf, old, "done", "external: GitHub sync")
                 tf.status = "done"
                 atomic_write_tf(tf)
                 changes.append(
@@ -529,7 +529,7 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
             err = validate_transition(tf.status, github_state)
             if err is None:
                 old = tf.status
-                _append_transition_log(tf, old, github_state, "external: GitHub sync")
+                append_transition_log(tf, old, github_state, "external: GitHub sync")
                 tf.status = github_state
                 atomic_write_tf(tf)
                 changes.append(
