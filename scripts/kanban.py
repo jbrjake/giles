@@ -238,12 +238,23 @@ _PERSONA_HEADER_PATTERN = re.compile(
 )
 
 
+# §kanban._count_review_rounds
+def _count_review_rounds(body_text: str) -> int:
+    """Count review → dev transitions in the transition log."""
+    import re
+    return len(re.findall(r"review → dev", body_text))
+
+
 # §kanban.do_transition
-def do_transition(tf: TF, target: str) -> bool:
+def do_transition(tf: TF, target: str, *,
+                  force_review_round: bool = False) -> bool:
     """Execute a state transition: validate, update local, sync GitHub.
 
     Returns True on success, False on failure (with local state reverted).
     Appends a transition log entry to the tracking file body.
+
+    When *force_review_round* is True, bypasses the review round escalation
+    limit (P1-KANBAN-2).
     """
     err = validate_transition(tf.status, target)
     if err:
@@ -260,6 +271,18 @@ def do_transition(tf: TF, target: str) -> bool:
     if err:
         print(f"{tf.story}: {err}", file=sys.stderr)
         return False
+    # P1-KANBAN-2: Review round escalation — block after 3 review→dev cycles
+    if tf.status == "review" and target == "dev" and not force_review_round:
+        rounds = _count_review_rounds(tf.body_text)
+        if rounds >= 3:
+            print(
+                f"{tf.story}: Story has had {rounds} review rounds. "
+                f"The review-dev cycle may indicate a design issue. "
+                f"Escalate to the user before continuing. "
+                f"Use --force-review-round to override.",
+                file=sys.stderr,
+            )
+            return False
     old_status = tf.status
     issue_num = tf.issue_number
     if not issue_num:
@@ -557,6 +580,8 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("story_id", help="Story ID (e.g., US-0042)")
     tr.add_argument("target", help="Target kanban state")
     tr.add_argument("--sprint", type=int, default=None)
+    tr.add_argument("--force-review-round", action="store_true",
+                    help="Override review round escalation limit")
 
     asn = sub.add_parser("assign", help="Assign personas to a story")
     asn.add_argument("story_id", help="Story ID (e.g., US-0042)")
@@ -633,7 +658,10 @@ def main() -> None:
     if args.command == "transition":
         with lock_story(tf.path):
             tf = read_tf(tf.path)  # BH24-001: re-read under lock
-            ok = do_transition(tf, args.target)
+            ok = do_transition(
+                tf, args.target,
+                force_review_round=args.force_review_round,
+            )
         sys.exit(0 if ok else 1)
 
     if args.command == "assign":

@@ -592,6 +592,48 @@ class TestTransitionCommand(unittest.TestCase):
             loaded = read_tf(tf.path)
             self.assertEqual(loaded.status, "dev")  # unchanged
 
+    def test_review_round_escalation_blocks_after_3(self):
+        """P1-KANBAN-2: After 3 review→dev cycles, 4th is blocked."""
+        with tempfile.TemporaryDirectory() as td:
+            # Create a TF with 3 prior review→dev transitions in the log
+            tf = self._make_tf(td, status="review", implementer="rae",
+                               reviewer="chen", branch="sprint-1/US-0042-feat",
+                               pr_number="55")
+            tf.body_text = (
+                "## Transition Log\n"
+                "- 2026-03-10T09:00: review → dev\n"
+                "- 2026-03-10T10:00: dev → review\n"
+                "- 2026-03-11T09:00: review → dev\n"
+                "- 2026-03-11T10:00: dev → review\n"
+                "- 2026-03-12T09:00: review → dev\n"
+                "- 2026-03-12T10:00: dev → review\n"
+            )
+            atomic_write_tf(tf)
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(tf, "dev")
+                _ = mock.call_args
+            self.assertFalse(result)
+
+    def test_review_round_escalation_force_override(self):
+        """P1-KANBAN-2: --force-review-round overrides the block."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td, status="review", implementer="rae",
+                               reviewer="chen", branch="sprint-1/US-0042-feat",
+                               pr_number="55")
+            tf.body_text = (
+                "## Transition Log\n"
+                "- 2026-03-10T09:00: review → dev\n"
+                "- 2026-03-11T09:00: review → dev\n"
+                "- 2026-03-12T09:00: review → dev\n"
+            )
+            atomic_write_tf(tf)
+            with patch_gh("kanban.gh") as mock:
+                result = do_transition(tf, "dev", force_review_round=True)
+                _ = mock.call_args
+            self.assertTrue(result)
+            loaded = read_tf(tf.path)
+            self.assertEqual(loaded.status, "dev")
+
 
 class TestAssignCommand(unittest.TestCase):
     """do_assign() updates local file and adds persona labels on GitHub."""
