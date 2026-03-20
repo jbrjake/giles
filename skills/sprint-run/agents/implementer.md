@@ -184,6 +184,37 @@ Before pushing, update the PR description with:
 - Coverage notes
 - Any areas of uncertainty for the reviewer
 
+<!-- §implementer.verification_scope -->
+### Verification Scope (REQUIRED in PR description)
+
+Your PR description MUST include a Verification Scope section with two lists:
+
+```markdown
+## Verification Scope
+### Verified
+- swift build (exit 0)
+- swift test (109 passed)
+### Not Verified
+- xcodebuild (app target)
+- app launch
+- system logs
+```
+
+The NOT VERIFIED list is explicitly required — not optional.  It makes scope
+gaps visible to the reviewer and the SubagentStop verification hook.
+
+<!-- §implementer.raw_evidence -->
+### Raw Evidence (REQUIRED in PR description)
+
+Your PR description MUST include the raw output of the last test/build run.
+Do not summarize.  Paste the actual output.
+
+If the output exceeds 50 lines, include the first 10 and last 10 lines with
+a count of omitted lines.
+
+Statements like "tests pass" or "clean build" without raw output will be
+rejected by the verification hook.
+
 Also update the story tracking file: set status = review.
 
 ### 6. Respond to Review Feedback
@@ -200,6 +231,29 @@ gh pr edit {pr_number} --add-reviewer {reviewer_github_handle}
 ```
 
 Update the PR description with what changed.
+
+<!-- §implementer.silent_failure_audit -->
+## Silent Failure Audit (pre-completion)
+
+Before creating the PR or marking ready for review, audit every new code path:
+
+"If this silently fails (returns nil, no-ops, throws and is caught), would
+anything observable happen?"
+
+If the answer is no, add a log statement at warning level or a precondition
+assertion.  Silent failures are the hardest bugs to find.
+
+<!-- §implementer.generalization_reflex -->
+## Generalization Reflex (fix stories only)
+
+**For fix stories only:** After fixing the specific bug, ask: "This is an
+instance of what broader category?"  Then search the codebase for other
+instances of the same category.
+
+Example: fixing a missing plist key should trigger checking for ALL required
+plist keys, not just the one that was missing.
+
+Include sweep results in the PR description.
 
 <!-- §implementer.conventions_checklist -->
 ## Conventions Checklist

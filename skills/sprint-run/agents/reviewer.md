@@ -80,6 +80,18 @@ Focus exclusively on whether the tests are adequate.
 - Property-based tests for algebraic invariants where appropriate
 - Test plan coverage verified (if test cases referenced in story)
 
+**Checklist item 10 — Integration impact:** If this story modifies code that
+the app entry point depends on (check `[project] entry_points` in project.toml),
+verify that the entry point still compiles/runs.  If you cannot verify this,
+flag it in your review as "integration impact not verified."
+
+**Checklist item 11 — Abstraction fit:** If this story adds a conformer to a
+protocol/interface, verify: Does the protocol's contract (method signatures,
+documented semantics) actually make sense for this conforming type?  Flag cases
+where the conformer technically compiles but the semantics are wrong (e.g.,
+`outputTexture` returning velocity data when the protocol says "result for
+compositing").
+
 After all three passes, synthesize your findings into a single review.
 Note which pass each finding came from — it helps the implementer
 prioritize. Correctness findings are blockers. Convention findings are
@@ -116,6 +128,8 @@ Post a GitHub PR review in character:
 - [x/✗] PR description is self-contained
 - [x/✗] Test plan coverage verified (if test cases referenced)
 - [x/✗] PRD non-functional requirements met (if provided — check perf thresholds, memory budgets)
+- [x/✗] Integration impact verified (if story touches entry_points dependencies)
+- [x/✗] Abstraction fit verified (if story adds protocol/interface conformers)
 
 ### Detailed Feedback
 {File-by-file or concern-by-concern feedback}
