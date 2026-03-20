@@ -238,9 +238,18 @@ def _resolve_tracking_path(relative: str) -> str | None:
     return None
 
 
-_IMPLEMENTER_KEYWORDS = re.compile(
-    r"commit|pushed|PR\s*#|created\s+branch|implementation",
-    re.IGNORECASE,
+_IMPLEMENTER_ACTION_PATTERNS = re.compile(
+    r"""
+    committed                    # past tense — agent did it
+    | \bpushed\b                 # pushed to remote
+    | \bmerged\b                 # merged a branch/PR
+    | created\s+(?:PR|branch)    # created a PR or branch
+    | PR\s*\#\d+                 # references a specific PR number
+    | created\s+branch           # created branch
+    | tests?\s+pass              # reports test results
+    | all\s+checks?\s+pass       # reports check results
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 _TRACKING_PATH_PATTERN = re.compile(r"sprint-\d+/stories/\S+\.md")
@@ -250,11 +259,14 @@ def _is_implementer_output(output: str, check_commands: list[str]) -> bool:
     """Return True if the agent output looks like an implementer's.
 
     Heuristic: check_commands must be configured AND the output must
-    contain at least one implementation-related keyword.
+    contain at least one action-oriented keyword (committed, pushed,
+    merged, created PR/branch, tests pass). Mention-only keywords
+    (\"the commit\", \"the implementation\") are excluded to avoid
+    false positives from reviewer agents.
     """
     if not check_commands:
         return False
-    return bool(_IMPLEMENTER_KEYWORDS.search(output))
+    return bool(_IMPLEMENTER_ACTION_PATTERNS.search(output))
 
 
 # ---------------------------------------------------------------------------

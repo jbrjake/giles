@@ -781,6 +781,36 @@ class TestIsImplementerOutput(unittest.TestCase):
             _is_implementer_output("", ["pytest"])
         )
 
+    def test_implementer_with_merge_keyword(self):
+        """BH26-004: Output mentioning 'merged' is implementer."""
+        self.assertTrue(
+            _is_implementer_output("I merged the branch", ["pytest"])
+        )
+
+    def test_implementer_with_branch_keyword(self):
+        """BH26-004: Output mentioning 'branch' creation is implementer."""
+        self.assertTrue(
+            _is_implementer_output("Created branch sprint-1/US-0001", ["pytest"])
+        )
+
+    def test_implementer_with_tests_pass(self):
+        """BH26-004: Output mentioning test results is implementer."""
+        self.assertTrue(
+            _is_implementer_output("All tests pass, changes ready", ["pytest"])
+        )
+
+    def test_not_implementer_reviewer_mentioning_commit(self):
+        """BH26-008: Reviewer saying 'the commit looks good' is NOT implementer."""
+        self.assertFalse(
+            _is_implementer_output("I reviewed the commit and it looks good", ["pytest"])
+        )
+
+    def test_not_implementer_reviewer_mentioning_implementation(self):
+        """BH26-008: Reviewer saying 'implementation is solid' is NOT implementer."""
+        self.assertFalse(
+            _is_implementer_output("The implementation is solid, approved", ["pytest"])
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
