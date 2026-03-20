@@ -560,6 +560,15 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
                 status=github_state,
                 issue_number=issue_num,
             )
+            # BH27: Initialize verification section to match sync_tracking's
+            # create_from_issue, ensuring consistent body regardless of
+            # which sync path creates the file first.
+            tf.body_text = (
+                "## Verification\n"
+                "- agent: []\n"
+                "- orchestrator: []\n"
+                "- unverified: []\n"
+            )
             atomic_write_tf(tf)
             local_by_id[story_id] = tf
             changes.append(f"created tracking file for new story {story_id} ({github_state})")

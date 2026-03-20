@@ -31,7 +31,7 @@ from validate_config import (
     list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
     warn_if_at_limit, TF, read_tf, write_tf, _yaml_safe, slug_from_title,
 )
-from kanban import lock_story, append_transition_log  # BH24-002, INT-2/3
+from kanban import lock_sprint, atomic_write_tf, append_transition_log  # BH24-002, BH27
 
 
 # §sync_tracking._fetch_all_prs
@@ -258,36 +258,41 @@ def main() -> None:
     for p in stories_dir.glob("*.md"):
         tf = read_tf(p)
         if tf.story:
-            if tf.story in seen_ids:
+            # BH27: Normalize to uppercase — matches kanban.py do_sync convention
+            key = tf.story.upper()
+            if key in seen_ids:
                 print(
                     f"Warning: duplicate story ID '{tf.story}' in "
-                    f"{seen_ids[tf.story]} and {p}",
+                    f"{seen_ids[key]} and {p}",
                     file=sys.stderr,
                 )
-            seen_ids[tf.story] = p
-            existing[tf.story] = tf
+            seen_ids[key] = p
+            existing[key] = tf
 
     all_prs = _fetch_all_prs()
     all_changes: list[str] = []
-    for issue in issues:
-        sid = extract_story_id(issue["title"])
-        pr = get_linked_pr(issue["number"], story_id=sid, all_prs=all_prs)
-        if sid in existing:
-            with lock_story(existing[sid].path):  # BH24-002, BH26-002
-                # Re-read under lock to eliminate TOCTOU window where
-                # concurrent kanban.py could write between our read and write.
+
+    # BH27: Use lock_sprint for the entire sync loop — matches kanban.py sync.
+    # This prevents concurrent kanban.py WIP transitions (which also hold
+    # lock_sprint) from colliding with our writes.
+    sprint_dir = sprints_dir / f"sprint-{sprint}"
+    with lock_sprint(sprint_dir):
+        for issue in issues:
+            sid = extract_story_id(issue["title"])
+            pr = get_linked_pr(issue["number"], story_id=sid, all_prs=all_prs)
+            if sid in existing:
+                # Re-read under lock to get fresh state
                 existing[sid] = read_tf(existing[sid].path)
                 changes = sync_one(existing[sid], issue, pr, sprint)
                 if changes:
-                    write_tf(existing[sid])
+                    atomic_write_tf(existing[sid])
                 all_changes.extend(changes)
-        else:
-            tf, changes = create_from_issue(
-                issue, sprint, stories_dir, pr
-            )
-            with lock_story(tf.path):  # BH24-002
-                write_tf(tf)
-            all_changes.extend(changes)
+            else:
+                tf, changes = create_from_issue(
+                    issue, sprint, stories_dir, pr
+                )
+                atomic_write_tf(tf)
+                all_changes.extend(changes)
 
     if all_changes:
         print(f"Sync complete -- {len(all_changes)} change(s):")
