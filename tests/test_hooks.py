@@ -17,6 +17,9 @@ from hooks.session_context import (
     extract_retro_action_items, extract_dod_retro_additions,
     extract_high_risks, format_context, _parse_action_items,
 )
+from hooks.commit_gate import (
+    check_commit_allowed, is_source_file, _matches_check_command,
+)
 
 
 class TestCheckMerge(unittest.TestCase):
@@ -251,6 +254,53 @@ class TestSessionContext(unittest.TestCase):
         """No data produces empty output."""
         output = format_context([], [], [])
         self.assertEqual(output, "")
+
+
+class TestCommitGate(unittest.TestCase):
+    """P1-HOOK-5: Commit verification hook."""
+
+    def test_blocks_commit_when_unverified(self):
+        """Block git commit when source files modified but no check run."""
+        result = check_commit_allowed("git commit -m 'fix'", _state_override=True)
+        self.assertEqual(result, "blocked")
+
+    def test_allows_commit_when_verified(self):
+        """Allow git commit when checks have been run."""
+        result = check_commit_allowed("git commit -m 'fix'", _state_override=False)
+        self.assertEqual(result, "allowed")
+
+    def test_allows_non_commit_commands(self):
+        """Non-commit commands are always allowed."""
+        result = check_commit_allowed("git status", _state_override=True)
+        self.assertEqual(result, "allowed")
+
+    def test_blocks_commit_py(self):
+        """Also blocks scripts/commit.py invocations."""
+        result = check_commit_allowed(
+            'python scripts/commit.py "feat: add thing"',
+            _state_override=True,
+        )
+        self.assertEqual(result, "blocked")
+
+    def test_source_file_detection(self):
+        """Source files vs non-source files."""
+        self.assertTrue(is_source_file("src/main.py"))
+        self.assertTrue(is_source_file("lib/parser.rs"))
+        self.assertTrue(is_source_file("app.swift"))
+        self.assertTrue(is_source_file("handler.ts"))
+        self.assertFalse(is_source_file("README.md"))
+        self.assertFalse(is_source_file("config.toml"))
+        self.assertFalse(is_source_file("data.json"))
+
+    def test_matches_check_commands(self):
+        """Recognizes common test/check commands."""
+        self.assertTrue(_matches_check_command("pytest"))
+        self.assertTrue(_matches_check_command("python -m pytest tests/"))
+        self.assertTrue(_matches_check_command("cargo test"))
+        self.assertTrue(_matches_check_command("npm test"))
+        self.assertTrue(_matches_check_command("ruff check ."))
+        self.assertFalse(_matches_check_command("git status"))
+        self.assertFalse(_matches_check_command("echo hello"))
 
 
 if __name__ == "__main__":

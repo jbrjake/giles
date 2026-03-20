@@ -24,6 +24,11 @@
     {
       "event": "SessionStart",
       "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/session_context.py\""
+    },
+    {
+      "event": "PreToolUse",
+      "tool": "Bash",
+      "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/commit_gate.py\""
     }
   ]
 }
