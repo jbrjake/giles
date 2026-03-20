@@ -22,6 +22,7 @@ from hooks.session_context import (
 )
 from hooks.commit_gate import (
     check_commit_allowed, is_source_file, _matches_check_command,
+    handle_post_tool_use,
 )
 
 
@@ -514,6 +515,46 @@ class TestCommitGate(unittest.TestCase):
         finally:
             if sf.exists():
                 sf.unlink()
+
+
+class TestPostToolUseVerification(unittest.TestCase):
+    """BH27-001: PostToolUse records verification only after successful commands."""
+
+    def setUp(self):
+        from hooks.commit_gate import _state_file
+        self.sf = _state_file()
+        if self.sf.exists():
+            self.sf.unlink()
+
+    def tearDown(self):
+        if self.sf.exists():
+            self.sf.unlink()
+
+    def test_successful_check_command_marks_verified(self):
+        """Exit code 0 on a check command should mark as verified."""
+        from hooks.commit_gate import needs_verification
+        handle_post_tool_use("pytest tests/", exit_code=0)
+        self.assertFalse(needs_verification())
+
+    def test_failed_check_command_does_not_mark_verified(self):
+        """BH27-001: Exit code non-zero must NOT mark as verified."""
+        from hooks.commit_gate import needs_verification, _has_staged_source_files
+        handle_post_tool_use("pytest tests/", exit_code=1)
+        # State file should not exist — verification not recorded
+        self.assertFalse(self.sf.exists())
+
+    def test_non_check_command_ignored(self):
+        """Non-check commands should not affect verification state."""
+        handle_post_tool_use("git status", exit_code=0)
+        self.assertFalse(self.sf.exists())
+
+    def test_failed_then_successful_marks_verified(self):
+        """After a failed run then a successful run, should be verified."""
+        from hooks.commit_gate import needs_verification
+        handle_post_tool_use("pytest tests/", exit_code=1)
+        self.assertFalse(self.sf.exists())
+        handle_post_tool_use("pytest tests/", exit_code=0)
+        self.assertFalse(needs_verification())
 
 
 class TestUpdateTrackingVerification(unittest.TestCase):

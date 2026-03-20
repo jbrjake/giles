@@ -29,6 +29,11 @@
       "event": "PreToolUse",
       "tool": "Bash",
       "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/commit_gate.py\""
+    },
+    {
+      "event": "PostToolUse",
+      "tool": "Bash",
+      "command": "python \"${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/commit_gate.py\" --post"
     }
   ]
 }

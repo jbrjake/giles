@@ -151,7 +151,26 @@ def _matches_check_command(command: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Hook entry point
+# PostToolUse handler
+# ---------------------------------------------------------------------------
+
+def handle_post_tool_use(command: str, *, exit_code: int) -> None:
+    """Record verification state after a Bash command completes.
+
+    Only marks as verified if the command matches a check command AND
+    it exited successfully (exit code 0).  This is the correct place to
+    record verification — PreToolUse fires before execution and cannot
+    know the result.
+    """
+    if exit_code != 0:
+        return
+    if not _matches_check_command(command):
+        return
+    mark_verified()
+
+
+# ---------------------------------------------------------------------------
+# Hook entry points
 # ---------------------------------------------------------------------------
 
 def main() -> None:
@@ -166,10 +185,8 @@ def main() -> None:
     if not command:
         sys.exit(0)
 
-    # If running a check command, record current working tree state
-    if _matches_check_command(command):
-        mark_verified()
-        sys.exit(0)
+    # PreToolUse: do NOT record verification here — we don't know the result
+    # yet.  Verification is recorded in post_main() after the command runs.
 
     # If committing, check verification state
     result = check_commit_allowed(command)
@@ -184,5 +201,30 @@ def main() -> None:
     sys.exit(0)
 
 
+def post_main() -> None:
+    """PostToolUse hook for Bash tool — record verification after tests pass."""
+    try:
+        input_data = json.load(sys.stdin)
+    except (json.JSONDecodeError, EOFError):
+        sys.exit(0)
+
+    tool_input = input_data.get("tool_input", input_data.get("input", {}))
+    command = tool_input.get("command", "")
+    tool_output = input_data.get("tool_output", input_data.get("output", {}))
+    # PostToolUse provides stdout/stderr/exit_code in tool_output
+    exit_code = tool_output.get("exit_code", tool_output.get("exitCode", -1))
+    if isinstance(exit_code, str):
+        try:
+            exit_code = int(exit_code)
+        except ValueError:
+            exit_code = -1
+
+    handle_post_tool_use(command, exit_code=exit_code)
+    sys.exit(0)
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--post":
+        post_main()
+    else:
+        main()
