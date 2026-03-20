@@ -109,7 +109,20 @@ def check_push(command: str, *, base: str = "main") -> str:
     Returns ``'blocked'`` for direct pushes to *base*, ``'warn'`` for
     bare ``git push`` (could push to base if upstream is set),
     ``'allowed'`` otherwise.
+
+    Handles compound shell commands (``&&``, ``;``, ``|``) by splitting
+    on shell operators and checking each subcommand.
     """
+    # BH27-005: Split compound commands and check each subcommand
+    for subcommand in re.split(r'\s*(?:&&|\|\||;)\s*', command):
+        result = _check_push_single(subcommand.strip(), base=base)
+        if result != "allowed":
+            return result
+    return "allowed"
+
+
+def _check_push_single(command: str, *, base: str = "main") -> str:
+    """Check a single (non-compound) command for git push to base."""
     parts = command.split()
     if len(parts) < 2 or parts[0] != "git" or parts[1] != "push":
         return "allowed"

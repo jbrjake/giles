@@ -129,6 +129,26 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push", base="main")
         self.assertEqual(result, "warn")
 
+    def test_compound_command_push_blocked(self):
+        """BH27-005: git push in compound command (&&) is detected."""
+        result = check_push("cd /tmp && git push origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_compound_command_semicolon(self):
+        """BH27-005: git push after semicolon is detected."""
+        result = check_push("echo done; git push origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_compound_command_safe(self):
+        """Compound command without git push is allowed."""
+        result = check_push("cd /tmp && echo hello", base="main")
+        self.assertEqual(result, "allowed")
+
+    def test_colon_refspec_blocked(self):
+        """git push origin HEAD:main with colon refspec is blocked."""
+        result = check_push("git push origin HEAD:main", base="main")
+        self.assertEqual(result, "blocked")
+
 
 class TestLogBlocked(unittest.TestCase):
     """H-003: _log_blocked only writes when giles is configured."""

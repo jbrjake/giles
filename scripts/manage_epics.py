@@ -231,8 +231,11 @@ def add_story(path: str, story_data: dict) -> None:
 
 
 # §manage_epics.remove_story
-def remove_story(path: str, story_id: str) -> None:
-    """Remove a story section from an epic file."""
+def remove_story(path: str, story_id: str) -> bool:
+    """Remove a story section from an epic file.
+
+    Returns True if the story was found and removed, False if not found.
+    """
     content = Path(path).read_text(encoding="utf-8")
     lines = content.split('\n')
     epic = _parse_epic_from_lines(lines)
@@ -240,7 +243,7 @@ def remove_story(path: str, story_id: str) -> None:
         (s for s in epic["raw_sections"] if s["id"] == story_id), None
     )
     if not section:
-        return
+        return False
 
     start = section["start_line"]
     end = section["end_line"]
@@ -263,6 +266,7 @@ def remove_story(path: str, story_id: str) -> None:
     new_lines.append("")
 
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    return True
 
 
 # §manage_epics.reorder_stories
@@ -383,8 +387,11 @@ def main() -> None:
             print("Usage: manage_epics.py remove <epic_file> <story_id>", file=sys.stderr)
             sys.exit(1)
         story_id = sys.argv[3]
-        remove_story(epic_file, story_id)
-        print(f"Removed {story_id} from {epic_file}")
+        if remove_story(epic_file, story_id):
+            print(f"Removed {story_id} from {epic_file}")
+        else:
+            print(f"{story_id} not found in {epic_file}", file=sys.stderr)
+            sys.exit(1)
 
     elif command == "reorder":
         if len(sys.argv) < 4:

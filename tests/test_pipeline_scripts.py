@@ -352,21 +352,27 @@ class TestManageEpics(unittest.TestCase):
             story_ids = [s["id"] for s in result["stories"]]
             self.assertEqual(story_ids, ["US-0104", "US-0101", "US-0102", "US-0103"])
 
-    def test_remove_story_nonexistent_id(self):
-        """Removing a story ID that doesn't exist should not crash or alter the file."""
+    def test_remove_story_nonexistent_returns_false(self):
+        """BH27-009: Removing a non-existent story returns False, file unchanged."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             epic_path = self._copy_epic(Path(tmp))
             original_content = epic_path.read_text()
-            # remove_story with a non-existent ID should return silently
-            remove_story(str(epic_path), "US-9999")
+            result = remove_story(str(epic_path), "US-9999")
+            self.assertFalse(result)
             after_content = epic_path.read_text()
             self.assertEqual(original_content, after_content)
-            # All original stories should still be present
-            result = parse_epic(str(epic_path))
-            story_ids = [s["id"] for s in result["stories"]]
-            self.assertIn("US-0101", story_ids)
-            self.assertIn("US-0102", story_ids)
+
+    def test_remove_story_existing_returns_true(self):
+        """BH27-009: Removing an existing story returns True."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic_path = self._copy_epic(Path(tmp))
+            result = remove_story(str(epic_path), "US-0101")
+            self.assertTrue(result)
+            parsed = parse_epic(str(epic_path))
+            story_ids = [s["id"] for s in parsed["stories"]]
+            self.assertNotIn("US-0101", story_ids)
 
     def test_parse_epic_empty_file(self):
         """Parsing an empty file should return a valid structure without crashing."""
@@ -479,6 +485,32 @@ class TestManageSagas(unittest.TestCase):
             result = parse_saga(str(saga_path))
             # Should still have 3 epics for S01
             self.assertEqual(len(result["epic_index"]), 3)
+
+    def test_repeated_update_no_blank_line_accumulation(self):
+        """BH27-006: Repeated updates must not accumulate blank lines."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            saga_path = self._copy_saga(Path(tmp))
+            allocation = [
+                {"sprint": "Sprint 1", "stories": "US-0101", "sp": "5"},
+            ]
+            # Update twice
+            update_sprint_allocation(str(saga_path), allocation)
+            update_sprint_allocation(str(saga_path), allocation)
+            content = Path(saga_path).read_text(encoding="utf-8")
+            # Count consecutive blank lines after the allocation table
+            lines = content.split("\n")
+            max_consecutive_blanks = 0
+            current_blanks = 0
+            for line in lines:
+                if line.strip() == "":
+                    current_blanks += 1
+                    max_consecutive_blanks = max(max_consecutive_blanks, current_blanks)
+                else:
+                    current_blanks = 0
+            self.assertLessEqual(max_consecutive_blanks, 2,
+                                 f"Found {max_consecutive_blanks} consecutive blank lines "
+                                 f"after repeated updates — blank lines are accumulating")
 
     def test_parse_saga_malformed_file(self):
         """Parsing a file with no proper saga structure should not crash."""

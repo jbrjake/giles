@@ -166,7 +166,12 @@ def update_sprint_allocation(
             f"| {entry['sprint']} | {entry['stories']} | {entry['sp']} |"
         )
 
-    new_lines = lines[:start] + new_section + [""] + lines[end:]
+    # BH27-006: Strip leading blank lines from remainder to prevent
+    # blank line accumulation on repeated updates.
+    remainder = lines[end:]
+    while remainder and remainder[0].strip() == "":
+        remainder.pop(0)
+    new_lines = lines[:start] + new_section + [""] + remainder
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
@@ -222,7 +227,12 @@ def update_epic_index(
             f"| {e['id']} | {e['name']} | {e['stories']} | {e['sp']} |"
         )
 
-    new_lines = lines[:start] + new_section + [""] + lines[end:]
+    # BH27-006: Strip leading blank lines from remainder to prevent
+    # blank line accumulation on repeated updates.
+    remainder = lines[end:]
+    while remainder and remainder[0].strip() == "":
+        remainder.pop(0)
+    new_lines = lines[:start] + new_section + [""] + remainder
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
@@ -250,7 +260,12 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
             new_section.append("")
         new_section.append(f'> **{safe_name}:** "{safe_quote}"')
 
-    new_lines = lines[:start] + new_section + [""] + lines[end:]
+    # BH27-006: Strip leading blank lines from remainder to prevent
+    # blank line accumulation on repeated updates.
+    remainder = lines[end:]
+    while remainder and remainder[0].strip() == "":
+        remainder.pop(0)
+    new_lines = lines[:start] + new_section + [""] + remainder
     Path(path).write_text("\n".join(new_lines), encoding="utf-8")
 
 
