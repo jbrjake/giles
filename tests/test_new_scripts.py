@@ -280,6 +280,19 @@ class TestRiskRegister(unittest.TestCase):
         result = resolve_risk("R999", "doesn't exist")
         self.assertFalse(result)
 
+    def test_pipe_roundtrip(self):
+        """DA-021/022: Pipes in title and resolution survive add→resolve→list."""
+        from risk_register import add_risk, resolve_risk, list_open_risks, _parse_rows, _REGISTER_PATH
+        add_risk("Risk A | Risk B", "high", "1")
+        # Title should be escaped in file but readable via _parse_rows
+        rows = _parse_rows(_REGISTER_PATH.read_text())
+        self.assertEqual(rows[0]["title"], "Risk A | Risk B")
+        # Resolve with a pipe in resolution
+        resolve_risk("R1", "fixed | workaround applied")
+        rows = _parse_rows(_REGISTER_PATH.read_text())
+        self.assertEqual(rows[0]["resolution"], "fixed | workaround applied")
+        self.assertEqual(rows[0]["status"], "Resolved")
+
     def test_add_risk_sanitizes_pipes(self):
         """BH25: Pipe characters in title don't break table."""
         from risk_register import add_risk, _REGISTER_PATH

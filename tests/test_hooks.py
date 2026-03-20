@@ -295,6 +295,18 @@ class TestVerifyAgentOutput(unittest.TestCase):
         result = _read_toml_key(toml, "ci", "smoke_command")
         self.assertEqual(result, "python -m myapp --health")
 
+    def test_read_toml_key_inline_comment(self):
+        """DA-007: Inline comments should be stripped."""
+        toml = '[ci]\nsmoke_command = "make smoke" # quick check\n'
+        result = _read_toml_key(toml, "ci", "smoke_command")
+        self.assertEqual(result, "make smoke")
+
+    def test_read_toml_key_single_quoted(self):
+        """DA-010: Single-quoted strings should work."""
+        toml = "[ci]\ncheck_commands = ['pytest', 'ruff check']\n"
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest", "ruff check"])
+
 
 class TestSessionContext(unittest.TestCase):
     """P0-HOOK-3: SessionStart context injection hook."""

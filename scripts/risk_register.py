@@ -48,19 +48,30 @@ def _next_id(text: str) -> str:
     return f"R{max_num + 1}"
 
 
+def _split_table_row(line: str, *, unescape: bool = True) -> list[str]:
+    """Split a markdown table row on unescaped pipes.
+
+    When *unescape* is True (default), \\| in cells is converted to |.
+    Use unescape=False when modifying cells for write-back (to preserve escaping).
+    """
+    cells = [c.strip() for c in re.split(r'(?<!\\)\|', line)]
+    # Remove leading/trailing empty strings from split
+    if cells and cells[0] == "":
+        cells = cells[1:]
+    if cells and cells[-1] == "":
+        cells = cells[:-1]
+    if unescape:
+        return [c.replace("\\|", "|") for c in cells]
+    return cells
+
+
 def _parse_rows(text: str) -> list[dict]:
     """Parse table rows into dicts."""
     rows: list[dict] = []
     for line in text.splitlines():
         if "|" not in line or line.strip().startswith("|--"):
             continue
-        # Split on |, keeping empty cells (don't filter them out)
-        cells = [c.strip() for c in line.split("|")]
-        # Remove leading/trailing empty strings from split
-        if cells and cells[0] == "":
-            cells = cells[1:]
-        if cells and cells[-1] == "":
-            cells = cells[:-1]
+        cells = _split_table_row(line)
         if len(cells) >= 6 and cells[0] not in ("ID", "---"):
             rows.append({
                 "id": cells[0],
@@ -93,18 +104,14 @@ def resolve_risk(risk_id: str, resolution: str) -> bool:
     for i, line in enumerate(lines):
         if "|" not in line or line.strip().startswith("|--"):
             continue
-        cells = [c.strip() for c in line.split("|")]
-        # Remove leading/trailing empty from split
-        if cells and cells[0] == "":
-            cells = cells[1:]
-        if cells and cells[-1] == "":
-            cells = cells[:-1]
+        cells = _split_table_row(line, unescape=False)
         if len(cells) >= 4 and cells[0] == risk_id and cells[3].lower() == "open":
             cells[3] = "Resolved"
             # Set resolution in the last column
             while len(cells) < 7:
                 cells.append("")
-            cells[6] = resolution
+            resolution_escaped = resolution.replace("|", "\\|")
+            cells[6] = resolution_escaped
             lines[i] = "| " + " | ".join(cells) + " |"
             found = True
             break

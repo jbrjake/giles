@@ -21,6 +21,21 @@ from pathlib import Path
 # Config reading (lightweight, no import dependency on validate_config)
 # ---------------------------------------------------------------------------
 
+def _strip_inline_comment(val: str) -> str:
+    """Strip an inline TOML comment, respecting quoted strings."""
+    in_quote = False
+    quote_char = ""
+    for j, ch in enumerate(val):
+        if ch in ('"', "'") and not in_quote:
+            in_quote = True
+            quote_char = ch
+        elif ch == quote_char and in_quote:
+            in_quote = False
+        elif ch == "#" and not in_quote:
+            return val[:j].rstrip()
+    return val
+
+
 def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
     """Extract a key from a TOML section.  Minimal parser for hook use."""
     in_section = False
@@ -35,18 +50,21 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
         if not in_section:
             i += 1
             continue
-        m = re.match(rf'{key}\s*=\s*(.*)', stripped)
+        m = re.match(rf'{re.escape(key)}\s*=\s*(.*)', stripped)
         if m:
-            val = m.group(1).strip()
+            val = _strip_inline_comment(m.group(1).strip())
             if val.startswith("["):
                 # Collect multi-line array: accumulate until closing ]
                 array_text = val
                 while "]" not in array_text and i + 1 < len(lines):
                     i += 1
                     array_text += " " + lines[i].strip()
-                items = re.findall(r'"([^"]*)"', array_text)
-                return items
+                # Match both double and single quoted strings
+                items = re.findall(r'"([^"]*)"|\'([^\']*)\'', array_text)
+                return [a or b for a, b in items]
             if val.startswith('"') and val.endswith('"'):
+                return val[1:-1]
+            if val.startswith("'") and val.endswith("'"):
                 return val[1:-1]
             return val
         i += 1
