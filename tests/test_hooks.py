@@ -433,6 +433,51 @@ class TestSessionContext(unittest.TestCase):
         output = format_context([], [], [])
         self.assertEqual(output, "")
 
+    def test_extract_retro_from_absolute_path(self):
+        """BH27-002: extraction works with absolute path (project root resolved)."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            s1 = Path(td) / "sprint-1"
+            s1.mkdir()
+            (s1 / "retro.md").write_text(
+                "# Sprint 1 Retro\n"
+                "## Action Items for Next Sprint\n"
+                "| Item | Owner | Due |\n"
+                "|---|---|---|\n"
+                "| Fix flaky test | rae | Sprint 2 |\n"
+            )
+            items = extract_retro_action_items(td)
+            self.assertEqual(items, ["Fix flaky test"])
+
+    def test_extract_risks_from_absolute_path(self):
+        """BH27-002: risk extraction works with absolute config_dir path."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            risk_path = Path(td) / "risk-register.md"
+            risk_path.write_text(
+                "# Risk Register\n"
+                "| ID | Title | Severity | Status |\n"
+                "|----|-------|----------|--------|\n"
+                "| R1 | Flaky CI | High | Open |\n"
+            )
+            risks = extract_high_risks(td)
+            self.assertEqual(len(risks), 1)
+            self.assertIn("Flaky CI", risks[0])
+
+    def test_extract_dod_from_absolute_path(self):
+        """BH27-002: DoD extraction works with absolute config_dir path."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            dod_path = Path(td) / "definition-of-done.md"
+            dod_path.write_text(
+                "# Definition of Done\n"
+                "- All tests pass\n"
+                "- Code reviewed (added from retro)\n"
+            )
+            additions = extract_dod_retro_additions(td)
+            self.assertEqual(len(additions), 1)
+            self.assertIn("Code reviewed", additions[0])
+
 
 class TestCommitGate(unittest.TestCase):
     """P1-HOOK-5: Commit verification hook."""

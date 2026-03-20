@@ -170,10 +170,17 @@ def main() -> None:
     if not paths:
         sys.exit(0)
 
+    # BH27-002: Resolve all paths against project root — TOML values are
+    # relative to the project root, not CWD.
+    root = _find_project_root()
     sprints_dir = paths.get("sprints_dir", "")
+    if sprints_dir:
+        sprints_dir = str(root / sprints_dir)
+    config_dir = str(root / "sprint-config")
+
     action_items = extract_retro_action_items(sprints_dir) if sprints_dir else []
-    dod_additions = extract_dod_retro_additions()
-    risks = extract_high_risks()
+    dod_additions = extract_dod_retro_additions(config_dir)
+    risks = extract_high_risks(config_dir)
 
     output = format_context(action_items, dod_additions, risks)
     if output:
