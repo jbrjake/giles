@@ -212,5 +212,54 @@ class TestTestCategories(unittest.TestCase):
             self.assertEqual(counts["integration"], 1)
 
 
+class TestRiskRegister(unittest.TestCase):
+    """P1-STATE-2: Risk register management."""
+
+    def setUp(self):
+        import risk_register
+        self._orig_path = risk_register._REGISTER_PATH
+        self._td = tempfile.mkdtemp()
+        risk_register._REGISTER_PATH = Path(self._td) / "risk-register.md"
+
+    def tearDown(self):
+        import risk_register
+        risk_register._REGISTER_PATH = self._orig_path
+        import shutil
+        shutil.rmtree(self._td, ignore_errors=True)
+
+    def test_add_risk(self):
+        from risk_register import add_risk, _REGISTER_PATH
+        rid = add_risk("No integration tests", "high", "1")
+        self.assertEqual(rid, "R1")
+        content = _REGISTER_PATH.read_text()
+        self.assertIn("No integration tests", content)
+        self.assertIn("high", content)
+
+    def test_list_open_risks(self):
+        from risk_register import add_risk, list_open_risks
+        add_risk("Risk A", "high", "1")
+        add_risk("Risk B", "low", "1")
+        risks = list_open_risks()
+        self.assertEqual(len(risks), 2)
+
+    def test_escalate_overdue(self):
+        from risk_register import escalate_overdue, _REGISTER_PATH
+        # Manually write a risk with sprints_open > 2
+        _REGISTER_PATH.write_text(
+            "# Risk Register\n"
+            "| ID | Title | Severity | Status | Raised | Sprints Open | Resolution |\n"
+            "|----|-------|----------|--------|--------|-------------|------------|\n"
+            "| R1 | Old risk | high | Open | Sprint 1 | 3 | |\n",
+            encoding="utf-8",
+        )
+        overdue = escalate_overdue(threshold=2)
+        self.assertEqual(len(overdue), 1)
+        self.assertEqual(overdue[0]["id"], "R1")
+
+    def test_template_in_skeletons(self):
+        tmpl = Path(__file__).resolve().parent.parent / "references/skeletons/risk-register.md.tmpl"
+        self.assertTrue(tmpl.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
