@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -11,6 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude-plugin"
 from hooks.review_gate import check_merge, check_push
 from hooks.verify_agent_output import (
     load_check_commands, run_verification, _read_toml_key,
+)
+from hooks.session_context import (
+    extract_retro_action_items, extract_dod_retro_additions,
+    extract_high_risks, format_context, _parse_action_items,
 )
 
 
@@ -155,6 +160,97 @@ class TestVerifyAgentOutput(unittest.TestCase):
         toml = '[ci]\nsmoke_command = "python -m myapp --health"\n'
         result = _read_toml_key(toml, "ci", "smoke_command")
         self.assertEqual(result, "python -m myapp --health")
+
+
+class TestSessionContext(unittest.TestCase):
+    """P0-HOOK-3: SessionStart context injection hook."""
+
+    def test_parse_action_items_from_retro(self):
+        """Given a retro.md with 3 action items, all 3 are extracted."""
+        retro = textwrap.dedent("""\
+            # Sprint 1 Retro
+
+            ## Action Items for Next Sprint
+            | Item | Owner | Due |
+            |---|---|---|
+            | Add integration tests | rae | Sprint 2 |
+            | Update CI timeout | chen | Sprint 2 |
+            | Fix flaky test | sana | Sprint 2 |
+
+            ## Velocity
+        """)
+        items = _parse_action_items(retro)
+        self.assertEqual(len(items), 3)
+        self.assertIn("Add integration tests", items)
+        self.assertIn("Fix flaky test", items)
+
+    def test_extract_retro_from_sprint_dir(self):
+        """Finds the most recent retro.md in sprint directories."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            s1 = Path(td) / "sprint-1"
+            s1.mkdir()
+            (s1 / "retro.md").write_text(textwrap.dedent("""\
+                # Sprint 1 Retro
+                ## Action Items for Next Sprint
+                | Item | Owner | Due |
+                |---|---|---|
+                | Old item | x | y |
+            """))
+            s2 = Path(td) / "sprint-2"
+            s2.mkdir()
+            (s2 / "retro.md").write_text(textwrap.dedent("""\
+                # Sprint 2 Retro
+                ## Action Items for Next Sprint
+                | Item | Owner | Due |
+                |---|---|---|
+                | New item | a | b |
+            """))
+            items = extract_retro_action_items(td)
+            self.assertEqual(items, ["New item"])
+
+    def test_extract_high_risks(self):
+        """Given a risk-register.md with 2 high-severity open risks, both extracted."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            risk_path = Path(td) / "risk-register.md"
+            risk_path.write_text(textwrap.dedent("""\
+                # Risk Register
+                | ID | Title | Severity | Status | Raised |
+                |----|-------|----------|--------|--------|
+                | R1 | No integration tests | High | Open | Sprint 1 |
+                | R2 | Missing smoke test | High | Open | Sprint 1 |
+                | R3 | Minor doc gap | Low | Open | Sprint 1 |
+                | R4 | Resolved risk | High | Resolved | Sprint 1 |
+            """))
+            risks = extract_high_risks(td)
+            self.assertEqual(len(risks), 2)
+            self.assertTrue(any("No integration tests" in r for r in risks))
+            self.assertTrue(any("Missing smoke test" in r for r in risks))
+
+    def test_no_retro_exits_cleanly(self):
+        """When no retro.md exists (first sprint), returns empty list."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            items = extract_retro_action_items(td)
+            self.assertEqual(items, [])
+
+    def test_format_context_under_60_lines(self):
+        """Hook output stays compact."""
+        output = format_context(
+            ["item1", "item2", "item3"],
+            ["dod1"],
+            ["risk1", "risk2"],
+        )
+        line_count = len(output.strip().splitlines())
+        self.assertLess(line_count, 60)
+        self.assertIn("item1", output)
+        self.assertIn("risk1", output)
+
+    def test_format_context_empty_when_no_data(self):
+        """No data produces empty output."""
+        output = format_context([], [], [])
+        self.assertEqual(output, "")
 
 
 if __name__ == "__main__":
