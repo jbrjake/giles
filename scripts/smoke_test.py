@@ -34,6 +34,9 @@ def run_smoke(command: str, timeout: int = 30) -> tuple[str, int, str, str]:
         return "SMOKE SKIP", 2, "", "no smoke_command in project.toml"
 
     try:
+        # Trust boundary: commands come from project.toml, which is a project-controlled
+        # config file. The user who configures check_commands/smoke_command accepts
+        # responsibility for their content. This is equivalent to CI config.
         result = subprocess.run(
             command, shell=True, capture_output=True, text=True,
             timeout=timeout,

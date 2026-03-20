@@ -16,6 +16,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from hooks._common import _find_project_root
+
 
 # ---------------------------------------------------------------------------
 # Config reading (lightweight, no import dependency on validate_config)
@@ -36,6 +38,21 @@ def _strip_inline_comment(val: str) -> str:
     return val
 
 
+def _has_unquoted_bracket(s: str) -> bool:
+    """Check if s contains a ] that is not inside quotes."""
+    in_quote = False
+    quote_char = ""
+    for ch in s:
+        if ch in ('"', "'") and not in_quote:
+            in_quote = True
+            quote_char = ch
+        elif ch == quote_char and in_quote:
+            in_quote = False
+        elif ch == "]" and not in_quote:
+            return True
+    return False
+
+
 def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
     """Extract a key from a TOML section.  Minimal parser for hook use."""
     in_section = False
@@ -54,9 +71,9 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
         if m:
             val = _strip_inline_comment(m.group(1).strip())
             if val.startswith("["):
-                # Collect multi-line array: accumulate until closing ]
+                # Collect multi-line array: accumulate until unquoted ]
                 array_text = val
-                while "]" not in array_text and i + 1 < len(lines):
+                while not _has_unquoted_bracket(array_text) and i + 1 < len(lines):
                     i += 1
                     array_text += " " + lines[i].strip()
                 # Match both double and single quoted strings
@@ -71,10 +88,13 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
     return None
 
 
-def load_check_commands(config_path: str = "sprint-config/project.toml",
+def load_check_commands(config_path: str | None = None,
                         ) -> tuple[list[str], str | None]:
     """Return (check_commands, smoke_command) from project.toml."""
-    p = Path(config_path)
+    if config_path is None:
+        p = _find_project_root() / "sprint-config" / "project.toml"
+    else:
+        p = Path(config_path)
     if not p.is_file():
         return [], None
     text = p.read_text(encoding="utf-8")
@@ -107,6 +127,9 @@ def run_verification(check_commands: list[str],
 
     for cmd in check_commands:
         try:
+            # Trust boundary: commands come from project.toml, which is a project-controlled
+            # config file. The user who configures check_commands/smoke_command accepts
+            # responsibility for their content. This is equivalent to CI config.
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True,
                 timeout=timeout,
@@ -127,6 +150,9 @@ def run_verification(check_commands: list[str],
 
     if smoke_command:
         try:
+            # Trust boundary: commands come from project.toml, which is a project-controlled
+            # config file. The user who configures check_commands/smoke_command accepts
+            # responsibility for their content. This is equivalent to CI config.
             result = subprocess.run(
                 smoke_command, shell=True, capture_output=True, text=True,
                 timeout=timeout,
@@ -186,14 +212,57 @@ def update_tracking_verification(tracking_path: str,
 
 
 # ---------------------------------------------------------------------------
+# Implementer detection
+# ---------------------------------------------------------------------------
+
+_IMPLEMENTER_KEYWORDS = re.compile(
+    r"commit|pushed|PR\s*#|created\s+branch|implementation",
+    re.IGNORECASE,
+)
+
+_TRACKING_PATH_PATTERN = re.compile(r"sprint-\d+/stories/\S+\.md")
+
+
+def _is_implementer_output(output: str, check_commands: list[str]) -> bool:
+    """Return True if the agent output looks like an implementer's.
+
+    Heuristic: check_commands must be configured AND the output must
+    contain at least one implementation-related keyword.
+    """
+    if not check_commands:
+        return False
+    return bool(_IMPLEMENTER_KEYWORDS.search(output))
+
+
+# ---------------------------------------------------------------------------
 # Hook entry point
 # ---------------------------------------------------------------------------
 
 def main() -> None:
     """Read event data from stdin, run verification, output results."""
+    # Read stdin JSON event data (SubagentStop format)
+    try:
+        event = json.load(sys.stdin)
+    except (json.JSONDecodeError, EOFError):
+        event = {}
+
+    output_text = event.get("output", "")
+
     check_commands, smoke_command = load_check_commands()
+
+    # H-014: Skip verification for non-implementer agents
+    if not _is_implementer_output(output_text, check_commands):
+        print("VERIFICATION SKIPPED: non-implementer agent")
+        sys.exit(0)
+
     report, passed = run_verification(check_commands, smoke_command)
     print(report)
+
+    # H-006: Update tracking file if a story path is found in the output
+    m = _TRACKING_PATH_PATTERN.search(output_text)
+    if m:
+        update_tracking_verification(m.group(0), passed, report)
+
     # Exit 0 regardless — we inject information, not block.
     # The orchestrator decides whether to accept the agent's output.
     sys.exit(0)

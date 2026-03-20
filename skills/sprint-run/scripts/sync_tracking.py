@@ -31,7 +31,7 @@ from validate_config import (
     list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
     warn_if_at_limit, TF, read_tf, write_tf, _yaml_safe, slug_from_title,
 )
-from kanban import lock_story  # BH24-002: acquire locks before writing
+from kanban import lock_story, _append_transition_log  # BH24-002, INT-2/3
 
 
 # §sync_tracking._fetch_all_prs
@@ -133,8 +133,10 @@ def sync_one(
     gh_status = kanban_from_labels(issue)
 
     if gh_status != tf.status and gh_status in KANBAN_STATES:
+        old_status = tf.status
+        _append_transition_log(tf, old_status, gh_status, "external: GitHub sync")
         changes.append(
-            f"{tf.story}: status {tf.status} -> {gh_status} (label sync)"
+            f"{tf.story}: status {old_status} -> {gh_status} (label sync)"
         )
         tf.status = gh_status
 

@@ -11,6 +11,8 @@ import re
 import sys
 from pathlib import Path
 
+from hooks._common import _find_project_root
+
 
 # ---------------------------------------------------------------------------
 # Config helpers (lightweight, no validate_config import)
@@ -34,7 +36,7 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
 
 def _get_config_paths() -> dict[str, str]:
     """Read sprints_dir and team_dir from project.toml."""
-    toml_path = Path("sprint-config/project.toml")
+    toml_path = _find_project_root() / "sprint-config" / "project.toml"
     if not toml_path.is_file():
         return {}
     text = toml_path.read_text(encoding="utf-8")

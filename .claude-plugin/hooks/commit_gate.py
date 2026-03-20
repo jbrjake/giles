@@ -56,12 +56,15 @@ def _working_tree_hash() -> str:
 
     This captures the working tree state at the time tests are run.
     If the hash changes between test run and commit, tests need to re-run.
+    Returns "" on failure (git not available, empty repo, etc.).
     """
     try:
         result = subprocess.run(
             ["git", "diff", "HEAD"],
             capture_output=True, timeout=5,
         )
+        if result.returncode != 0:
+            return ""
         return hashlib.sha256(result.stdout).hexdigest()[:16]
     except Exception:
         return ""
@@ -97,12 +100,16 @@ def needs_verification() -> bool:
     Returns True if:
     - No verification has ever happened AND there are staged source files
     - The working tree hash has changed since last verification
+    - Git is unavailable (fail closed — assume verification needed)
     """
     sf = _state_file()
     if not sf.exists():
         return _has_staged_source_files()
     stored = sf.read_text(encoding="utf-8").strip()
     current = _working_tree_hash()
+    if not current:
+        # Git failed — can't determine state, assume verification needed
+        return True
     return stored != current
 
 

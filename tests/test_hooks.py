@@ -12,8 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude-plugin"
 from hooks.review_gate import check_merge, check_push, _log_blocked, _get_base_branch
 from hooks.verify_agent_output import (
     load_check_commands, run_verification, _read_toml_key,
-    update_tracking_verification,
+    update_tracking_verification, _is_implementer_output,
 )
+from hooks._common import _find_project_root
 from hooks.session_context import (
     extract_retro_action_items, extract_dod_retro_additions,
     extract_high_risks, format_context, _parse_action_items,
@@ -307,6 +308,18 @@ class TestVerifyAgentOutput(unittest.TestCase):
         result = _read_toml_key(toml, "ci", "check_commands")
         self.assertEqual(result, ["pytest", "ruff check"])
 
+    def test_read_toml_key_bracket_inside_quotes(self):
+        """DA-009: ] inside quoted string should not end array."""
+        toml = (
+            '[ci]\n'
+            'check_commands = [\n'
+            '    "pytest -k \'test[param]\'",\n'
+            '    "ruff check",\n'
+            ']\n'
+        )
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest -k 'test[param]'", "ruff check"])
+
 
 class TestSessionContext(unittest.TestCase):
     """P0-HOOK-3: SessionStart context injection hook."""
@@ -562,6 +575,122 @@ class TestUpdateTrackingVerification(unittest.TestCase):
     def test_missing_file_is_noop(self):
         """Non-existent file does not raise."""
         update_tracking_verification("/tmp/nonexistent-tracking.md", True, "ok")
+
+
+class TestFindProjectRoot(unittest.TestCase):
+    """H-012: _find_project_root searches upward for sprint-config/project.toml."""
+
+    def test_finds_root_in_cwd(self):
+        """When sprint-config/project.toml is in CWD, returns CWD."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text('[project]\nname = "test"\n')
+                root = _find_project_root()
+                self.assertTrue(
+                    (root / "sprint-config" / "project.toml").is_file()
+                )
+            finally:
+                os.chdir(orig)
+
+    def test_finds_root_in_parent(self):
+        """When CWD is a subdirectory, walks up to find project root."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                sc = Path(td) / "sprint-config"
+                sc.mkdir()
+                (sc / "project.toml").write_text('[project]\nname = "test"\n')
+                subdir = Path(td) / "src" / "deep"
+                subdir.mkdir(parents=True)
+                os.chdir(subdir)
+                root = _find_project_root()
+                self.assertTrue(
+                    (root / "sprint-config" / "project.toml").is_file()
+                )
+            finally:
+                os.chdir(orig)
+
+    def test_falls_back_to_cwd(self):
+        """When no sprint-config/project.toml exists, returns CWD."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                root = _find_project_root()
+                self.assertEqual(root, Path.cwd())
+            finally:
+                os.chdir(orig)
+
+    def test_env_var_override(self):
+        """CLAUDE_PROJECT_DIR env var takes precedence."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            orig_env = os.environ.get("CLAUDE_PROJECT_DIR")
+            try:
+                sc = Path(td) / "sprint-config"
+                sc.mkdir()
+                (sc / "project.toml").write_text('[project]\nname = "test"\n')
+                os.environ["CLAUDE_PROJECT_DIR"] = td
+                root = _find_project_root()
+                self.assertEqual(root, Path(td))
+            finally:
+                os.chdir(orig)
+                if orig_env is None:
+                    os.environ.pop("CLAUDE_PROJECT_DIR", None)
+                else:
+                    os.environ["CLAUDE_PROJECT_DIR"] = orig_env
+
+
+class TestIsImplementerOutput(unittest.TestCase):
+    """H-014: _is_implementer_output filters non-implementer agents."""
+
+    def test_implementer_with_commit_keyword(self):
+        """Output mentioning 'commit' with check_commands is implementer."""
+        self.assertTrue(
+            _is_implementer_output("I committed the changes", ["pytest"])
+        )
+
+    def test_implementer_with_pr_keyword(self):
+        """Output mentioning 'PR #' with check_commands is implementer."""
+        self.assertTrue(
+            _is_implementer_output("Created PR #42", ["pytest"])
+        )
+
+    def test_implementer_with_pushed_keyword(self):
+        """Output mentioning 'pushed' with check_commands is implementer."""
+        self.assertTrue(
+            _is_implementer_output("I pushed to the branch", ["pytest"])
+        )
+
+    def test_not_implementer_no_keywords(self):
+        """Output without implementation keywords is not implementer."""
+        self.assertFalse(
+            _is_implementer_output("I reviewed the code and it looks good", ["pytest"])
+        )
+
+    def test_not_implementer_no_check_commands(self):
+        """Even with keywords, no check_commands means not implementer."""
+        self.assertFalse(
+            _is_implementer_output("I committed the changes", [])
+        )
+
+    def test_not_implementer_empty_output(self):
+        """Empty output is not implementer."""
+        self.assertFalse(
+            _is_implementer_output("", ["pytest"])
+        )
 
 
 if __name__ == "__main__":

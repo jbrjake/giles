@@ -241,32 +241,62 @@ _PERSONA_HEADER_PATTERN = re.compile(
 
 # §kanban.check_wip_limit
 def check_wip_limit(tf: TF, target: str, sprints_dir: Path, sprint: int,
-                    *, wip_limit: int = 1) -> str | None:
-    """Block transition to dev if the persona already has a story in dev.
+                    *, wip_limit: int | None = None) -> str | None:
+    """Block transition if WIP limit would be exceeded for the target state.
+
+    Enforced limits (from kanban-protocol.md):
+    - dev: 1 per implementer
+    - review: 2 per reviewer
+    - integration: 3 team-wide
 
     Returns None if WIP limit is not exceeded, or an error message string.
     Does not modify any files.
     """
-    if target != "dev" or not tf.implementer:
+    if target == "dev":
+        if not tf.implementer:
+            return None
+        limit = wip_limit if wip_limit is not None else 1
+        persona_field = "implementer"
+        persona_name = tf.implementer
+    elif target == "review":
+        if not tf.reviewer:
+            return None
+        limit = wip_limit if wip_limit is not None else 2
+        persona_field = "reviewer"
+        persona_name = tf.reviewer
+    elif target == "integration":
+        limit = wip_limit if wip_limit is not None else 3
+        persona_field = None  # team-wide, no persona filter
+        persona_name = None
+    else:
         return None
 
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     if not stories_dir.is_dir():
         return None
 
-    in_dev: list[str] = []
+    in_state: list[str] = []
     for md_file in sorted(stories_dir.glob("*.md")):
         other = read_tf(md_file)
-        if (other.status == "dev"
-                and other.implementer == tf.implementer
-                and other.story != tf.story):
-            in_dev.append(other.story)
+        if other.status != target or other.story == tf.story:
+            continue
+        if persona_field is None:
+            # team-wide check (integration)
+            in_state.append(other.story)
+        elif getattr(other, persona_field) == persona_name:
+            in_state.append(other.story)
 
-    if len(in_dev) >= wip_limit:
-        return (
-            f"WIP limit reached: {tf.implementer} already has "
-            f"{', '.join(in_dev)} in dev. Complete or park it first."
-        )
+    if len(in_state) >= limit:
+        if persona_field:
+            return (
+                f"WIP limit reached: {persona_name} already has "
+                f"{', '.join(in_state)} in {target}. Complete or park one first."
+            )
+        else:
+            return (
+                f"WIP limit reached: {len(in_state)} stories already in "
+                f"{target} ({', '.join(in_state)}). Complete or park one first."
+            )
     return None
 
 
@@ -274,6 +304,20 @@ def check_wip_limit(tf: TF, target: str, sprints_dir: Path, sprint: int,
 def _count_review_rounds(body_text: str) -> int:
     """Count review → dev transitions in the transition log."""
     return len(re.findall(r"review (?:→|->|-->) dev", body_text))
+
+
+# §kanban._append_transition_log
+def _append_transition_log(tf: TF, old_status: str, new_status: str,
+                           source: str = "") -> None:
+    """Append a transition log entry to tf.body_text."""
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    tag = f" ({source})" if source else ""
+    log_entry = f"- {timestamp}: {old_status} → {new_status}{tag}"
+    if tf.body_text and "## Transition Log" in tf.body_text:
+        tf.body_text = tf.body_text.rstrip() + "\n" + log_entry
+    else:
+        prefix = tf.body_text.rstrip() + "\n\n" if tf.body_text.strip() else ""
+        tf.body_text = prefix + "## Transition Log\n" + log_entry
 
 
 # §kanban.do_transition
@@ -322,11 +366,15 @@ def do_transition(tf: TF, target: str, *,
             )
             return False
     # P1-KANBAN-3: WIP limit enforcement
-    if target == "dev" and not force_wip and sprints_dir and sprint is not None:
+    if target in ("dev", "review", "integration") and not force_wip and sprints_dir and sprint is not None:
         wip_err = check_wip_limit(tf, target, sprints_dir, sprint)
         if wip_err:
             print(f"{tf.story}: {wip_err}", file=sys.stderr)
             return False
+    # INT-8: Warn when WIP limit not checked due to missing context
+    if target == "dev" and not force_wip and (sprints_dir is None or sprint is None):
+        print(f"{tf.story}: warning: WIP limit not checked (sprints_dir/sprint not provided)",
+              file=sys.stderr)
     old_status = tf.status
     old_body = tf.body_text
     issue_num = tf.issue_number
@@ -335,13 +383,7 @@ def do_transition(tf: TF, target: str, *,
         return False
     # Update local state and append transition log
     tf.status = target
-    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
-    log_entry = f"- {timestamp}: {old_status} → {target}"
-    if tf.body_text and "## Transition Log" in tf.body_text:
-        tf.body_text = tf.body_text.rstrip() + "\n" + log_entry
-    else:
-        prefix = tf.body_text.rstrip() + "\n\n" if tf.body_text.strip() else ""
-        tf.body_text = prefix + "## Transition Log\n" + log_entry
+    _append_transition_log(tf, old_status, target)
     atomic_write_tf(tf)
     # Sync to GitHub
     try:
@@ -475,6 +517,7 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
             issue_closed = issue.get("state") == "closed"
             if issue_closed and github_state == "done":
                 old = tf.status
+                _append_transition_log(tf, old, "done", "external: GitHub sync")
                 tf.status = "done"
                 atomic_write_tf(tf)
                 changes.append(
@@ -486,6 +529,7 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
             err = validate_transition(tf.status, github_state)
             if err is None:
                 old = tf.status
+                _append_transition_log(tf, old, github_state, "external: GitHub sync")
                 tf.status = github_state
                 atomic_write_tf(tf)
                 changes.append(
@@ -704,15 +748,28 @@ def main() -> None:
         sys.exit(1)
 
     if args.command == "transition":
-        with lock_story(tf.path):
-            tf = read_tf(tf.path)  # BH24-001: re-read under lock
-            ok = do_transition(
-                tf, args.target,
-                force_review_round=args.force_review_round,
-                force_wip=args.force_wip,
-                sprints_dir=sprints_dir,
-                sprint=sprint,
-            )
+        if args.target in ("dev", "review", "integration"):
+            # DA-018: Sprint-wide lock for WIP-limited transitions to prevent
+            # TOCTOU where concurrent transitions both pass the WIP check.
+            with lock_sprint(sprints_dir / f"sprint-{sprint}"):
+                tf = read_tf(tf.path)
+                ok = do_transition(
+                    tf, args.target,
+                    force_review_round=args.force_review_round,
+                    force_wip=args.force_wip,
+                    sprints_dir=sprints_dir,
+                    sprint=sprint,
+                )
+        else:
+            with lock_story(tf.path):
+                tf = read_tf(tf.path)  # BH24-001: re-read under lock
+                ok = do_transition(
+                    tf, args.target,
+                    force_review_round=args.force_review_round,
+                    force_wip=args.force_wip,
+                    sprints_dir=sprints_dir,
+                    sprint=sprint,
+                )
         sys.exit(0 if ok else 1)
 
     if args.command == "assign":

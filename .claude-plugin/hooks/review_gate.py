@@ -18,6 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from hooks._common import _find_project_root
+
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -26,7 +28,7 @@ from pathlib import Path
 def _get_base_branch() -> str:
     """Read base_branch from project.toml's [project] section, defaulting to 'main'."""
     try:
-        toml_path = Path("sprint-config/project.toml")
+        toml_path = _find_project_root() / "sprint-config" / "project.toml"
         if not toml_path.is_file():
             return "main"
         text = toml_path.read_text(encoding="utf-8")
@@ -159,9 +161,10 @@ def _log_blocked(command: str, reason: str) -> None:
     Only writes if sprint-config/project.toml exists — avoids creating
     sprint-config/ directories in projects that don't use giles.
     """
-    if not Path("sprint-config/project.toml").is_file():
+    root = _find_project_root()
+    if not (root / "sprint-config" / "project.toml").is_file():
         return
-    log_dir = Path("sprint-config/sprints")
+    log_dir = root / "sprint-config" / "sprints"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "hook-audit.log"
     timestamp = datetime.datetime.now().isoformat()
