@@ -276,6 +276,42 @@ class TestVerifyAgentOutput(unittest.TestCase):
         self.assertTrue(passed)
         self.assertIn("VERIFICATION SKIPPED", report)
 
+    def test_successful_verification_bridges_to_commit_gate(self):
+        """BH27-003: Successful verification must update commit_gate state."""
+        from hooks.commit_gate import needs_verification, _state_file
+        sf = _state_file()
+        try:
+            # Write a stale hash so needs_verification() returns True
+            sf.write_text("stale_hash_that_wont_match", encoding="utf-8")
+            self.assertTrue(needs_verification(),
+                            "Pre-condition: stale hash should require verification")
+            report, passed = run_verification(["true"])
+            self.assertTrue(passed)
+            # After successful verification, commit_gate should update hash
+            self.assertFalse(needs_verification(),
+                             "commit_gate should recognize verification from agent output hook")
+        finally:
+            if sf.exists():
+                sf.unlink()
+
+    def test_failed_verification_does_not_bridge(self):
+        """BH27-003: Failed verification must NOT update commit_gate state."""
+        from hooks.commit_gate import needs_verification, _state_file
+        sf = _state_file()
+        try:
+            # Write a stale hash so needs_verification() returns True
+            sf.write_text("stale_hash_that_wont_match", encoding="utf-8")
+            self.assertTrue(needs_verification(),
+                            "Pre-condition: stale hash should require verification")
+            report, passed = run_verification(["false"])
+            self.assertFalse(passed)
+            # Stale hash should remain — verification not recorded
+            self.assertTrue(needs_verification(),
+                            "Failed verification must not clear the stale state")
+        finally:
+            if sf.exists():
+                sf.unlink()
+
     def test_read_toml_key_array(self):
         toml = '[ci]\ncheck_commands = ["pytest", "ruff check ."]\n'
         result = _read_toml_key(toml, "ci", "check_commands")

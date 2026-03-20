@@ -195,6 +195,13 @@ def run_verification(check_commands: list[str],
     n = len(check_commands) + (1 if smoke_command else 0)
     if all_passed:
         header = f"VERIFICATION PASSED: {n} check command(s) confirmed"
+        # BH27-003: Bridge to commit_gate — record that working tree is verified
+        # so the commit gate doesn't block commits after agent verification.
+        try:
+            from hooks.commit_gate import mark_verified
+            mark_verified()
+        except ImportError:
+            pass  # commit_gate not available — skip bridging
     else:
         header = "VERIFICATION FAILED: agent claimed completion but checks failed"
 
