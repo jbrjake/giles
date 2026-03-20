@@ -13,6 +13,9 @@ from smoke_test import run_smoke, write_history
 from gap_scanner import (
     scan_for_gaps, has_user_facing_keywords, get_entry_points,
 )
+from test_categories import (
+    classify_test_file, count_test_functions, analyze, format_report,
+)
 
 
 class TestSmokeTest(unittest.TestCase):
@@ -128,6 +131,85 @@ class TestGapScanner(unittest.TestCase):
     def test_get_entry_points_missing(self):
         config = {"project": {"name": "test"}}
         self.assertEqual(get_entry_points(config), [])
+
+
+class TestTestCategories(unittest.TestCase):
+    """P1-SCRIPT-3: Test category analyzer."""
+
+    def test_classify_unit_by_default(self):
+        self.assertEqual(
+            classify_test_file(Path("tests/test_parser.py")), "unit"
+        )
+
+    def test_classify_integration_by_dir(self):
+        self.assertEqual(
+            classify_test_file(Path("tests/integration/test_api.py")),
+            "integration",
+        )
+
+    def test_classify_e2e_as_integration(self):
+        self.assertEqual(
+            classify_test_file(Path("tests/e2e/test_flow.py")),
+            "integration",
+        )
+
+    def test_classify_smoke_by_dir(self):
+        self.assertEqual(
+            classify_test_file(Path("tests/smoke/test_launch.py")),
+            "smoke",
+        )
+
+    def test_classify_by_name_pattern(self):
+        self.assertEqual(
+            classify_test_file(Path("tests/test_integration_api.py")),
+            "integration",
+        )
+
+    def test_count_python_test_functions(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False
+        ) as f:
+            f.write(textwrap.dedent("""\
+                def test_one():
+                    pass
+                def test_two():
+                    pass
+                def helper():
+                    pass
+            """))
+            f.flush()
+            self.assertEqual(count_test_functions(Path(f.name)), 2)
+
+    def test_warning_zero_integration(self):
+        counts = {"unit": 10, "component": 5, "integration": 0, "smoke": 0}
+        report = format_report(counts)
+        self.assertIn("WARNING", report)
+        self.assertIn("0 integration", report)
+
+    def test_format_report_percentages(self):
+        counts = {"unit": 60, "component": 30, "integration": 10, "smoke": 0}
+        report = format_report(counts)
+        self.assertIn("unit: 60 (60%)", report)
+        self.assertIn("integration: 10 (10%)", report)
+
+    def test_analyze_with_dirs(self):
+        """Analyze correctly categorizes tests in subdirectories."""
+        with tempfile.TemporaryDirectory() as td:
+            # Create unit test
+            unit_dir = Path(td) / "tests"
+            unit_dir.mkdir()
+            (unit_dir / "test_unit.py").write_text(
+                "def test_one(): pass\ndef test_two(): pass\n"
+            )
+            # Create integration test
+            int_dir = Path(td) / "tests" / "integration"
+            int_dir.mkdir()
+            (int_dir / "test_int.py").write_text(
+                "def test_api(): pass\n"
+            )
+            counts = analyze(Path(td))
+            self.assertEqual(counts["unit"], 2)
+            self.assertEqual(counts["integration"], 1)
 
 
 if __name__ == "__main__":
