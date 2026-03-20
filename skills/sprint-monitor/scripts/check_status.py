@@ -257,6 +257,120 @@ def _count_sp(issues: list[dict]) -> tuple[int, int]:
 
 
 
+# -- Smoke check -------------------------------------------------------------
+
+# §check_status.check_smoke
+def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
+    """Run smoke test if configured and report result.
+
+    Includes rate limiting: skips if last smoke check was < 10 minutes ago.
+    Returns (report_lines, action_lines).
+    """
+    import subprocess, json
+    ci = config.get("ci", {})
+    smoke_cmd = ci.get("smoke_command", "")
+    if not smoke_cmd:
+        return [], []  # silently skip when not configured
+
+    # Rate limiting: check smoke history for recent runs
+    history_path = sprints_dir / "smoke-history.md"
+    if history_path.is_file():
+        lines = history_path.read_text(encoding="utf-8").splitlines()
+        if lines:
+            last_line = lines[-1]
+            # Parse date from "| 2026-03-20 14:30 | ..."
+            date_match = re.match(r'\|\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})', last_line)
+            if date_match:
+                try:
+                    last_run = datetime.strptime(date_match.group(1), "%Y-%m-%d %H:%M")
+                    if (datetime.now() - last_run).total_seconds() < 600:
+                        return ["Smoke: skipped (ran < 10 minutes ago)"], []
+                except ValueError:
+                    pass
+
+    # Run smoke test
+    smoke_timeout = int(ci.get("smoke_timeout", 30))
+    try:
+        result = subprocess.run(
+            smoke_cmd, shell=True, capture_output=True, text=True,
+            timeout=smoke_timeout,
+        )
+        if result.returncode == 0:
+            return ["Smoke: PASS"], []
+        else:
+            # Check for regression: was last result a PASS?
+            actions = []
+            if history_path.is_file():
+                text = history_path.read_text(encoding="utf-8")
+                # Find the second-to-last result
+                result_matches = re.findall(r'SMOKE (PASS|FAIL)', text)
+                if result_matches and result_matches[-1] == "PASS":
+                    # Find most recent merged PR
+                    try:
+                        prs = gh_json(["pr", "list", "--state", "merged",
+                                       "--limit", "1", "--json", "number,title"])
+                        if prs and isinstance(prs, list) and prs:
+                            pr = prs[0]
+                            actions.append(
+                                f"INTEGRATION REGRESSION: smoke test failed after "
+                                f"PR #{pr.get('number', '?')} ({pr.get('title', '?')})"
+                            )
+                    except RuntimeError:
+                        actions.append("INTEGRATION REGRESSION: smoke test transitioned PASS → FAIL")
+            stderr = (result.stderr or "").strip()[:200]
+            return [f"Smoke: FAIL — {stderr}"], actions
+    except subprocess.TimeoutExpired:
+        return [f"Smoke: FAIL — timed out after {smoke_timeout}s"], \
+               ["Smoke test timed out"]
+    except Exception as exc:
+        return [f"Smoke: error — {exc}"], []
+
+
+# -- Integration debt --------------------------------------------------------
+
+# §check_status.check_integration_debt
+def check_integration_debt(sprints_dir: Path, sprint_num: int,
+                           ) -> tuple[list[str], list[str]]:
+    """Check integration debt: sprints since last smoke pass.
+
+    Returns (report_lines, action_lines). HIGH severity when debt > 2.
+    """
+    history_path = sprints_dir / "smoke-history.md"
+    if not history_path.is_file():
+        return ["Integration Debt: unknown (no smoke history)"], []
+
+    text = history_path.read_text(encoding="utf-8")
+    if "SMOKE PASS" not in text:
+        return ["Integration Debt: unknown (no smoke pass on record)"], \
+               ["HIGH: no smoke test has ever passed"]
+
+    # Find the most recent SMOKE PASS line and its date
+    pass_lines = [l for l in text.splitlines() if "SMOKE PASS" in l]
+    if not pass_lines:
+        return ["Integration Debt: unknown"], []
+
+    # Estimate sprints since last pass by date proximity
+    last_pass = pass_lines[-1]
+    date_match = re.match(r'\|\s*(\d{4}-\d{2}-\d{2})', last_pass)
+    if not date_match:
+        return ["Integration Debt: unknown (unparseable date)"], []
+
+    # Simple heuristic: count by weeks (assuming ~1 sprint per 1-2 weeks)
+    try:
+        pass_date = datetime.strptime(date_match.group(1), "%Y-%m-%d")
+        days_since = (datetime.now() - pass_date).days
+        debt = max(0, days_since // 14)  # rough: 2-week sprints
+    except ValueError:
+        debt = 0
+
+    report = [f"Integration Debt: {debt} sprints"]
+    actions = []
+    if debt > 2:
+        actions.append(f"HIGH: integration debt is {debt} sprints — "
+                       "the product hasn't been verified to work recently")
+    return report, actions
+
+
 # -- Drift detection ---------------------------------------------------------
 
 # §check_status.check_branch_divergence
@@ -440,13 +554,15 @@ def main() -> None:
             "Drift: milestone date unavailable, checking last 14 days"
         )
 
-    # Steps 1, 1.5, 2, 2.5, 3: CI → drift → PRs → direct pushes → milestone
+    # Steps 1–4: CI → smoke → drift → PRs → direct pushes → milestone → debt
     checks = [
         check_ci,
+        lambda: check_smoke(config, sprints_dir),
         lambda: check_branch_divergence(repo, base_branch, sprint_branches),
         check_prs,
         lambda: check_direct_pushes(repo, base_branch, since),
         lambda: check_milestone(sprint_num, _ms=cached_ms),
+        lambda: check_integration_debt(sprints_dir, sprint_num),
     ]
     for fn in checks:
         try:

@@ -20,6 +20,8 @@
 
 | Story | Status | Assignee | PR |
 |-------|--------|----------|----|
+
+## Integration Debt: 0 sprints
 ```
 
 <!-- §tracking-formats.story_file_yaml_frontmatter -->
