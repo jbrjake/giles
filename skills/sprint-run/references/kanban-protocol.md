@@ -87,19 +87,26 @@ Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
 
-> **Note:** WIP limits are behavioral guidelines for the LLM, not programmatic
-> constraints. No code enforces these limits — they rely on the AI personas
-> self-regulating during sprint execution.
+> **Note:** The dev WIP limit (1 per persona) is enforced by
+> `kanban.py check_wip_limit()`. Review and integration limits remain
+> behavioral guidelines. Use `--force-wip` to override when justified.
 
-| State | Scope | Max stories |
-|---|---|---|
-| design | whole team | No limit |
-| dev | per persona | 1 |
-| review | per reviewer | 2 |
-| integration | whole team | 3 |
+| State | Scope | Max stories | Enforcement |
+|---|---|---|---|
+| design | whole team | No limit | — |
+| dev | per persona | 1 | Code (`check_wip_limit`) |
+| review | per reviewer | 2 | Behavioral |
+| integration | whole team | 3 | Behavioral |
 
 If a WIP limit is reached, the team must pull stories through the bottleneck
 before starting new work.
+
+### Review Round Escalation
+
+After 3 `review → dev` cycles on a single story, `kanban.py` blocks further
+transitions and recommends escalation to the user. This indicates a possible
+design issue that review feedback alone isn't resolving.
+Use `--force-review-round` to override after explicit discussion.
 
 <!-- §kanban-protocol.blocked_stories -->
 ## Blocked Stories
