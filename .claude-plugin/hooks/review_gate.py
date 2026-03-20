@@ -91,8 +91,9 @@ def check_merge(command: str, *, base: str = "main",
 def check_push(command: str, *, base: str = "main") -> str:
     """Check whether a ``git push`` targets the base branch.
 
-    Returns ``'blocked'`` for direct pushes to *base*, ``'allowed'``
-    otherwise.
+    Returns ``'blocked'`` for direct pushes to *base*, ``'warn'`` for
+    bare ``git push`` (could push to base if upstream is set),
+    ``'allowed'`` otherwise.
     """
     parts = command.split()
     if len(parts) < 2 or parts[0] != "git" or parts[1] != "push":
@@ -119,6 +120,11 @@ def check_push(command: str, *, base: str = "main") -> str:
             continue
         positional.append(part)
         i += 1
+
+    # Bare "git push" with no remote or refspec — could push to base branch
+    # if current branch tracks origin/base. Warn rather than silently allow.
+    if not positional:
+        return "warn"
 
     # positional[0] = remote, positional[1:] = refspecs
     if len(positional) >= 2:
@@ -185,6 +191,13 @@ def main() -> None:
             _log_blocked(command, reason)
             print(reason)
             sys.exit(2)
+        if result == "warn":
+            print(
+                f"Warning: bare 'git push' may push to {base} if the "
+                f"current branch tracks origin/{base}. "
+                f"Specify a remote and branch explicitly."
+            )
+            # Don't block — just warn. The user might be on a feature branch.
 
     sys.exit(0)
 

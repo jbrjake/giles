@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import (
     load_config, ConfigError, get_sprints_dir, detect_sprint, read_tf, write_tf,
 )
+from kanban import lock_story
 
 _APP_KEYWORDS = re.compile(
     r'\b(visible|display|launch|screen|render|user|window|UI|app|'
@@ -46,8 +47,11 @@ def assign_levels(sprints_dir: str, sprint: int) -> dict[str, int]:
         counts[level] += 1
         # Write level to body if not already present
         if "dod_level:" not in tf.body_text:
-            tf.body_text = tf.body_text.rstrip() + f"\n\ndod_level: {level}\n"
-            write_tf(tf)
+            with lock_story(md_file):
+                tf = read_tf(md_file)  # re-read under lock
+                if "dod_level:" not in tf.body_text:
+                    tf.body_text = tf.body_text.rstrip() + f"\n\ndod_level: {level}\n"
+                    write_tf(tf)
 
     return counts
 

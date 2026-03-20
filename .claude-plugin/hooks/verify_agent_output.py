@@ -24,23 +24,32 @@ from pathlib import Path
 def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
     """Extract a key from a TOML section.  Minimal parser for hook use."""
     in_section = False
-    for line in text.splitlines():
-        stripped = line.strip()
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
         if stripped.startswith("["):
             in_section = stripped == f"[{section}]"
+            i += 1
             continue
         if not in_section:
+            i += 1
             continue
         m = re.match(rf'{key}\s*=\s*(.*)', stripped)
         if m:
             val = m.group(1).strip()
             if val.startswith("["):
-                # Parse simple array of strings
-                items = re.findall(r'"([^"]*)"', val)
+                # Collect multi-line array: accumulate until closing ]
+                array_text = val
+                while "]" not in array_text and i + 1 < len(lines):
+                    i += 1
+                    array_text += " " + lines[i].strip()
+                items = re.findall(r'"([^"]*)"', array_text)
                 return items
             if val.startswith('"') and val.endswith('"'):
                 return val[1:-1]
             return val
+        i += 1
     return None
 
 

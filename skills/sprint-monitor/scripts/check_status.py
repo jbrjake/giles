@@ -12,7 +12,9 @@ Exit: 0 = no action needed, 1 = action needed, 2 = usage error.
 """
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import sys
 import traceback
 from datetime import datetime, timedelta, timezone
@@ -266,7 +268,6 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
     Includes rate limiting: skips if last smoke check was < 10 minutes ago.
     Returns (report_lines, action_lines).
     """
-    import subprocess, json
     ci = config.get("ci", {})
     smoke_cmd = ci.get("smoke_command", "")
     if not smoke_cmd:

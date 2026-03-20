@@ -17,6 +17,7 @@ import os
 import re
 import sys
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 import argparse
 from typing import Generator
@@ -272,7 +273,6 @@ def check_wip_limit(tf: TF, target: str, sprints_dir: Path, sprint: int,
 # §kanban._count_review_rounds
 def _count_review_rounds(body_text: str) -> int:
     """Count review → dev transitions in the transition log."""
-    import re
     return len(re.findall(r"review → dev", body_text))
 
 
@@ -331,7 +331,6 @@ def do_transition(tf: TF, target: str, *,
         return False
     # Update local state and append transition log
     tf.status = target
-    from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
     log_entry = f"- {timestamp}: {old_status} → {target}"
     if tf.body_text and "## Transition Log" in tf.body_text:

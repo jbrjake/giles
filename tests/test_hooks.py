@@ -105,6 +105,11 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push origin", base="main")
         self.assertEqual(result, "allowed")
 
+    def test_bare_push_warns(self):
+        """BH25-004: git push with no args should return 'warn' — could push to base."""
+        result = check_push("git push", base="main")
+        self.assertEqual(result, "warn")
+
     def test_block_message_contains_pr_and_base(self):
         """Block message would contain PR and base branch name.
 
@@ -158,6 +163,18 @@ class TestVerifyAgentOutput(unittest.TestCase):
         toml = '[ci]\ncheck_commands = ["pytest", "ruff check ."]\n'
         result = _read_toml_key(toml, "ci", "check_commands")
         self.assertEqual(result, ["pytest", "ruff check ."])
+
+    def test_read_toml_key_multiline_array(self):
+        """BH25-002: Multi-line arrays must be parsed correctly."""
+        toml = (
+            '[ci]\n'
+            'check_commands = [\n'
+            '    "python -m pytest tests/",\n'
+            '    "ruff check .",\n'
+            ']\n'
+        )
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["python -m pytest tests/", "ruff check ."])
 
     def test_read_toml_key_string(self):
         toml = '[ci]\nsmoke_command = "python -m myapp --health"\n'
