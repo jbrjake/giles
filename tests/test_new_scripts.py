@@ -95,6 +95,8 @@ class TestGapScanner(unittest.TestCase):
             }
             report, code = scan_for_gaps(config, 1)
             self.assertIn("GAP DETECTED", report)
+            self.assertIn("5 stories", report)
+            self.assertIn("src/main.py", report)
             self.assertEqual(code, 1)
 
     def test_no_gap_when_story_touches_entry_point(self):
@@ -193,6 +195,12 @@ class TestTestCategories(unittest.TestCase):
         report = format_report(counts)
         self.assertIn("unit: 60 (60%)", report)
         self.assertIn("integration: 10 (10%)", report)
+
+    def test_format_report_zero_tests(self):
+        """M2: Edge case — no tests found produces specific message."""
+        counts = {"unit": 0, "component": 0, "integration": 0, "smoke": 0}
+        report = format_report(counts)
+        self.assertEqual(report, "No tests found")
 
     def test_analyze_with_dirs(self):
         """Analyze correctly categorizes tests in subdirectories."""
@@ -305,20 +313,34 @@ class TestAssignDodLevel(unittest.TestCase):
             classify_story("internal details", title="Add visible indicator"), "app"
         )
 
+    def test_word_boundary_username_is_library(self):
+        """H4: 'username' should not trigger 'user' keyword."""
+        self.assertEqual(classify_story("validate username field"), "library")
+
+    def test_case_insensitive_UI(self):
+        """H4: Case-insensitive matching for 'UI'."""
+        self.assertEqual(classify_story("update UI layout"), "app")
+
+    def test_displaying_is_app(self):
+        """'display' keyword with word boundary."""
+        self.assertEqual(classify_story("display the results"), "app")
+
 
 class TestHistoryToChecklist(unittest.TestCase):
     """P2-STATE-6: Persona history → review checklist generator."""
 
     def test_extract_from_history(self):
-        """Given history with bug pattern, generates checklist item."""
+        """Given history with 2 bug-keyword lines, generates 2 items."""
         history = (
             "### Sprint 1 — feature\n"
             "Caught ARC callback violation in audio capture pipeline.\n"
             "Fixed the memory leak in buffer management.\n"
         )
         items = extract_checklist_items(history, "sana")
-        self.assertTrue(len(items) >= 1)
-        self.assertTrue(any("sana" in i for i in items))
+        self.assertEqual(len(items), 2, f"Expected 2 items, got {items}")
+        self.assertTrue(all("sana" in i for i in items))
+        self.assertTrue(any("ARC callback" in i for i in items))
+        self.assertTrue(any("memory leak" in i for i in items))
 
     def test_empty_history(self):
         """Empty history produces no items."""

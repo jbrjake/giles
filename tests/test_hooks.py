@@ -430,8 +430,44 @@ class TestCommitGate(unittest.TestCase):
         self.assertTrue(_matches_check_command("cargo test"))
         self.assertTrue(_matches_check_command("npm test"))
         self.assertTrue(_matches_check_command("ruff check ."))
+        self.assertTrue(_matches_check_command("make test"))
+        self.assertTrue(_matches_check_command("bazel test //..."))
         self.assertFalse(_matches_check_command("git status"))
         self.assertFalse(_matches_check_command("echo hello"))
+
+    def test_mark_verified_then_commit_allowed(self):
+        """H3: Test the actual state machine, not just _state_override."""
+        from hooks.commit_gate import mark_verified, needs_verification, _state_file
+        sf = _state_file()
+        # Clean up any leftover state
+        if sf.exists():
+            sf.unlink()
+        try:
+            # After mark_verified, the hash is recorded and commit is allowed
+            # (working tree hasn't changed since mark)
+            mark_verified()
+            self.assertFalse(needs_verification(),
+                             "Working tree should match the hash we just recorded")
+            result = check_commit_allowed("git commit -m 'fix'")
+            self.assertEqual(result, "allowed")
+        finally:
+            if sf.exists():
+                sf.unlink()
+
+    def test_stale_hash_blocks_commit(self):
+        """Commit is blocked when state file hash doesn't match working tree."""
+        from hooks.commit_gate import needs_verification, _state_file
+        sf = _state_file()
+        try:
+            # Write a stale hash that doesn't match current working tree
+            sf.write_text("stale_hash_that_wont_match", encoding="utf-8")
+            self.assertTrue(needs_verification(),
+                            "Stale hash should trigger needs_verification")
+            result = check_commit_allowed("git commit -m 'fix'")
+            self.assertEqual(result, "blocked")
+        finally:
+            if sf.exists():
+                sf.unlink()
 
 
 class TestUpdateTrackingVerification(unittest.TestCase):
