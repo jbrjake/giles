@@ -2063,10 +2063,16 @@ class TestTeardownDryRunOutput(unittest.TestCase):
             directories = sprint_teardown.collect_directories(config_dir)
 
             self.assertEqual(len(unknown), 1)
+            # BH37-033: Capture output and verify unknown file is reported
+            buf = io.StringIO()
             with patch.object(sprint_teardown, "check_active_loops", return_value=[]):
-                sprint_teardown.print_dry_run(
-                    config_dir, root, symlinks, generated, unknown, directories,
-                )
+                with patch("sys.stdout", buf):
+                    sprint_teardown.print_dry_run(
+                        config_dir, root, symlinks, generated, unknown, directories,
+                    )
+            output = buf.getvalue()
+            self.assertIn("mystery.txt", output,
+                          "print_dry_run should report unknown files in output")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 

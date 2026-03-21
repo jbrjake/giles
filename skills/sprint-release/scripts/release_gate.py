@@ -128,6 +128,9 @@ def calculate_version() -> tuple[str, str, str, list[dict]]:
     commits = parse_commits_since(tag)
     if not commits:
         return base, base, "none", commits
+    # BH37-028: First release uses base version without bumping
+    if not tag:
+        return base, base, "initial", commits
     bump_type = determine_bump(commits)
     new_version = bump_version(base, bump_type)
     return new_version, base, bump_type, commits
@@ -247,7 +250,8 @@ def gate_build(config: dict) -> tuple[bool, str]:
     if r.returncode != 0:
         return False, f"Build failed (exit {r.returncode})"
     binary = config.get("ci", {}).get("binary_path", "")
-    if binary and not Path(binary).exists():
+    # BH37-029: Guard against unquoted TOML numerics parsed as int
+    if binary and not Path(str(binary)).exists():
         return False, f"Binary not found at {binary}"
     return True, "Build succeeded"
 
@@ -663,8 +667,8 @@ def do_release(
                 "--notes-file", str(notes_path),
             ]
             binary = config.get("ci", {}).get("binary_path", "")
-            if binary and Path(binary).exists():
-                release_args.append(binary)
+            if binary and Path(str(binary)).exists():
+                release_args.append(str(binary))
             try:
                 gh(release_args)
             except RuntimeError as exc:

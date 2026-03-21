@@ -485,6 +485,42 @@ class TestTransitionCommand(unittest.TestCase):
             # The caller's tf.status must be restored to "todo" even on double fault
             self.assertEqual(tf.status, "todo")
 
+    def test_transition_double_fault_disk_state(self):
+        """BH37-008: Double-fault with real forward write — verify disk AND memory.
+
+        The existing double-fault test mocks all atomic_write_tf calls, so it
+        only tests in-memory restoration. This complementary test lets the
+        forward write happen for real and only fails the rollback write,
+        proving that:
+        - The forward write persists ("design" on disk)
+        - The rollback write fails (OSError)
+        - The in-memory tf.status is still restored to "todo"
+        """
+        from unittest.mock import patch as _patch
+        import kanban as _kanban_mod
+        real_write = _kanban_mod.atomic_write_tf
+        call_count = [0]
+
+        def write_then_fail(tf_arg):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return real_write(tf_arg)  # real forward write
+            raise OSError("disk full")     # rollback fails
+
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(td)
+            with patch_gh("kanban.gh", side_effect=RuntimeError("API error")) as mock:
+                with _patch("kanban.atomic_write_tf", side_effect=write_then_fail):
+                    result = do_transition(tf, "design")
+                _ = mock.call_args  # satisfy MonitoredMock inspection
+            self.assertFalse(result)
+            # In-memory: restored to "todo"
+            self.assertEqual(tf.status, "todo")
+            # On disk: forward write persisted as "design" (rollback failed)
+            loaded = read_tf(tf.path)
+            self.assertEqual(loaded.status, "design",
+                             "Forward write should persist when rollback fails")
+
     def test_transition_to_done_closes_issue(self):
         """Transitioning to done calls both label swap and issue close."""
         with tempfile.TemporaryDirectory() as td:

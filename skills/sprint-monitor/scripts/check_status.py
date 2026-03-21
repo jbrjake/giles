@@ -283,7 +283,7 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
         if lines:
             last_line = lines[-1]
             # Parse date from "| 2026-03-20 14:30 | ..."
-            date_match = re.match(r'\|\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})', last_line)
+            date_match = re.match(r'\|\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})Z?', last_line)
             if date_match:
                 try:
                     last_run = datetime.strptime(date_match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)

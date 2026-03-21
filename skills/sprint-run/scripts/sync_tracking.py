@@ -27,8 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
 from validate_config import (
     load_config, ConfigError, gh_json, extract_story_id, get_sprints_dir,
-    kanban_from_labels, find_milestone,
-    list_milestone_issues, parse_iso_date, short_title, KANBAN_STATES,
+    kanban_from_labels, find_milestone, list_milestone_issues,
+    parse_iso_date, short_title, KANBAN_STATES,
     warn_if_at_limit, TF, read_tf, write_tf, _yaml_safe, slug_from_title,  # noqa: F401 — re-exported for tests
 )
 from kanban import lock_sprint, atomic_write_tf, append_transition_log  # BH24-002, BH27

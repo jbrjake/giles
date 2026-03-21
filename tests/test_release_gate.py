@@ -50,8 +50,9 @@ class TestCalculateVersion(unittest.TestCase):
         ]
         new_ver, base_ver, bump, commits = calculate_version()
         self.assertEqual(base_ver, "0.1.0")
-        self.assertEqual(bump, "minor")
-        self.assertEqual(new_ver, "0.2.0")
+        # BH37-028: First release uses base version without bumping
+        self.assertEqual(bump, "initial")
+        self.assertEqual(new_ver, "0.1.0")
 
     @patch("release_gate.parse_commits_since")
     @patch("release_gate.find_latest_semver_tag")

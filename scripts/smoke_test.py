@@ -61,7 +61,7 @@ def write_history(sprints_dir: str, status: str, command: str,
                   stdout: str = "", stderr: str = "") -> None:
     """Append a smoke result to smoke-history.md."""
     history_path = Path(sprints_dir) / "smoke-history.md"
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%MZ")
 
     # Get current git commit hash
     commit = "unknown"
