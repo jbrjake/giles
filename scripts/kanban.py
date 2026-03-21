@@ -337,6 +337,10 @@ def do_transition(tf: TF, target: str, *,
     When *force_review_round* is True, bypasses the review round escalation
     limit (P1-KANBAN-2).  When *force_wip* is True, bypasses the WIP limit
     check (P1-KANBAN-3).
+
+    Note: On partial failure, label changes already applied to the GitHub
+    issue may persist even after local rollback.  Run ``kanban.py sync``
+    to reconcile state if this happens.
     """
     err = validate_transition(tf.status, target)
     if err:
@@ -387,11 +391,17 @@ def do_transition(tf: TF, target: str, *,
     atomic_write_tf(tf)
     # Sync to GitHub
     try:
+        # BH28-001: For done transitions, close the issue first. This is the
+        # critical irreversible operation. If close succeeds but label swap
+        # fails, the issue is correctly closed and the label is cosmetic
+        # (next sync will fix it). If we swapped labels first and close
+        # failed, the kanban:done label would be left on an open issue,
+        # causing the next sync to incorrectly accept the transition.
+        if target == "done":
+            gh(["issue", "close", issue_num])
         gh(["issue", "edit", issue_num,
             "--remove-label", f"kanban:{old_status}",
             "--add-label", f"kanban:{target}"])
-        if target == "done":
-            gh(["issue", "close", issue_num])
         print(f"{tf.story}: {old_status} → {target}")
         return True
     except RuntimeError as exc:

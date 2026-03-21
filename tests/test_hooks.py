@@ -658,6 +658,108 @@ class TestPostToolUseVerification(unittest.TestCase):
         self.assertFalse(needs_verification())
 
 
+class TestHookMainEntryPoints(unittest.TestCase):
+    """BH28-002: End-to-end tests for hook main() functions."""
+
+    def test_commit_gate_main_blocks_with_stale_hash(self):
+        """commit_gate.main() blocks commit when verification state is stale."""
+        import io
+        from hooks.commit_gate import _state_file
+        sf = _state_file()
+        try:
+            sf.write_text("stale_hash_wont_match", encoding="utf-8")
+            stdin_data = '{"tool_input": {"command": "git commit -m \\"fix\\""}}'
+            from unittest.mock import patch as _patch
+            with _patch("sys.stdin", io.StringIO(stdin_data)):
+                from hooks.commit_gate import main as commit_main
+                with self.assertRaises(SystemExit) as ctx:
+                    commit_main()
+                self.assertEqual(ctx.exception.code, 2)
+        finally:
+            if sf.exists():
+                sf.unlink()
+
+    def test_commit_gate_main_allows_non_commit(self):
+        """commit_gate.main() allows non-commit commands."""
+        import io
+        stdin_data = '{"tool_input": {"command": "git status"}}'
+        from unittest.mock import patch as _patch
+        with _patch("sys.stdin", io.StringIO(stdin_data)):
+            from hooks.commit_gate import main as commit_main
+            with self.assertRaises(SystemExit) as ctx:
+                commit_main()
+            self.assertEqual(ctx.exception.code, 0)
+
+    def test_commit_gate_post_main_records_on_success(self):
+        """commit_gate.post_main() records verification on exit code 0."""
+        import io
+        from hooks.commit_gate import _state_file, needs_verification
+        sf = _state_file()
+        try:
+            sf.write_text("stale_hash", encoding="utf-8")
+            stdin_data = '{"tool_input": {"command": "pytest tests/"}, "tool_output": {"exit_code": 0}}'
+            from unittest.mock import patch as _patch
+            with _patch("sys.stdin", io.StringIO(stdin_data)):
+                from hooks.commit_gate import post_main
+                with self.assertRaises(SystemExit) as ctx:
+                    post_main()
+                self.assertEqual(ctx.exception.code, 0)
+            self.assertFalse(needs_verification())
+        finally:
+            if sf.exists():
+                sf.unlink()
+
+    def test_review_gate_main_blocks_push_to_base(self):
+        """review_gate.main() blocks direct push to base branch."""
+        import io, os, tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                stdin_data = '{"tool_input": {"command": "git push origin main"}}'
+                from unittest.mock import patch as _patch
+                with _patch("sys.stdin", io.StringIO(stdin_data)):
+                    from hooks.review_gate import main as review_main
+                    with self.assertRaises(SystemExit) as ctx:
+                        review_main()
+                    self.assertEqual(ctx.exception.code, 2)
+            finally:
+                os.chdir(orig)
+
+
+class TestSessionIdConsistency(unittest.TestCase):
+    """BH28-003: State file path must be consistent across hook invocations."""
+
+    def test_state_file_consistent_without_session_id(self):
+        """Without CLAUDE_SESSION_ID, both hooks use 'default' fallback."""
+        import os
+        from hooks.commit_gate import _state_file
+        orig = os.environ.pop("CLAUDE_SESSION_ID", None)
+        try:
+            path1 = _state_file()
+            path2 = _state_file()
+            self.assertEqual(path1, path2)
+            self.assertIn("default", str(path1))
+        finally:
+            if orig is not None:
+                os.environ["CLAUDE_SESSION_ID"] = orig
+
+    def test_state_file_consistent_with_session_id(self):
+        """With CLAUDE_SESSION_ID set, path includes the session ID."""
+        import os
+        from hooks.commit_gate import _state_file
+        orig = os.environ.get("CLAUDE_SESSION_ID")
+        try:
+            os.environ["CLAUDE_SESSION_ID"] = "test-session-42"
+            path = _state_file()
+            self.assertIn("test-session-42", str(path))
+        finally:
+            if orig is None:
+                os.environ.pop("CLAUDE_SESSION_ID", None)
+            else:
+                os.environ["CLAUDE_SESSION_ID"] = orig
+
+
 class TestUpdateTrackingVerification(unittest.TestCase):
     """BH25-014: update_tracking_verification writes to YAML frontmatter."""
 

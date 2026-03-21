@@ -509,6 +509,61 @@ class TestTransitionCommand(unittest.TestCase):
                 self.assertTrue(close_calls, "gh issue close must be called for done")
 
 
+    def test_done_transition_closes_before_label_swap(self):
+        """BH28-001: Close must happen before label swap to prevent stale labels."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(
+                td, status="integration", pr_number="99",
+                implementer="rae", reviewer="chen",
+            )
+            call_order = []
+
+            def track_gh(args):
+                args_list = list(args)
+                if "close" in args_list:
+                    call_order.append("close")
+                elif "--add-label" in args_list:
+                    call_order.append("label")
+                return ""
+
+            with patch_gh("kanban.gh", side_effect=track_gh) as mock:
+                result = do_transition(tf, "done")
+                _ = mock.call_args
+            self.assertTrue(result)
+            # Close must come before label swap
+            self.assertIn("close", call_order)
+            self.assertIn("label", call_order)
+            close_idx = call_order.index("close")
+            label_idx = call_order.index("label")
+            self.assertLess(close_idx, label_idx,
+                            f"Close ({close_idx}) must happen before label swap ({label_idx})")
+
+    def test_done_close_failure_no_stale_label(self):
+        """BH28-001: If close fails, label must not be left as kanban:done."""
+        with tempfile.TemporaryDirectory() as td:
+            tf = self._make_tf(
+                td, status="integration", pr_number="99",
+                implementer="rae", reviewer="chen",
+            )
+            labels_applied = []
+
+            def selective_gh(args):
+                args_list = list(args)
+                if "close" in args_list:
+                    raise RuntimeError("close failed")
+                if "--add-label" in args_list:
+                    labels_applied.append([a for a in args_list if a.startswith("kanban:")])
+                return ""
+
+            with patch_gh("kanban.gh", side_effect=selective_gh) as mock:
+                result = do_transition(tf, "done")
+                _ = mock.call_args
+            self.assertFalse(result)
+            # kanban:done label should never have been applied
+            done_labels = [l for batch in labels_applied for l in batch if "done" in l]
+            self.assertEqual(done_labels, [],
+                             "kanban:done label must not be applied if close fails")
+
     # BH23-103: Test additional transition paths
     def test_transition_design_to_dev(self):
         """design→dev requires branch + pr_number set."""
