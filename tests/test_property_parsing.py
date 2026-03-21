@@ -17,7 +17,6 @@ import re
 import tempfile
 from pathlib import Path
 
-import pytest
 from hypothesis import given, assume, settings, example
 from hypothesis import strategies as st
 

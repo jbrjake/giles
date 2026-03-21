@@ -16,7 +16,6 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from hooks._common import _find_project_root
 

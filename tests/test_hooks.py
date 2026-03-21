@@ -828,7 +828,6 @@ class TestPostToolUseVerification(unittest.TestCase):
 
     def test_failed_check_command_does_not_mark_verified(self):
         """BH27-001: Exit code non-zero must NOT mark as verified."""
-        from hooks.commit_gate import needs_verification, _has_staged_source_files
         handle_post_tool_use("pytest tests/", exit_code=1)
         # State file should not exist — verification not recorded
         self.assertFalse(self.sf.exists())
@@ -900,7 +899,9 @@ class TestHookMainEntryPoints(unittest.TestCase):
 
     def test_review_gate_main_blocks_push_to_base(self):
         """review_gate.main() blocks direct push to base branch."""
-        import io, os, tempfile
+        import io
+        import os
+        import tempfile
         with tempfile.TemporaryDirectory() as td:
             orig = os.getcwd()
             try:

@@ -24,7 +24,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from validate_config import parse_simple_toml, validate_project
 from sprint_init import ProjectScanner, ConfigGenerator
-from commit import validate_message, check_atomicity
 from fake_github import FakeGitHub, make_patched_subprocess
 from mock_project import MockProject
 
@@ -187,7 +186,7 @@ class TestLifecycle(unittest.TestCase):
                 f"format_issue_body() may not be called",
             )
             self.assertIn("Story", iss["body"],
-                          f"Issue body should contain '## Story' section")
+                          "Issue body should contain '## Story' section")
 
     # -- Test 07: idempotent issue creation ----------------------------------
 
@@ -271,7 +270,7 @@ class TestLifecycle(unittest.TestCase):
 
     def test_10_version_written_to_toml(self):
         """write_version_to_toml updates project.toml correctly."""
-        config = self._generate_config()
+        self._generate_config()
         toml_path = self.root / "sprint-config" / "project.toml"
         write_version_to_toml("0.2.0", toml_path)
 
@@ -332,7 +331,7 @@ class TestLifecycle(unittest.TestCase):
         """P6-08: sync_tracking → update_burndown → check_status pipeline."""
         from datetime import datetime, timezone
 
-        config = self._generate_config()
+        self._generate_config()
         sprints_dir = self.root / "sprints"
         sprints_dir.mkdir(exist_ok=True)
 
@@ -473,7 +472,7 @@ class TestLifecycle(unittest.TestCase):
 
     def test_16_missing_config_key_raises_error(self):
         """BH24-042: validate_project detects missing required TOML key."""
-        config = self._generate_config()
+        self._generate_config()
         toml_path = self.root / "sprint-config" / "project.toml"
 
         # Remove a required key by rewriting the TOML without project.repo

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import sys
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 
@@ -76,11 +75,9 @@ class TestTrackingFileIO(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 from kanban import (  # noqa: E402 — conftest.py puts scripts/ on sys.path
-    TRANSITIONS,
     validate_transition,
     check_preconditions,
     atomic_write_tf,
-    _UPDATABLE_FIELDS,
     lock_story,
     lock_sprint,
     find_story,
@@ -1156,7 +1153,7 @@ class TestSyncCommand(unittest.TestCase):
             issues = [{"number": 47, "title": "US-0047: Feature C",
                        "state": "closed", "labels": [],
                        "closedAt": "2026-03-18T00:00:00Z"}]
-            changes = do_sync(sprints_dir, 1, issues)
+            do_sync(sprints_dir, 1, issues)
             result = find_story("US-0047", sprints_dir, 1)
             self.assertEqual(result.status, "done")
 
@@ -1169,7 +1166,7 @@ class TestSyncCommand(unittest.TestCase):
                        "state": "closed",
                        "labels": [{"name": "kanban:dev"}],
                        "closedAt": "2026-03-18T00:00:00Z"}]
-            changes = do_sync(sprints_dir, 1, issues)
+            do_sync(sprints_dir, 1, issues)
             result = find_story("US-0048", sprints_dir, 1)
             self.assertEqual(result.status, "done")
 

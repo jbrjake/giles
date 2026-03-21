@@ -27,7 +27,7 @@ REPO_ROOT = TESTS_DIR.parent
 FIXTURE_DIR = TESTS_DIR / "fixtures" / "hexwise"
 
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
-from validate_config import parse_simple_toml, validate_project, get_milestones  # noqa: E402
+from validate_config import parse_simple_toml, validate_project  # noqa: E402
 from sprint_init import ProjectScanner, ConfigGenerator  # noqa: E402
 
 sys.path.insert(0, str(REPO_ROOT / "skills" / "sprint-setup" / "scripts"))

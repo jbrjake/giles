@@ -139,7 +139,6 @@ class TestFindAnchorRefs(unittest.TestCase):
         self.assertEqual(refs[0], ("foo.bar", 2))
 
 
-import os
 
 from validate_anchors import check_anchors
 

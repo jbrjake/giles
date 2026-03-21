@@ -346,7 +346,7 @@ class TestRiskRegister(unittest.TestCase):
 
     def test_pipe_roundtrip(self):
         """DA-021/022: Pipes in title and resolution survive add→resolve→list."""
-        from risk_register import add_risk, resolve_risk, list_open_risks, _parse_rows, _register_path
+        from risk_register import add_risk, resolve_risk, _parse_rows, _register_path
         add_risk("Risk A | Risk B", "high", "1")
         # Title should be escaped in file but readable via _parse_rows
         rows = _parse_rows(_register_path().read_text())

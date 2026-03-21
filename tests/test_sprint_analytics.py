@@ -9,7 +9,6 @@ Run: python -m unittest tests.test_sprint_analytics -v
 from __future__ import annotations
 
 import io
-import json
 import os
 import subprocess
 import tempfile

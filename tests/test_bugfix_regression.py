@@ -16,7 +16,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -638,7 +637,7 @@ class TestCheckStatusMainIntegration(unittest.TestCase):
             patch("sys.stdout", new_callable=io.StringIO) as mock_out,
         ):
             # main() calls sys.exit(0) when no actions needed or sys.exit(1) when actions
-            with self.assertRaises(SystemExit) as ctx:
+            with self.assertRaises(SystemExit):
                 check_status.main()
 
         output = mock_out.getvalue()
@@ -902,7 +901,7 @@ class TestPatchGhHelper(unittest.TestCase):
     def test_warns_when_call_args_not_checked(self):
         """patch_gh warns if mock was called but call_args never inspected."""
         with self.assertWarns(UserWarning) as cm:
-            with patch_gh("release_gate.gh_json", return_value=[]) as mock:
+            with patch_gh("release_gate.gh_json", return_value=[]) as _mock:
                 # Call the mock but don't inspect call_args
                 gate_prs("Sprint 1")
         self.assertIn("call_args was never inspected", str(cm.warning))

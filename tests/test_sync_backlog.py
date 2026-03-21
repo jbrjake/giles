@@ -2,7 +2,6 @@
 """Tests for sync_backlog.py — backlog auto-sync engine."""
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -267,7 +266,7 @@ class TestMain(unittest.TestCase):
         """First invocation with no prior state detects change and debounces."""
         fake_gh = FakeGitHub()
         with tempfile.TemporaryDirectory() as td:
-            config_dir = self._setup_project(td)
+            self._setup_project(td)
             import os
             old_cwd = os.getcwd()
             try:
@@ -284,7 +283,7 @@ class TestMain(unittest.TestCase):
         """Second invocation (stable files) performs the sync."""
         fake_gh = FakeGitHub()
         with tempfile.TemporaryDirectory() as td:
-            config_dir = self._setup_project(td)
+            self._setup_project(td)
             import os
             old_cwd = os.getcwd()
             try:
@@ -301,7 +300,7 @@ class TestMain(unittest.TestCase):
         """After sync, if nothing changed, report no_changes."""
         fake_gh = FakeGitHub()
         with tempfile.TemporaryDirectory() as td:
-            config_dir = self._setup_project(td)
+            self._setup_project(td)
             import os
             old_cwd = os.getcwd()
             try:

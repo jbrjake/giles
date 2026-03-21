@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -1450,8 +1450,6 @@ class TestDoReleaseIntegration(unittest.TestCase):
         Only calculate_version and write_version_to_toml run un-mocked.
         do_release still needs subprocess mocking for git tag/push/commit.
         """
-        fake_gh = self.fake
-
         # Step 1: calculate_version with real git (no mock)
         version, base, bump, commits = calculate_version()
         self.assertEqual(base, "1.0.0")
@@ -1477,8 +1475,6 @@ class TestDoReleaseIntegration(unittest.TestCase):
 
         toml_path = Path(self.tmpdir) / "sprint-config" / "project.toml"
         original_toml = toml_path.read_text(encoding="utf-8")
-
-        call_count = [0]
 
         def _failing_commit_run(cmd, **kwargs):
             if isinstance(cmd, list) and cmd and cmd[0] == "gh":
@@ -1661,7 +1657,7 @@ class TestDoReleaseDryRunIntegration(unittest.TestCase):
         with patch("subprocess.run", side_effect=self._make_side_effect()):
             buf = io.StringIO()
             with redirect_stdout(buf):
-                result = do_release(
+                do_release(
                     "Sprint 1", self.config, dry_run=True,
                 )
         output = buf.getvalue()
@@ -1936,7 +1932,7 @@ class TestGenerateReleaseNotes(unittest.TestCase):
                     )
                 return subprocess.CompletedProcess(
                     args=cmd, returncode=128, stdout="",
-                    stderr=f"fatal: Needed a single revision",
+                    stderr="fatal: Needed a single revision",
                 )
             return subprocess.CompletedProcess(
                 args=cmd, returncode=0, stdout="", stderr="",

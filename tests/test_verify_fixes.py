@@ -9,7 +9,6 @@ Run: python -m unittest tests.test_verify_fixes -v
 
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -386,7 +385,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import io
 import subprocess as _subprocess
-from unittest.mock import patch
 
 import commit
 
@@ -880,7 +878,6 @@ sys.path.insert(0, str(ROOT / "skills" / "sprint-release" / "scripts"))
 
 import release_gate
 import bootstrap_github
-import populate_issues
 
 
 class TestValidateConfigMain(unittest.TestCase):
@@ -1004,11 +1001,9 @@ class TestPopulateIssuesMain(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 sys.path.insert(0, str(ROOT / "skills" / "sprint-run" / "scripts"))
-import update_burndown
 import team_voices
 import traceability
 import test_coverage as test_coverage_mod
-import manage_epics
 import manage_sagas
 
 
@@ -1844,7 +1839,7 @@ class TestBH19SymlinkTraversal(unittest.TestCase):
 
     def test_path_traversal_rejected(self):
         """A target like '../../etc/passwd' must be rejected."""
-        from sprint_init import ProjectScanner, ConfigGenerator, ScanResult, Detection
+        from sprint_init import ConfigGenerator, ScanResult, Detection
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             # Create a minimal ScanResult
@@ -2510,7 +2505,7 @@ class TestBH21TomlEscapeHandling(unittest.TestCase):
         old = sys.stderr
         sys.stderr = stderr
         try:
-            result = parse_simple_toml('key = "hello\\qworld"')
+            parse_simple_toml('key = "hello\\qworld"')
         finally:
             sys.stderr = old
         # Should warn about unknown escape
@@ -2543,7 +2538,7 @@ class TestBH24018UnquotedGarbageWarning(unittest.TestCase):
         old = sys.stderr
         sys.stderr = stderr
         try:
-            result = parse_simple_toml('cmd = $(whoami)')
+            parse_simple_toml('cmd = $(whoami)')
         finally:
             sys.stderr = old
         self.assertIn("unquoted", stderr.getvalue().lower())
@@ -2793,8 +2788,6 @@ class TestBH21_022_WriteLogUnlinkCrash(unittest.TestCase):
             now = datetime.now(timezone.utc)
             # Make the oldest file read-only directory won't help on all OS,
             # so we mock unlink to raise OSError
-            original_unlink = Path.unlink
-
             call_count = 0
             def failing_unlink(self_path, *args, **kwargs):
                 nonlocal call_count

@@ -1438,8 +1438,7 @@ class TestScannerMinimalProject(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 import tempfile
-import os
-from validate_config import validate_project, detect_sprint, extract_story_id, kanban_from_labels
+from validate_config import validate_project, detect_sprint, extract_story_id
 
 
 class TestValidateProjectNegative(unittest.TestCase):
@@ -1705,8 +1704,6 @@ class TestParseWorkflowRuns(unittest.TestCase):
 # create_milestones_on_github error handling
 # ---------------------------------------------------------------------------
 
-import tempfile
-import subprocess as _subprocess
 from unittest.mock import patch, MagicMock
 
 import bootstrap_github
@@ -1827,7 +1824,8 @@ class TestCreateMilestonesErrorHandling(unittest.TestCase):
     def test_runtime_error_non_duplicate_counts_as_error(self, mock_gh):
         """Non-duplicate RuntimeError increments error count and warns on stderr."""
         mock_gh.side_effect = RuntimeError("403 Forbidden")
-        import io, contextlib
+        import io
+        import contextlib
         captured = io.StringIO()
         with contextlib.redirect_stderr(captured):
             created = bootstrap_github.create_milestones_on_github(self.config)
@@ -1838,7 +1836,8 @@ class TestCreateMilestonesErrorHandling(unittest.TestCase):
     def test_already_exists_not_counted_as_error(self, mock_gh):
         """RuntimeError with 'already_exists' is silently noted, not an error."""
         mock_gh.side_effect = RuntimeError("already_exists")
-        import io, contextlib
+        import io
+        import contextlib
         captured = io.StringIO()
         with contextlib.redirect_stderr(captured):
             created = bootstrap_github.create_milestones_on_github(self.config)
@@ -1884,14 +1883,12 @@ class TestCreateMilestonesErrorHandling(unittest.TestCase):
             "paths": {"backlog_dir": str(self.root / "backlog")},
         }
         # Only use milestone-1 to isolate the test
-        from validate_config import get_milestones
         with patch("bootstrap_github.get_milestones",
                     return_value=[str(backlog / "milestone-1.md")]):
             created = bootstrap_github.create_milestones_on_github(config)
         self.assertEqual(created, 1)
         # The title should contain "Sprint 1" (from content) or "1" (from filename)
         call_args = mock_gh.call_args[0][0]
-        title_idx = call_args.index("title=Sprint 1") if "title=Sprint 1" in call_args else -1
         # Verify title arg was passed (it's in the -f flag)
         title_args = [a for a in call_args if a.startswith("title=")]
         self.assertEqual(len(title_args), 1)

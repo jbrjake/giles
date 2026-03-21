@@ -1,0 +1,12 @@
+# Ruff linter configuration for the giles plugin.
+
+[lint]
+select = ["E", "F"]
+ignore = [
+    "E402",  # import not at top — scripts use sys.path.insert() by design
+    "E501",  # line too long — many long markdown strings and tables
+    "E741",  # ambiguous variable name — `l` in list comprehensions is fine
+]
+
+[lint.per-file-ignores]
+"tests/conftest.py" = ["F401"]

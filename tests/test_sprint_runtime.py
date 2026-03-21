@@ -8,11 +8,7 @@ Run: python -m pytest tests/test_sprint_runtime.py -v
 """
 from __future__ import annotations
 
-import inspect
 import io
-import json
-import os
-import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -346,7 +342,8 @@ class TestCollectSprintNumbers(unittest.TestCase):
 
     def test_no_heading_no_number_warns(self):
         """P7-06: No heading + no digits in filename → warns + defaults to 1."""
-        import io, contextlib
+        import io
+        import contextlib
         td = tempfile.mkdtemp()
         fpath = Path(td) / "backlog.md"
         fpath.write_text("No sprint headings, no number in name.\n")
@@ -1395,7 +1392,7 @@ class TestSyncOne(unittest.TestCase):
         )
         issue = {"state": "open", "labels": [{"name": "kanban:dev"}], "number": 1}
         pr = {"number": 42, "state": "open", "merged": False}
-        changes = sync_tracking.sync_one(tf, issue, pr, 1)
+        sync_tracking.sync_one(tf, issue, pr, 1)
         self.assertEqual(tf.pr_number, "42")
 
     def test_no_changes_when_in_sync(self):
@@ -1468,7 +1465,7 @@ class TestSyncOneTransitionLog(unittest.TestCase):
             )
             sync_tracking.write_tf(tf)
             issue = {"state": "open", "labels": [{"name": "kanban:design"}], "number": 50}
-            changes = sync_tracking.sync_one(tf, issue, None, 1)
+            sync_tracking.sync_one(tf, issue, None, 1)
             self.assertIn("## Transition Log", tf.body_text)
             self.assertIn("todo → design", tf.body_text)
             self.assertIn("external: GitHub sync", tf.body_text)
@@ -2221,7 +2218,7 @@ class TestGetLinkedPrDictNormalization(unittest.TestCase):
     def test_single_dict_normalized_to_list(self):
         """When timeline API returns a single dict instead of a list,
         get_linked_pr normalizes it and extracts the PR correctly."""
-        fake = FakeGitHub()
+        FakeGitHub()
         # Register timeline events for issue 10 — FakeGitHub stores them
         # as a list, but we need the jq filter to return a single dict.
         # With the jq package, the jq expression applied to these events
