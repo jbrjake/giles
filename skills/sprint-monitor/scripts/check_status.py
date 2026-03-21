@@ -287,8 +287,8 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
             date_match = re.match(r'\|\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2})', last_line)
             if date_match:
                 try:
-                    last_run = datetime.strptime(date_match.group(1), "%Y-%m-%d %H:%M")
-                    if (datetime.now() - last_run).total_seconds() < 600:
+                    last_run = datetime.strptime(date_match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                    if (datetime.now(timezone.utc) - last_run).total_seconds() < 600:
                         return ["Smoke: skipped (ran < 10 minutes ago)"], []
                 except ValueError:
                     pass
@@ -370,8 +370,8 @@ def check_integration_debt(sprints_dir: Path, sprint_num: int,
 
     # Simple heuristic: count by weeks (assuming ~1 sprint per 1-2 weeks)
     try:
-        pass_date = datetime.strptime(date_match.group(1), "%Y-%m-%d")
-        days_since = (datetime.now() - pass_date).days
+        pass_date = datetime.strptime(date_match.group(1), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        days_since = (datetime.now(timezone.utc) - pass_date).days
         debt = max(0, days_since // 14)  # rough: 2-week sprints
     except ValueError:
         debt = 0

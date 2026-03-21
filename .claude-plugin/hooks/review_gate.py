@@ -152,7 +152,8 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
 
     # BH33-001: --mirror pushes ALL refs (including base) and deletes remote
     # refs not present locally. Always block — too destructive to allow.
-    if "--mirror" in parts:
+    # BH34-002: --all pushes every local branch, including base. Same risk class.
+    if "--mirror" in parts or "--all" in parts:
         return "blocked"
 
     # Bare "git push" with no remote or refspec — could push to base branch
@@ -204,7 +205,7 @@ def _log_blocked(command: str, reason: str) -> None:
     log_dir = root / sprints_dir
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "hook-audit.log"
-    timestamp = datetime.datetime.now().isoformat()
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"{timestamp} BLOCKED: {reason} | command: {command}\n")
 

@@ -164,6 +164,11 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push --mirror origin", base="main")
         self.assertEqual(result, "blocked")
 
+    def test_all_flag_blocked(self):
+        """BH34-002: git push --all pushes every branch — must be blocked."""
+        result = check_push("git push --all origin", base="main")
+        self.assertEqual(result, "blocked")
+
 
 class TestLogBlocked(unittest.TestCase):
     """H-003: _log_blocked only writes when giles is configured."""

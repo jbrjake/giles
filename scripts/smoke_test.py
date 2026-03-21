@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -59,7 +59,7 @@ def write_history(sprints_dir: str, status: str, command: str,
                   stdout: str = "", stderr: str = "") -> None:
     """Append a smoke result to smoke-history.md."""
     history_path = Path(sprints_dir) / "smoke-history.md"
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 
     # Get current git commit hash
     commit = "unknown"

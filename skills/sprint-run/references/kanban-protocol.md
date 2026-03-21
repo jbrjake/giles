@@ -95,8 +95,8 @@ Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.
 |---|---|---|---|
 | design | whole team | No limit | — |
 | dev | per persona | 1 | Code (`check_wip_limit`) |
-| review | per reviewer | 2 | Behavioral |
-| integration | whole team | 3 | Behavioral |
+| review | per reviewer | 2 | Code (`check_wip_limit`, override: `--force-wip`) |
+| integration | whole team | 3 | Code (`check_wip_limit`, override: `--force-wip`) |
 
 If a WIP limit is reached, the team must pull stories through the bottleneck
 before starting new work.

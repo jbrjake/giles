@@ -300,6 +300,22 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertEqual(stories[0].story_id, "US-01021")
         self.assertEqual(stories[0].title, "Extended ID Story")
 
+    def test_parse_detail_blocks_non_numeric_sp(self):
+        """BH34-003: Non-numeric story points (e.g. 'TBD') must not crash."""
+        epic_content = '''\
+### US-0099: Story With TBD Points
+
+| Field | Value |
+|-------|-------|
+| Story Points | TBD |
+| Priority | P2 |
+
+**As a** user, **I want** flexible story points **so that** planning works.
+'''
+        stories = populate_issues.parse_detail_blocks(epic_content, sprint=1, source_file="test.md")
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0].sp, 0)
+
     def test_parse_milestone_stories_malformed_tables(self):
         """parse_milestone_stories handles malformed markdown tables without crashing."""
         import tempfile

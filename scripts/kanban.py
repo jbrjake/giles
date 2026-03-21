@@ -17,7 +17,7 @@ import os
 import re
 import sys
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import argparse
 from typing import Generator
@@ -310,7 +310,7 @@ def _count_review_rounds(body_text: str) -> int:
 def append_transition_log(tf: TF, old_status: str, new_status: str,
                            source: str = "") -> None:
     """Append a transition log entry to tf.body_text."""
-    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M")
     tag = f" ({source})" if source else ""
     log_entry = f"- {timestamp}: {old_status} → {new_status}{tag}"
     if tf.body_text and "## Transition Log" in tf.body_text:

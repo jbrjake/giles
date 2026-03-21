@@ -122,17 +122,20 @@ class TestCheckSmokExceptionNarrowing(unittest.TestCase):
                 check_status.check_smoke(config, Path(tempfile.mkdtemp()))
 
     def test_os_error_caught(self):
-        """OSError from subprocess is caught and reported."""
+        """OSError from subprocess is caught and reported, not propagated."""
         config = {"ci": {"smoke_command": "true"}}
-        report, actions = check_status.check_smoke(
-            config, Path(tempfile.mkdtemp()),
-        )
-        # We need to mock subprocess.run to raise OSError
-        with patch("subprocess.run", side_effect=OSError("no such file")):
-            report, actions = check_status.check_smoke(
-                config, Path(tempfile.mkdtemp()),
-            )
-        self.assertTrue(any("error" in line for line in report))
+        with tempfile.TemporaryDirectory() as td:
+            with patch("subprocess.run", side_effect=OSError("no such file")):
+                report, actions = check_status.check_smoke(config, Path(td))
+            self.assertTrue(any("error" in line.lower() for line in report))
+
+    def test_attribute_error_propagates(self):
+        """AttributeError (programming bug) must not be swallowed."""
+        config = {"ci": {"smoke_command": "true"}}
+        with tempfile.TemporaryDirectory() as td:
+            with patch("subprocess.run", side_effect=AttributeError("bad")):
+                with self.assertRaises(AttributeError):
+                    check_status.check_smoke(config, Path(td))
 
 
 class TestCommitMainArgParsing(unittest.TestCase):

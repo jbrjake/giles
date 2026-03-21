@@ -13,7 +13,7 @@ from pathlib import Path
 
 # -- Import shared config ----------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
-from validate_config import load_config, ConfigError, get_milestones, gh, gh_json, extract_story_id, warn_if_at_limit
+from validate_config import load_config, ConfigError, get_milestones, gh, gh_json, extract_story_id, warn_if_at_limit, safe_int
 
 
 @dataclass
@@ -254,7 +254,7 @@ def parse_detail_blocks(
         # Parse acceptance criteria
         ac = re.findall(r"- \[ \] `AC-\d+`:\s*(.+)", body)
 
-        sp = int(meta.get("story_points", "0"))
+        sp = safe_int(meta.get("story_points", "0"))
         saga = meta.get("saga", "")
         priority = meta.get("priority", "")
 
