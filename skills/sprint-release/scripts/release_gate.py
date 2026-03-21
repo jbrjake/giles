@@ -156,10 +156,16 @@ def gate_stories(milestone_title: str) -> tuple[bool, str]:
 def gate_ci(config: dict) -> tuple[bool, str]:
     """Gate: most recent CI run on the base branch must be successful."""
     base_branch = get_base_branch(config)
-    runs = gh_json([
+    # BH35-013: Filter by workflow name if configured, to avoid false
+    # pass/fail from non-CI workflows (docs-deploy, cron jobs, etc.)
+    cmd = [
         "run", "list", "--branch", base_branch, "--limit", "1",
         "--json", "status,conclusion,name",
-    ])
+    ]
+    workflow = config.get("ci", {}).get("workflow", "")
+    if workflow:
+        cmd.extend(["--workflow", workflow])
+    runs = gh_json(cmd)
     if not runs:
         return False, f"No CI runs found on {base_branch}"
     run = runs[0]
@@ -305,7 +311,8 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
         end = (start + 1 + next_section.start()) if next_section else len(text)
 
         section_text = text[start:end]
-        version_re = re.compile(r'^version\s*=\s*"[^"]*"', re.MULTILINE)
+        # BH35-012: Match both double-quoted and single-quoted version values
+        version_re = re.compile(r"""^version\s*=\s*(?:"[^"]*"|'[^']*')""", re.MULTILINE)
         if version_re.search(section_text):
             new_section = version_re.sub(
                 f'version = "{version}"', section_text, count=1,
@@ -316,8 +323,11 @@ def write_version_to_toml(version: str, toml_path: Path) -> None:
             # Find end of line after [release]
             nl = text.find("\n", insert_pos)
             if nl == -1:
-                nl = len(text)
-            text = text[:nl + 1] + f'version = "{version}"\n' + text[nl + 1:]
+                # BH35-011: [release] at EOF with no trailing newline —
+                # insert a newline before the version key
+                text = text + f'\nversion = "{version}"\n'
+            else:
+                text = text[:nl + 1] + f'version = "{version}"\n' + text[nl + 1:]
     else:
         text = text.rstrip() + f'\n\n[release]\nversion = "{version}"\n'
 

@@ -109,12 +109,14 @@ def _has_unquoted_bracket(s: str) -> bool:
 def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
     """Extract a key from a TOML section.  Minimal parser for hook use."""
     in_section = False
-    lines = text.splitlines()
+    # BH35-009: Use split('\n') instead of splitlines() per BH20-001
+    lines = text.split('\n')
     i = 0
     while i < len(lines):
         stripped = lines[i].strip()
         if stripped.startswith("["):
-            in_section = stripped == f"[{section}]"
+            # BH35-005: Strip trailing comments before comparing
+            in_section = stripped.split('#')[0].strip() == f"[{section}]"
             i += 1
             continue
         if not in_section:
@@ -128,7 +130,9 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
                 array_text = val
                 while not _has_unquoted_bracket(array_text) and i + 1 < len(lines):
                     i += 1
-                    array_text += " " + lines[i].strip()
+                    # BH35-017: Strip inline comments from continuation lines
+                    # to prevent quoted strings in comments becoming phantom items
+                    array_text += " " + _strip_inline_comment(lines[i].strip())
                 # Match quoted strings; double-quoted handles \" escapes,
                 # single-quoted is literal (TOML spec).
                 items = re.findall(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'', array_text)
@@ -303,7 +307,7 @@ def _resolve_tracking_path(relative: str) -> str | None:
 
 _IMPLEMENTER_ACTION_PATTERNS = re.compile(
     r"""
-    committed                    # past tense — agent did it
+    \bcommitted\b                # BH35-018: word boundary to avoid "uncommitted"
     | \bpushed\b                 # pushed to remote
     | \bmerged\b                 # merged a branch/PR
     | created\s+(?:PR|branch)    # created a PR or branch

@@ -28,6 +28,7 @@ from validate_config import validate_project
 EXCLUDED_DIRS = {
     ".git", "node_modules", "target", ".venv", "__pycache__",
     "dist", "build", ".tox", ".mypy_cache", ".pytest_cache",
+    "sprint-config",  # BH35-023: exclude generated config on re-run
 }
 
 PERSONA_HEADINGS = {"## Role", "## Voice", "## Domain", "## Background",
@@ -216,7 +217,9 @@ class ProjectScanner:
                     cmd = run_line[4:].strip()
                     # Handles literal (|), folded (>, >-), and empty run:
                     # blocks by collecting subsequent indented lines (P13-021).
-                    if cmd in ("|", "", ">", ">-"):
+                    # BH35-027: Also handle |- (literal strip), |+ (literal keep),
+                    # >+ (folded keep) — common GitHub Actions patterns
+                    if cmd in ("|", "|-", "|+", "", ">", ">-", ">+"):
                         # Multiline run block: collect subsequent indented lines
                         multiline_cmds: list[str] = []
                         i += 1
@@ -383,7 +386,11 @@ class ProjectScanner:
         for d in self._walk_dirs(max_depth=3):
             md_files = list(d.glob("*.md"))
             if len(md_files) >= 2:
-                sample = md_files[0].read_text(encoding="utf-8", errors="replace")[:2000]
+                # BH35-026: Wrap in try/except like detect_backlog_files does
+                try:
+                    sample = md_files[0].read_text(encoding="utf-8", errors="replace")[:2000]
+                except OSError:
+                    continue
                 if "## Requirements" in sample and "## Design" in sample:
                     rel = str(d.relative_to(self.root))
                     return Detection(rel, f"PRD content in {d.name}/", 0.7)
@@ -672,7 +679,7 @@ class ConfigGenerator:
         if s.binary_path.value:
             name = s.project_name.value or "app"
             lines.append(
-                f'binary_path = "{s.binary_path.value.replace("<name>", name)}"')
+                f'binary_path = "{self._esc(s.binary_path.value.replace("<name>", name))}"')
         lines.append('')
 
         # [conventions] — optional but useful

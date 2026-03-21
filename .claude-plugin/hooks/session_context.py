@@ -24,10 +24,12 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
     Handles both double-quoted and single-quoted (literal) TOML strings.
     """
     in_section = False
-    for line in text.splitlines():
+    # BH35-009: Use split('\n') instead of splitlines() per BH20-001
+    for line in text.split('\n'):
         stripped = line.strip()
         if stripped.startswith("["):
-            in_section = stripped == f"[{section}]"
+            # BH35-005: Strip trailing comments before comparing
+            in_section = stripped.split('#')[0].strip() == f"[{section}]"
             continue
         if not in_section:
             continue

@@ -33,15 +33,16 @@ def _get_base_branch() -> str:
             return "main"
         text = toml_path.read_text(encoding="utf-8")
         current_section = ""
-        for line in text.splitlines():
+        for line in text.split('\n'):
             section_m = re.match(r'^\s*\[([^\]]+)\]', line)
             if section_m:
                 current_section = section_m.group(1).strip()
                 continue
             if current_section == "project":
-                m = re.match(r'\s*base_branch\s*=\s*"([^"]+)"', line)
+                # BH35-008: Match both double-quoted and single-quoted strings
+                m = re.match(r"""\s*base_branch\s*=\s*(?:"([^"]+)"|'([^']+)')""", line)
                 if m:
-                    return m.group(1)
+                    return m.group(1) or m.group(2)
     except Exception:
         pass
     return "main"
@@ -163,16 +164,19 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
         return "warn"
 
     # positional[0] = remote, positional[1:] = refspecs
-    if len(positional) >= 2:
-        for refspec in positional[1:]:
-            target = refspec.split(":")[-1] if ":" in refspec else refspec
-            # BH35-002: Strip leading + (force-push refspec prefix)
-            target = target.lstrip("+")
-            # BH35-003: Strip refs/heads/ prefix (full ref path)
-            if target.startswith("refs/heads/"):
-                target = target[len("refs/heads/"):]
-            if target == base:
-                return "blocked"
+    # BH35-006: Also check ALL positional args against base, not just [1:].
+    # Flags like --repo can consume the remote as their value, shifting
+    # the actual refspec into positional[0]. Checking all positionals
+    # catches this without needing to enumerate every flag-with-value.
+    for refspec in positional:
+        target = refspec.split(":")[-1] if ":" in refspec else refspec
+        # BH35-002: Strip leading + (force-push refspec prefix)
+        target = target.lstrip("+")
+        # BH35-003: Strip refs/heads/ prefix (full ref path)
+        if target.startswith("refs/heads/"):
+            target = target[len("refs/heads/"):]
+        if target == base:
+            return "blocked"
 
     return "allowed"
 
@@ -196,10 +200,11 @@ def _log_blocked(command: str, reason: str) -> None:
     try:
         text = toml_path.read_text(encoding="utf-8")
         in_paths = False
-        for line in text.splitlines():
+        for line in text.split('\n'):
             s = line.strip()
             if s.startswith("["):
-                in_paths = s == "[paths]"
+                # BH35-005: Strip trailing comments before comparing
+                in_paths = s.split('#')[0].strip() == "[paths]"
                 continue
             if in_paths:
                 m = re.match(r'sprints_dir\s*=\s*["\']([^"\']*)["\']', s)

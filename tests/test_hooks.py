@@ -199,6 +199,16 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push origin +feature-branch", base="main")
         self.assertEqual(result, "allowed")
 
+    def test_repo_flag_bypass_blocked(self):
+        """BH35-006: --repo consuming remote must not bypass base check."""
+        result = check_push("git push --repo origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_repo_flag_feature_allowed(self):
+        """--repo with feature branch is allowed."""
+        result = check_push("git push --repo origin feature", base="main")
+        self.assertEqual(result, "allowed")
+
 
 class TestLogBlocked(unittest.TestCase):
     """H-003: _log_blocked only writes when giles is configured."""
@@ -305,6 +315,75 @@ class TestGetBaseBranch(unittest.TestCase):
                 self.assertEqual(_get_base_branch(), "main")
             finally:
                 os.chdir(orig)
+
+
+    def test_single_quoted_base_branch(self):
+        """BH35-008: single-quoted base_branch must be read correctly."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    "[project]\nname = \"test\"\nbase_branch = 'develop'\n"
+                )
+                self.assertEqual(_get_base_branch(), "develop")
+            finally:
+                os.chdir(orig)
+
+
+class TestInlineTomlSectionComments(unittest.TestCase):
+    """BH35-005: Inline TOML parsers must handle section header comments."""
+
+    def test_read_toml_key_with_section_comment(self):
+        """verify_agent_output._read_toml_key handles [ci] # comment."""
+        from hooks.verify_agent_output import _read_toml_key
+        toml = '[ci] # CI configuration\ncheck_commands = ["pytest"]\n'
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest"])
+
+    def test_read_toml_string_with_section_comment(self):
+        """session_context._read_toml_string handles [paths] # paths."""
+        from hooks.session_context import _read_toml_string
+        toml = '[paths] # path config\nsprints_dir = "sprints"\n'
+        result = _read_toml_string(toml, "paths", "sprints_dir")
+        self.assertEqual(result, "sprints")
+
+    def test_multiline_array_comment_not_phantom_item(self):
+        """BH35-017: Comment with quoted string on continuation line."""
+        from hooks.verify_agent_output import _read_toml_key
+        toml = '[ci]\ncheck_commands = [\n    "pytest",  # the "main" runner\n    "ruff check",\n]\n'
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest", "ruff check"])
+
+
+class TestCommitGateWordBoundary(unittest.TestCase):
+    """BH35-010: Config check command matching must use word boundaries."""
+
+    def test_substring_does_not_match(self):
+        """'greppython' must not match config command 'python -m pytest'."""
+        from hooks.commit_gate import _matches_check_command
+        import hooks.commit_gate as cg
+        saved = cg._CONFIG_CHECK_COMMANDS
+        try:
+            cg._CONFIG_CHECK_COMMANDS = ["python -m pytest"]
+            # Without word boundaries, "greppython" would match "python"
+            self.assertFalse(_matches_check_command("greppython file.txt"))
+        finally:
+            cg._CONFIG_CHECK_COMMANDS = saved
+
+    def test_exact_command_matches(self):
+        """'python -m pytest tests/' must match config 'python -m pytest'."""
+        import hooks.commit_gate as cg
+        saved = cg._CONFIG_CHECK_COMMANDS
+        try:
+            cg._CONFIG_CHECK_COMMANDS = ["python -m pytest"]
+            self.assertTrue(cg._matches_check_command("python -m pytest tests/"))
+        finally:
+            cg._CONFIG_CHECK_COMMANDS = saved
 
 
 class TestVerifyAgentOutput(unittest.TestCase):

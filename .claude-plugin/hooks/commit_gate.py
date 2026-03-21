@@ -176,7 +176,9 @@ def _matches_check_command(command: str) -> bool:
     for cfg_cmd in _CONFIG_CHECK_COMMANDS:
         # The configured command might be a prefix of the actual command
         # (e.g., "pytest" matches "pytest tests/ -v")
-        if cfg_cmd and re.search(re.escape(cfg_cmd.split()[0]), command):
+        # BH35-010: Add word boundaries to prevent substring matches
+        # (e.g., "echo python" matching config command "python -m pytest")
+        if cfg_cmd and re.search(r'\b' + re.escape(cfg_cmd.split()[0]) + r'\b', command):
             return True
 
     # Fallback: hardcoded patterns for common test runners
