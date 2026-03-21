@@ -27,7 +27,10 @@ from validate_config import load_config, get_milestones, ConfigError
 try:
     import bootstrap_github
     import populate_issues
-except ImportError:
+except ImportError as _import_err:
+    # BH31: Warn early so users can diagnose import failures before sync time
+    print(f"sync_backlog: warning — optional imports unavailable: {_import_err}",
+          file=sys.stderr)
     bootstrap_github = None  # type: ignore[assignment]
     populate_issues = None  # type: ignore[assignment]
 

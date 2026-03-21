@@ -9,6 +9,7 @@ No external dependencies -- stdlib only.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1116,6 +1117,19 @@ def read_tf(path: Path) -> "TF":
     tf.issue_number = v("issue_number")
     tf.started, tf.completed = v("started"), v("completed")
     return tf
+
+
+# §validate_config.atomic_write_text
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write content atomically using temp-then-rename (BH31: shared utility).
+
+    Prevents readers from seeing partially-written files. Used by scripts
+    that mutate shared markdown files (epics, sagas, risk register).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    os.rename(str(tmp), str(path))
 
 
 # §validate_config.write_tf

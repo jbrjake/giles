@@ -128,10 +128,19 @@ def get_linked_pr(
 def sync_one(
     tf: TF, issue: dict, pr: dict | None, sprint: int
 ) -> list[str]:
-    """Update tracking file to match GitHub. Returns change descriptions."""
+    """Update tracking file to match GitHub. Returns change descriptions.
+
+    Note: This function intentionally accepts ANY valid GitHub state without
+    transition validation.  This differs from ``kanban.py do_sync`` which
+    validates transitions via ``validate_transition()``.  The rationale:
+    sync_tracking trusts GitHub labels as source of truth — including
+    manually applied ones that the kanban state machine would reject.
+    See CLAUDE.md "Two-path state management" for the full design rationale.
+    """
     changes: list[str] = []
     gh_status = kanban_from_labels(issue)
 
+    # Accept any valid state from GitHub (intentional — see docstring)
     if gh_status != tf.status and gh_status in KANBAN_STATES:
         old_status = tf.status
         append_transition_log(tf, old_status, gh_status, "external: GitHub sync")

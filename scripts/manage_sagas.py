@@ -18,6 +18,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
+from validate_config import atomic_write_text  # BH31: shared atomic write
 
 # BH18-012: TABLE_ROW imported from validate_config (single source of truth)
 from validate_config import safe_int as _safe_int, TABLE_ROW, parse_header_table
@@ -172,7 +173,7 @@ def update_sprint_allocation(
     while remainder and remainder[0].strip() == "":
         remainder.pop(0)
     new_lines = lines[:start] + new_section + [""] + remainder
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
 
 
 # §manage_sagas.update_epic_index
@@ -233,7 +234,7 @@ def update_epic_index(
     while remainder and remainder[0].strip() == "":
         remainder.pop(0)
     new_lines = lines[:start] + new_section + [""] + remainder
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
 
 
 # §manage_sagas.update_team_voices
@@ -266,7 +267,7 @@ def update_team_voices(path: str, voices: dict[str, str]) -> None:
     while remainder and remainder[0].strip() == "":
         remainder.pop(0)
     new_lines = lines[:start] + new_section + [""] + remainder
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
 
 
 # §manage_sagas.main

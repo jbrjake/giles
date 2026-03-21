@@ -18,6 +18,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
+from validate_config import atomic_write_text  # BH31: shared atomic write
 
 STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
 
@@ -228,7 +229,7 @@ def add_story(path: str, story_data: dict) -> None:
         content += "\n"
 
     content += "---\n\n" + new_section + "\n"
-    Path(path).write_text(content, encoding="utf-8")
+    atomic_write_text(Path(path), content)
 
 
 # §manage_epics.remove_story
@@ -266,7 +267,7 @@ def remove_story(path: str, story_id: str) -> bool:
         new_lines.pop()
     new_lines.append("")
 
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
     return True
 
 
@@ -339,7 +340,7 @@ def reorder_stories(path: str, story_ids: list[str]) -> None:
         new_lines.pop()
     new_lines.append("")
 
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
 
 
 # §manage_epics.renumber_stories
@@ -367,7 +368,7 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
             new_lines.append(line)
         else:
             new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', lambda m: replacement, line))
-    Path(path).write_text("\n".join(new_lines), encoding="utf-8")
+    atomic_write_text(Path(path), "\n".join(new_lines))
 
 
 # §manage_epics.main

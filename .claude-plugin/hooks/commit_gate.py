@@ -130,6 +130,10 @@ def check_commit_allowed(command: str,
     if not is_commit:
         return "allowed"
 
+    # BH31-001: Allow --dry-run through — it validates without committing
+    if re.search(r'--dry-run\b', command):
+        return "allowed"
+
     needs = _state_override if _state_override is not None else needs_verification()
     if needs:
         return "blocked"

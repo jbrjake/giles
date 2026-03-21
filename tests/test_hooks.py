@@ -478,16 +478,18 @@ class TestSessionContext(unittest.TestCase):
             self.assertEqual(items, [])
 
     def test_format_context_under_60_lines(self):
-        """Hook output stays compact."""
-        output = format_context(
-            ["item1", "item2", "item3"],
-            ["dod1"],
-            ["risk1", "risk2"],
-        )
+        """BH31: Hook output stays compact even with many items."""
+        # BH31: Use adversarial input (20 items) to stress-test compactness
+        many_actions = [f"Action item {i} from retro" for i in range(20)]
+        many_dod = [f"DoD addition {i}" for i in range(10)]
+        many_risks = [f"Risk {i}: something might go wrong" for i in range(10)]
+        output = format_context(many_actions, many_dod, many_risks)
         line_count = len(output.strip().splitlines())
-        self.assertLess(line_count, 60)
-        self.assertIn("item1", output)
-        self.assertIn("risk1", output)
+        self.assertLess(line_count, 60,
+                        f"Output should stay under 60 lines with many items, got {line_count}")
+        # Verify at least some items are present (may be truncated)
+        self.assertIn("Action item", output)
+        self.assertIn("Risk", output)
 
     def test_format_context_empty_when_no_data(self):
         """No data produces empty output."""
@@ -544,12 +546,12 @@ class TestCommitGate(unittest.TestCase):
     """P1-HOOK-5: Commit verification hook."""
 
     def test_blocks_commit_when_unverified(self):
-        """Block git commit when source files modified but no check run."""
+        """BH31: Unit test — _state_override=True forces 'blocked' for commit commands."""
         result = check_commit_allowed("git commit -m 'fix'", _state_override=True)
         self.assertEqual(result, "blocked")
 
     def test_allows_commit_when_verified(self):
-        """Allow git commit when checks have been run."""
+        """BH31: Unit test — _state_override=False forces 'allowed' for commit commands."""
         result = check_commit_allowed("git commit -m 'fix'", _state_override=False)
         self.assertEqual(result, "allowed")
 
@@ -565,6 +567,22 @@ class TestCommitGate(unittest.TestCase):
             _state_override=True,
         )
         self.assertEqual(result, "blocked")
+
+    def test_allows_dry_run(self):
+        """BH31-001: --dry-run should be allowed even when verification needed."""
+        result = check_commit_allowed(
+            'python scripts/commit.py --dry-run "feat: preview"',
+            _state_override=True,
+        )
+        self.assertEqual(result, "allowed")
+
+    def test_allows_git_commit_dry_run(self):
+        """BH31-001: git commit --dry-run should also be allowed."""
+        result = check_commit_allowed(
+            "git commit --dry-run -m 'test'",
+            _state_override=True,
+        )
+        self.assertEqual(result, "allowed")
 
     def test_source_file_detection(self):
         """Source files vs non-source files."""

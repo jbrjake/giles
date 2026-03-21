@@ -495,6 +495,13 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
     query (no GitHub calls made here).  Returns a list of change descriptions.
     When *prune* is True, orphaned local stories (not found on GitHub) are
     deleted instead of just warned about.
+
+    Note: Callers MUST hold ``lock_sprint()`` before calling this function.
+    This function reads all tracking files at once and writes back without
+    per-story locks.  Without the sprint lock, concurrent ``do_assign`` or
+    ``do_update`` calls (which use ``lock_story``) can race with the
+    read-modify-write cycle here.  Both CLI entry points (``kanban.py main``
+    and ``sync_tracking.py main``) acquire ``lock_sprint`` correctly.
     """
     stories_dir = sprints_dir / f"sprint-{sprint}" / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)
