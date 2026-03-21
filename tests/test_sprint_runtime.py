@@ -1763,6 +1763,20 @@ class TestKanbanFromLabels(unittest.TestCase):
         self.assertEqual(validate_config.kanban_from_labels(issue), "done",
                          "closed issues always return 'done' regardless of kanban label")
 
+    def test_string_label_format(self):
+        """BH37-017: Merged from test_pipeline_scripts — string label format."""
+        issue = {"labels": ["kanban:review"], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "review")
+
+    def test_multiple_labels_first_kanban_wins(self):
+        """BH37-017: Merged from test_pipeline_scripts — first kanban label wins."""
+        issue = {"labels": [
+            {"name": "type:story"},
+            {"name": "kanban:review"},
+            {"name": "sp:3"},
+        ], "state": "open"}
+        self.assertEqual(validate_config.kanban_from_labels(issue), "review")
+
 
 # ---------------------------------------------------------------------------
 # P5-17: check_status helper tests (_first_error, _hours, _age)

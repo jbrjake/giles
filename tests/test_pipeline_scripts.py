@@ -1638,41 +1638,8 @@ class TestExtractStoryId(unittest.TestCase):
         self.assertLessEqual(len(result), 40)
 
 
-class TestKanbanFromLabels(unittest.TestCase):
-    """Direct tests for kanban_from_labels()."""
-
-    def test_kanban_label_dict(self):
-        issue = {"labels": [{"name": "kanban:dev"}], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "dev")
-
-    def test_kanban_label_string(self):
-        issue = {"labels": ["kanban:review"], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "review")
-
-    def test_no_kanban_label_open(self):
-        issue = {"labels": [{"name": "type:story"}], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "todo")
-
-    def test_no_kanban_label_closed(self):
-        issue = {"labels": [], "state": "closed"}
-        self.assertEqual(kanban_from_labels(issue), "done")
-
-    def test_empty_labels(self):
-        issue = {"labels": [], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "todo")
-
-    def test_multiple_labels_first_kanban_wins(self):
-        issue = {"labels": [
-            {"name": "type:story"},
-            {"name": "kanban:review"},
-            {"name": "sp:3"},
-        ], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "review")
-
-    def test_invalid_kanban_label_falls_back(self):
-        """BH3-03: Invalid kanban label values fall back to todo/done."""
-        issue = {"labels": [{"name": "kanban:blocked"}], "state": "open"}
-        self.assertEqual(kanban_from_labels(issue), "todo")
+# BH37-017: TestKanbanFromLabels removed — comprehensive version with edge cases
+# and unique tests merged into tests/test_sprint_runtime.py::TestKanbanFromLabels
 
 
 # ---------------------------------------------------------------------------
