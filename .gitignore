@@ -24,3 +24,5 @@ target/
 
 # Test artifacts
 tests/golden_snapshots/
+.coverage
+.hypothesis/
