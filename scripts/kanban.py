@@ -328,7 +328,7 @@ def do_transition(tf: TF, target: str, *,
                   sprint: int | None = None) -> bool:
     """Execute a state transition: validate, update local, sync GitHub.
 
-    **Caller must hold lock_story(tf.path)** before calling this function.
+    **Caller must hold lock_sprint(sprint_dir)** before calling this function.
     The CLI main() does this; direct API callers must do it themselves.
 
     Returns True on success, False on failure (with local state reverted).
@@ -499,7 +499,7 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
     Note: Callers MUST hold ``lock_sprint()`` before calling this function.
     This function reads all tracking files at once and writes back without
     per-story locks.  Without the sprint lock, concurrent ``do_assign`` or
-    ``do_update`` calls (which use ``lock_story``) can race with the
+    ``do_update`` calls (which also hold ``lock_sprint``) can race with the
     read-modify-write cycle here.  Both CLI entry points (``kanban.py main``
     and ``sync_tracking.py main``) acquire ``lock_sprint`` correctly.
     """

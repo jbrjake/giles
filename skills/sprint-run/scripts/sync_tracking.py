@@ -12,8 +12,8 @@ kanban state mutations, use kanban.py (local-first, then syncs to GitHub).
 For reconciliation, this script fills in PR/branch metadata and corrects
 stale statuses. Both paths are complementary, not competing.
 
-Concurrency: BH24-002 — this script now acquires lock_story before each
-write_tf call to prevent clobbering concurrent kanban.py operations.
+Concurrency: BH27 — this script acquires lock_sprint for the entire sync
+loop to prevent clobbering concurrent kanban.py operations.
 
 Idempotent -- prints "Everything in sync" when nothing to fix.
 """

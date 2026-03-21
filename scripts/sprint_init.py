@@ -648,9 +648,10 @@ class ConfigGenerator:
         if s.dev_guide.value:
             lines.append('dev_guide = "sprint-config/development.md"')
         if s.cheatsheet.value:
-            lines.append(f'cheatsheet = "{s.cheatsheet.value}"')
+            # BH36-002: Use esc() for TOML safety (sibling of BH35-024)
+            lines.append(f'cheatsheet = "{esc(s.cheatsheet.value)}"')
         if s.architecture.value:
-            lines.append(f'architecture = "{s.architecture.value}"')
+            lines.append(f'architecture = "{esc(s.architecture.value)}"')
         # Optional deep doc paths (only when detected)
         if s.prd_dir and s.prd_dir.value:
             lines.append('prd_dir = "sprint-config/prd"')

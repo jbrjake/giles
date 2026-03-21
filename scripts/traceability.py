@@ -20,7 +20,8 @@ from validate_config import load_config, ConfigError, TABLE_ROW
 
 # Patterns
 # §traceability.STORY_HEADING
-STORY_HEADING = re.compile(r'^###\s+(US-\d+):\s*(.+)')
+# BH36-003: Use \s+ (required space) to match manage_epics and populate_issues
+STORY_HEADING = re.compile(r'^###\s+(US-\d+):\s+(.+)')
 # BH18-012: TABLE_ROW imported from validate_config
 # §traceability.TEST_CASE_HEADING
 TEST_CASE_HEADING = re.compile(r'^###\s+((?:TC|GP)-[\w-]+):\s*(.+)')
