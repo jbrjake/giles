@@ -31,10 +31,11 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
             continue
         if not in_section:
             continue
-        # Double-quoted strings
-        m = re.match(rf'{key}\s*=\s*"([^"]*)"', stripped)
+        # Double-quoted strings (BH29-007: handle \" escape sequences)
+        m = re.match(rf'{key}\s*=\s*"((?:[^"\\]|\\.)*)"', stripped)
         if m:
-            return m.group(1)
+            # Unescape \" → " and \\ → \ per TOML basic string spec
+            return re.sub(r'\\(.)', lambda x: x.group(1), m.group(1))
         # Single-quoted literal strings (TOML spec)
         m = re.match(rf"{key}\s*=\s*'([^']*)'", stripped)
         if m:

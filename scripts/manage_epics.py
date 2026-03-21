@@ -356,9 +356,13 @@ def renumber_stories(path: str, old_id: str, new_ids: list[str]) -> None:
     lines = Path(path).read_text(encoding="utf-8").split('\n')
     replacement = ", ".join(new_ids)
     new_lines = []
+    in_code_block = False
     for line in lines:
-        if line.startswith("### "):
-            # Preserve headings — don't corrupt ### US-XXXX: Title
+        # BH29-002: Track fenced code blocks to avoid replacing IDs in code
+        if line.startswith("```"):
+            in_code_block = not in_code_block
+        if line.startswith("### ") or in_code_block:
+            # Preserve headings and code block content as-is
             new_lines.append(line)
         else:
             new_lines.append(re.sub(rf'\b{re.escape(old_id)}\b', lambda m: replacement, line))

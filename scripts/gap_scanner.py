@@ -62,8 +62,10 @@ def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | Non
     branch = story.get("branch", "")
 
     # Check body text first (no subprocess needed)
+    # BH29-003: Use word-boundary matching to avoid false positives
+    # (e.g., entry point "main" should not match "domain")
     for ep in entry_points:
-        if ep in body:
+        if re.search(rf'\b{re.escape(ep)}\b', body):
             return ep
 
     # Check branch diff once (not per entry point)
@@ -74,12 +76,16 @@ def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | Non
                 capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
-                changed_files = result.stdout
+                # BH29-003: Match per-line to avoid cross-line false positives
+                changed_lines = result.stdout.strip().splitlines()
                 for ep in entry_points:
-                    if ep in changed_files:
-                        return ep
-        except Exception:
-            pass
+                    for changed_file in changed_lines:
+                        if ep in changed_file:
+                            return ep
+        except Exception as exc:
+            # BH29-003: Log warning instead of silently swallowing
+            print(f"gap_scanner: git diff failed for branch {branch}: {exc}",
+                  file=sys.stderr)
     return None
 
 

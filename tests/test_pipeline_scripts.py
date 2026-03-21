@@ -1076,6 +1076,39 @@ class TestRenumberStories(unittest.TestCase):
             for line in lines:
                 self.assertIn("US-0050a, US-0050b", line)
 
+    def test_renumber_skips_code_blocks(self):
+        """BH29-002: Story IDs inside fenced code blocks must not be replaced."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            epic = tmp + "/E-code.md"
+            Path(epic).write_text(
+                "# E-code\n\n"
+                "---\n\n"
+                "### US-0102: Parse Input\n\n"
+                "| Field | Value |\n"
+                "|-------|-------|\n"
+                "| Blocked By | US-0102 |\n"
+                "\n"
+                "```python\n"
+                "# Reference: US-0102\n"
+                "print('US-0102 test')\n"
+                "```\n"
+                "\n"
+                "See also US-0102 in the design doc.\n",
+                encoding="utf-8",
+            )
+            renumber_stories(epic, "US-0102", ["US-0102a", "US-0102b"])
+            content = Path(epic).read_text(encoding="utf-8")
+            # Heading preserved
+            self.assertIn("### US-0102: Parse Input", content)
+            # Table row IS updated
+            self.assertIn("US-0102a, US-0102b", content)
+            # Code block content is NOT modified
+            self.assertIn("# Reference: US-0102\n", content)
+            self.assertIn("print('US-0102 test')\n", content)
+            # Body text outside code block IS updated
+            self.assertIn("See also US-0102a, US-0102b in the design doc.", content)
+
 
 # ---------------------------------------------------------------------------
 # P2-04: Scanner Heuristic Fixtures — Python Project

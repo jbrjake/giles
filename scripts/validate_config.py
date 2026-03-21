@@ -1074,13 +1074,14 @@ def _yaml_safe(value: str) -> str:
         or '\\' in value  # BH-007: backslash must be quoted
         or '\n' in value  # BH21-005: newline breaks YAML frontmatter
         or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
+        or '\t' in value  # BH29-006: tab breaks YAML indentation rules
         or re.match(r'^\d+\.?\d*$', value)  # BH22-108: numeric strings need quoting
         or value != value.strip()  # BH23-205: leading/trailing whitespace needs quoting
     )
     if needs_quoting:
         # BH-007: escape backslashes BEFORE quotes so \" doesn't become \\"
         escaped = value.replace('\\', '\\\\').replace('"', '\\"')
-        escaped = escaped.replace('\n', '\\n').replace('\r', '\\r')
+        escaped = escaped.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
         return f'"{escaped}"'
     return value
 

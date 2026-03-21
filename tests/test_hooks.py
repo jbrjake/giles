@@ -380,7 +380,8 @@ class TestVerifyAgentOutput(unittest.TestCase):
 
 
     def test_read_toml_key_escaped_quote_with_bracket(self):
-        """BH26-005: Backslash-escaped quote with ] inside should parse correctly."""
+        """BH26-005: Backslash-escaped quote with ] inside should parse correctly.
+        BH29-001: Array items must also unescape \" to literal quote."""
         toml = (
             '[ci]\n'
             'check_commands = [\n'
@@ -390,13 +391,17 @@ class TestVerifyAgentOutput(unittest.TestCase):
         )
         result = _read_toml_key(toml, "ci", "check_commands")
         self.assertEqual(len(result), 2)
+        # BH29-001: double-quoted items are unescaped per TOML spec
+        self.assertEqual(result[0], 'pytest -k "test[param]"')
         self.assertEqual(result[1], "ruff check")
 
     def test_read_toml_key_inline_comment_after_escaped_quote(self):
-        """BH26-005: Inline comment after escaped-quote value should be stripped."""
+        """BH26-005: Inline comment after escaped-quote value should be stripped.
+        BH29-001: TOML basic strings must unescape \" to literal quote."""
         toml = '[ci]\nsmoke_command = "echo \\"hello\\"" # a comment\n'
         result = _read_toml_key(toml, "ci", "smoke_command")
-        self.assertEqual(result, 'echo \\"hello\\"')
+        # BH29-001: Per TOML spec, \" in double-quoted strings resolves to "
+        self.assertEqual(result, 'echo "hello"')
 
 
 class TestSessionContext(unittest.TestCase):

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from smoke_test import run_smoke, write_history
 from gap_scanner import (
     scan_for_gaps, has_user_facing_keywords, get_entry_points,
+    story_touches_entry_point,
 )
 from test_categories import (
     classify_test_file, count_test_functions, analyze, format_report,
@@ -136,6 +137,30 @@ class TestGapScanner(unittest.TestCase):
     def test_get_entry_points_missing(self):
         config = {"project": {"name": "test"}}
         self.assertEqual(get_entry_points(config), [])
+
+    def test_entry_point_substring_no_false_positive(self):
+        """BH29-003: Entry point 'main' must not match 'domain' in body text."""
+        result = story_touches_entry_point(
+            {"body": "Implement domain controller logic", "branch": ""},
+            ["main"],
+        )
+        self.assertIsNone(result)
+
+    def test_entry_point_word_boundary_match(self):
+        """BH29-003: Entry point 'main' should match 'update main module'."""
+        result = story_touches_entry_point(
+            {"body": "Update main module for new feature", "branch": ""},
+            ["main"],
+        )
+        self.assertEqual(result, "main")
+
+    def test_entry_point_path_match_in_body(self):
+        """BH29-003: Entry point 'src/main.py' matches as word-boundary."""
+        result = story_touches_entry_point(
+            {"body": "Wire up src/main.py for integration", "branch": ""},
+            ["src/main.py"],
+        )
+        self.assertEqual(result, "src/main.py")
 
 
 class TestTestCategories(unittest.TestCase):

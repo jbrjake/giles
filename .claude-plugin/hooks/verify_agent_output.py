@@ -23,6 +23,39 @@ from hooks._common import _find_project_root
 # Config reading (lightweight, no import dependency on validate_config)
 # ---------------------------------------------------------------------------
 
+
+def _unescape_basic_string(s: str) -> str:
+    """Unescape TOML basic string escape sequences (BH29-001).
+
+    Per TOML spec, double-quoted strings process escape sequences:
+    \\\" → \", \\\\ → \\, \\n → newline, \\t → tab, \\r → CR.
+    Unknown escapes are preserved as-is for safety.
+    """
+    result: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i] == '\\' and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == '"':
+                result.append('"')
+            elif nxt == '\\':
+                result.append('\\')
+            elif nxt == 'n':
+                result.append('\n')
+            elif nxt == 't':
+                result.append('\t')
+            elif nxt == 'r':
+                result.append('\r')
+            else:
+                result.append(s[i])
+                result.append(nxt)
+            i += 2
+        else:
+            result.append(s[i])
+            i += 1
+    return "".join(result)
+
+
 def _strip_inline_comment(val: str) -> str:
     """Strip an inline TOML comment, respecting quoted strings.
 
@@ -99,9 +132,11 @@ def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
                 # Match quoted strings; double-quoted handles \" escapes,
                 # single-quoted is literal (TOML spec).
                 items = re.findall(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'', array_text)
-                return [a or b for a, b in items]
+                # BH29-001: unescape double-quoted items; single-quoted are literal
+                return [_unescape_basic_string(a) if a else b for a, b in items]
             if val.startswith('"') and val.endswith('"'):
-                return val[1:-1]
+                # BH29-001: unescape TOML basic string escape sequences
+                return _unescape_basic_string(val[1:-1])
             if val.startswith("'") and val.endswith("'"):
                 return val[1:-1]
             return val

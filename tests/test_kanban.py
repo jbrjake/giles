@@ -1219,11 +1219,15 @@ class TestUpdateCommand(unittest.TestCase):
             self.assertEqual(loaded.branch, "new-branch")
 
     def test_update_no_changes(self):
-        """When values match current state, no write is performed."""
+        """BH29-005: When values match current state, no write is performed."""
         with tempfile.TemporaryDirectory() as td:
             tf = self._make_tf(td, pr_number="42")
+            mtime_before = tf.path.stat().st_mtime
             ok = do_update(tf, pr_number="42")
             self.assertTrue(ok)
+            mtime_after = tf.path.stat().st_mtime
+            self.assertEqual(mtime_before, mtime_after,
+                             "File should not be written when no values change")
 
     # BH23-230: Immutable field protection
     def test_update_rejects_immutable_fields(self):
@@ -1313,8 +1317,8 @@ class TestStatusCommand(unittest.TestCase):
             self.assertIn("rae", output)
             self.assertIn("chen", output)
 
-    def test_status_wip_limit_warning(self):
-        """BH23-126: 4+ stories in DEV triggers WIP limit context."""
+    def test_status_groups_multiple_dev_stories(self):
+        """BH29-004: Multiple stories in DEV appear grouped under DEV header."""
         with tempfile.TemporaryDirectory() as td:
             sprints_dir = Path(td) / "sprints"
             stories_dir = sprints_dir / "sprint-1" / "stories"

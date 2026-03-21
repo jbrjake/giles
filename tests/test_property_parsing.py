@@ -237,6 +237,7 @@ class TestYamlSafe:
             or '\\' in value  # BH-007
             or '\n' in value  # BH21-005: newline breaks YAML frontmatter
             or '\r' in value  # BH21-005: carriage return breaks YAML frontmatter
+            or '\t' in value  # BH29-006: tab breaks YAML indentation rules
             or bool(re.match(r'^\d+\.?\d*$', value))  # BH22-108: numeric strings
             or value != value.strip()  # BH23-205: leading/trailing whitespace
         )
