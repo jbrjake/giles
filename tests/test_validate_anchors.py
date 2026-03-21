@@ -294,6 +294,20 @@ class TestFixMode(unittest.TestCase):
         )
         self.assertEqual(fixed, 0)  # nothing to fix — symbol doesn't exist
 
+    def test_fix_idempotent_no_trailing_newlines(self):
+        """BH33-004: Repeated --fix must not accumulate trailing blank lines."""
+        (self.tmpdir / "DOC.md").write_text("§mymod.my_func\n")
+        for _ in range(3):
+            fix_missing_anchors(
+                root=self.tmpdir,
+                doc_files=["DOC.md"],
+                namespace_map=self.ns_map,
+            )
+        content = (self.tmpdir / "scripts" / "mymod.py").read_text()
+        # Should end with exactly one newline, not accumulate blank lines
+        self.assertTrue(content.endswith("\n"))
+        self.assertFalse(content.endswith("\n\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

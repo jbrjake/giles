@@ -283,7 +283,11 @@ def main() -> None:
 
     if command == "update-allocation":
         alloc_json = sys.argv[3] if len(sys.argv) > 3 else "[]"
-        allocation = json.loads(alloc_json)
+        try:
+            allocation = json.loads(alloc_json)
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON for allocation: {e}", file=sys.stderr)
+            sys.exit(1)
         update_sprint_allocation(saga_file, allocation)
         print(f"Updated sprint allocation in {saga_file}")
 
@@ -298,7 +302,11 @@ def main() -> None:
 
     elif command == "update-voices":
         voices_json = sys.argv[3] if len(sys.argv) > 3 else "{}"
-        voices = json.loads(voices_json)
+        try:
+            voices = json.loads(voices_json)
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON for voices: {e}", file=sys.stderr)
+            sys.exit(1)
         update_team_voices(saga_file, voices)
         print(f"Updated team voices in {saga_file}")
 

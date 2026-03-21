@@ -276,7 +276,12 @@ def fix_missing_anchors(
     fixed_count = 0
     for rel_path, fixes in fixes_by_file.items():
         full = root / rel_path
-        lines = full.read_text(encoding="utf-8").split('\n')
+        text = full.read_text(encoding="utf-8")
+        lines = text.split('\n')
+        # BH33-004: strip trailing empty element from split to prevent
+        # accumulating blank lines on repeated --fix runs
+        if lines and lines[-1] == "":
+            lines.pop()
         is_python = rel_path.endswith(".py")
 
         # Sort by line number descending so insertions don't shift later targets

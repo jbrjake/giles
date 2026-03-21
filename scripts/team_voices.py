@@ -77,11 +77,13 @@ def _extract_from_file(path: Path, voices: dict[str, list[dict]]) -> None:
                     quote += " " + continuation
                 i += 1
 
-            voices.setdefault(name, []).append({
-                "file": path.name,
-                "section": current_section,
-                "quote": quote,
-            })
+            # BH33-006: Skip entries with empty quotes (whitespace-only blockquotes)
+            if quote:
+                voices.setdefault(name, []).append({
+                    "file": path.name,
+                    "section": current_section,
+                    "quote": quote,
+                })
         i += 1
 
 

@@ -149,6 +149,21 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push origin HEAD:main", base="main")
         self.assertEqual(result, "blocked")
 
+    def test_delete_flag_blocked(self):
+        """BH33-001: git push --delete origin main must be blocked."""
+        result = check_push("git push --delete origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_delete_short_flag_blocked(self):
+        """BH33-001: git push -d origin main must be blocked."""
+        result = check_push("git push -d origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_mirror_flag_blocked(self):
+        """BH33-001: git push --mirror pushes ALL refs — must be blocked."""
+        result = check_push("git push --mirror origin", base="main")
+        self.assertEqual(result, "blocked")
+
 
 class TestLogBlocked(unittest.TestCase):
     """H-003: _log_blocked only writes when giles is configured."""

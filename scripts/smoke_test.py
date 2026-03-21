@@ -84,7 +84,9 @@ def write_history(sprints_dir: str, status: str, command: str,
         )
 
     with open(history_path, "a", encoding="utf-8") as f:
-        f.write(f"| {timestamp} | {commit} | `{command}` | {status} |\n")
+        # BH33-003: Escape pipe characters to prevent markdown table corruption
+        safe_command = command.replace("|", "\\|")
+        f.write(f"| {timestamp} | {commit} | `{safe_command}` | {status} |\n")
 
 
 # ---------------------------------------------------------------------------

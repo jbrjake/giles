@@ -141,6 +141,7 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
                 "--force", "-f", "--force-with-lease",
                 "--no-verify", "--verbose", "-v",
                 "--dry-run", "-n", "--tags", "--all",
+                "--delete", "-d", "--mirror",  # BH33-001
             ):
                 i += 2  # skip flag + value
                 continue
@@ -148,6 +149,11 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
             continue
         positional.append(part)
         i += 1
+
+    # BH33-001: --mirror pushes ALL refs (including base) and deletes remote
+    # refs not present locally. Always block — too destructive to allow.
+    if "--mirror" in parts:
+        return "blocked"
 
     # Bare "git push" with no remote or refspec — could push to base branch
     # if current branch tracks origin/base. Warn rather than silently allow.

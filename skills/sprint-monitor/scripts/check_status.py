@@ -335,7 +335,7 @@ def check_smoke(config: dict, sprints_dir: Path) -> tuple[list[str], list[str]]:
             _write_smoke_history(str(sprints_dir), "SMOKE FAIL", smoke_cmd, "", f"timed out after {smoke_timeout}s")
         return [f"Smoke: FAIL — timed out after {smoke_timeout}s"], \
                ["Smoke test timed out"]
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:  # BH33-002
         return [f"Smoke: error — {exc}"], []
 
 

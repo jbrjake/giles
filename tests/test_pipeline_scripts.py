@@ -87,6 +87,20 @@ class TestTeamVoices(unittest.TestCase):
         # The quote spans 4 lines in the fixture — should be a single string
         self.assertIn("compiler", rusti_s01[0]["quote"].lower())
 
+    def test_empty_quote_skipped(self):
+        """BH33-006: Blockquote with only whitespace after name is not extracted."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            (Path(td) / "test.md").write_text(
+                "# Voices\n"
+                "> **Bob:**    \n"
+                "> **Alice:** Real quote here\n"
+            )
+            voices = extract_voices(sagas_dir=td)
+            self.assertNotIn("Bob", voices)
+            self.assertIn("Alice", voices)
+            self.assertEqual(voices["Alice"][0]["quote"], "Real quote here")
+
 
 # ---------------------------------------------------------------------------
 # Task 1: Traceability

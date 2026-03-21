@@ -1105,6 +1105,32 @@ class TestManageSagasMain(unittest.TestCase):
                 manage_sagas.main()
             self.assertEqual(ctx.exception.code, 1)
 
+    def test_invalid_json_allocation_exits_1(self):
+        """BH33-005: Invalid JSON for allocation must print error and exit 1."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# Saga\n")
+            saga_path = f.name
+        try:
+            with patch("sys.argv", ["manage_sagas", "update-allocation", saga_path, "not-json"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    manage_sagas.main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.unlink(saga_path)
+
+    def test_invalid_json_voices_exits_1(self):
+        """BH33-005: Invalid JSON for voices must print error and exit 1."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# Saga\n")
+            saga_path = f.name
+        try:
+            with patch("sys.argv", ["manage_sagas", "update-voices", saga_path, "{bad"]):
+                with self.assertRaises(SystemExit) as ctx:
+                    manage_sagas.main()
+                self.assertEqual(ctx.exception.code, 1)
+        finally:
+            os.unlink(saga_path)
+
 
 class TestTestCoverageMain(unittest.TestCase):
     """P13-003: test_coverage.main() integration test."""

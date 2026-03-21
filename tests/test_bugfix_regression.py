@@ -111,6 +111,30 @@ class TestCheckStatusMainArgParsing(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 0)
 
 
+class TestCheckSmokExceptionNarrowing(unittest.TestCase):
+    """BH33-002: check_smoke must not swallow programming errors."""
+
+    def test_type_error_propagates(self):
+        """TypeError from inside check_smoke must not be caught."""
+        config = {"ci": {"smoke_command": "true"}}
+        with patch("subprocess.run", side_effect=TypeError("bad arg")):
+            with self.assertRaises(TypeError):
+                check_status.check_smoke(config, Path(tempfile.mkdtemp()))
+
+    def test_os_error_caught(self):
+        """OSError from subprocess is caught and reported."""
+        config = {"ci": {"smoke_command": "true"}}
+        report, actions = check_status.check_smoke(
+            config, Path(tempfile.mkdtemp()),
+        )
+        # We need to mock subprocess.run to raise OSError
+        with patch("subprocess.run", side_effect=OSError("no such file")):
+            report, actions = check_status.check_smoke(
+                config, Path(tempfile.mkdtemp()),
+            )
+        self.assertTrue(any("error" in line for line in report))
+
+
 class TestCommitMainArgParsing(unittest.TestCase):
     """P5-13: commit.main() error paths."""
 

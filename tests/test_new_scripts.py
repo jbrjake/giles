@@ -65,6 +65,23 @@ class TestSmokeTest(unittest.TestCase):
             content = path.read_text()
             self.assertIn("Smoke Test History", content)
 
+    def test_smoke_history_escapes_pipe_in_command(self):
+        """BH33-003: Pipe chars in command must be escaped to prevent table corruption."""
+        with tempfile.TemporaryDirectory() as td:
+            write_history(td, "SMOKE PASS", "cargo test 2>&1 | head -20")
+            content = (Path(td) / "smoke-history.md").read_text()
+            # The last data row should have exactly 4 columns (Date, Commit, Command, Result)
+            data_lines = [l for l in content.splitlines()
+                          if l.startswith("|") and "---" not in l
+                          and "Date" not in l]
+            self.assertEqual(len(data_lines), 1)
+            # Count unescaped pipes (column separators) — should be 5 for 4 columns
+            row = data_lines[0]
+            # Pipes preceded by backslash are escaped, not separators
+            import re
+            separators = re.findall(r'(?<!\\)\|', row)
+            self.assertEqual(len(separators), 5)  # |col1|col2|col3|col4|
+
 
 class TestGapScanner(unittest.TestCase):
     """P0-SCRIPT-2: Gap scanner."""
