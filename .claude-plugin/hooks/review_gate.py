@@ -175,9 +175,27 @@ def _log_blocked(command: str, reason: str) -> None:
     sprint-config/ directories in projects that don't use giles.
     """
     root = _find_project_root()
-    if not (root / "sprint-config" / "project.toml").is_file():
+    toml_path = root / "sprint-config" / "project.toml"
+    if not toml_path.is_file():
         return
-    log_dir = root / "sprint-config" / "sprints"
+    # Read sprints_dir from config, fall back to sprint-config/sprints
+    sprints_dir = "sprint-config/sprints"
+    try:
+        text = toml_path.read_text(encoding="utf-8")
+        in_paths = False
+        for line in text.splitlines():
+            s = line.strip()
+            if s.startswith("["):
+                in_paths = s == "[paths]"
+                continue
+            if in_paths:
+                m = re.match(r'sprints_dir\s*=\s*["\']([^"\']*)["\']', s)
+                if m:
+                    sprints_dir = m.group(1)
+                    break
+    except Exception:
+        pass
+    log_dir = root / sprints_dir
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "hook-audit.log"
     timestamp = datetime.datetime.now().isoformat()

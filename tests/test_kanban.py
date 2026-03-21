@@ -662,14 +662,20 @@ class TestTransitionCommand(unittest.TestCase):
 
     def test_dev_to_integration_error_mentions_review(self):
         """P0-KANBAN-1: dev→integration error mentions 'must pass through review'."""
+        import io
         with tempfile.TemporaryDirectory() as td:
             tf = self._make_tf(td, status="dev", implementer="rae",
                                branch="sprint-1/US-0042-feat", pr_number="55")
-            with patch_gh("kanban.gh"):
-                result = do_transition(tf, "integration")
+            stderr_capture = io.StringIO()
+            from unittest.mock import patch as _patch
+            with _patch("sys.stderr", stderr_capture):
+                with patch_gh("kanban.gh"):
+                    result = do_transition(tf, "integration")
             self.assertFalse(result)
             loaded = read_tf(tf.path)
             self.assertEqual(loaded.status, "dev")  # unchanged
+            # The error message must mention 'review'
+            self.assertIn("review", stderr_capture.getvalue().lower())
 
     def test_review_round_escalation_blocks_after_3(self):
         """P1-KANBAN-2: After 3 review→dev cycles, 4th is blocked."""

@@ -6,6 +6,7 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -226,22 +227,22 @@ class TestRiskRegister(unittest.TestCase):
     """P1-STATE-2: Risk register management."""
 
     def setUp(self):
-        import risk_register
-        self._orig_path = risk_register._REGISTER_PATH
         self._td = tempfile.mkdtemp()
-        risk_register._REGISTER_PATH = Path(self._td) / "risk-register.md"
+        self._mock_path = Path(self._td) / "risk-register.md"
+        self._patcher = patch("risk_register._register_path",
+                              return_value=self._mock_path)
+        self._patcher.start()
 
     def tearDown(self):
-        import risk_register
-        risk_register._REGISTER_PATH = self._orig_path
+        self._patcher.stop()
         import shutil
         shutil.rmtree(self._td, ignore_errors=True)
 
     def test_add_risk(self):
-        from risk_register import add_risk, _REGISTER_PATH
+        from risk_register import add_risk, _register_path
         rid = add_risk("No integration tests", "high", "1")
         self.assertEqual(rid, "R1")
-        content = _REGISTER_PATH.read_text()
+        content = _register_path().read_text()
         self.assertIn("No integration tests", content)
         self.assertIn("high", content)
 
@@ -253,9 +254,10 @@ class TestRiskRegister(unittest.TestCase):
         self.assertEqual(len(risks), 2)
 
     def test_escalate_overdue(self):
-        from risk_register import escalate_overdue, _REGISTER_PATH
+        from risk_register import escalate_overdue, _register_path
         # Manually write a risk with sprints_open > 2
-        _REGISTER_PATH.write_text(
+        _register_path().parent.mkdir(parents=True, exist_ok=True)
+        _register_path().write_text(
             "# Risk Register\n"
             "| ID | Title | Severity | Status | Raised | Sprints Open | Resolution |\n"
             "|----|-------|----------|--------|--------|-------------|------------|\n"
@@ -282,22 +284,22 @@ class TestRiskRegister(unittest.TestCase):
 
     def test_pipe_roundtrip(self):
         """DA-021/022: Pipes in title and resolution survive add→resolve→list."""
-        from risk_register import add_risk, resolve_risk, list_open_risks, _parse_rows, _REGISTER_PATH
+        from risk_register import add_risk, resolve_risk, list_open_risks, _parse_rows, _register_path
         add_risk("Risk A | Risk B", "high", "1")
         # Title should be escaped in file but readable via _parse_rows
-        rows = _parse_rows(_REGISTER_PATH.read_text())
+        rows = _parse_rows(_register_path().read_text())
         self.assertEqual(rows[0]["title"], "Risk A | Risk B")
         # Resolve with a pipe in resolution
         resolve_risk("R1", "fixed | workaround applied")
-        rows = _parse_rows(_REGISTER_PATH.read_text())
+        rows = _parse_rows(_register_path().read_text())
         self.assertEqual(rows[0]["resolution"], "fixed | workaround applied")
         self.assertEqual(rows[0]["status"], "Resolved")
 
     def test_add_risk_sanitizes_pipes(self):
         """BH25: Pipe characters in title don't break table."""
-        from risk_register import add_risk, _REGISTER_PATH
+        from risk_register import add_risk, _register_path
         add_risk("Risk with | pipe", "high", "1")
-        content = _REGISTER_PATH.read_text()
+        content = _register_path().read_text()
         # Each row should have exactly 8 pipe characters (7 cells)
         data_lines = [l for l in content.splitlines()
                       if l.strip().startswith("|") and "R1" in l]

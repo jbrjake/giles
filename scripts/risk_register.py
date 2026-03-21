@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,7 +21,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import load_config, ConfigError
 
 
-_REGISTER_PATH = Path("sprint-config/risk-register.md")
+def _register_path() -> Path:
+    """Return the risk register path, reading from config if available."""
+    try:
+        config = load_config()
+        config_dir = Path(config.get("_config_dir", "sprint-config"))
+        return config_dir / "risk-register.md"
+    except ConfigError:
+        return Path("sprint-config/risk-register.md")
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content atomically using temp-then-rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    os.rename(str(tmp), str(path))
+
+
 _TEMPLATE = (
     "# Risk Register\n\n"
     "Persistent tracking of risks across sprints. "
@@ -32,10 +50,9 @@ _TEMPLATE = (
 
 def _read_register() -> str:
     """Read register or create from template."""
-    if _REGISTER_PATH.is_file():
-        return _REGISTER_PATH.read_text(encoding="utf-8")
-    _REGISTER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _REGISTER_PATH.write_text(_TEMPLATE, encoding="utf-8")
+    if _register_path().is_file():
+        return _register_path().read_text(encoding="utf-8")
+    _atomic_write(_register_path(), _TEMPLATE)
     return _TEMPLATE
 
 
@@ -92,7 +109,7 @@ def add_risk(title: str, severity: str, sprint: str = "current") -> str:
     title = title.replace("|", "\\|")
     row = f"| {rid} | {title} | {severity} | Open | Sprint {sprint} | 0 | |\n"
     text = text.rstrip() + "\n" + row
-    _REGISTER_PATH.write_text(text, encoding="utf-8")
+    _atomic_write(_register_path(), text)
     return rid
 
 
@@ -116,7 +133,7 @@ def resolve_risk(risk_id: str, resolution: str) -> bool:
             found = True
             break
     if found:
-        _REGISTER_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        _atomic_write(_register_path(), "\n".join(lines) + "\n")
     return found
 
 

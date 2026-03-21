@@ -19,7 +19,10 @@ from hooks._common import _find_project_root
 # ---------------------------------------------------------------------------
 
 def _read_toml_string(text: str, section: str, key: str) -> str:
-    """Read a string value from a TOML section."""
+    """Read a string value from a TOML section.
+
+    Handles both double-quoted and single-quoted (literal) TOML strings.
+    """
     in_section = False
     for line in text.splitlines():
         stripped = line.strip()
@@ -28,7 +31,12 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
             continue
         if not in_section:
             continue
+        # Double-quoted strings
         m = re.match(rf'{key}\s*=\s*"([^"]*)"', stripped)
+        if m:
+            return m.group(1)
+        # Single-quoted literal strings (TOML spec)
+        m = re.match(rf"{key}\s*=\s*'([^']*)'", stripped)
         if m:
             return m.group(1)
     return ""

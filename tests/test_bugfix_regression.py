@@ -80,6 +80,26 @@ class TestCheckStatusImportGuard(unittest.TestCase):
         self.assertTrue(callable(check_status.check_prs))
         self.assertTrue(callable(check_status.check_milestone))
 
+    def test_import_guard_failure_path(self):
+        """BH28: Actually test the failure path by temporarily hiding sync_backlog."""
+        import importlib
+        saved = sys.modules.get("sync_backlog")
+        # Simulate sync_backlog being unavailable
+        sys.modules["sync_backlog"] = None  # type: ignore[assignment]
+        try:
+            # Re-import check_status to trigger the import guard
+            importlib.reload(check_status)
+            self.assertIsNone(check_status.sync_backlog_main)
+            # Core functions must still work
+            self.assertTrue(callable(check_status.check_ci))
+        finally:
+            # Restore
+            if saved is not None:
+                sys.modules["sync_backlog"] = saved
+            else:
+                sys.modules.pop("sync_backlog", None)
+            importlib.reload(check_status)
+
 
 class TestCheckStatusMainArgParsing(unittest.TestCase):
     """P5-13: check_status.main() help flag."""

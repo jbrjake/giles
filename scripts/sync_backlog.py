@@ -182,12 +182,16 @@ def do_sync(config: dict) -> dict[str, int]:
     milestone_titles = populate_issues.build_milestone_title_map(milestone_files)
 
     created = 0
+    failed = 0
     for story in stories:
         if story.story_id in existing:
             continue
         if populate_issues.create_issue(story, milestone_numbers, milestone_titles):
             created += 1
+        else:
+            failed += 1
     result["issues"] = created
+    result["failed"] = failed
     return result
 
 
@@ -229,9 +233,17 @@ def main() -> str:
             print("sync: state NOT updated; next run will retry")
             save_state(config_dir, state)
             return "error"
-        state["file_hashes"] = current_hashes
-        state["pending_hashes"] = None
-        state["last_sync_at"] = now.isoformat()
+        failed = counts.get("failed", 0)
+        if failed:
+            # Partial failure: some issues created, some failed.
+            # Do NOT update hashes — next run should retry the failures.
+            print(f"sync: created {counts['issues']} issues, "
+                  f"{failed} failed — state NOT updated for retry",
+                  file=sys.stderr)
+        else:
+            state["file_hashes"] = current_hashes
+            state["pending_hashes"] = None
+            state["last_sync_at"] = now.isoformat()
         print(f"sync: created {counts['issues']} issues, "
               f"synced {counts['milestones']} milestones")
     elif result.status == "no_changes":
