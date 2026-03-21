@@ -1,36 +1,28 @@
-# Recon Summary — Pass 35
+# Recon Summary — Pass 36
 
-**Baseline:** 1161 tests, all passing, 17.74s. No new commits since pass 34.
-**Focus:** Deep audit of under-scrutinized files + hooks hotspot + deferred items.
+**Baseline:** 1178 tests, all passing, 17.43s. Pass 35 modified 10 files.
+**Focus:** Verify pass 35 fixes, search for siblings, convergence check.
 
-## Audit Strategy
+## Audit Targets
 
-The codebase is maturing (fix density dropping). No new code since pass 34. This pass should focus on:
+### 1. assign_dod_level.py still uses lock_story (BH35-001 sibling)
+- `scripts/assign_dod_level.py:50` — uses `lock_story` when writing tracking files
+- kanban.py main() now uses `lock_sprint` for all mutations
+- Same race condition class as BH35-001: assign_dod_level vs sync_tracking
 
-### Tier 1: Under-scrutinized complex files
-- **`scripts/sprint_init.py`** (1236 lines) — largest script, untouched since ReDoS fix. Project scanner with complex regex patterns and file I/O.
-- **`skills/sprint-release/scripts/release_gate.py`** — Release gating with semver parsing, commit classification, multiple gates. Not deeply audited recently.
+### 2. traceability.py STORY_HEADING uses \s* (BH35-015 sibling)
+- `scripts/traceability.py:23` — `\s*` after colon, like the old manage_epics pattern
+- populate_issues uses `\s+` — same inconsistency
 
-### Tier 2: High-churn hooks (bug-magnet pattern)
-- **`verify_agent_output.py`** (9 changes) — agent output validation
-- **`session_context.py`** (7 changes) — inline TOML parsing, path resolution
-- **`commit_gate.py`** (7 changes) — commit validation, CI command execution
-- **`review_gate.py`** (8 changes) — git push parser, incremental hardening
+### 3. sprint_init.py unescaped TOML values (BH35-024 siblings)
+- Lines 651, 653: cheatsheet and architecture values not passed through `_esc()`
+- All other user-derived values use `esc()` correctly
 
-### Tier 3: Cross-component seams
-- kanban.py ↔ sync_tracking.py state reconciliation
-- commit_gate.py inline TOML vs validate_config.py full TOML parser divergence
-- populate_issues.py ↔ manage_epics.py story format contracts
+### 4. lock_story now only used by assign_dod_level.py
+- kanban.py defines it but no longer calls it from main()
+- The docstring at kanban.py:331 references lock_story as caller requirement
+- sync_tracking.py:15 has a stale comment saying it uses lock_story (it uses lock_sprint)
 
-### Tier 4: Deferred pass-34 items (re-evaluate)
-- TOML parser: hyphen-leading bare keys, malformed quoted strings
-- kanban.py: WIP lock API contract, case-sensitive persona comparison
-- bootstrap_github.py: milestone title length
-- populate_issues.py: ARG_MAX
-
-## Key Numbers
-- 26 production files (~11,187 LOC)
-- 18 test files (~18,500 LOC, ~1165 test methods)
-- 0 skipped tests, 0 TODO/FIXME in tests
-- 18 flake8 style issues (0 bugs, 2 E741 ambiguous variable names)
-- Highest churn: kanban.py (13), verify_agent_output.py (9), review_gate.py (8)
+### 5. review_gate ALL-positionals false positive
+- Remote named same as base branch (e.g., "main") would cause false block
+- LOW severity — false blocks are safe, and remotes named "main" are extremely rare

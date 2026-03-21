@@ -1,82 +1,132 @@
-# 0e — Git Churn Analysis
+# 0e — Git Churn Analysis (Pass 36)
 
-**Scope:** Last 50 commits on `main`
-**Date:** 2026-03-21
+Generated: 2026-03-21
 
-## Top 20 Most-Changed Files
+## Last 4 commits (Pass 35 fixes)
 
-| Rank | Changes | File | Category |
-|------|---------|------|----------|
-| 1 | 22 | `tests/test_hooks.py` | test |
-| 2 | 12 | `scripts/kanban.py` | **production** |
-| 3 | 11 | `tests/test_new_scripts.py` | test |
-| 4 | 9 | `.claude-plugin/hooks/verify_agent_output.py` | **production** |
-| 5 | 8 | `tests/test_kanban.py` | test |
-| 6 | 8 | `.claude-plugin/hooks/review_gate.py` | **production** |
-| 7 | 8 | `BUG-HUNTER-STATUS.md` | docs |
-| 8 | 7 | `.claude-plugin/hooks/session_context.py` | **production** |
-| 9 | 7 | `.claude-plugin/hooks/commit_gate.py` | **production** |
-| 10 | 6 | `skills/sprint-run/scripts/sync_tracking.py` | **production** |
-| 11 | 6 | `skills/sprint-monitor/scripts/check_status.py` | **production** |
-| 12 | 6 | `BUG-HUNTER-PUNCHLIST.md` | docs |
-| 13 | 5 | `scripts/smoke_test.py` | **production** |
-| 14 | 5 | `.claude-plugin/plugin.json` | config |
-| 15 | 4 | `tests/test_pipeline_scripts.py` | test |
-| 16 | 4 | `scripts/risk_register.py` | **production** |
-| 17 | 4 | `scripts/manage_epics.py` | **production** |
-| 18 | 4 | `scripts/gap_scanner.py` | **production** |
-| 19 | 3 | `tests/test_verify_fixes.py` | test |
-| 20 | 3 | `tests/test_bugfix_regression.py` | test |
+```
+d8d2185 chore: bug-hunter pass 35 — recon reports, punchlist, status
+debe769 fix: remaining MEDIUM/LOW — persona collision, saga/epic fields, regex align
+6ea4eef fix: MEDIUM items — hooks hardening, release_gate, sprint_init
+7e07bc5 fix: HIGH items BH35-001 through BH35-003, BH35-021, BH35-022
+```
 
-## Modifications-Only View (top 10 production)
+Net: +297 / -5186 lines (bulk deletion of old recon reports).
 
-Filtering to `--diff-filter=M` (modifications, excluding adds/deletes) shifts the
-picture slightly — files that were created once but modified many times rank higher:
+## Source files changed (pass 35 fixes only)
 
-| Changes | File |
+| File | Lines changed | What changed |
+|------|--------------|--------------|
+| `scripts/kanban.py` | 43 | All mutation commands (transition/assign/update) switched from `lock_story` to `lock_sprint` |
+| `.claude-plugin/hooks/review_gate.py` | 33 | Push-check refactored: `+refspec` strip, `refs/heads/` strip, pipe splitting, single-quoted TOML, inline comments |
+| `skills/sprint-release/scripts/release_gate.py` | 20 | `gate_ci` workflow filter, `write_version_to_toml` single-quote support, EOF handling |
+| `scripts/sprint_init.py` | 40 | Exclude `sprint-config/` from scan, YAML multiline block variants, PRD OSError guard, persona stem collision, empty backlog scaffold, DoD preservation |
+| `.claude-plugin/hooks/verify_agent_output.py` | 12 | `splitlines()` -> `split('\n')`, inline section comments, continuation-line comment stripping, `\bcommitted\b` word boundary |
+| `scripts/manage_epics.py` | 9 | Story heading regex alignment `\s+` after colon, Saga/Epic fields in formatted output |
+| `.claude-plugin/hooks/session_context.py` | 6 | `splitlines()` -> `split('\n')`, inline section comments |
+| `.claude-plugin/hooks/commit_gate.py` | 4 | Word-boundary matching for config check commands |
+| `tests/test_hooks.py` | 109 added | Tests for push bypass variants, single-quoted TOML, inline comments, word boundaries |
+| `tests/test_verify_fixes.py` | 78 added | Regression tests for BH35 fixes |
+
+## Top 10 churn files (last 10 commits)
+
+| Touches | File |
 |---------|------|
-| 13 | `scripts/kanban.py` |
-| 8 | `.claude-plugin/hooks/verify_agent_output.py` |
-| 7 | `.claude-plugin/hooks/review_gate.py` |
-| 6 | `.claude-plugin/hooks/session_context.py` |
-| 6 | `.claude-plugin/hooks/commit_gate.py` |
-| 6 | `skills/sprint-run/scripts/sync_tracking.py` |
-| 6 | `skills/sprint-monitor/scripts/check_status.py` |
-| 4 | `scripts/smoke_test.py` |
-| 4 | `scripts/manage_epics.py` |
-| 3 | `scripts/validate_config.py` |
+| 6 | `tests/test_hooks.py` |
+| 4 | `.claude-plugin/hooks/review_gate.py` |
+| 3 | `scripts/sprint_init.py` |
+| 3 | `scripts/kanban.py` |
+| 2 | `tests/test_verify_fixes.py` |
+| 2 | `tests/test_pipeline_scripts.py` |
+| 2 | `tests/test_hexwise_setup.py` |
+| 2 | `skills/sprint-monitor/scripts/check_status.py` |
+| 2 | `scripts/smoke_test.py` |
+| 2 | `scripts/manage_sagas.py` |
 
-## Production Files Ranked by Churn (audit priority)
+## Focus areas for regression audit
 
-These are the production files most likely to harbor bugs due to repeated modification:
+### 1. kanban.py lock scope change (HIGH risk)
 
-1. **`scripts/kanban.py`** — 12-13 changes. The central state machine. Highest churn
-   of any production file by a wide margin. Top audit priority.
-2. **`.claude-plugin/hooks/verify_agent_output.py`** — 8-9 changes. Hook that validates
-   agent output. Second highest.
-3. **`.claude-plugin/hooks/review_gate.py`** — 7-8 changes. PR review gating hook.
-4. **`.claude-plugin/hooks/session_context.py`** — 6-7 changes. Session context injection.
-5. **`.claude-plugin/hooks/commit_gate.py`** — 6-7 changes. Commit validation hook.
-6. **`skills/sprint-run/scripts/sync_tracking.py`** — 6 changes. Reconciles local
-   tracking with GitHub state. Known two-path interaction with kanban.py.
-7. **`skills/sprint-monitor/scripts/check_status.py`** — 6 changes. CI/PR/milestone
-   monitoring.
-8. **`scripts/smoke_test.py`** — 4-5 changes. Runs smoke commands, writes history.
-9. **`scripts/manage_epics.py`** — 4 changes. Epic CRUD operations.
-10. **`scripts/risk_register.py`** — 4 changes. Risk register CRUD.
+All three mutation commands (transition, assign, update) were moved from
+`lock_story()` to `lock_sprint()`. This is a correctness fix (prevents
+sync_tracking clobbering) but changes the granularity of locking:
 
-## Observations
+- **Regression risk**: Two stories in different sprints no longer run
+  concurrently if one uses `lock_sprint`. However, the code keys on the
+  sprint number (`sprints_dir / f"sprint-{sprint}"`), so cross-sprint
+  locking is not an issue. Within the same sprint, all mutations are now
+  serialized, which is strictly safer but slower.
+- **Audit**: Verify `lock_story()` is no longer called anywhere in the
+  main() dispatch. Confirm `lock_sprint()` acquires the same `.lock` file
+  that `sync_tracking.py` uses.
 
-- **The hooks subsystem is a hotspot.** Four files under `.claude-plugin/hooks/` account
-  for 28-30 changes combined. These are relatively new (added as part of plugin
-  infrastructure) and have been repeatedly patched — classic bug-magnet pattern.
-- **kanban.py dominates.** It is the single most-modified production file. Its role
-  as the mutation path for story state makes bugs here high-impact.
-- **sync_tracking.py + kanban.py** share responsibility for tracking state. The
-  two-path architecture is documented as intentional, but churn in both files
-  suggests ongoing friction at the boundary.
-- **Test churn mirrors production churn.** `test_hooks.py` (22 changes) and
-  `test_kanban.py` (8 changes) track their production counterparts closely, which
-  is healthy — but high test churn can also indicate flaky or repeatedly-broken tests.
-- **validate_config.py** has only 3 changes despite being the shared utility layer.
-  This suggests it has stabilized. Lower audit priority.
+### 2. review_gate.py push-check refactor (HIGH risk)
+
+The push-block logic changed in three ways simultaneously:
+1. All positional args checked against base (not just `[1:]`)
+2. `+` prefix stripping for force-push refspecs
+3. `refs/heads/` prefix stripping
+
+- **Regression risk**: Checking positional[0] (the remote name) against
+  base could false-positive if a remote happens to be named the same as
+  the base branch (e.g., remote named "main"). This seems unlikely but
+  is worth verifying.
+- **Audit**: Review whether `origin` or other common remote names could
+  ever equal `base`. Check that the pipe-splitting regex `\|\||\ |` does
+  not break on legitimate pipe characters inside quoted strings.
+
+### 3. sprint_init.py persona stem collision (MEDIUM risk)
+
+New logic disambiguates persona files with the same stem by prefixing
+with the parent directory name (`{parent}-{stem}.md`).
+
+- **Regression risk**: Downstream code that reads persona filenames from
+  `team/INDEX.md` or symlinks may not expect the `{parent}-{stem}` pattern.
+  The team index is regenerated with the new names, but any hardcoded
+  assumptions about persona file naming could break.
+- **Audit**: Check `get_team_personas()` and persona lookup in
+  `sprint-run` to confirm they read from INDEX.md rather than assuming
+  filenames.
+
+### 4. sprint_init.py DoD preservation (MEDIUM risk)
+
+`generate_definition_of_done()` now skips if the file already exists.
+
+- **Regression risk**: If the skeleton template is updated with new
+  baseline items, re-running init will not propagate them to existing
+  projects. This is intentional (preserving retro additions) but should
+  be documented.
+- **Audit**: Confirm no tests expect DoD to be overwritten on re-run.
+
+### 5. Inline TOML parsing consistency (MEDIUM risk)
+
+Three hooks (`review_gate`, `session_context`, `verify_agent_output`)
+all received the same two fixes: `splitlines()` -> `split('\n')` and
+inline section-comment stripping (`s.split('#')[0].strip()`).
+
+- **Regression risk**: The `split('#')` approach for stripping comments
+  is naive — it would break if a TOML value contains a literal `#`
+  character inside quotes (e.g., `name = "C# Project"`). The hooks only
+  read specific keys (`base_branch`, `sprints_dir`, `check_commands`)
+  where `#` in values is unlikely, so practical risk is low.
+- **Audit**: Search for any TOML values in skeleton templates or test
+  fixtures that contain `#` characters.
+
+### 6. verify_agent_output.py continuation-line comment stripping (LOW risk)
+
+New `_strip_inline_comment()` call on array continuation lines prevents
+phantom items from comments containing quoted strings.
+
+- **Audit**: Verify `_strip_inline_comment()` correctly handles strings
+  containing `#` (should only strip comments outside quotes). Check for
+  edge cases like `"value # with hash"  # actual comment`.
+
+### 7. manage_epics.py story heading regex (LOW risk)
+
+Changed from `\s*` (optional space) to `\s+` (required space) after the
+colon in `### US-NNN: Title` headings.
+
+- **Regression risk**: Any existing milestone file with `### US-001:Title`
+  (no space after colon) would no longer be matched.
+- **Audit**: Check whether `populate_issues.py` always emits a space
+  after the colon (it should, since the regex was aligned to match it).

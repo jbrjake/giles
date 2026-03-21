@@ -1,138 +1,90 @@
-# Phase 0a: Project Overview — Bug Hunter Pass 35
+# Pass 36 — Phase 0a: Project Overview
 
-**Date:** 2026-03-21
-**Commit range:** 8852009 (HEAD, pass 34 chore) and all prior
-**Prior pass:** Pass 34 (5 items resolved, 6 deferred as low-severity)
-**Test baseline:** 1161 passed, 0 failed (17.58s)
-**Production LOC:** ~11,187 across 26 files (19 scripts + 7 hooks/skills scripts)
+> Baseline: pass 35, commits 8852009..d8d2185 (4 commits, 10 Python files changed)
+> Test baseline (pass 35 exit): 1178 pass, 0 fail
 
----
+## Commit Range
 
-## What Changed Since Last Pass
+| Commit | Description |
+|--------|-------------|
+| 7e07bc5 | fix: HIGH items BH35-001..003, BH35-021, BH35-022 |
+| 6ea4eef | fix: MEDIUM items — hooks hardening, release_gate, sprint_init |
+| debe769 | fix: remaining MEDIUM/LOW — persona collision, saga/epic fields, regex align |
+| d8d2185 | chore: recon reports, punchlist, status |
 
-Pass 34 was the most recent pass. Commit 0ce81b2 fixed 5 items (BH34-001 through BH34-005). No commits exist after the pass 34 chore commit (8852009). The working tree shows the prior recon/punchlist files deleted and archived to `bug-hunter-prior-pass34/`.
+## Files Modified (Regression Risk Targets)
 
-### Files Modified in the Fix Commits (0ce81b2, b03ccbe)
+| File | Lines changed | What changed |
+|------|--------------|--------------|
+| `scripts/kanban.py` | -43/+34 | All mutations switched from `lock_story` to `lock_sprint` (BH35-001/004) |
+| `scripts/sprint_init.py` | +40 | Re-run protections: exclude sprint-config/ from scans, DoD preservation, milestones skeleton for empty backlog, YAML block scalar variants, detect_prd_dir crash guard, binary_path TOML escaping, persona stem collision disambiguation |
+| `.claude-plugin/hooks/review_gate.py` | +33/-8 | Push parser: +refspec, refs/heads/, --repo bypass, pipe split, TOML parser fixes (split/section-comment/single-quote) |
+| `.claude-plugin/hooks/commit_gate.py` | +4/-1 | Word boundary on check_command matching |
+| `.claude-plugin/hooks/session_context.py` | +6 | TOML parser: split('\n'), section comment stripping |
+| `.claude-plugin/hooks/verify_agent_output.py` | +12 | TOML parser: split('\n'), section comment, multiline array comment stripping, \bcommitted\b word boundary |
+| `scripts/manage_epics.py` | +9 | Saga/Epic fields in story sections, `\s+` regex alignment |
+| `skills/sprint-release/scripts/release_gate.py` | +20 | gate_ci workflow filter, write_version_to_toml single-quote and EOF fixes |
+| `tests/test_hooks.py` | +109 (new) | Tests for push bypass vectors |
+| `tests/test_verify_fixes.py` | +78 (new) | Tests for BH35 fix verification |
 
-| File | Lines | Changes |
-|------|-------|---------|
-| `.claude-plugin/hooks/review_gate.py` | 266 | `--delete`, `-d`, `--mirror` added to boolean flag set; `--all`/`--mirror` unconditional block; UTC timestamps |
-| `scripts/kanban.py` | 818 | UTC timestamps in transition log |
-| `scripts/smoke_test.py` | 129 | UTC timestamps; pipe-char escaping in markdown table |
-| `scripts/manage_sagas.py` | 319 | JSON parse error handling for allocation/voices |
-| `scripts/team_voices.py` | 110 | Skip empty blockquote entries |
-| `scripts/validate_anchors.py` | 342 | Strip trailing empty element to prevent blank line accumulation |
-| `skills/sprint-monitor/scripts/check_status.py` | 611 | UTC-aware datetime comparison; narrowed exception from `Exception` to `(OSError, subprocess.SubprocessError)` |
-| `skills/sprint-setup/scripts/populate_issues.py` | 564 | `safe_int()` import; `int()` -> `safe_int()` for story points |
-| `skills/sprint-run/references/kanban-protocol.md` | — | Doc fix: WIP limits enforcement description |
+## Key Patterns Applied in Pass 35
 
-### Test Files Modified
+### PATTERN-A: Lock unification (kanban.py)
+All three mutation paths (`transition`, `assign`, `update`) now use `lock_sprint` instead of mixed `lock_story`/`lock_sprint`. This eliminates the cross-lock-file race with `sync_tracking.py`.
 
-| File | Changes |
-|------|---------|
-| `tests/test_bugfix_regression.py` | +3 tests: exception narrowing boundary tests |
-| `tests/test_hexwise_setup.py` | +2 tests: 5-digit story ID, non-numeric SP |
-| `tests/test_hooks.py` | +4 tests: --delete, -d, --mirror, --all blocking |
-| `tests/test_new_scripts.py` | +1 test: pipe escaping in smoke history |
-| `tests/test_pipeline_scripts.py` | +2 tests: empty voice skip, AC format round-trip |
-| `tests/test_validate_anchors.py` | +1 test: fix idempotency (no trailing newlines) |
-| `tests/test_verify_fixes.py` | +2 tests: invalid JSON for saga allocation/voices |
+**Audit risk:** The `lock_story` function is now unused from `main()`. Is it still used elsewhere? Is there dead code? Did the lock scope change cause any new contention issues (all mutations now serialize against the same sprint-level lock)?
 
----
+### PATTERN-B: TOML parser propagation to hooks
+Three fixes propagated to all 4 hook inline parsers:
+1. `split('\n')` instead of `splitlines()` (BH20-001 parity)
+2. Section header comment stripping: `stripped.split('#')[0].strip()`
+3. Single-quote support for `base_branch`
 
-## Deferred Items From Pass 34
+**Audit risk:** The comment-stripping approach `s.split('#')[0]` is naive — it would break on `key = "value # with hash"`. The main parser handles this correctly; the hook parsers do not. Check if any TOML values in project.toml could legitimately contain `#`.
 
-These were explicitly deferred as low-severity. Worth re-evaluating:
+### PATTERN-C: Push parser hardening (review_gate.py)
+- Checks ALL positionals (not just [1:]) against base branch
+- Strips `+` prefix and `refs/heads/` from refspecs before comparison
+- Splits on `|` (single pipe) in addition to `&&`, `||`, `;`
 
-1. **TOML parser rejects hyphen-leading bare keys** — `validate_config.parse_simple_toml()`
-2. **TOML parser accepts malformed quoted strings** — same parser
-3. **kanban.py API contract incomplete for WIP lock** — `check_wip_limit` internal API
-4. **kanban.py case-sensitive persona comparison** — `do_assign` path
-5. **bootstrap_github.py milestone title length limit** — theoretical
-6. **populate_issues.py ARG_MAX for long issue bodies** — theoretical
+**Audit risk:** Checking ALL positionals means the remote name itself is checked against base. If remote is named "main" (unusual but valid), any push would be blocked. Also: does `|` splitting cause false positives on commands that pipe non-push output?
 
----
+### PATTERN-D: sprint_init re-run protections
+- DoD preserved if file already exists
+- milestones/ skeleton created for empty backlog
+- sprint-config/ excluded from project scans
+- Persona stem collision disambiguation with parent dir prefix
 
-## Subsystem Inventory
+**Audit risk:** The stem collision logic uses `parent.name` — what if two personas have the same stem AND the same parent dir name? Also verify the milestones skeleton doesn't cause downstream issues (populate_issues seeing template content).
 
-### High-Churn (touched in 5+ of last 30 commits)
+### PATTERN-E: release_gate hardening
+- `gate_ci` filters by workflow name if `ci.workflow` configured
+- `write_version_to_toml` handles single-quoted values and EOF without newline
 
-| Subsystem | Key Files | Last Fix | Risk |
-|-----------|-----------|----------|------|
-| Hooks | `review_gate.py`, `commit_gate.py`, `session_context.py`, `verify_agent_output.py` | 0ce81b2 | Medium — complex string parsing (TOML, git commands) |
-| Kanban | `kanban.py`, `sync_tracking.py` | 0ce81b2 | Medium — state machine, locking, file I/O |
-| Config/TOML | `validate_config.py` | 15694b0 | Medium — custom parser, many consumers |
+**Audit risk:** The `ci.workflow` key is new — not in `_REQUIRED_TOML_KEYS` (correctly optional), but is it documented anywhere? Also verify the EOF fix doesn't double-newline in the normal case.
 
-### Medium-Churn (touched in 2-4 of last 30 commits)
+## What to Audit in Pass 36
 
-| Subsystem | Key Files | Last Fix |
-|-----------|-----------|----------|
-| Sprint Monitor | `check_status.py` | 0ce81b2 |
-| Populate Issues | `populate_issues.py` | 0ce81b2 |
-| Gap Scanner | `gap_scanner.py` | 2768f12 |
-| Manage Epics | `manage_epics.py` | 2768f12 |
-| Manage Sagas | `manage_sagas.py` | b03ccbe |
-| Sync Backlog | `sync_backlog.py` | 15694b0 |
-| Risk Register | `risk_register.py` | e564910 |
+### 1. Fix verification
+- Confirm each BH35 fix actually works as described (not just that tests pass)
+- Check for off-by-one or edge cases in the new code paths
 
-### Low-Churn / Untouched (not modified in last 10 commits)
+### 2. Sibling search
+- `lock_story` usage: is it now dead code in kanban.py? Any other callers?
+- `split('#')[0]` in hook TOML parsers: does the main parser do this too, or differently?
+- `\s+` vs `\s*` regex alignment: manage_epics changed to `\s+`, did all siblings?
+- `_esc()` method used for binary_path: are there other TOML value writes that don't escape?
+- Pipe splitting in review_gate: does commit_gate also need it?
 
-| File | Last Commit | Notes |
-|------|-------------|-------|
-| `sprint_init.py` | 7bbf41b | Project scanner/generator — large, complex |
-| `sprint_teardown.py` | 87237e3 | Simple but safety-critical |
-| `sprint_analytics.py` | d9e874b | Metrics computation |
-| `test_categories.py` | d67d173 | Test classifier |
-| `assign_dod_level.py` | 18f5238 | Story classifier |
-| `history_to_checklist.py` | 18f5238 | Checklist generator |
-| `test_coverage.py` | 0eeccec | Test file scanner |
-| `traceability.py` | 0eeccec | PRD/test mapping |
-| `commit.py` | f7b71c0 | Conventional commit enforcer |
-| `setup_ci.py` | 069ab46 | CI YAML generator |
-| `bootstrap_github.py` | a26bd76 | GitHub label/milestone creation |
-| `update_burndown.py` | a044798 | Burndown chart updates |
-| `release_gate.py` | 7aaf4d2 | Release gating + versioning |
+### 3. Convergence check
+- Are the 4 hook inline TOML parsers now truly converged, or do differences remain?
+- Is `lock_story` still called anywhere, or is it dead code that should be removed?
+- Are there other `positional[1:]` patterns in the codebase that should be `positional`?
 
----
+### 4. New test quality
+- test_hooks.py and test_verify_fixes.py are new — check they test the right things and aren't tautological
+- Check for missing negative test cases (e.g., "main" as remote name)
 
-## Key Architectural Observations
-
-1. **Fix density is dropping.** Pass 34 found 5 items (3 MEDIUM, 2 LOW) compared to earlier passes that found 5-10 HIGH/MEDIUM items. The codebase is converging.
-
-2. **Pattern: UTC consistency is now complete.** BH34-001 was the last `datetime.now()` without UTC. All timestamps are now timezone-aware. The readers (check_status smoke/debt checks) use `.replace(tzinfo=timezone.utc)` on parsed naive timestamps.
-
-3. **TOML parser remains a risk surface.** The custom parser in `validate_config.py` has been the subject of multiple bug-hunter findings across many passes. Two deferred items remain. The inline TOML readers in `commit_gate.py` and `session_context.py` are separate implementations (lightweight parsers) that have also been fixed repeatedly.
-
-4. **review_gate.py git-push parser is hardening but complex.** The `_check_push_single` function uses manual positional argument parsing with a whitelist of flags. Each pass finds new edge cases (--delete, --mirror, --all). The approach of whitelisting known-safe patterns means any unknown flag could be misclassified.
-
-5. **Untouched files are a mixed bag.** `sprint_init.py` (project scanner) and `release_gate.py` (release gating) are both large and complex but have received less recent scrutiny. `sprint_init.py` was last fixed for ReDoS issues; `release_gate.py` was last fixed for MonitoredMock warnings.
-
-6. **Test infrastructure is mature.** 1161 tests, all passing. The `fake_github.py` mock, golden test system, and property-based tests provide good coverage. Test quality has been audited in multiple passes.
-
----
-
-## Files That Warrant Deeper Audit
-
-### Priority 1: Recently-fixed files (regression risk from fixes)
-
-- **`.claude-plugin/hooks/review_gate.py`** — The `_check_push_single` parser has grown through incremental fixes. Worth checking for remaining edge cases in the positional-arg extraction logic, especially around flag-value pairs and the boolean flag whitelist.
-- **`scripts/validate_config.py`** — The TOML parser has two deferred items. The `safe_int()` function is now used more broadly. Worth checking edge cases.
-- **`skills/sprint-monitor/scripts/check_status.py`** — Exception narrowing from `Exception` to `(OSError, subprocess.SubprocessError)` is correct but worth verifying no other exception types from `subprocess.run` could occur.
-
-### Priority 2: Untouched complex files
-
-- **`scripts/sprint_init.py`** — 1236 lines (largest script), untouched since ReDoS fix. Complex project scanning logic.
-- **`skills/sprint-release/scripts/release_gate.py`** — Release gating with semver, commit parsing, multiple gates. Not recently audited.
-- **`skills/sprint-setup/scripts/bootstrap_github.py`** — GitHub API interactions, label/milestone creation. Milestone title mapping was a prior bug source.
-
-### Priority 3: Cross-component seams
-
-- **kanban.py <-> sync_tracking.py** — Two-path state management. Lock semantics, atomic writes, status reconciliation.
-- **commit_gate.py <-> validate_config.py** — Inline TOML parser in commit_gate vs full parser in validate_config. Different implementations could diverge.
-- **populate_issues.py <-> manage_epics.py** — Story format contracts (AC prefix format, story ID patterns). The BH30-005 round-trip test covers this but the seam is wide.
-
-### Priority 4: Hooks subsystem as a whole
-
-- **`session_context.py`** — Path resolution, TOML reading, DoD retro extraction. Multiple prior fixes.
-- **`verify_agent_output.py`** — Agent detection, tracking file updates. Prior fixes for false positives/negatives.
-- **`commit_gate.py`** — Inline config reading, CI command execution. Prior fixes for state handling.
+### 5. Under-scrutinized files
+- `scripts/manage_epics.py` got a small change — has it been fully audited before?
+- `skills/sprint-release/scripts/release_gate.py` has accumulated fixes across many passes — check for interaction effects
