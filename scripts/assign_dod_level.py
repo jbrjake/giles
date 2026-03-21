@@ -28,6 +28,7 @@ _APP_KEYWORDS = re.compile(
 )
 
 
+# §assign_dod_level.classify_story
 def classify_story(body_text: str, title: str = "") -> str:
     """Return 'app' if user-facing keywords found, else 'library'."""
     text = f"{title} {body_text}"
@@ -36,6 +37,7 @@ def classify_story(body_text: str, title: str = "") -> str:
     return "library"
 
 
+# §assign_dod_level.assign_levels
 def assign_levels(sprints_dir: str, sprint: int) -> dict[str, int]:
     """Assign DoD levels to all stories in a sprint. Returns counts."""
     stories_dir = Path(sprints_dir) / f"sprint-{sprint}" / "stories"
@@ -59,6 +61,7 @@ def assign_levels(sprints_dir: str, sprint: int) -> dict[str, int]:
     return counts
 
 
+# §assign_dod_level.main
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assign DoD levels")
     parser.add_argument("--sprint", type=int, default=None)

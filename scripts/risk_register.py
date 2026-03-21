@@ -102,6 +102,7 @@ def _parse_rows(text: str) -> list[dict]:
     return rows
 
 
+# §risk_register.add_risk
 def add_risk(title: str, severity: str, sprint: str = "current") -> str:
     """Add a risk to the register. Returns the assigned ID."""
     text = _read_register()
@@ -113,6 +114,7 @@ def add_risk(title: str, severity: str, sprint: str = "current") -> str:
     return rid
 
 
+# §risk_register.resolve_risk
 def resolve_risk(risk_id: str, resolution: str) -> bool:
     """Resolve a risk by ID. Returns True if found."""
     text = _read_register()
@@ -137,6 +139,7 @@ def resolve_risk(risk_id: str, resolution: str) -> bool:
     return found
 
 
+# §risk_register.list_open_risks
 def list_open_risks() -> list[dict]:
     """Return all open risks."""
     text = _read_register()
@@ -144,6 +147,7 @@ def list_open_risks() -> list[dict]:
     return [r for r in rows if r["status"].lower() == "open"]
 
 
+# §risk_register.escalate_overdue
 def escalate_overdue(threshold: int = 2) -> list[dict]:
     """Return risks open longer than threshold sprints."""
     open_risks = list_open_risks()
@@ -162,6 +166,7 @@ def escalate_overdue(threshold: int = 2) -> list[dict]:
 # CLI
 # ---------------------------------------------------------------------------
 
+# §risk_register.main
 def main() -> None:
     parser = argparse.ArgumentParser(description="Risk register management")
     sub = parser.add_subparsers(dest="command")

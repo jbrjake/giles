@@ -42,7 +42,10 @@ what you need without reading entire files.
 | §validate_config.list_milestone_issues | `list_milestone_issues()` | Fetch all issues for a milestone (shared helper) |
 | §validate_config.warn_if_at_limit | `warn_if_at_limit()` | Warn if API response is at pagination limit |
 | §validate_config.TABLE_ROW | `TABLE_ROW` | Regex for markdown table rows in tracking files |
+| §validate_config.TF | `TF` | Dataclass for tracking file state (story, title, status, fields, body_text, path) |
 | §validate_config._yaml_safe | `_yaml_safe()` | Quote values with YAML-sensitive chars (bools, colons, numerics) |
+| §validate_config.read_tf | `read_tf()` | Parse tracking file from disk into TF dataclass |
+| §validate_config.write_tf | `write_tf()` | Serialize TF dataclass back to disk (YAML frontmatter + body) |
 | §validate_config.frontmatter_value | `frontmatter_value()` | Extract single value from YAML frontmatter by key |
 | §validate_config.short_title | `short_title()` | Strip story ID prefix from title (everything after first colon) |
 
@@ -115,9 +118,12 @@ what you need without reading entire files.
 ### scripts/kanban.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
-| §kanban.TRANSITIONS | `TRANSITIONS` | Allowed state transitions dict (source → set of targets) |
+| §kanban.TRANSITIONS | `TRANSITIONS` | Allowed state transitions dict (source → list of targets) |
 | §kanban.validate_transition | `validate_transition()` | Raise ValueError if transition is not in TRANSITIONS |
-| §kanban.check_preconditions | `check_preconditions()` | Enforce WIP limits and other preconditions before transition |
+| §kanban.check_preconditions | `check_preconditions()` | Check required field preconditions before transition (implementer, branch, etc.) |
+| §kanban.check_wip_limit | `check_wip_limit()` | Enforce WIP limits per state (1 dev/persona, 2 review/reviewer, 3 integration) |
+| §kanban._count_review_rounds | `_count_review_rounds()` | Count review → dev transitions in the transition log |
+| §kanban.append_transition_log | `append_transition_log()` | Append timestamped transition entry to tracking file body |
 | §kanban.lock_story | `lock_story()` | Exclusive POSIX lock via sentinel file for per-story serialization |
 | §kanban.lock_sprint | `lock_sprint()` | Exclusive POSIX lock via sentinel file for sprint-level serialization |
 | §kanban.find_story | `find_story()` | Locate tracking file by story ID across sprint directories |
@@ -142,6 +148,7 @@ what you need without reading entire files.
 | Anchor | Function | Purpose |
 |--------|----------|---------|
 | §update_burndown.closed_date | `closed_date()` | Extract close date from issue data |
+| §update_burndown.build_rows | `build_rows()` | Build burndown table rows from milestone issues (date, SP remaining) |
 | §update_burndown.write_burndown | `write_burndown()` | Generate burndown.md from milestone data |
 | §update_burndown.update_sprint_status | `update_sprint_status()` | Update SPRINT-STATUS.md active stories table |
 | §update_burndown.load_tracking_metadata | `load_tracking_metadata()` | Read story tracking files for assignee/PR data |
@@ -180,6 +187,8 @@ what you need without reading entire files.
 | §check_status.check_milestone | `check_milestone()` | Milestone progress: SP done vs total |
 | §check_status.check_branch_divergence | `check_branch_divergence()` | Detect branches far behind base (>10/20 commits) |
 | §check_status.check_direct_pushes | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
+| §check_status.check_smoke | `check_smoke()` | Run smoke test and report pass/fail/skip |
+| §check_status.check_integration_debt | `check_integration_debt()` | Detect stories in integration state too long |
 | §check_status.write_log | `write_log()` | Append timestamped entry to monitor log |
 | §check_status.main | `main()` | CLI entry point |
 
@@ -470,7 +479,7 @@ Review, Commit Format §reviewer.commit_format.
 ## Skeleton templates
 
 All in `references/skeletons/`. Used by `sprint_init.py` when project files
-are missing. 19 templates: 9 core + 10 deep-doc.
+are missing. 20 templates: 9 core + 11 deep-doc.
 
 | Template | Creates |
 |--------|---------|
@@ -493,12 +502,13 @@ are missing. 19 templates: 9 core + 10 deep-doc.
 | `test-case.md.tmpl` | Test case template: steps, expected, edge cases |
 | `story-map-index.md.tmpl` | Story map: activities, user steps, stories |
 | `team-topology.md.tmpl` | Team topology: interaction modes, boundaries |
+| `risk-register.md.tmpl` | Risk register: persistent risk tracking across sprints |
 
 ## Config structure
 
 ```
 sprint-config/
-  project.toml          -- [project], [paths], [ci], [conventions], [release]
+  project.toml          -- [project], [paths], [ci] (required); [conventions], [release] (optional)
   definition-of-done.md -- evolving DoD (baseline + retro-driven additions)
   team/INDEX.md          -- Name | Role | File
   team/{name}.md         -- persona profiles (often symlinks)

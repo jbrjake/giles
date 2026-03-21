@@ -73,6 +73,7 @@ def _path_matches_entry_point(changed_file: str, ep: str) -> bool:
     return False
 
 
+# §gap_scanner.story_touches_entry_point
 def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | None:
     """Check if a story's body or branch diff touches any entry point.
 
@@ -116,6 +117,7 @@ def has_user_facing_keywords(story: dict) -> bool:
     return bool(_USER_FACING_KEYWORDS.search(text))
 
 
+# §gap_scanner.scan_for_gaps
 def scan_for_gaps(config: dict, sprint: int) -> tuple[str, int]:
     """Run the gap scan and return (report, exit_code)."""
     entry_points = get_entry_points(config)
@@ -161,6 +163,7 @@ def scan_for_gaps(config: dict, sprint: int) -> tuple[str, int]:
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+# §gap_scanner.main
 def main() -> None:
     parser = argparse.ArgumentParser(description="Scan for integration gaps")
     parser.add_argument("--config", default="sprint-config/project.toml")

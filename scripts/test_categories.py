@@ -39,6 +39,7 @@ _NAME_PATTERNS: dict[str, re.Pattern] = {
 }
 
 
+# §test_categories.classify_test_file
 def classify_test_file(path: Path,
                        integration_dirs: list[str] | None = None,
                        smoke_dirs: list[str] | None = None) -> str:
@@ -125,6 +126,7 @@ def find_test_files(root: Path) -> list[Path]:
     return test_files
 
 
+# §test_categories.analyze
 def analyze(root: Path,
             integration_dirs: list[str] | None = None,
             smoke_dirs: list[str] | None = None,
@@ -143,6 +145,7 @@ def analyze(root: Path,
     return counts
 
 
+# §test_categories.format_report
 def format_report(counts: dict[str, int]) -> str:
     """Format the test distribution report."""
     total = sum(counts.values())
@@ -165,6 +168,7 @@ def format_report(counts: dict[str, int]) -> str:
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+# §test_categories.main
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze test categories")
     parser.add_argument("--root", default=".", help="Project root directory")

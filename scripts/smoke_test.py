@@ -25,6 +25,7 @@ from validate_config import load_config, ConfigError, get_sprints_dir, safe_int
 # Smoke test execution
 # ---------------------------------------------------------------------------
 
+# §smoke_test.run_smoke
 def run_smoke(command: str, timeout: int = 30) -> tuple[str, int, str, str]:
     """Run the smoke command and return (status, exit_code, stdout, stderr).
 
@@ -55,6 +56,7 @@ def run_smoke(command: str, timeout: int = 30) -> tuple[str, int, str, str]:
 # History tracking
 # ---------------------------------------------------------------------------
 
+# §smoke_test.write_history
 def write_history(sprints_dir: str, status: str, command: str,
                   stdout: str = "", stderr: str = "") -> None:
     """Append a smoke result to smoke-history.md."""
@@ -93,6 +95,7 @@ def write_history(sprints_dir: str, status: str, command: str,
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+# §smoke_test.main
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run smoke test")
     parser.add_argument("--config", default="sprint-config/project.toml",

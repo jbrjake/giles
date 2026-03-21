@@ -24,6 +24,7 @@ _PATTERN_KEYWORDS = re.compile(
 )
 
 
+# §history_to_checklist.extract_checklist_items
 def extract_checklist_items(history_text: str,
                             persona_name: str) -> list[str]:
     """Extract review checklist items from a persona's history."""
@@ -48,6 +49,7 @@ def extract_checklist_items(history_text: str,
     return items
 
 
+# §history_to_checklist.generate_checklists
 def generate_checklists(team_dir: str) -> dict[str, list[str]]:
     """Generate checklists for all personas with history files."""
     history_dir = Path(team_dir) / "history"
@@ -80,6 +82,7 @@ def format_checklist(checklists: dict[str, list[str]]) -> str:
     return "\n".join(lines)
 
 
+# §history_to_checklist.main
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate review checklists from persona history")

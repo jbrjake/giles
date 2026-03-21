@@ -99,7 +99,7 @@ All skills read from `sprint-config/project.toml` via `validate_config.load_conf
 
 ```
 sprint-config/
-├── project.toml          — REQUIRED — [project], [paths], [ci], [conventions], [release]
+├── project.toml          — REQUIRED — [project], [paths], [ci] (required); [conventions], [release] (optional)
 ├── definition-of-done.md — REQUIRED — evolving DoD (baseline + retro-driven additions)
 ├── team/INDEX.md          — REQUIRED — markdown table: Name | Role | File
 ├── team/{name}.md         — REQUIRED — persona files (symlinks to project docs)
@@ -121,9 +121,9 @@ Template: `references/skeletons/project.toml.tmpl`
 
 ### Skeleton Templates
 
-`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. 19 templates:
+`references/skeletons/*.tmpl` — used by `sprint_init.py` when project files are missing. 20 templates:
 - **Core** (9): `project.toml`, `team-index.md`, `persona.md`, `giles.md` (built-in scrum master), `backlog-index.md`, `milestone.md`, `rules.md`, `development.md`, `definition-of-done.md`
-- **Deep docs** (10): `saga.md`, `epic.md`, `story-detail.md`, `prd-index.md`, `prd-section.md`, `test-plan-index.md`, `golden-path.md`, `test-case.md`, `story-map-index.md`, `team-topology.md`
+- **Deep docs** (11): `saga.md`, `epic.md`, `story-detail.md`, `prd-index.md`, `prd-section.md`, `test-plan-index.md`, `golden-path.md`, `test-case.md`, `story-map-index.md`, `team-topology.md`, `risk-register.md`
 
 ## Key Architectural Decisions
 
