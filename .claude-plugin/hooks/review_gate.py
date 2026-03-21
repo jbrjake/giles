@@ -114,7 +114,8 @@ def check_push(command: str, *, base: str = "main") -> str:
     on shell operators and checking each subcommand.
     """
     # BH27-005: Split compound commands and check each subcommand
-    for subcommand in re.split(r'\s*(?:&&|\|\||;)\s*', command):
+    # BH35-007: Also split on single pipe |  (match || before | via ordering)
+    for subcommand in re.split(r'\s*(?:&&|\|\||\||;)\s*', command):
         result = _check_push_single(subcommand.strip(), base=base)
         if result != "allowed":
             return result
@@ -165,6 +166,11 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
     if len(positional) >= 2:
         for refspec in positional[1:]:
             target = refspec.split(":")[-1] if ":" in refspec else refspec
+            # BH35-002: Strip leading + (force-push refspec prefix)
+            target = target.lstrip("+")
+            # BH35-003: Strip refs/heads/ prefix (full ref path)
+            if target.startswith("refs/heads/"):
+                target = target[len("refs/heads/"):]
             if target == base:
                 return "blocked"
 

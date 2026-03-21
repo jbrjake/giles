@@ -169,6 +169,36 @@ class TestCheckPush(unittest.TestCase):
         result = check_push("git push --all origin", base="main")
         self.assertEqual(result, "blocked")
 
+    def test_plus_refspec_blocked(self):
+        """BH35-002: git push origin +main (force via refspec) must be blocked."""
+        result = check_push("git push origin +main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_plus_colon_refspec_blocked(self):
+        """BH35-002: git push origin +HEAD:main must be blocked."""
+        result = check_push("git push origin +HEAD:main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_refs_heads_path_blocked(self):
+        """BH35-003: git push origin refs/heads/main must be blocked."""
+        result = check_push("git push origin refs/heads/main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_refs_heads_colon_refspec_blocked(self):
+        """BH35-003: git push origin HEAD:refs/heads/main must be blocked."""
+        result = check_push("git push origin HEAD:refs/heads/main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_pipe_compound_push_blocked(self):
+        """BH35-007: git push after pipe must be detected."""
+        result = check_push("echo ok | git push origin main", base="main")
+        self.assertEqual(result, "blocked")
+
+    def test_plus_refspec_feature_allowed(self):
+        """Force-push to feature branch is fine."""
+        result = check_push("git push origin +feature-branch", base="main")
+        self.assertEqual(result, "allowed")
+
 
 class TestLogBlocked(unittest.TestCase):
     """H-003: _log_blocked only writes when giles is configured."""

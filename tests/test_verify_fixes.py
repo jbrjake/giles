@@ -2830,5 +2830,83 @@ class TestBH21_023_FalsePositiveRegex(unittest.TestCase):
             )
 
 
+class TestBH35SprintInitFixes(unittest.TestCase):
+    """BH35-021/BH35-022: sprint_init no-backlog and DoD preservation fixes."""
+
+    def test_no_backlog_creates_milestones_dir(self):
+        """BH35-021: generate_backlog with no files must create milestones/."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh35-021-")
+        try:
+            root = Path(tmpdir)
+            # Create a minimal project with no backlog files
+            (root / "src").mkdir()
+            (root / "src" / "main.rs").write_text("fn main() {}")
+            (root / "Cargo.toml").write_text('[package]\nname = "test"\nversion = "0.1.0"')
+            # Run scanner + generator
+            scanner = ProjectScanner(root)
+            scan = scanner.scan()
+            gen = ConfigGenerator(scan)
+            gen.generate()
+            # Verify milestones/ exists with at least one file
+            ms_dir = root / "sprint-config" / "backlog" / "milestones"
+            self.assertTrue(ms_dir.is_dir(),
+                            "milestones/ dir not created for no-backlog project")
+            ms_files = list(ms_dir.glob("*.md"))
+            self.assertGreater(len(ms_files), 0,
+                               "milestones/ should have at least one skeleton file")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_no_backlog_no_milestones_error(self):
+        """BH35-021: generated config for no-backlog project must not have milestones error."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh35-021v-")
+        try:
+            root = Path(tmpdir)
+            (root / "src").mkdir()
+            (root / "src" / "main.rs").write_text("fn main() {}")
+            (root / "Cargo.toml").write_text('[package]\nname = "test"\nversion = "0.1.0"')
+            scanner = ProjectScanner(root)
+            scan = scanner.scan()
+            gen = ConfigGenerator(scan)
+            gen.generate()
+            _, errors = validate_project(root / "sprint-config")
+            milestone_errors = [e for e in errors if "ilestone" in e]
+            self.assertEqual(milestone_errors, [],
+                             f"Milestones errors should not appear: {milestone_errors}")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_dod_preserved_on_rerun(self):
+        """BH35-022: re-running generate must not overwrite existing DoD."""
+        tmpdir = tempfile.mkdtemp(prefix="giles-bh35-022-")
+        try:
+            root = Path(tmpdir)
+            mock = MockProject(root, extra_personas=True)
+            mock.create()
+            # First run
+            scanner = ProjectScanner(root)
+            scan = scanner.scan()
+            gen = ConfigGenerator(scan)
+            gen.generate()
+            dod_path = root / "sprint-config" / "definition-of-done.md"
+            self.assertTrue(dod_path.is_file())
+            # Simulate retro additions
+            original = dod_path.read_text()
+            retro_content = original + "\n## Sprint 1 Additions\n- New criterion\n"
+            dod_path.write_text(retro_content)
+            # Second run
+            scanner2 = ProjectScanner(root)
+            scan2 = scanner2.scan()
+            gen2 = ConfigGenerator(scan2)
+            gen2.generate()
+            # Verify DoD was preserved
+            after = dod_path.read_text()
+            self.assertIn("Sprint 1 Additions", after,
+                          "DoD was overwritten on re-run — retro additions lost")
+            self.assertIn("New criterion", after)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -773,43 +773,34 @@ def main() -> None:
               file=sys.stderr)
         sys.exit(1)
 
+    # BH35-001/BH35-004: All mutations use lock_sprint for mutual exclusion
+    # with sync_tracking.py (which also holds lock_sprint). Previously,
+    # non-WIP transitions, assign, and update used lock_story — a different
+    # lock file — allowing concurrent sync to clobber their writes.
     if args.command == "transition":
-        if args.target in ("dev", "review", "integration"):
-            # DA-018: Sprint-wide lock for WIP-limited transitions to prevent
-            # TOCTOU where concurrent transitions both pass the WIP check.
-            with lock_sprint(sprints_dir / f"sprint-{sprint}"):
-                tf = read_tf(tf.path)
-                ok = do_transition(
-                    tf, args.target,
-                    force_review_round=args.force_review_round,
-                    force_wip=args.force_wip,
-                    sprints_dir=sprints_dir,
-                    sprint=sprint,
-                )
-        else:
-            with lock_story(tf.path):
-                tf = read_tf(tf.path)  # BH24-001: re-read under lock
-                ok = do_transition(
-                    tf, args.target,
-                    force_review_round=args.force_review_round,
-                    force_wip=args.force_wip,
-                    sprints_dir=sprints_dir,
-                    sprint=sprint,
-                )
+        with lock_sprint(sprints_dir / f"sprint-{sprint}"):
+            tf = read_tf(tf.path)
+            ok = do_transition(
+                tf, args.target,
+                force_review_round=args.force_review_round,
+                force_wip=args.force_wip,
+                sprints_dir=sprints_dir,
+                sprint=sprint,
+            )
         sys.exit(0 if ok else 1)
 
     if args.command == "assign":
         if not args.implementer and not args.reviewer:
             print("Provide --implementer and/or --reviewer", file=sys.stderr)
             sys.exit(2)
-        with lock_story(tf.path):
-            tf = read_tf(tf.path)  # BH24-001: re-read under lock
+        with lock_sprint(sprints_dir / f"sprint-{sprint}"):
+            tf = read_tf(tf.path)
             ok = do_assign(tf, implementer=args.implementer, reviewer=args.reviewer)
         sys.exit(0 if ok else 1)
 
     if args.command == "update":
-        with lock_story(tf.path):
-            tf = read_tf(tf.path)  # BH24-001: re-read under lock
+        with lock_sprint(sprints_dir / f"sprint-{sprint}"):
+            tf = read_tf(tf.path)
             ok = do_update(tf, pr_number=args.pr_number, branch=args.branch)
         sys.exit(0 if ok else 1)
 

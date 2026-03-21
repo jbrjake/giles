@@ -757,6 +757,11 @@ class ConfigGenerator:
         files = self.scan.backlog_files
         if not files:
             self._copy_skeleton("backlog-index.md.tmpl", "backlog/INDEX.md")
+            # BH35-021: Also create milestones/ with a skeleton so that
+            # validate_project() doesn't fail on new projects.
+            self._ensure_dir(self.config_dir / "backlog" / "milestones")
+            self._copy_skeleton("milestone.md.tmpl",
+                                "backlog/milestones/milestone-1.md")
             return
         for sf in files:
             name = Path(sf.path).stem
@@ -805,7 +810,15 @@ class ConfigGenerator:
             self._symlink("team/team-topology.md", self.scan.team_topology.value)
 
     def generate_definition_of_done(self) -> None:
-        """Copy DoD skeleton into sprint-config/."""
+        """Copy DoD skeleton into sprint-config/, preserving existing file.
+
+        BH35-022: The DoD accumulates retro-driven additions over time.
+        Overwriting it on re-run would destroy those additions.
+        """
+        dest = self.config_dir / "definition-of-done.md"
+        if dest.is_file():
+            self.skipped.append("  preserved  definition-of-done.md (already exists)")
+            return
         self._copy_skeleton("definition-of-done.md.tmpl",
                             "definition-of-done.md")
 
