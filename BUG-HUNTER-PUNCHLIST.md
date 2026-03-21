@@ -7,66 +7,17 @@
 
 | Severity | Open | Resolved | Closed |
 |----------|------|----------|--------|
-| HIGH     | 1    | 4        | 0      |
+| HIGH     | 0    | 5        | 0      |
 | MEDIUM   | 0    | 14       | 0      |
-| LOW      | 5    | 8        | 0      |
+| LOW      | 0    | 13       | 0      |
 
 ---
 
-## Open — HIGH
+## Open
 
-### BH37-008 — Mock pollution in kanban double-fault test
-
-**File:** `tests/test_kanban.py:471-486`
-**Phase:** Phase 2 (test quality H3)
-**Impact:** `atomic_write_tf` is mocked, so the test only verifies in-memory state restoration, never disk state.
-**Fix:** Add a complementary test that allows the real first write and only mocks the rollback.
+None — all 32 items resolved.
 
 ---
-
-## Open — LOW
-
-### BH37-027 — Smoke test timestamps lack explicit timezone marker
-
-**File:** `check_status.py:289-291`, `smoke_test.py:62`
-**Phase:** Phase 3 (adversarial)
-**Fix:** Add `Z` suffix to UTC timestamps.
-
-### BH37-028 — First release version can never be v0.1.0
-
-**File:** `skills/sprint-release/scripts/release_gate.py:120-133`
-**Phase:** Phase 3 (adversarial)
-**Fix:** Add `--initial-version` flag or don't bump on first release.
-
-### BH37-029 — Unquoted TOML numeric values may cause TypeError downstream
-
-**File:** `scripts/validate_config.py:356-359`
-**Phase:** Phase 3 (adversarial)
-**Fix:** Add type guards in downstream consumers.
-
-### BH37-030 — CHEATSHEET: check_preconditions description wrong (claims WIP enforcement)
-
-**File:** CHEATSHEET.md line 120
-**Phase:** Phase 1 (doc audit)
-**Fix:** Fix description, separate WIP limit function.
-
-### BH37-031 — CHEATSHEET: TRANSITIONS described as "dict of sets" not "list"
-
-**File:** CHEATSHEET.md line 118
-**Phase:** Phase 1 (doc audit)
-**Fix:** Change "set" to "list".
-
-### BH37-032 — CLAUDE.md config structure implies optional sections required
-
-**File:** CLAUDE.md line 102
-**Phase:** Phase 1 (doc audit)
-**Fix:** Annotate `[conventions]` and `[release]` as optional.
-
-### BH37-033 — Test name promises behavior assertions don't verify
-
-**File:** `tests/test_verify_fixes.py:2036-2057`
-**Phase:** Phase 2 (test quality L1)
-**Fix:** Capture print_dry_run output and assert unknown file is reported.
 
 ### BH37-029 — Unquoted TOML numeric values may cause TypeError downstream
 
@@ -113,6 +64,12 @@
 | BH37-032 | CLAUDE.md [conventions]/[release] marked optional | LOW | (doc batch) |
 | BH37-034 | Duplicate assertion removed | LOW | 391dcee |
 | BH37-035 | assertTrue(result) → assertIs(result, True) | LOW | 391dcee |
+| BH37-008 | Double-fault test → added complementary real-write test | HIGH | 20eb868 |
+| BH37-027 | Smoke timestamps → added Z suffix, updated parser | LOW | 20eb868 |
+| BH37-028 | First release → uses 0.1.0 without bumping | LOW | 20eb868 |
+| BH37-029 | TOML numeric guard → str() on binary_path | LOW | 20eb868 |
+| BH37-033 | Unknown files test → stdout capture + assertion | LOW | 20eb868 |
+| BH37-023 | frontmatter_value removed from sync_tracking | LOW | 20eb868 |
 
 ---
 
