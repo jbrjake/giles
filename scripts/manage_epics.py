@@ -20,7 +20,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 from validate_config import atomic_write_text  # BH31: shared atomic write
 
-STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s*(.+))')
+# BH35-015: Use \s+ (required space after colon) to match populate_issues
+STORY_HEADING = re.compile(r'^(###\s+(US-\d+):\s+(.+))')
 
 # BH18-012: TABLE_ROW imported from validate_config (single source of truth)
 from validate_config import safe_int as _safe_int, TABLE_ROW, parse_header_table
@@ -186,6 +187,12 @@ def _format_story_section(story_data: dict) -> str:
     if isinstance(test_cases, list):
         test_cases = ", ".join(test_cases) if test_cases else "\u2014"
     lines.append(f"| Test Cases | {_sanitize_md(str(test_cases))} |")
+
+    # BH35-014: Write Saga and Epic fields when present in story_data
+    if story_data.get("saga"):
+        lines.append(f"| Saga | {_sanitize_md(str(story_data['saga']))} |")
+    if story_data.get("epic"):
+        lines.append(f"| Epic | {_sanitize_md(str(story_data['epic']))} |")
 
     # Acceptance criteria
     # BH30-005: Use `AC-NN`: prefix format to match populate_issues.parse_detail_blocks

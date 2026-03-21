@@ -724,10 +724,16 @@ class ConfigGenerator:
             self._copy_skeleton("team-index.md.tmpl", "team/INDEX.md")
             self._inject_giles()
             return
-        # Generate symlinks
+        # BH35-025: Detect stem collisions and disambiguate with parent dir
+        seen_stems: dict[str, str] = {}  # stem -> first path
         for sf in personas:
-            name = Path(sf.path).stem
-            self._symlink(f"team/{name}.md", sf.path)
+            stem = Path(sf.path).stem
+            if stem in seen_stems:
+                # Disambiguate: prefix with parent directory name
+                parent = Path(sf.path).parent.name
+                stem = f"{parent}-{stem}"
+            seen_stems[stem] = sf.path
+            self._symlink(f"team/{stem}.md", sf.path)
         # Generate INDEX with Name | Role | File columns
         rows = ["# Team Index", "",
                 "| Name | Role | File |",
