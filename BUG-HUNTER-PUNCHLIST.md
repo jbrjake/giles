@@ -1,74 +1,59 @@
-# Bug Hunter Punchlist — Pass 29 (Cross-Component Gap Analysis)
+# Bug Hunter Punchlist — Pass 30 (Pattern Siblings + Unexplored Seams)
 
-> Generated: 2026-03-21 | Project: giles | Baseline: 1133 pass, 0 fail
-> Focus: Patterns in the gaps between components across 28 prior passes + 6 recon audits
+> Generated: 2026-03-21 | Project: giles | Baseline: 1137 pass, 0 fail
+> Focus: Pattern siblings from Pass 29 + first-ever seam audits of commit/epics pipelines
 
 ## Summary
 
 | Severity | Open | Resolved | Deferred |
 |----------|------|----------|----------|
-| HIGH     | 0    | 1        | 0        |
-| MEDIUM   | 0    | 4        | 0        |
-| LOW      | 0    | 2        | 0        |
-
----
-
-## Tier 1 — Fix Now (HIGH)
-
-| ID | Title | Category | Status | Commit | Validating Test |
-|----|-------|----------|--------|--------|-----------------|
-| BH29-001 | `_read_toml_key` doesn't unescape `\"` in scalar strings; test asserts the bug | bug/test-masks-bug | RESOLVED | pending | `test_read_toml_key_inline_comment_after_escaped_quote`, `test_read_toml_key_escaped_quote_with_bracket` |
+| HIGH     | 0    | 0        | 0        |
+| MEDIUM   | 5    | 0        | 2        |
+| LOW      | 0    | 0        | 0        |
 
 ---
 
 ## Tier 2 — Fix Soon (MEDIUM)
 
-| ID | Title | Category | Status | Commit | Validating Test |
-|----|-------|----------|--------|--------|-----------------|
-| BH29-002 | `renumber_stories()` replaces story IDs inside fenced code blocks | bug/text-processing | RESOLVED | pending | `test_renumber_skips_code_blocks` |
-| BH29-003 | `gap_scanner` entry point matching: substring false positives + silent git failure | bug/boundary-validation | RESOLVED | pending | `test_entry_point_substring_no_false_positive`, `test_entry_point_word_boundary_match`, `test_entry_point_path_match_in_body` |
-| BH29-004 | `test_status_wip_limit_warning` test name claims nonexistent feature | test/name-mismatch | RESOLVED | pending | Renamed to `test_status_groups_multiple_dev_stories` |
-| BH29-005 | `test_update_no_changes` docstring claims no-write verification without verifying | test/weak-assertion | RESOLVED | pending | Added mtime assertion |
+| ID | Title | Category | Acceptance Criteria | Validation |
+|----|-------|----------|---------------------|------------|
+| BH30-001 | gap_scanner `if ep in changed_file` — incomplete BH29-003 fix | bug/incomplete-fix | The BH29-003 fix changed body-text matching to `re.search` with word boundaries, but left the file-path matching (6 lines later) using bare `in`. Entry point `"main"` still matches file `"domain/maintain.py"`. **Fix:** Use path-component or substring-in-filename matching instead of bare `in`. | Test: entry point `"main"` does NOT match changed file `"src/domain/maintain.py"` but DOES match `"src/main.py"`. |
+| BH30-002 | commit_gate `_load_config_check_commands` reads past array boundary | bug/parser-divergence | The inline TOML parser concatenates `val + text[text.find(stripped):]` which searches through the entire rest of the file, picking up quoted strings from unrelated keys. A `build_command = "cargo build"` after `check_commands` causes any `cargo` command to be recognized as a test command. **Fix:** Replace with proper array-bounded parsing that stops at `]`. | Test: config with `check_commands = ["pytest"]` followed by `build_command = "cargo build"` → `_load_config_check_commands` returns only `["pytest"]`, not `["pytest", "cargo build"]`. |
+| BH30-003 | populate_issues story ID regex uses `\d{4}` while manage_epics uses `\d+` | bug/format-mismatch | `populate_issues._DETAIL_BLOCK_RE` uses `US-\d{4}` (exactly 4 digits). `manage_epics.STORY_HEADING` uses `US-\d+` (any digits). Stories with 5+ digit IDs are invisible to populate_issues. Also `\s+` vs `\s*` after the colon. **Fix:** Align populate_issues to use `\d+` and `\s+` (the more permissive pattern). | Test: `parse_detail_blocks` correctly parses `### US-01021: Extended ID Story`. |
+| BH30-004 | session_context "retro" substring matches "retroactive", "retrospective" | bug/substring-false-positive | `extract_dod_retro_additions()` uses `"retro" in line.lower()` which matches any word containing "retro" as a substring. A DoD item like "Ensure retroactive compatibility" would be injected as a retro-driven addition. **Fix:** Use `re.search(r'\bretro\b', line.lower())` or match "retro" as a standalone word/prefix. | Test: `"- Ensure retroactive compatibility"` is NOT extracted as a retro addition. `"- Added in retro: check CI before merge"` IS extracted. |
+| BH30-005 | AC format mismatch: manage_epics emits `` `text` ``, populate_issues expects `` `AC-NN`: text `` | bug/format-mismatch | `_format_story_section` emits `` - [ ] `Do the thing` `` but `parse_detail_blocks` expects `` - [ ] `AC-01`: Do the thing ``. Stories added via `add_story()` silently lose all acceptance criteria during issue creation. **Fix:** Update `_format_story_section` to emit the `AC-NN:` prefix format to match populate_issues' parser. | Test: `add_story()` output contains `` `AC-01`: `` prefix; `parse_detail_blocks` finds all ACs. |
 
 ---
 
-## Tier 3 — Low Priority (LOW)
-
-| ID | Title | Category | Status | Commit | Validating Test |
-|----|-------|----------|--------|--------|-----------------|
-| BH29-006 | `_yaml_safe()` doesn't check for `\t` tab characters | bug/roundtrip | RESOLVED | pending | `test_dangerous_chars_get_quoted` (updated), `test_frontmatter_value_roundtrip` |
-| BH29-007 | `session_context._read_toml_string` regex rejects `\"` escapes | bug/parser-divergence | RESOLVED | pending | N/A (low-risk path, regex fix only) |
-
----
-
-## Deferred (structural, not punchlist items)
-
-These are documented design decisions or structural issues that require architectural changes:
+## Deferred
 
 | Finding | Why deferred |
 |---------|-------------|
-| FINDING-3: do_sync no per-story locks | Mitigated by callers using lock_sprint — convention-based, not enforced. Would require API redesign. |
-| FINDING-4: sync_tracking accepts any state | Documented as intentional in CLAUDE.md. Two sync paths have different trust models by design. |
-| FINDING-44/45: Non-atomic writes, no locking in manage_epics/sagas | Structural. Would require extracting atomic_write and locking into a shared utility. Risk is low in practice (single-user tool). |
-| FINDING-6: sync_backlog deferred import error | Partially fixed. Error surfaces at sync time. Early warning would be nice but not critical. |
+| S30-001: --dry-run blocked by commit_gate | Design limitation of hook architecture — hooks see raw command strings, can't distinguish dry-run from real commits. Low impact. |
+| Pattern-A MEDIUM findings: _state_override test docstrings, format_context weak test | Test quality issues that don't mask bugs. Real behavior is tested in adjacent tests. |
 
 ---
 
 ## Pattern Blocks
 
-### PATTERN-29-A: Tests that assert wrong behavior
+### PATTERN-30-A: Incomplete fix propagation (BH29-003 → BH30-001)
 
-**Items:** BH29-001, BH29-004, BH29-005
-**Root cause:** Tests written to describe current behavior rather than correct behavior.
-The test suite validates the code against itself, creating a closed loop where both
-sides agree on wrong answers. This is the most dangerous pattern because it actively
-blocks future correctness work.
-**Resolution:** All 3 items fixed. Tests now assert spec-correct behavior.
+**Items:** BH30-001
+**Root cause:** BH29-003 fixed body-text `in` operator to use `re.search` with word
+boundaries, but the file-path `in` operator 6 lines later was left unchanged. Fixes
+that address one instance of a pattern need a systematic sweep of the surrounding code.
 
-### PATTERN-29-B: Uncontrolled text boundaries
+### PATTERN-30-B: Cross-component format contracts (epics pipeline)
 
-**Items:** BH29-002, BH29-003
-**Root cause:** Text processing functions that use substring matching (`in` operator)
-or regex without context awareness (code blocks, line boundaries). The `in` operator
-is a recurring source of false positives across the codebase.
-**Resolution:** Both items fixed. Word-boundary matching and code-block awareness added.
+**Items:** BH30-003, BH30-005
+**Root cause:** `manage_epics.py` and `populate_issues.py` parse the same markdown
+files with different regex patterns, different format expectations, and no shared
+constants. There are no cross-component tests that feed one's output into the other.
+
+### PATTERN-30-C: Parser divergence continues (CLASS-1 pass 30)
+
+**Items:** BH30-002
+**Root cause:** `commit_gate._load_config_check_commands` has yet another hand-rolled
+TOML parser that diverges from the proper parsers in `verify_agent_output._read_toml_key`
+and `validate_config.parse_simple_toml`. This is the same CLASS-1 pattern identified in
+Pass 25 — each component that needs config builds its own parser.

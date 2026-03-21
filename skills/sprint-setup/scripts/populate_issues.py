@@ -203,7 +203,8 @@ def _infer_sprint_number(mf: Path, content: str | None = None) -> int:
 # -- Detail block parser (dreamcatcher format) -------------------------------
 
 # BH-005: Default pattern for detail blocks; overridden by config story_id_pattern
-_DETAIL_BLOCK_RE = re.compile(r"^###\s+(US-\d{4}):\s+(.+)$", re.MULTILINE)
+# BH30-003: Use \d+ (any digits) to match manage_epics.STORY_HEADING pattern
+_DETAIL_BLOCK_RE = re.compile(r"^###\s+(US-\d+):\s+(.+)$", re.MULTILINE)
 _META_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|\s*(.+?)\s*\|$", re.MULTILINE)
 
 

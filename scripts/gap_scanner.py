@@ -53,6 +53,26 @@ def scan_stories(sprints_dir: str, sprint: int) -> list[dict]:
     return stories
 
 
+def _path_matches_entry_point(changed_file: str, ep: str) -> bool:
+    """Check if a changed file path matches an entry point (BH30-001).
+
+    Avoids substring false positives: entry point "main" must not match
+    "domain/maintain.py". Uses exact path-suffix matching for paths with
+    extensions, and stem matching for bare names.
+    """
+    # Exact match or path-suffix match (e.g., "src/main.py" in "src/main.py")
+    if changed_file == ep or changed_file.endswith("/" + ep):
+        return True
+    # Bare name without "/" or "." — match against file stems
+    # (e.g., "main" matches "src/main.py" but not "src/maintain.py")
+    if "/" not in ep and "." not in ep:
+        for part in changed_file.split("/"):
+            stem = part.split(".")[0] if "." in part else part
+            if stem == ep:
+                return True
+    return False
+
+
 def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | None:
     """Check if a story's body or branch diff touches any entry point.
 
@@ -77,10 +97,11 @@ def story_touches_entry_point(story: dict, entry_points: list[str]) -> str | Non
             )
             if result.returncode == 0:
                 # BH29-003: Match per-line to avoid cross-line false positives
+                # BH30-001: Use path-aware matching, not bare substring
                 changed_lines = result.stdout.strip().splitlines()
                 for ep in entry_points:
                     for changed_file in changed_lines:
-                        if ep in changed_file:
+                        if _path_matches_entry_point(changed_file, ep):
                             return ep
         except Exception as exc:
             # BH29-003: Log warning instead of silently swallowing

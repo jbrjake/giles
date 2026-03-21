@@ -187,11 +187,12 @@ def _format_story_section(story_data: dict) -> str:
     lines.append(f"| Test Cases | {_sanitize_md(str(test_cases))} |")
 
     # Acceptance criteria
+    # BH30-005: Use `AC-NN`: prefix format to match populate_issues.parse_detail_blocks
     if story_data.get("acceptance_criteria"):
         lines.append("")
         lines.append("**Acceptance Criteria:**")
-        for ac in story_data["acceptance_criteria"]:
-            lines.append(f"- [ ] `{ac}`")
+        for i, ac in enumerate(story_data["acceptance_criteria"], 1):
+            lines.append(f"- [ ] `AC-{i:02d}`: {ac}")
 
     # Tasks
     if story_data.get("tasks"):

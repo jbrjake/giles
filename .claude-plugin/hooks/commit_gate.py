@@ -139,8 +139,8 @@ def check_commit_allowed(command: str,
 def _load_config_check_commands() -> list[str]:
     """Read check_commands from project.toml if available.
 
-    Uses the lightweight TOML parser from verify_agent_output to avoid
-    importing validate_config (which requires the full scripts path).
+    BH30-002: Uses verify_agent_output._read_toml_key (proper array-bounded
+    parser) instead of an inline parser that read past the array boundary.
     Falls back to empty list if config not found.
     """
     try:
@@ -149,19 +149,10 @@ def _load_config_check_commands() -> list[str]:
         if not toml_path.is_file():
             return []
         text = toml_path.read_text(encoding="utf-8")
-        # Inline minimal extraction — just match array items
-        import re as _re
-        in_section = False
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("["):
-                in_section = stripped == "[ci]"
-                continue
-            if in_section and stripped.startswith("check_commands"):
-                # Extract quoted strings from the value
-                val = stripped.split("=", 1)[1] if "=" in stripped else ""
-                items = _re.findall(r'"([^"]*)"', val + text[text.find(stripped):])
-                return items if items else []
+        from hooks.verify_agent_output import _read_toml_key
+        result = _read_toml_key(text, "ci", "check_commands")
+        if isinstance(result, list):
+            return result
     except Exception:
         pass
     return []

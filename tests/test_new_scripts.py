@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from smoke_test import run_smoke, write_history
 from gap_scanner import (
     scan_for_gaps, has_user_facing_keywords, get_entry_points,
-    story_touches_entry_point,
+    story_touches_entry_point, _path_matches_entry_point,
 )
 from test_categories import (
     classify_test_file, count_test_functions, analyze, format_report,
@@ -161,6 +161,26 @@ class TestGapScanner(unittest.TestCase):
             ["src/main.py"],
         )
         self.assertEqual(result, "src/main.py")
+
+    def test_path_match_no_substring_false_positive(self):
+        """BH30-001: 'main' must not match file 'domain/maintain.py'."""
+        self.assertFalse(_path_matches_entry_point("src/domain/maintain.py", "main"))
+
+    def test_path_match_bare_name_matches_file_stem(self):
+        """BH30-001: 'main' matches file 'src/main.py' via stem."""
+        self.assertTrue(_path_matches_entry_point("src/main.py", "main"))
+
+    def test_path_match_exact_path(self):
+        """BH30-001: 'src/main.py' matches 'src/main.py' exactly."""
+        self.assertTrue(_path_matches_entry_point("src/main.py", "src/main.py"))
+
+    def test_path_match_suffix(self):
+        """BH30-001: 'main.py' matches 'src/main.py' as suffix."""
+        self.assertTrue(_path_matches_entry_point("src/main.py", "main.py"))
+
+    def test_path_match_dir_name(self):
+        """BH30-001: 'main' matches directory 'src/main/app.py' as segment."""
+        self.assertTrue(_path_matches_entry_point("src/main/app.py", "main"))
 
 
 class TestTestCategories(unittest.TestCase):

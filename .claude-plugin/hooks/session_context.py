@@ -110,8 +110,8 @@ def extract_dod_retro_additions(config_dir: str = "sprint-config") -> list[str]:
     text = dod_path.read_text(encoding="utf-8")
     additions: list[str] = []
     for line in text.splitlines():
-        # Look for items marked as retro-driven
-        if "retro" in line.lower() and (
+        # BH30-004: Use word-boundary match to avoid "retroactive" false positives
+        if re.search(r'\bretro\b', line.lower()) and (
             line.strip().startswith("-") or line.strip().startswith("*")
         ):
             additions.append(line.strip().lstrip("-* "))
