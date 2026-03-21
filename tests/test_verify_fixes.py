@@ -89,7 +89,7 @@ class TestConfigGeneration(unittest.TestCase):
                         "build_command should be a non-empty string")
         self.assertTrue(config["project"]["language"],
                         "language should be a non-empty string")
-        self.assertIn("build_command", config["ci"])
+        # BH37-034: Removed duplicate assertIn("build_command", config["ci"])
 
     def test_generated_toml_no_wrong_keys(self):
         """Bug 1: Must NOT have old [build] section or [ci] steps key."""

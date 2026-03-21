@@ -197,7 +197,7 @@ def create_from_issue(
     # append issue number to make the slug unique.
     if target.is_file():
         existing = read_tf(target)
-        if existing.story and existing.story != sid:
+        if existing.story and existing.story.upper() != sid.upper():
             # BH23-204: Keep story ID prefix in collision fallback filename
             # so find_story() can still locate the file by ID.
             slug = f"{slug}-{issue['number']}"

@@ -64,7 +64,13 @@ def _working_tree_hash() -> str:
             capture_output=True, timeout=5,
         )
         if result.returncode != 0:
-            return ""
+            # BH37-025: Fall back to staged diff for empty repos (no HEAD)
+            result = subprocess.run(
+                ["git", "diff", "--cached"],
+                capture_output=True, timeout=5,
+            )
+            if result.returncode != 0:
+                return ""
         return hashlib.sha256(result.stdout).hexdigest()[:16]
     except Exception:
         return ""

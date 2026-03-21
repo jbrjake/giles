@@ -416,7 +416,8 @@ class TestCreateIssueMissingMilestone(unittest.TestCase):
         result = populate_issues.create_issue(
             story, milestone_numbers={}, milestone_titles={},
         )
-        self.assertTrue(result)
+        # BH37-035: create_issue returns bool True on success
+        self.assertIs(result, True)
         # Verify --milestone was NOT passed
         call_args = mock_gh.call_args[0][0]
         self.assertNotIn("--milestone", call_args)
@@ -1895,7 +1896,11 @@ class TestCheckMilestone(unittest.TestCase):
              patch.object(check_status, "gh_json", return_value=issues):
             report, actions = check_status.check_milestone(1)
         self.assertTrue(any("3/5" in line for line in report))
-        self.assertTrue(any("SP" in line for line in report))
+        # BH37-015: Verify actual SP totals (3+5+2=10 done, 8+5=13 open, 23 total)
+        report_text = " ".join(report)
+        self.assertIn("SP", report_text)
+        self.assertTrue("10" in report_text or "23" in report_text,
+                        f"Report should contain SP totals (10 done or 23 planned): {report}")
 
     def test_no_milestone_found(self):
         with patch.object(check_status, "find_milestone", return_value=None):
