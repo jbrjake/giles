@@ -12,7 +12,6 @@ Exit: 0 = no action needed, 1 = action needed, 2 = usage error.
 """
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys

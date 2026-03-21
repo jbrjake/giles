@@ -253,14 +253,23 @@ def _strip_inline_comment(val: str) -> str:
 
 
 def _has_closing_bracket(s: str) -> bool:
-    """Check if s contains ] outside of quoted strings."""
+    """Check if s contains a top-level ] outside of quoted strings.
+
+    Tracks bracket nesting depth so that inner ] in nested arrays
+    (e.g., ``["lint", "test"]``) are not mistaken for the outer close.
+    """
     quote_char = None  # None, '"', or "'"
+    depth = 0
     for i, ch in enumerate(s):
         if quote_char is None:
             if ch in ('"', "'"):
                 quote_char = ch
+            elif ch == '[':
+                depth += 1
             elif ch == ']':
-                return True
+                if depth == 0:
+                    return True
+                depth -= 1
         elif ch == quote_char:
             if quote_char == '"' and _count_trailing_backslashes(s, i) % 2 != 0:
                 continue  # escaped double quote

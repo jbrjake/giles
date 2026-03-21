@@ -28,7 +28,7 @@ from validate_config import (
     _parse_team_index,
     frontmatter_value,
 )
-from sync_tracking import _yaml_safe
+from validate_config import _yaml_safe
 
 
 # ============================================================================

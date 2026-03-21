@@ -20,8 +20,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 from validate_config import atomic_write_text  # BH31: shared atomic write
 
-# BH18-012: TABLE_ROW imported from validate_config (single source of truth)
-from validate_config import safe_int as _safe_int, TABLE_ROW, parse_header_table
+from validate_config import safe_int as _safe_int, parse_header_table
 EPIC_TABLE_ROW = re.compile(
     r'^\|\s*(E-\d+)\s*\|\s*(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|'
 )

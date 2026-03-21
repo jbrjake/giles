@@ -36,7 +36,7 @@ from validate_config import (
     get_sprints_dir, detect_sprint, extract_story_id,
     kanban_from_labels, find_milestone, list_milestone_issues,
     gh, gh_json, short_title, slug_from_title,
-    KANBAN_STATES, _yaml_safe,
+    KANBAN_STATES,
 )
 
 

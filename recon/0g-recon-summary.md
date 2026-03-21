@@ -1,28 +1,43 @@
-# Recon Summary — Pass 36
+# Recon Summary — Pass 37
 
-**Baseline:** 1178 tests, all passing, 17.43s. Pass 35 modified 10 files.
-**Focus:** Verify pass 35 fixes, search for siblings, convergence check.
+**Baseline:** 1178 tests, all passing, 17.15s. 83% coverage (5305 stmts, 916 missed).
+**No code changes since pass 36** (HEAD = 356cef1). Clean-slate full audit.
 
-## Audit Targets
+## Critical Finding
 
-### 1. assign_dod_level.py still uses lock_story (BH35-001 sibling)
-- `scripts/assign_dod_level.py:50` — uses `lock_story` when writing tracking files
-- kanban.py main() now uses `lock_sprint` for all mutations
-- Same race condition class as BH35-001: assign_dod_level vs sync_tracking
+**Duplicate test class `TestWriteBurndown`** in `tests/test_sprint_runtime.py` — defined at both line ~1546 and ~2365. Python silently overwrites the first with the second, so the first class's tests never run. This is a real coverage gap.
 
-### 2. traceability.py STORY_HEADING uses \s* (BH35-015 sibling)
-- `scripts/traceability.py:23` — `\s*` after colon, like the old manage_epics pattern
-- populate_issues uses `\s+` — same inconsistency
+## Audit Priorities
 
-### 3. sprint_init.py unescaped TOML values (BH35-024 siblings)
-- Lines 651, 653: cheatsheet and architecture values not passed through `_esc()`
-- All other user-derived values use `esc()` correctly
+### 1. Shadowed test class (HIGH)
+- `TestWriteBurndown` duplicate → unknown number of tests silently lost
+- Need to check what the first class tested vs the second
 
-### 4. lock_story now only used by assign_dod_level.py
-- kanban.py defines it but no longer calls it from main()
-- The docstring at kanban.py:331 references lock_story as caller requirement
-- sync_tracking.py:15 has a stale comment saying it uses lock_story (it uses lock_sprint)
+### 2. Low-coverage production files
+- `assign_dod_level.py` — 35% coverage (worst in project)
+- `smoke_test.py` — 57%
+- `sprint_analytics.py` — 63%
+- `test_categories.py` — 64%
+- `history_to_checklist.py` — 65%
+- `gap_scanner.py` — 67%
+- `commit.py` — 68%
 
-### 5. review_gate ALL-positionals false positive
-- Remote named same as base branch (e.g., "main") would cause false block
-- LOW severity — false blocks are safe, and remotes named "main" are extremely rare
+### 3. High-churn files (bug magnets)
+- `validate_config.py` — 23 fix-commit touches, 57 total
+- `kanban.py` — 13-14 fix touches, 27 total
+- `sync_tracking.py` — 7-14 fix touches, 43 total
+- Hooks subsystem (review_gate, commit_gate, session_context, verify_agent_output) — 6-10 each
+
+### 4. Lint issues worth fixing
+- 6 unused imports in production scripts
+- Dead f-prefix in release_gate.py:547
+- ~50 unused imports/vars in test files (auto-fixable)
+
+### 5. Test assertion quality
+- After 36 passes of fixes, tests may have been weakened to make them pass
+- Need adversarial check: are assertions testing real behavior or just structure?
+
+## Not Bugs
+- 76 E402 violations — all from sys.path.insert pattern (by design)
+- `self.skipTest()` in test_golden_run.py — intentional golden-file handling
+- Zero skipped/disabled tests otherwise

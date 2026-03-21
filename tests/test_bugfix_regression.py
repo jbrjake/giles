@@ -454,6 +454,15 @@ class TestBH008NestedArrays(unittest.TestCase):
         self.assertEqual(val[0], ["a", "b"])
         self.assertEqual(val[1], ["c", "d"])
 
+    def test_multiline_nested_arrays_parsed(self):
+        """BH37-005: Multiline arrays with nested arrays must not terminate early."""
+        toml = '[ci]\ncheck_commands = [\n    ["lint", "test"],\n    "build",\n]'
+        result = validate_config.parse_simple_toml(toml)
+        val = result.get("ci", {}).get("check_commands", [])
+        self.assertEqual(len(val), 2)
+        self.assertEqual(val[0], ["lint", "test"])
+        self.assertEqual(val[1], "build")
+
 
 class TestBH009FmValEscape(unittest.TestCase):
     """BH-009: frontmatter_value unescapes quotes like read_tf.

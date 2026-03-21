@@ -1543,8 +1543,8 @@ class TestCreateFromIssue(unittest.TestCase):
 # P2-05: update_burndown.py tests -- write_burndown, update_sprint_status
 # ---------------------------------------------------------------------------
 
-class TestWriteBurndown(unittest.TestCase):
-    """Test update_burndown.write_burndown() output format."""
+class TestWriteBurndownEdgeCases(unittest.TestCase):
+    """BH37-001: Tests originally shadowed by duplicate TestWriteBurndown at line 2365."""
 
     def test_creates_burndown_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:

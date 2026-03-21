@@ -544,7 +544,7 @@ def do_release(
                 else:
                     print(
                         "Warning: could not revert version bump commit. "
-                        f"Run manually: git revert HEAD && git push",
+                        "Run manually: git revert HEAD && git push",
                         file=sys.stderr,
                     )
             else:

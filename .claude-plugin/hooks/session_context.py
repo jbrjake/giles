@@ -36,8 +36,9 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
         # Double-quoted strings (BH29-007: handle \" escape sequences)
         m = re.match(rf'{key}\s*=\s*"((?:[^"\\]|\\.)*)"', stripped)
         if m:
-            # Unescape \" → " and \\ → \ per TOML basic string spec
-            return re.sub(r'\\(.)', lambda x: x.group(1), m.group(1))
+            # Unescape TOML basic string escape sequences
+            _ESC = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r', 't': '\t'}
+            return re.sub(r'\\(.)', lambda x: _ESC.get(x.group(1), x.group(1)), m.group(1))
         # Single-quoted literal strings (TOML spec)
         m = re.match(rf"{key}\s*=\s*'([^']*)'", stripped)
         if m:

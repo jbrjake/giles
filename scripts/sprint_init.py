@@ -726,7 +726,9 @@ class ConfigGenerator:
             self._inject_giles()
             return
         # BH35-025: Detect stem collisions and disambiguate with parent dir
+        # BH37-009: Track disambiguated stems for INDEX generation
         seen_stems: dict[str, str] = {}  # stem -> first path
+        resolved_stems: dict[str, str] = {}  # original path -> disambiguated stem
         for sf in personas:
             stem = Path(sf.path).stem
             if stem in seen_stems:
@@ -734,15 +736,17 @@ class ConfigGenerator:
                 parent = Path(sf.path).parent.name
                 stem = f"{parent}-{stem}"
             seen_stems[stem] = sf.path
+            resolved_stems[sf.path] = stem
             self._symlink(f"team/{stem}.md", sf.path)
         # Generate INDEX with Name | Role | File columns
         rows = ["# Team Index", "",
                 "| Name | Role | File |",
                 "|------|------|------|"]
         for sf in personas:
-            name = Path(sf.path).stem.replace("-", " ").replace("_", " ").title()
+            stem = resolved_stems[sf.path]
+            name = stem.replace("-", " ").replace("_", " ").title()
             role = self._infer_role(sf.path)
-            filename = Path(sf.path).stem + ".md"
+            filename = stem + ".md"
             rows.append(f"| {name} | {role} | {filename} |")
         rows.append("| Giles | Scrum Master / Facilitator | giles.md |")
         rows.append("")
