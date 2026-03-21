@@ -403,6 +403,23 @@ class TestVerifyAgentOutput(unittest.TestCase):
         # BH29-001: Per TOML spec, \" in double-quoted strings resolves to "
         self.assertEqual(result, 'echo "hello"')
 
+    def test_read_toml_key_does_not_bleed_past_array(self):
+        """BH30-002: Array parser must stop at ] — keys after array must not leak in.
+
+        Regression: old inline parser in commit_gate concatenated beyond the
+        array boundary, causing build_command's value to appear in check_commands.
+        """
+        toml = (
+            '[ci]\n'
+            'check_commands = ["pytest"]\n'
+            'build_command = "cargo build"\n'
+        )
+        result = _read_toml_key(toml, "ci", "check_commands")
+        self.assertEqual(result, ["pytest"])
+        # Ensure build_command is separately parseable, not mixed in
+        build = _read_toml_key(toml, "ci", "build_command")
+        self.assertEqual(build, "cargo build")
+
 
 class TestSessionContext(unittest.TestCase):
     """P0-HOOK-3: SessionStart context injection hook."""
@@ -540,6 +557,26 @@ class TestSessionContext(unittest.TestCase):
             additions = extract_dod_retro_additions(td)
             self.assertEqual(len(additions), 1)
             self.assertIn("Code reviewed", additions[0])
+
+    def test_retro_extraction_rejects_retroactive_substring(self):
+        """BH30-004: 'retro' match must use word boundaries.
+
+        'retroactive' contains 'retro' as a substring but is not a retro tag.
+        Only lines where 'retro' appears as a standalone word should match.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            dod_path = Path(td) / "definition-of-done.md"
+            dod_path.write_text(
+                "# Definition of Done\n"
+                "- Ensure retroactive compatibility\n"
+                "- Added in retro: check CI before merge\n"
+                "- Review retrospective notes\n"
+            )
+            additions = extract_dod_retro_additions(td)
+            # Only the "retro:" line should match (standalone word)
+            self.assertEqual(len(additions), 1)
+            self.assertIn("check CI before merge", additions[0])
 
 
 class TestCommitGate(unittest.TestCase):

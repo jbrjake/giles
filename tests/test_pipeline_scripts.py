@@ -404,6 +404,32 @@ class TestManageEpics(unittest.TestCase):
         self.assertIn("US-XXXX", result)
         self.assertIn("Untitled", result)
 
+    def test_format_story_section_ac_prefix_format(self):
+        """BH30-005: _format_story_section must emit AC-NN: prefix format.
+
+        populate_issues.parse_detail_blocks expects `AC-NN`: prefix. Without it,
+        stories added via add_story() silently lose acceptance criteria during
+        issue creation. This test verifies the round-trip contract.
+        """
+        from manage_epics import _format_story_section
+        result = _format_story_section({
+            "id": "US-9999",
+            "title": "Round-trip test",
+            "acceptance_criteria": ["First criterion", "Second criterion"],
+        })
+        # Verify AC-NN prefix format
+        self.assertIn("`AC-01`: First criterion", result)
+        self.assertIn("`AC-02`: Second criterion", result)
+
+        # Round-trip: populate_issues must parse what manage_epics emits
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skills" / "sprint-setup" / "scripts"))
+        import populate_issues
+        stories = populate_issues.parse_detail_blocks(
+            result, sprint=1, source_file="test.md",
+        )
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(len(stories[0].acceptance_criteria), 2)
+
     def test_add_story_duplicate_raises(self):
         """BH-011: adding a story with an existing ID raises ValueError."""
         import tempfile

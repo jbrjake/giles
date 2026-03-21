@@ -276,6 +276,30 @@ class TestHexwiseSetup(unittest.TestCase):
         self.assertIn("CLI user", s.user_story)
         self.assertEqual(len(s.acceptance_criteria), 2)
 
+    def test_parse_detail_blocks_five_digit_id(self):
+        """BH30-003: Story IDs with 5+ digits must be parsed (not just 4-digit).
+
+        The old regex used \\d{4} (exactly 4 digits). Now uses \\d+ to match
+        manage_epics.STORY_HEADING which already accepted any digit count.
+        """
+        epic_content = '''\
+### US-01021: Extended ID Story
+
+| Field | Value |
+|-------|-------|
+| Story Points | 2 |
+| Priority | P1 |
+
+**As a** user, **I want** extended IDs **so that** large backlogs work.
+
+**Acceptance Criteria:**
+- [ ] `AC-01`: Works with 5-digit IDs
+'''
+        stories = populate_issues.parse_detail_blocks(epic_content, sprint=1, source_file="test.md")
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0].story_id, "US-01021")
+        self.assertEqual(stories[0].title, "Extended ID Story")
+
     def test_parse_milestone_stories_malformed_tables(self):
         """parse_milestone_stories handles malformed markdown tables without crashing."""
         import tempfile
