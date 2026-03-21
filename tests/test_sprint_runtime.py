@@ -59,8 +59,10 @@ class TestCheckCI(unittest.TestCase):
         """BH23-102: Contract test — check_ci queries the run endpoint with JSON fields."""
         mock_gh.return_value = []
         check_status.check_ci()
+        # BH37-014: Verify argument ordering, not just presence
         call_args = mock_gh.call_args[0][0]
-        self.assertIn("run", call_args)
+        self.assertEqual(call_args[0], "run")
+        self.assertEqual(call_args[1], "list")
         self.assertIn("--json", call_args)
 
     @patch("check_status.gh")
@@ -75,6 +77,10 @@ class TestCheckCI(unittest.TestCase):
         report, actions = check_status.check_ci()
         self.assertIn("1 failing", report[0])
         self.assertTrue(len(actions) > 0)
+        # BH37-010: Verify action content references the failing run
+        action_text = " ".join(actions)
+        self.assertTrue("CI" in action_text or "feat/x" in action_text,
+                        f"Action should reference failing run: {actions}")
 
     @patch("check_status.gh")
     @patch("check_status.gh_json")
@@ -86,7 +92,8 @@ class TestCheckCI(unittest.TestCase):
         ]
         mock_gh.return_value = "error: something broke"
         check_status.check_ci()
-        self.assertIn("42", str(mock_gh.call_args))
+        # BH37-018: Inspect args directly instead of stringifying
+        self.assertIn("42", mock_gh.call_args[0][0])
 
 
 class TestCheckPRs(unittest.TestCase):
@@ -111,9 +118,10 @@ class TestCheckPRs(unittest.TestCase):
         report, actions = check_status.check_prs()
         self.assertIn("1 open", report[0])
         self.assertIn("1 approved", report[0])
-        # BH-P11-063: Verify query requests correct resource and fields
+        # BH37-014: Verify argument ordering, not just presence
         call_args = mock_gh.call_args[0][0]
-        self.assertIn("pr", call_args)
+        self.assertEqual(call_args[0], "pr")
+        self.assertEqual(call_args[1], "list")
         self.assertIn("--json", call_args)
 
     @patch("check_status.gh_json")
@@ -153,8 +161,11 @@ class TestCheckPRs(unittest.TestCase):
         self.assertIn("3 open", summary)
         self.assertIn("1 approved", summary)
         self.assertIn("1 needs review", summary)
-        # Changes-requested PR generates action item
+        # BH37-010: Actions are for merge-ready and stale-review PRs, not changes-requested
         self.assertTrue(len(actions) > 0)
+        action_text = " ".join(actions)
+        self.assertTrue("#1" in action_text or "approved" in action_text,
+                        f"Action should reference approved PR #1: {actions}")
 
 
 # ---------------------------------------------------------------------------
@@ -1065,6 +1076,47 @@ class TestCheckBranchDivergence(unittest.TestCase):
         self.assertIn("HIGH", report[0])
         self.assertEqual(len(actions), 1)
         self.assertIn("25 behind", actions[0])
+
+    @patch("check_status.gh_json")
+    def test_boundary_10_not_medium(self, mock_gh):
+        """BH37-016: behind_by=10 should NOT trigger MEDIUM (threshold is >10)."""
+        mock_gh.return_value = {"behind_by": 10, "ahead_by": 1}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/edge"],
+        )
+        self.assertEqual(report, [])
+
+    @patch("check_status.gh_json")
+    def test_boundary_11_is_medium(self, mock_gh):
+        """BH37-016: behind_by=11 should trigger MEDIUM."""
+        mock_gh.return_value = {"behind_by": 11, "ahead_by": 1}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/edge"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("MEDIUM", report[0])
+
+    @patch("check_status.gh_json")
+    def test_boundary_20_is_medium_not_high(self, mock_gh):
+        """BH37-016: behind_by=20 should be MEDIUM, not HIGH (threshold is >20)."""
+        mock_gh.return_value = {"behind_by": 20, "ahead_by": 1}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/edge"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("MEDIUM", report[0])
+        self.assertEqual(actions, [])
+
+    @patch("check_status.gh_json")
+    def test_boundary_21_is_high(self, mock_gh):
+        """BH37-016: behind_by=21 should trigger HIGH."""
+        mock_gh.return_value = {"behind_by": 21, "ahead_by": 1}
+        report, actions = check_status.check_branch_divergence(
+            "owner/repo", "main", ["feat/edge"],
+        )
+        self.assertEqual(len(report), 1)
+        self.assertIn("HIGH", report[0])
+        self.assertEqual(len(actions), 1)
 
     @patch("check_status.gh_json")
     def test_multiple_branches(self, mock_gh):

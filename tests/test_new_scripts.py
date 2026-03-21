@@ -365,7 +365,7 @@ class TestRiskRegister(unittest.TestCase):
         # Each row should have exactly 8 pipe characters (7 cells)
         data_lines = [l for l in content.splitlines()
                       if l.strip().startswith("|") and "R1" in l]
-        self.assertTrue(len(data_lines) == 1)
+        self.assertEqual(len(data_lines), 1)
 
     def test_template_in_skeletons(self):
         tmpl = Path(__file__).resolve().parent.parent / "references/skeletons/risk-register.md.tmpl"

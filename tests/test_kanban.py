@@ -462,10 +462,10 @@ class TestTransitionCommand(unittest.TestCase):
                 # Local state must be reverted
                 loaded = read_tf(tf.path)
                 self.assertEqual(loaded.status, "todo")
-                # BH22-054: Verify the failed call targeted the correct issue
-                call_str = str(mock.call_args)
-                self.assertIn("42", call_str)
-                self.assertIn("kanban:design", call_str)
+                # BH37-018: Inspect args directly instead of stringifying
+                gh_args = mock.call_args[0][0]
+                self.assertIn("42", gh_args)
+                self.assertIn("kanban:design", gh_args)
 
     # BH23-201: Double-fault restores tf.status on caller's object
     def test_transition_double_fault_restores_tf_status(self):
