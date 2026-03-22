@@ -15,11 +15,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_config import (
-    load_config, ConfigError, get_sprints_dir, detect_sprint, read_tf, write_tf,
+    load_config, ConfigError, get_sprints_dir, detect_sprint, read_tf,
 )
 # BH36-001: Use lock_sprint (not lock_story) for mutual exclusion with
 # kanban.py and sync_tracking.py, which both hold lock_sprint.
-from kanban import lock_sprint
+from kanban import lock_sprint, atomic_write_tf
 
 _APP_KEYWORDS = re.compile(
     r'\b(visible|display|launch|screen|render|user|window|UI|app|'
@@ -56,7 +56,7 @@ def assign_levels(sprints_dir: str, sprint: int) -> dict[str, int]:
                 tf = read_tf(md_file)  # re-read under lock
                 if "dod_level:" not in tf.body_text:
                     tf.body_text = tf.body_text.rstrip() + f"\n\ndod_level: {level}\n"
-                    write_tf(tf)
+                    atomic_write_tf(tf)
 
     return counts
 

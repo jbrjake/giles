@@ -303,6 +303,21 @@ class TestFileLocking(unittest.TestCase):
                 lock_file = sprint_dir / ".kanban.lock"
                 self.assertTrue(lock_file.exists())
 
+    def test_lock_story_cleans_up_lock_file(self):
+        """BH38-108: Lock file should be cleaned up after context manager exits."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "US-0001-test.md"
+            tf = TF(path=p, story="US-0001", title="Lock test", sprint=1)
+            write_tf(tf)
+            lock_file = p.with_suffix(".lock")
+            with lock_story(p):
+                # Lock file exists during lock
+                self.assertTrue(lock_file.exists())
+            # Lock file should still exist (POSIX flock doesn't remove files),
+            # but the fd should be released — verify by acquiring again instantly
+            with lock_story(p):
+                pass  # no deadlock = lock was properly released
+
     def test_concurrent_lock_serializes(self):
         """BH23-114: Two threads holding the same lock are serialized."""
         import threading

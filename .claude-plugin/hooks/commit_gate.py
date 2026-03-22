@@ -180,12 +180,14 @@ def _matches_check_command(command: str) -> bool:
 
     # First check: match against config-defined check_commands
     for cfg_cmd in _CONFIG_CHECK_COMMANDS:
-        # The configured command might be a prefix of the actual command
-        # (e.g., "pytest" matches "pytest tests/ -v")
-        # BH35-010: Add word boundaries to prevent substring matches
-        # (e.g., "echo python" matching config command "python -m pytest")
-        if cfg_cmd and re.search(r'\b' + re.escape(cfg_cmd.split()[0]) + r'\b', command):
-            return True
+        # BH35-010: Word boundaries prevent substring matches
+        # BH38-201: Match all words of the configured command, not just the first,
+        # so "python -m pytest" won't match "python some_script.py"
+        if cfg_cmd:
+            tokens = cfg_cmd.split()
+            pattern = r'\b' + r'\s+'.join(re.escape(t) for t in tokens) + r'\b'
+            if re.search(pattern, command):
+                return True
 
     # Fallback: hardcoded patterns for common test runners
     patterns = [

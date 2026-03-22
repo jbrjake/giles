@@ -437,7 +437,20 @@ class TestGetExistingIssues(unittest.TestCase):
         existing = populate_issues.get_existing_issues()
         self.assertIn("US-0101", existing)
         self.assertIn("US-0102", existing)
-        self.assertEqual(len(existing), 2)
+        # BH39-001: Non-standard titles produce slug IDs (e.g. NOT-A-STORY)
+        # which are included for idempotency — harmless padding in the set.
+        self.assertIn("NOT-A-STORY", existing)
+
+    @patch("populate_issues.gh_json")
+    def test_returns_custom_pattern_ids(self, mock_gh_json):
+        """BH39-001: Custom story IDs without hyphens must be deduplicated."""
+        mock_gh_json.return_value = [
+            {"title": "TASK0001: Setup project"},
+            {"title": "TASK0002: Add auth"},
+        ]
+        existing = populate_issues.get_existing_issues()
+        self.assertIn("TASK0001", existing)
+        self.assertIn("TASK0002", existing)
 
     @patch("populate_issues.gh_json")
     def test_handles_empty_response(self, mock_gh_json):
@@ -2218,7 +2231,6 @@ class TestGetLinkedPrDictNormalization(unittest.TestCase):
     def test_single_dict_normalized_to_list(self):
         """When timeline API returns a single dict instead of a list,
         get_linked_pr normalizes it and extracts the PR correctly."""
-        FakeGitHub()
         # Register timeline events for issue 10 — FakeGitHub stores them
         # as a list, but we need the jq filter to return a single dict.
         # With the jq package, the jq expression applied to these events

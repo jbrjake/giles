@@ -1252,7 +1252,7 @@ class TestTeamVoicesMainHappyPath(_HappyPathBase):
                 tv_main()
             output = buf.getvalue()
             # main() should produce some output (header or "no voices found" message)
-            self.assertTrue(len(output) >= 0)  # at minimum, no crash
+            self.assertIsInstance(output, str)  # main() ran without crash
             # If there's output, it shouldn't be an error traceback
             self.assertNotIn("Traceback", output)
         finally:
@@ -2972,6 +2972,52 @@ class TestBH37StemCollisionIndex(unittest.TestCase):
                                 f"Both INDEX rows have same filename: {filenames}")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# BH39: Seam contract fixes
+# ---------------------------------------------------------------------------
+
+class TestBH39_201_CheckPrsLimit(unittest.TestCase):
+    """BH39-201: check_prs must use --limit 500, not default 30."""
+
+    def test_check_prs_passes_limit_flag(self):
+        """Verify the gh_json call includes --limit 500."""
+        sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
+        import check_status
+
+        with patch.object(check_status, "gh_json", return_value=[]) as mock_gh:
+            check_status.check_prs()
+        args = mock_gh.call_args[0][0]
+        self.assertIn("--limit", args)
+        limit_idx = args.index("--limit")
+        self.assertEqual(args[limit_idx + 1], "500")
+
+
+class TestBH39_208_CheckMilestoneTypeGuard(unittest.TestCase):
+    """BH39-208: check_milestone must handle non-list gh_json return."""
+
+    def test_dict_return_does_not_crash(self):
+        sys.path.insert(0, str(ROOT / "skills" / "sprint-monitor" / "scripts"))
+        import check_status
+
+        ms = {"title": "Sprint 1", "open_issues": 1, "closed_issues": 0}
+        # Simulate gh_json returning a dict instead of a list
+        with patch.object(check_status, "find_milestone", return_value=ms), \
+             patch.object(check_status, "gh_json", return_value={"error": "bad"}):
+            report, actions = check_status.check_milestone(1)
+        # Should not crash — handles dict gracefully
+        self.assertTrue(any("1" in line for line in report))
+
+
+class TestBH39_101_AssignDodLevelAtomicWrite(unittest.TestCase):
+    """BH39-101: assign_dod_level must use atomic_write_tf, not write_tf."""
+
+    def test_uses_atomic_write(self):
+        """Verify assign_dod_level imports atomic_write_tf from kanban."""
+        import assign_dod_level
+        self.assertTrue(hasattr(assign_dod_level, "atomic_write_tf"),
+                        "assign_dod_level should import atomic_write_tf")
 
 
 if __name__ == "__main__":

@@ -140,7 +140,11 @@ def check_prs() -> tuple[list[str], list[str]]:
         "pr", "list",
         "--json",
         "number,title,reviewDecision,labels,statusCheckRollup,createdAt",
+        "--limit", "500",
     ])
+    if not isinstance(prs, list):
+        prs = []
+    warn_if_at_limit(prs, 500)
     if not prs:
         return ["PRs: none open"], []
 
@@ -241,6 +245,8 @@ def check_milestone(
             "--state", "all",
             "--json", "state,labels,body", "--limit", "500",
         ])
+        if not isinstance(issues, list):
+            issues = []
         warn_if_at_limit(issues, 500)
         t_sp, d_sp = _count_sp(issues)
         if t_sp:

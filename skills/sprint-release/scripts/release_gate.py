@@ -443,7 +443,7 @@ def generate_release_notes(
 def find_milestone_number(milestone_title: str) -> int | None:
     """Find GitHub milestone number by title."""
     milestones = gh_json([
-        "api", "repos/{owner}/{repo}/milestones", "--paginate",
+        "api", "repos/{owner}/{repo}/milestones?per_page=100", "--paginate",
     ])
     for ms in (milestones if isinstance(milestones, list) else []):
         if ms.get("title") == milestone_title:

@@ -87,9 +87,8 @@ Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
 
-> **Note:** The dev WIP limit (1 per persona) is enforced by
-> `kanban.py check_wip_limit()`. Review and integration limits remain
-> behavioral guidelines. Use `--force-wip` to override when justified.
+> **Note:** All three WIP limits (dev, review, integration) are enforced
+> by `kanban.py check_wip_limit()`. Use `--force-wip` to override when justified.
 
 | State | Scope | Max stories | Enforcement |
 |---|---|---|---|

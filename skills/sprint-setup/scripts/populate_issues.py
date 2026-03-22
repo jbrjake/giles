@@ -369,9 +369,10 @@ def get_existing_issues() -> set[str]:
         title = issue.get("title", "")
         if title:
             sid = extract_story_id(title)
-            # Only add IDs that look like proper story IDs (uppercase prefix + digits),
-            # not fallback slugs from extract_story_id's sanitization path.
-            if re.match(r"[A-Z]+-\d+", sid):
+            # BH39-001: Accept any non-UNKNOWN ID, not just hyphenated IDs.
+            # Projects using custom story_id_pattern (e.g., TASK\d{4}) produce
+            # IDs without hyphens that must still be deduplicated.
+            if sid != "UNKNOWN":
                 existing.add(sid)
     return existing
 

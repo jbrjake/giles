@@ -65,6 +65,12 @@ class TestSmokeTest(unittest.TestCase):
             content = path.read_text()
             self.assertIn("Smoke Test History", content)
 
+    def test_smoke_nonexistent_command_returns_fail(self):
+        """BH38-109: Invalid command handled gracefully via shell=True."""
+        status, code, _, _ = run_smoke("nonexistent_binary_xyz_12345")
+        self.assertEqual(status, "SMOKE FAIL")
+        self.assertEqual(code, 1)
+
     def test_smoke_history_escapes_pipe_in_command(self):
         """BH33-003: Pipe chars in command must be escaped to prevent table corruption."""
         with tempfile.TemporaryDirectory() as td:

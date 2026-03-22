@@ -100,7 +100,8 @@ def _parse_action_items(retro_text: str) -> list[str]:
             if "|" in line and not line.strip().startswith("|--"):
                 cells = [c.strip() for c in line.split("|")]
                 cells = [c for c in cells if c]
-                if cells and cells[0] not in ("Item", "---"):
+                # Skip header row and separator rows (incl. alignment: :---, ---:, :---:)
+                if cells and cells[0] not in ("Item", "---") and not re.match(r'^:?-+:?$', cells[0]):
                     items.append(cells[0])
     return items
 

@@ -140,7 +140,11 @@ def sync_one(
     changes: list[str] = []
     gh_status = kanban_from_labels(issue)
 
-    # Accept any valid state from GitHub (intentional — see docstring)
+    # Accept any valid state from GitHub (intentional — see docstring).
+    # BH39-103: State regression (e.g., review→todo) leaves stale metadata
+    # (implementer, branch, pr_number) from the prior cycle. This is by
+    # design — sync_tracking only adds/updates metadata, never removes it.
+    # Subagents should check current status, not rely on field presence.
     if gh_status != tf.status and gh_status in KANBAN_STATES:
         old_status = tf.status
         append_transition_log(tf, old_status, gh_status, "external: GitHub sync")
@@ -291,10 +295,10 @@ def main() -> None:
             pr = get_linked_pr(issue["number"], story_id=sid, all_prs=all_prs)
             if sid.upper() in existing:
                 # Re-read under lock to get fresh state
-                existing[sid] = read_tf(existing[sid].path)
-                changes = sync_one(existing[sid], issue, pr, sprint)
+                existing[sid.upper()] = read_tf(existing[sid.upper()].path)
+                changes = sync_one(existing[sid.upper()], issue, pr, sprint)
                 if changes:
-                    atomic_write_tf(existing[sid])
+                    atomic_write_tf(existing[sid.upper()])
                 all_changes.extend(changes)
             else:
                 tf, changes = create_from_issue(

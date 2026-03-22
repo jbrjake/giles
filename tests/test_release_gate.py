@@ -703,7 +703,7 @@ class TestDoRelease(unittest.TestCase):
         }
         result = do_release("Sprint 1: Walking Skeleton", config)
 
-        self.assertTrue(result)
+        self.assertIs(result, True)  # BH38-106: strict type check
 
         # calculate_version called exactly once
         mock_calc.assert_called_once()
@@ -926,7 +926,7 @@ class TestDoRelease(unittest.TestCase):
 
         result = do_release("Sprint 1: Walking Skeleton", config, dry_run=True)
 
-        self.assertTrue(result)
+        self.assertIs(result, True)  # BH38-106: strict type check
 
         # Pre-flight git status + tag existence check in release notes
         self.assertGreaterEqual(mock_run.call_count, 1)
@@ -1170,7 +1170,7 @@ class TestDoRelease(unittest.TestCase):
 
         result = do_release("Sprint 1: Walking Skeleton", config)
 
-        self.assertTrue(result)
+        self.assertIs(result, True)  # BH38-106: strict type check
 
         # Notes file should NOT be release-notes.md in cwd
         self.assertFalse(
@@ -1271,11 +1271,11 @@ class TestDoReleaseFakeGH(unittest.TestCase):
         }
         result = do_release("Sprint 1: Walking Skeleton", config)
 
-        self.assertTrue(result, "do_release should return True on success")
+        self.assertIs(result, True, "do_release should return True on success")  # BH38-106
 
         # Verify FakeGitHub state: release was created
-        self.assertTrue(
-            len(self.fake.releases) >= 1,
+        self.assertGreaterEqual(
+            len(self.fake.releases), 1,
             f"Expected at least 1 release, got {len(self.fake.releases)}",
         )
         release = self.fake.releases[0]
@@ -1315,10 +1315,10 @@ class TestDoReleaseFakeGH(unittest.TestCase):
             "_config_dir": "sprint-config",
         }
         result = do_release("Sprint 1: Walking Skeleton", config)
-        self.assertTrue(result)
+        self.assertIs(result, True)  # BH38-106: strict type check
 
         # Verify release was created with correct tag
-        self.assertTrue(len(self.fake.releases) >= 1)
+        self.assertGreaterEqual(len(self.fake.releases), 1)
         self.assertEqual(self.fake.releases[0]["tag_name"], "v2.0.0")
 
         # BH24-006: Actually verify the release notes content has expected sections.

@@ -83,19 +83,22 @@ def compute_velocity(
 def compute_review_rounds(
     milestone_title: str,
 ) -> dict:
-    """Count review events per PR for stories in this milestone."""
+    """Count review events per PR for stories in this milestone.
+
+    BH39-202: Fetch all PRs and post-filter by milestone title, instead of
+    using --search which relies on GitHub search API (may undercount merged PRs
+    and ignores --state on some gh versions).
+    """
     prs = gh_json([
         "pr", "list", "--state", "all",
         "--json", "number,title,labels,milestone,reviews",
         "--limit", "500",
-        "--search", f'milestone:"{milestone_title}"',
     ])
     if not isinstance(prs, list):
         prs = []
-    warn_if_at_limit(prs)
+    warn_if_at_limit(prs, 500)
 
-    # BH23-217: --search milestone:"title" may over-include on some gh versions.
-    # Post-filter ensures correctness regardless of search behavior.
+    # Post-filter to milestone title — client-side for reliability.
     sprint_prs = []
     for pr in prs:
         ms = pr.get("milestone") or {}

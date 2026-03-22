@@ -163,6 +163,11 @@ def atomic_write_tf(tf: TF) -> None:
 def lock_story(tracking_path: Path) -> Generator[None, None, None]:
     """Acquire an exclusive POSIX lock for a story via a sentinel file.
 
+    .. deprecated::
+        All production mutations now use :func:`lock_sprint` for sprint-wide
+        serialisation (BH35-001). Retained for backward compatibility and
+        test coverage of per-file locking semantics.
+
     Uses ``tracking_path.with_suffix('.lock')`` as the lock target so that
     ``atomic_write_tf``'s inode-replacing rename does not invalidate the
     lock.  The sentinel file is stable across renames.
@@ -748,6 +753,7 @@ def main() -> None:
 
     if args.command == "sync":
         sprint_dir = sprints_dir / f"sprint-{sprint}"
+        sprint_dir.mkdir(parents=True, exist_ok=True)
         ms = find_milestone(sprint)
         if not ms:
             print(f"No GitHub milestone for Sprint {sprint}", file=sys.stderr)

@@ -82,7 +82,8 @@ escalation limit.
 ```
 
 Log entries are rolled back if the GitHub sync fails. External transitions
-via `do_sync` or `sync_tracking` do not currently append log entries.
+via `do_sync` and `sync_tracking` append log entries tagged with
+`(external: GitHub sync)` so review-round escalation counts them correctly.
 
 <!-- §tracking-formats.file_map_where_each_tracking_file_lives -->
 ## File Map

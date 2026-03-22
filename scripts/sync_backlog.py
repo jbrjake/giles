@@ -159,8 +159,8 @@ def check_sync(
 def do_sync(config: dict) -> dict[str, int]:
     """Run the idempotent milestone + issue creation. Return counts.
 
-    Imports bootstrap_github and populate_issues lazily to avoid pulling
-    in the setup scripts at module load time.
+    Uses bootstrap_github and populate_issues (imported at module level
+    with graceful fallback if sprint-setup scripts are unavailable).
     """
     if bootstrap_github is None or populate_issues is None:
         raise ImportError("bootstrap_github or populate_issues not available")

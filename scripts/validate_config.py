@@ -1174,7 +1174,7 @@ def find_milestone(sprint_num: int) -> dict | None:
     """
     num = int(sprint_num)
     milestones = gh_json([
-        "api", "repos/{owner}/{repo}/milestones", "--paginate",
+        "api", "repos/{owner}/{repo}/milestones?per_page=100", "--paginate",
     ])
     if not isinstance(milestones, list):
         return None
