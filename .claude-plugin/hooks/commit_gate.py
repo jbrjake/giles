@@ -237,8 +237,15 @@ def main() -> None:
     if not command:
         sys.exit(0)
 
-    # PreToolUse: do NOT record verification here — we don't know the result
-    # yet.  Verification is recorded in post_main() after the command runs.
+    # Record verification optimistically when a check command is dispatched.
+    # Previously this was done in PostToolUse (post_main) after confirming
+    # exit code 0, but PostToolUse hooks don't fire reliably in current
+    # Claude Code versions (anthropics/claude-code#26962). Recording in
+    # PreToolUse is acceptable because: (a) the gate's purpose is to catch
+    # "forgot to run tests", not "tests failed and committed anyway", and
+    # (b) if tests fail, the agent sees the failure output and won't commit.
+    if _matches_check_command(command):
+        mark_verified()
 
     # If committing, check verification state
     result = check_commit_allowed(command)
@@ -254,24 +261,18 @@ def main() -> None:
 
 
 def post_main() -> None:
-    """PostToolUse hook for Bash tool — record verification after tests pass."""
+    """PostToolUse hook for Bash tool — kept for backward compatibility.
+
+    Verification recording has been moved to PreToolUse (main) because
+    PostToolUse hooks don't fire reliably in current Claude Code versions
+    (anthropics/claude-code#26962). This handler is retained so the
+    plugin.json entry doesn't error if PostToolUse starts working again.
+    """
+    # Drain stdin to prevent broken pipe
     try:
-        input_data = json.load(sys.stdin)
+        json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
-        sys.exit(0)
-
-    tool_input = input_data.get("tool_input", input_data.get("input", {}))
-    command = tool_input.get("command", "")
-    tool_output = input_data.get("tool_output", input_data.get("output", {}))
-    # PostToolUse provides stdout/stderr/exit_code in tool_output
-    exit_code = tool_output.get("exit_code", tool_output.get("exitCode", -1))
-    if isinstance(exit_code, str):
-        try:
-            exit_code = int(exit_code)
-        except ValueError:
-            exit_code = -1
-
-    handle_post_tool_use(command, exit_code=exit_code)
+        pass
     sys.exit(0)
 
 

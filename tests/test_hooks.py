@@ -878,19 +878,23 @@ class TestHookMainEntryPoints(unittest.TestCase):
                 commit_main()
             self.assertEqual(ctx.exception.code, 0)
 
-    def test_commit_gate_post_main_records_on_success(self):
-        """commit_gate.post_main() records verification on exit code 0."""
+    def test_commit_gate_main_records_verification_on_check_command(self):
+        """commit_gate.main() records verification when dispatching a test command.
+
+        Verification recording moved from PostToolUse to PreToolUse because
+        PostToolUse hooks don't fire reliably (anthropics/claude-code#26962).
+        """
         import io
         from hooks.commit_gate import _state_file, needs_verification
         sf = _state_file()
         try:
             sf.write_text("stale_hash", encoding="utf-8")
-            stdin_data = '{"tool_input": {"command": "pytest tests/"}, "tool_output": {"exit_code": 0}}'
+            stdin_data = '{"tool_input": {"command": "pytest tests/"}}'
             from unittest.mock import patch as _patch
             with _patch("sys.stdin", io.StringIO(stdin_data)):
-                from hooks.commit_gate import post_main
+                from hooks.commit_gate import main as commit_main
                 with self.assertRaises(SystemExit) as ctx:
-                    post_main()
+                    commit_main()
                 self.assertEqual(ctx.exception.code, 0)
             self.assertFalse(needs_verification())
         finally:
