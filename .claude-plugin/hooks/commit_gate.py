@@ -209,13 +209,7 @@ def _matches_check_command(command: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def handle_post_tool_use(command: str, *, exit_code: int) -> None:
-    """Record verification state after a Bash command completes.
-
-    Only marks as verified if the command matches a check command AND
-    it exited successfully (exit code 0).  This is the correct place to
-    record verification — PreToolUse fires before execution and cannot
-    know the result.
-    """
+    """Record verification state after a check command passes."""
     if exit_code != 0:
         return
     if not _matches_check_command(command):
@@ -239,16 +233,6 @@ def main() -> None:
     if not command:
         exit_ok()
 
-    # Record verification optimistically when a check command is dispatched.
-    # Previously this was done in PostToolUse (post_main) after confirming
-    # exit code 0, but PostToolUse hooks don't fire reliably in current
-    # Claude Code versions (anthropics/claude-code#26962). Recording in
-    # PreToolUse is acceptable because: (a) the gate's purpose is to catch
-    # "forgot to run tests", not "tests failed and committed anyway", and
-    # (b) if tests fail, the agent sees the failure output and won't commit.
-    if _matches_check_command(command):
-        mark_verified()
-
     # If committing, check verification state
     result = check_commit_allowed(command)
     if result == "blocked":
@@ -263,18 +247,26 @@ def main() -> None:
 
 
 def post_main() -> None:
-    """PostToolUse hook for Bash tool — kept for backward compatibility.
-
-    Verification recording has been moved to PreToolUse (main) because
-    PostToolUse hooks don't fire reliably in current Claude Code versions
-    (anthropics/claude-code#26962). This handler is retained so the
-    plugin.json entry doesn't error if PostToolUse starts working again.
-    """
-    # Drain stdin to prevent broken pipe
+    """PostToolUse hook for Bash tool — record verification after tests pass."""
     try:
-        json.load(sys.stdin)
+        input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
-        pass
+        exit_ok()
+
+    tool_input = input_data.get("tool_input", input_data.get("input", {}))
+    command = tool_input.get("command", "")
+    tool_output = input_data.get("tool_output",
+                    input_data.get("tool_response",
+                    input_data.get("output", {})))
+    exit_code = tool_output.get("exit_code", tool_output.get("exitCode", -1))
+    if isinstance(exit_code, str):
+        try:
+            exit_code = int(exit_code)
+        except ValueError:
+            exit_code = -1
+
+    handle_post_tool_use(command, exit_code=exit_code)
+
     exit_ok()
 
 
