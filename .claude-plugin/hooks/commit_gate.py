@@ -17,6 +17,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from hooks._common import exit_ok
+
 
 # Source file extensions that require verification before commit
 _SOURCE_EXTENSIONS = frozenset({
@@ -230,12 +232,12 @@ def main() -> None:
     try:
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
-        sys.exit(0)
+        exit_ok()
 
     tool_input = input_data.get("tool_input", input_data.get("input", {}))
     command = tool_input.get("command", "")
     if not command:
-        sys.exit(0)
+        exit_ok()
 
     # Record verification optimistically when a check command is dispatched.
     # Previously this was done in PostToolUse (post_main) after confirming
@@ -257,7 +259,7 @@ def main() -> None:
         print(msg)
         sys.exit(2)
 
-    sys.exit(0)
+    exit_ok()
 
 
 def post_main() -> None:
@@ -273,7 +275,7 @@ def post_main() -> None:
         json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
         pass
-    sys.exit(0)
+    exit_ok()
 
 
 if __name__ == "__main__":

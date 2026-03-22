@@ -2,7 +2,19 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+
+def exit_ok() -> None:
+    """Exit 0 with a stderr byte to silence Claude Code's 'hook error' display.
+
+    Claude Code bug #34713: hooks that exit 0 with no stderr are mislabeled
+    as 'hook error' in the transcript. Writing a newline to stderr prevents
+    the false error label.
+    """
+    sys.stderr.write("\n")
+    sys.exit(0)
 
 _CONFIG_RELATIVE = "sprint-config/project.toml"
 

@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 
-from hooks._common import _find_project_root
+from hooks._common import _find_project_root, exit_ok
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ def main() -> None:
     """
     paths = _get_config_paths()
     if not paths:
-        sys.exit(0)
+        exit_ok()
 
     # BH27-002: Resolve all paths against project root — TOML values are
     # relative to the project root, not CWD.
@@ -205,7 +205,7 @@ def main() -> None:
     if output:
         print(output)
 
-    sys.exit(0)
+    exit_ok()
 
 
 if __name__ == "__main__":

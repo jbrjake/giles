@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from hooks._common import _find_project_root
+from hooks._common import _find_project_root, exit_ok
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ def main() -> None:
     # H-014: Skip verification for non-implementer agents
     if not _is_implementer_output(output_text, check_commands):
         print("VERIFICATION SKIPPED: non-implementer agent")
-        sys.exit(0)
+        exit_ok()
 
     report, passed = run_verification(check_commands, smoke_command)
     print(report)
@@ -369,7 +369,7 @@ def main() -> None:
 
     # Exit 0 regardless — we inject information, not block.
     # The orchestrator decides whether to accept the agent's output.
-    sys.exit(0)
+    exit_ok()
 
 
 if __name__ == "__main__":

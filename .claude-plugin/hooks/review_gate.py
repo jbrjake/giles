@@ -17,7 +17,7 @@ import re
 import subprocess
 import sys
 
-from hooks._common import _find_project_root
+from hooks._common import _find_project_root, exit_ok
 
 
 # ---------------------------------------------------------------------------
@@ -229,12 +229,12 @@ def main() -> None:
     try:
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
-        sys.exit(0)
+        exit_ok()
 
     tool_input = input_data.get("tool_input", input_data.get("input", {}))
     command = tool_input.get("command", "")
     if not command:
-        sys.exit(0)
+        exit_ok()
 
     base = _get_base_branch()
 
@@ -269,7 +269,7 @@ def main() -> None:
             )
             # Don't block — just warn. The user might be on a feature branch.
 
-    sys.exit(0)
+    exit_ok()
 
 
 if __name__ == "__main__":
