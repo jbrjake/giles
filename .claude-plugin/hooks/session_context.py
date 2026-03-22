@@ -178,7 +178,13 @@ def format_context(action_items: list[str],
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Inject sprint context at session start."""
+    """Inject sprint context at session start.
+
+    Note: This hook intentionally does not read JSON from stdin.
+    SessionStart hooks receive event metadata on stdin, but this hook
+    only needs to read config files and output context to stdout.
+    Stdout is injected into Claude's context as a system message.
+    """
     paths = _get_config_paths()
     if not paths:
         sys.exit(0)

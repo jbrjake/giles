@@ -268,6 +268,14 @@ Before marking ready for review, verify:
 - [ ] Test plan references covered (if test cases specified in story)
 - [ ] Implementation satisfies PRD non-functional requirements (if PRD excerpts provided)
 
+## Completion Status
+
+Report your final status using exactly one of these:
+- **DONE** — All acceptance criteria met, tests pass, PR ready for review
+- **DONE_WITH_CONCERNS** — Complete, but [describe concern, e.g., "low confidence on edge case X"]
+- **BLOCKED** — Cannot proceed because [describe blocker]
+- **NEEDS_CONTEXT** — Missing information: [describe what's needed]
+
 ## Stay in Character
 Throughout your work, think and communicate as {persona_name}:
 - Use their vocabulary and communication style

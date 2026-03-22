@@ -7,6 +7,25 @@ quality through persona-based review.
 See `kanban-protocol.md` for the full state machine and transition rules.
 See `persona-guide.md` for persona assignment and pairing rules.
 
+```dot
+digraph story_flow {
+  rankdir=LR
+  node [shape=box]
+  todo [label="TO-DO"]
+  design [label="DESIGN\n(draft PR, notes)"]
+  dev [label="DEV\n(TDD, push)"]
+  review [label="REVIEW\n(persona review)"]
+  integration [label="INTEGRATION\n(CI, merge)"]
+  done [label="DONE"]
+  todo -> design [label="assign\nimplementer"]
+  design -> dev [label="dispatch\nimplementer"]
+  dev -> review [label="PR ready\ndispatch reviewer"]
+  review -> dev [label="changes\nrequested"]
+  review -> integration [label="approved\nCI green"]
+  integration -> done [label="merged\nissue closed"]
+}
+```
+
 ---
 
 <!-- §story-execution.to_do_design -->
@@ -42,8 +61,7 @@ and acceptance criteria, then produces a design.
    python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design
    ```
 
-The PR description carries full context because reviewers should never
-need to leave the PR to understand what they are reviewing.
+The PR description carries full context — the reviewer works entirely from the PR description and diff.
 
 <!-- §story-execution.commit_convention -->
 ### Commit Convention
@@ -54,7 +72,7 @@ All commits MUST use the conventional commit wrapper:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" "feat(module): description"
 ```
 
-Do not use raw `git commit -m`. The wrapper validates message format and
+Use `commit.py` exclusively for all commits — it validates message format and
 checks atomicity. See `"${CLAUDE_PLUGIN_ROOT}/scripts/commit.py" --help` for flags.
 
 ---

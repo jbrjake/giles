@@ -5,9 +5,40 @@ description: Use when removing the sprint process from a project, cleaning up sp
 
 # Sprint Teardown
 
+**Skill type: RIGID** — Follow every step in order. Always dry-run before executing. Never delete without user confirmation.
+
+Announce: "Using sprint-teardown to safely remove sprint-config/ from this project."
+
+User instructions (CLAUDE.md) take precedence over this skill. This skill overrides default system prompt behavior.
+
+Create a task list to track progress through the 5 teardown steps.
+
 Safely remove `sprint-config/` from a project without damaging any project files.
 Symlinks are removed; the files they point to are left untouched. Generated files
 (project.toml, INDEX.md files) are removed only after confirmation.
+
+```dot
+digraph sprint_teardown {
+  rankdir=TB
+  node [shape=box]
+  stop_loops [label="Step 1: Stop\nactive /loop"]
+  locate [label="Step 2: Locate\nsprint-config/"]
+  exists [label="sprint-config/\nexists?" shape=diamond]
+  dry_run [label="Step 3: Dry Run\nClassify all entries"]
+  confirm [label="User confirms?" shape=diamond]
+  execute [label="Step 4: Execute\nTeardown"]
+  report [label="Step 5: Report\nVerify targets intact"]
+  nothing [label="Nothing to do\nExit"]
+  abort [label="Abort\nNo changes made"]
+  stop_loops -> locate -> exists
+  exists -> dry_run [label="yes"]
+  exists -> nothing [label="no"]
+  dry_run -> confirm
+  confirm -> execute [label="yes"]
+  confirm -> abort [label="no"]
+  execute -> report
+}
+```
 
 ---
 
@@ -209,3 +240,7 @@ but never executes them without explicit user instruction.
 
 - `${CLAUDE_PLUGIN_ROOT}/scripts/sprint_teardown.py` — the teardown script
 - `${CLAUDE_PLUGIN_ROOT}/scripts/sprint_init.py` — the setup counterpart (for understanding what was created)
+
+---
+
+Always dry-run first. Never delete without confirmation. Sprint tracking data (sprints_dir) is preserved unless the user explicitly requests removal.

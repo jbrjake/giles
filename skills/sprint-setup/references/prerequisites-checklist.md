@@ -1,7 +1,7 @@
 # Prerequisites Checklist
 
 Verify every item before continuing. If any check fails, show the fix and stop.
-Do not proceed with partial setup — a half-bootstrapped repo is harder to fix than a fresh start.
+Complete all checks in order — each step builds on the previous one.
 
 ## 1. GitHub CLI (`gh`)
 

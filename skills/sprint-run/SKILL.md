@@ -5,8 +5,14 @@ description: Execute a complete sprint with persona-based development, TDD, GitH
 
 # Sprint Run
 
+**Skill type: FLEXIBLE** — Adapt to sprint context, but follow the phase sequence. Phases run in order: Kickoff → Stories → Demo → Retro.
+
+Announce: "Using sprint-run to [resume/start] Sprint {N} at Phase {phase}."
+
 Orchestrate a complete sprint: kickoff, story execution, demo, retro.
 All paths, commands, and persona names come from `sprint-config/project.toml`.
+
+User instructions (CLAUDE.md) take precedence over this skill. This skill overrides default system prompt behavior.
 
 ## Quick Reference
 
@@ -19,6 +25,8 @@ All paths, commands, and persona names come from `sprint-config/project.toml`.
 | Lost context? | `references/context-recovery.md` |
 | File formats | `references/tracking-formats.md` |
 | Context Assembly | This file (see "Context Assembly for Agent Dispatch") |
+
+For multi-step ceremonies (kickoff, demo, retro), create a task list to track progress through the ceremony steps.
 
 <!-- §sprint-run.config_prerequisites -->
 ## Config & Prerequisites
@@ -46,6 +54,33 @@ Key commands:
 ## Phase Detection
 
 Read `{config [paths] sprints_dir}/SPRINT-STATUS.md` and route:
+
+```dot
+digraph sprint_phases {
+  rankdir=TB
+  node [shape=box]
+  read [label="Read SPRINT-STATUS.md" shape=ellipse]
+  active [label="Sprint active?" shape=diamond]
+  phase [label="Current phase?" shape=diamond]
+  kickoff [label="Phase 1: Kickoff\n(INTERACTIVE)"]
+  stories [label="Phase 2: Story Execution\n(AUTONOMOUS + gates)"]
+  demo [label="Phase 3: Demo\n(INTERACTIVE)"]
+  retro [label="Phase 4: Retro\n(INTERACTIVE)"]
+  next [label="Increment sprint #\nStart Phase 1"]
+  read -> active
+  active -> kickoff [label="no sprint"]
+  active -> phase [label="yes"]
+  active -> next [label="complete"]
+  phase -> kickoff [label="kickoff"]
+  phase -> stories [label="development"]
+  phase -> demo [label="demo"]
+  phase -> retro [label="retro"]
+  kickoff -> stories
+  stories -> demo [label="all stories done"]
+  demo -> retro
+  retro -> next [label="phase = complete"]
+}
+```
 
 | Condition | Action |
 |-----------|--------|
@@ -188,3 +223,25 @@ verification mismatch.
 | `references/tracking-formats.md` | SPRINT-STATUS.md and story file format specs |
 | `agents/implementer.md` | Subagent protocol for story implementation |
 | `agents/reviewer.md` | Subagent protocol for PR review |
+
+---
+
+## Rationalization Red Flags
+
+If you catch yourself thinking any of these, STOP.
+
+| Your thought | The reality |
+|---|---|
+| "This story is simple, skip design phase" | Every story goes through the kanban state machine. Design phase catches integration issues early. |
+| "The user wants to skip kickoff" | Unless they explicitly said "skip kickoff", they didn't. Kickoff assigns personas and sets scope. |
+| "I'll do the retro after the next sprint" | Retro must happen before starting the next sprint. Feedback decays. |
+| "Tests can come after implementation" | TDD is required. The implementer subagent writes failing tests first. |
+| "I already know what this persona would say" | Read the persona file. Personas evolve through sprint history. |
+
+## If conversation is being compacted
+
+PRESERVE in the summary: current sprint number and phase, which stories are in progress (IDs and kanban states), any BLOCKED stories and why, the escalation failure counter, and the session checklist.
+
+---
+
+All state changes go through `kanban.py`. All ceremonies are interactive — present to the user, do not auto-advance past gates. Escalate after 2 repeated failures in the same category.

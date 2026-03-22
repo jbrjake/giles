@@ -12,6 +12,12 @@ description: Continuous CI/PR/burndown monitoring for active sprints, designed f
 
 # Sprint Monitor
 
+**Skill type: FLEXIBLE** — Adapt to sprint state, but always follow the seven-step check sequence. Exit cleanly on every error — never crash `/loop`.
+
+Announce: "Using sprint-monitor to check Sprint {N} status."
+
+User instructions (CLAUDE.md) take precedence over this skill. This skill overrides default system prompt behavior.
+
 ## Overview
 
 This skill is designed for use with `/loop 5m sprint-monitor`. Run it
@@ -323,3 +329,7 @@ and fixes are not re-applied to passing CI.
 
 When invoked outside of `/loop`, run all seven steps once and output the full
 report.
+
+---
+
+Never crash. Never post duplicate comments. Check API quota before every run. Exit cleanly so `/loop` can call again.

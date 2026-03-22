@@ -12,8 +12,41 @@ description: Release management for project milestones — tagging, building, CI
 
 # Sprint Release Skill
 
+**Skill type: RIGID** — Follow every step in order. If any gate fails, stop. Do not proceed to tagging with unresolved failures.
+
+Announce: "Using sprint-release to validate gates and release {milestone_title}."
+
+User instructions (CLAUDE.md) take precedence over this skill. This skill overrides default system prompt behavior.
+
 Invoked at milestone boundaries (after the final sprint of a release completes).
 Manage the full release process from gate validation to published GitHub Release.
+
+Create a task list to track progress through the 5 release steps.
+
+```dot
+digraph sprint_release {
+  rankdir=TB
+  node [shape=box]
+  gates [label="Step 1: Validate\n5 Gates"]
+  pass [label="All gates pass?" shape=diamond]
+  tag [label="Step 2: Tag & Push"]
+  build [label="Step 3: Build Artifacts"]
+  release [label="Step 4: GitHub Release"]
+  post [label="Step 5: Post-Release\n(close milestone, update tracking)"]
+  stop [label="STOP\nReport failures" shape=doubleoctagon]
+  ci_fail [label="CI fails during release?" shape=diamond]
+  flaky [label="Re-run CI"]
+  hotfix [label="Hotfix → PR → Merge"]
+  gates -> pass
+  pass -> tag [label="all PASS"]
+  pass -> stop [label="any FAIL"]
+  tag -> build -> release -> post
+  ci_fail -> flaky [label="flaky test"]
+  ci_fail -> hotfix [label="real failure"]
+  flaky -> gates [label="re-validate"]
+  hotfix -> gates [label="after merge"]
+}
+```
 
 ---
 
@@ -286,3 +319,25 @@ Validation). Increment the patch version (e.g., v0.1.0 becomes v0.1.1).
   completion status and velocity tracking
 - `${CLAUDE_PLUGIN_ROOT}/skills/sprint-release/scripts/release_gate.py` -- gate validation, version
   calculation, release notes, and publishing automation
+
+---
+
+## Rationalization Red Flags
+
+If you catch yourself thinking any of these, STOP.
+
+| Your thought | The reality |
+|---|---|
+| "CI was green yesterday, skip the gate" | Gates validate current state. Yesterday's CI is stale. |
+| "Only one issue is still open, ship anyway" | All milestone issues must be closed. One open issue blocks release. |
+| "Tests passed locally, skip the CI gate" | CI must pass on the base branch. Local passes are not sufficient. |
+| "We can release and hotfix later" | Complete the gates first. Post-release hotfixes cost more than pre-release fixes. |
+| "The version looks right, skip the calculation" | Version is calculated from conventional commits. Manual overrides cause drift. |
+
+## If conversation is being compacted
+
+PRESERVE in the summary: which gates passed and which failed, the calculated version number, whether a tag has been pushed, and the milestone title.
+
+---
+
+Every gate must pass before the release can proceed. Stop and report on any failure. Do not skip gates.

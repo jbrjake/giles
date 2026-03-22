@@ -9,7 +9,7 @@ Reflect on the sprint at a META level — not what was built, but how the team
 worked. The key output is ACTIONABLE CHANGES to project docs (read target files
 from project.toml `[paths]`).
 
-A retro that produces no doc changes is a failed retro.
+Every retro produces at least one doc change to continuously improve the process.
 
 <!-- §ceremony-retro.facilitation_giles_facilitates_pm_participates_as_team_member -->
 <!-- §ceremony-retro.facilitation -->

@@ -82,7 +82,7 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update <story-id> --pr-number <
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync [--sprint N] [--prune]
 ```
 
-Never use raw `gh issue edit` for kanban labels — always use `kanban.py`.
+Use `kanban.py` exclusively for kanban label changes — it validates transitions, updates tracking files, and syncs GitHub atomically.
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits

@@ -5,8 +5,8 @@ Load this reference when running the demo ceremony at the end of a sprint.
 ## Purpose
 
 Demonstrate working software to stakeholders. Every feature shown must produce
-REAL artifacts — actual build output, test results, logs, screenshots. No
-slideware. No mockups. No "imagine this works."
+REAL artifacts — actual build output, test results, logs, screenshots. Show
+real working software. Use live builds and actual test output as evidence.
 
 <!-- §ceremony-demo.facilitation_giles_pm_split -->
 <!-- §ceremony-demo.facilitation -->

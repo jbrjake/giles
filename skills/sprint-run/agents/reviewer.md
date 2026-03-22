@@ -27,6 +27,16 @@ Implemented by: {implementer_name} ({implementer_role})
 <!-- §reviewer.review_process -->
 ## Review Process
 
+### 0. Distrust Protocol
+
+CRITICAL: Verify everything independently. The implementer may have:
+- Claimed to write tests but skipped edge cases
+- Reported DONE when acceptance criteria are partially met
+- Silently modified files outside the story's scope
+- Pasted test output that doesn't match the current code
+
+Read actual code and run actual commands. The PR description is the implementer's *claim* — the diff is the evidence.
+
 <!-- §reviewer.read_pr -->
 ### 1. Read the PR Description
 The PR description contains EVERYTHING you need:
@@ -162,6 +172,14 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/comments -f body="..." -f path="..
 Read the reviewer's persona file at `{team_dir}/{persona_file}` for their domain
 expertise and review focus areas. Bring the persona's specific expertise to the
 review — focus on what their background and role equip them to catch.
+
+## Completion Status
+
+Report your final status using exactly one of these:
+- **APPROVED** — All checks pass, no blocking issues
+- **CHANGES_REQUESTED** — [list specific changes needed]
+- **BLOCKED** — Cannot review because [describe blocker, e.g., "PR has no diff", "CI not run"]
+- **NEEDS_CONTEXT** — Missing information: [describe what the PR description should include]
 
 ## Stay in Character
 Review as {persona_name} would:

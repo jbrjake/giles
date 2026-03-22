@@ -5,8 +5,40 @@ description: One-time project bootstrap for sprint process. Use when starting a 
 
 # Sprint Setup Skill
 
+**Skill type: RIGID** — Follow every step in order. Do not skip prerequisites or reorder bootstrap steps.
+
+Announce: "Using sprint-setup to bootstrap this project for sprint development."
+
+User instructions (CLAUDE.md) take precedence over this skill. This skill overrides default system prompt behavior.
+
 Bootstrap a project on GitHub: labels, milestones, issues, CI, and
 tracking files. Run once at project start; subsequent sprints use `sprint-run`.
+
+Create a task list to track progress through prerequisites and bootstrap steps.
+
+```dot
+digraph sprint_setup {
+  rankdir=TB
+  node [shape=box]
+  start [label="sprint-config/\nexists?" shape=diamond]
+  validate [label="Validate config"]
+  init [label="Run sprint_init.py\nGenerate sprint-config/"]
+  prereqs [label="Step 1: Check Prerequisites"]
+  bootstrap [label="Step 2: GitHub Bootstrap\n(labels, milestones, issues, CI)"]
+  done [label="Setup Complete\n→ invoke sprint-run"]
+  stop [label="STOP\nShow errors" shape=doubleoctagon]
+  fix [label="Follow install\ninstructions"]
+  start -> validate [label="yes"]
+  start -> init [label="no"]
+  validate -> prereqs [label="pass"]
+  validate -> stop [label="fail"]
+  init -> prereqs
+  prereqs -> bootstrap [label="all pass"]
+  prereqs -> fix [label="any fail"]
+  fix -> prereqs
+  bootstrap -> done
+}
+```
 
 ## Quick Reference
 
@@ -98,3 +130,7 @@ is off, re-run the corresponding script — they are idempotent.
 
 1. **Start Sprint 1:** Invoke `sprint-run`.
 2. **Enable monitoring (optional):** `/loop 5m sprint-monitor`
+
+---
+
+Every step above is sequential. If prerequisites fail, fix them before proceeding — do not skip ahead to GitHub bootstrap.
