@@ -29,8 +29,10 @@ to the scope.
 Then the autonomous phase begins. Implementer subagents write code using TDD via
 parallel agents -- failing tests first, then implementation, then refactor.
 Each creates a real PR on GitHub with a persona header identifying who wrote the
-code and from what perspective. Reviewer subagents evaluate the PR from their
-domain expertise, posting real inline comments on GitHub. Stories flow through
+code and from what perspective. Reviewer subagents run three passes on each PR -- correctness
+first (starting with areas the implementer flagged as shaky), then
+compliance with your project rules, then test coverage gaps. Real inline
+comments on GitHub, in the reviewer's voice. Stories flow through
 the kanban: TODO, DESIGN, DEV, REVIEW, INTEGRATION, DONE.
 
 Giles runs the demo. Real build output. Real test results. Real artifacts saved
@@ -162,6 +164,9 @@ story in Sprint 5. The reviewer reads their counterpart's history too -- if the
 implementer was wary of floating-point edge cases, the reviewer checks those
 areas harder.
 
+Those observations also feed per-persona review checklists -- specific items
+drawn from what went wrong or nearly went wrong, not generic best practices.
+
 This is how fictional team members develop institutional memory.
 
 ## The kanban is real
@@ -188,9 +193,18 @@ the persona moves to their next-priority story.
 
 ### Kickoff (interactive)
 
-Giles facilitates. The PM presents stories. Each persona responds in character
-with initial thoughts, dependencies, and concerns. Then the team raises risks:
-technical, design, capacity. You answer as product owner.
+Giles runs a smoke test before anything else. If the foundation is broken,
+no point planning what to build on it.
+
+Then he reads every persona file and writes `team/insights.md` -- a compact
+distillation of what drives each team member, what they protect, what earns
+their trust. Every subagent gets this context. It's why the systems programmer
+fixates on ownership semantics and the QA lead checks boundary conditions
+without being told to.
+
+The PM presents stories. Each persona responds in character with initial
+thoughts, dependencies, and concerns. Then the team raises risks: technical,
+design, capacity. You answer as product owner.
 
 If questions reveal work not in the sprint plan, new issues get created.
 If the sprint is over-committed, Giles runs scope negotiation with a
@@ -244,6 +258,35 @@ than they found it, and not just in the codebase.
 - **Project docs:** Rules, conventions, process guides, even PRDs -- all evolve
   sprint over sprint through retro-driven changes. Nothing is write-once.
 
+## Guardrails
+
+Giles doesn't trust anyone. Including the agents he dispatches.
+
+Four hooks run automatically during your Claude session, without you having
+to remember they exist:
+
+- **Commit gate.** Tracks whether tests have run since your last code
+  change. Try to commit without running tests first and it blocks you. It
+  knows the difference between source code and documentation, so editing
+  a README won't trigger it.
+- **Review gate.** Blocks `git push --force`, `git reset --hard`,
+  `git clean -f`, and other commands that destroy work. If you try one,
+  it explains why that's a bad idea and suggests a safer alternative. You
+  can override it, but you have to mean it.
+- **Agent verification.** After an implementer subagent finishes, this
+  hook runs your check commands and compares real results against what the
+  agent claimed. Agents that say "all tests pass" when two are failing get
+  caught. The mismatch shows up in your conversation immediately.
+- **Session context.** Every conversation starts by reading your most
+  recent retro for unresolved action items, checking the DoD for new
+  criteria, and scanning the risk register for anything high-severity. You
+  don't have to remember what last sprint's retro decided.
+
+There's also a conventional commit enforcer that validates commit messages
+(`feat:`, `fix:`, `refactor:`, etc.) and warns you if your staged changes
+span three or more top-level directories -- a sign you're bundling unrelated
+work into one commit.
+
 ## Deep documentation support
 
 For projects with extensive planning docs, giles integrates with:
@@ -259,8 +302,30 @@ For projects with extensive planning docs, giles integrates with:
 - **Team topology** -- interaction patterns inform persona assignment
 
 This is optional. Configure the paths in `project.toml` and the context
-assembly system handles the rest. GitHub issues carry structure; agents get
-depth.
+assembly protocol does the wiring: for each story, it resolves PRD section
+references to full requirement text, expands test case IDs into complete
+preconditions and expected results, pulls saga goals and team voice excerpts,
+checks dependency status against the GitHub issue graph, and loads the
+persona's sprint history. All of it gets injected into implementer and
+reviewer prompts. GitHub issues carry structure; agents get depth.
+
+## Traceability
+
+If you configure PRDs and test plans, giles builds a bidirectional map:
+stories link to requirements, requirements link to test cases, test cases
+link back to stories. Gaps show up on their own -- a story with no test
+coverage, a requirement with no implementing story, a test case that doesn't
+trace to anything planned.
+
+A gap scanner reads your configured entry points and checks whether each
+sprint has at least one story that touches them. A sprint that changes parser
+internals but nothing that exercises the parser from the outside gets flagged
+before it ships.
+
+There's a risk register that persists across sprints. Risks carry severity
+levels and auto-escalate if they stay open more than two sprints. High-severity
+risks get injected into your session context at startup. Giles doesn't wait
+for you to ask.
 
 ## Continuous monitoring
 
@@ -270,14 +335,28 @@ depth.
 
 Runs in the background and handles:
 
-- **Backlog sync** -- hashes milestone files to detect edits, debounces
-  changes, then syncs new milestones and issues to GitHub automatically
-- **CI status** -- checks the latest workflow run on your base branch
-- **PR babysitting** -- monitors open PRs for stale reviews, failing checks,
-  merge readiness
+- **Backlog sync** -- hashes milestone files to detect edits, waits one
+  cycle to debounce, throttles to ten-minute windows, then syncs new
+  milestones and issues to GitHub
+- **CI status** -- checks the last five workflow runs, suggests fixes for
+  common failures (fmt, clippy, lint)
+- **PR babysitting** -- monitors open PRs for stale reviews (>2 hours with
+  no activity), failing checks, merge readiness, and conflicts. Checks
+  existing comments before posting so it never nags twice about the same
+  thing.
+- **Drift detection** -- flags branches more than 20 commits behind your
+  base branch. Catches direct pushes to base that bypass the PR workflow.
+  Giles has opinions about both.
+- **Smoke tests** -- runs your configured smoke command, tracks pass/fail
+  history with timestamps and git commits
+- **Mid-sprint check-in** -- triggers once when 50% of stories are done.
+  Giles writes a short narrative about velocity versus plan, flags at-risk
+  stories, and notes where the design is drifting from what was agreed at
+  kickoff.
 - **Burndown** -- updates sprint progress from GitHub milestone data
 
-Designed for fire-and-forget. State persists across loop invocations.
+Respects GitHub API rate limits. If quota gets low, non-critical checks get
+skipped. If one check fails, the rest still run. Designed for fire-and-forget.
 
 ## Release management
 
