@@ -1,47 +1,119 @@
-# BH37 — Project Overview
+# Phase 0a: Project Overview
 
-## What this is
+## What giles is
 
-Claude Code plugin that runs agile sprints with persona-based development. Orchestrates GitHub issues, PRs, CI, kanban tracking, and sprint ceremonies via fictional team personas. 5 skills, ~25 Python scripts, all stdlib-only.
+A Claude Code plugin (v0.6.1) for running agile sprints with persona-based development. It orchestrates GitHub issues, PRs, CI, kanban tracking, and sprint ceremonies (kickoff, demo, retro) using fictional team personas that implement and review code in-character. A built-in scrum master persona named Giles facilitates all ceremonies.
 
-## State since last audit (pass 36, commit 356cef1)
+## Codebase metrics
 
-No code changes since pass 36. HEAD is 356cef1. The only delta is deleted recon/audit artifacts from prior passes. This means pass 37 is a fresh-eyes audit of the full codebase as it stands after 36 passes of fixes.
+| Metric | Count |
+|--------|-------|
+| Python source files (scripts + skills + hooks) | 32 |
+| Python test files | 24 |
+| Total Python files | 56 |
+| Source LOC (scripts + skills) | 10,118 |
+| Hooks LOC | 1,169 |
+| Test LOC | 20,520 |
+| **Total Python LOC** | **31,807** |
+| Skeleton templates (.tmpl) | 20 |
+| Skill entry points (SKILL.md) | 5 |
 
-## Pass 36 fixes (the most recent code changes)
+Test-to-source ratio: ~1.8x (20,520 test LOC / 11,287 source+hooks LOC). Heavy testing.
 
-| ID | File | Fix |
-|----|------|-----|
-| BH36-001 | `scripts/assign_dod_level.py` | Switched from `lock_story` to `lock_sprint` for consistency with kanban.py/sync_tracking.py |
-| BH36-002 | `scripts/sprint_init.py` | Added `esc()` for TOML-safe quoting on cheatsheet/architecture paths |
-| BH36-003 | `scripts/traceability.py` | `STORY_HEADING` regex: `\s*` to `\s+` for required space after colon |
-| (doc) | `scripts/kanban.py`, `sync_tracking.py` | Updated docstrings re: lock_sprint vs lock_story |
+## Project structure
 
-## Hottest files (modification count across passes 27-36)
+```
+giles/
+├── .claude-plugin/
+│   ├── plugin.json              — plugin manifest (name, version, hooks config)
+│   └── hooks/                   — 6 files, 1,169 LOC
+│       ├── commit_gate.py       — PreToolUse + PostToolUse hook for git commit
+│       ├── review_gate.py       — PreToolUse hook for Bash (review gates)
+│       ├── session_context.py   — SessionStart hook
+│       ├── verify_agent_output.py — SubagentStop hook
+│       └── _common.py           — shared hook utilities
+├── scripts/                     — 21 files, 6,873 LOC — shared Python scripts
+├── skills/                      — 5 skills, each with SKILL.md + scripts/
+│   ├── sprint-setup/scripts/    — bootstrap_github, populate_issues, setup_ci
+│   ├── sprint-run/scripts/      — sync_tracking, update_burndown
+│   ├── sprint-monitor/scripts/  — check_status
+│   ├── sprint-release/scripts/  — release_gate
+│   └── sprint-teardown/         — SKILL.md only (uses scripts/sprint_teardown.py)
+├── tests/                       — 24 files, 20,520 LOC
+├── references/skeletons/        — 20 .tmpl files for sprint-config scaffolding
+├── evals/                       — evals.json for skill evaluation
+├── CLAUDE.md                    — main agent instructions (22.6 KB)
+├── CHEATSHEET.md                — line-number index for all scripts/refs (39 KB)
+├── Makefile                     — test, lint, venv targets
+└── ruff.toml                    — ruff config (E/F rules, ignores E402/E501/E741)
+```
 
-These files have been touched most heavily by bug-hunter fixes and are the most likely to have accumulated regression or inconsistency:
+## Largest source files (complexity hotspots)
 
-| Touches | File | Risk |
-|---------|------|------|
-| 57 | `scripts/validate_config.py` | Central shared library. Every script imports it. Regex, TOML parser, helpers. |
-| 43 | `skills/sprint-run/scripts/sync_tracking.py` | Locking rework (lock_story -> lock_sprint), TOCTOU fixes, PR linkage. |
-| 35 | `skills/sprint-setup/scripts/populate_issues.py` | Story parsing, milestone mapping, regex alignment. |
-| 31 | `skills/sprint-monitor/scripts/check_status.py` | Compound commands, smoke checks, integration debt. |
-| 30 | `skills/sprint-release/scripts/release_gate.py` | Version calc, gate logic, exception handling. |
-| 27 | `scripts/kanban.py` | State machine, locking, transition log, WIP limits. |
-| 27 | `scripts/sprint_init.py` | Scanner, config generation, TOML escaping. |
-| 25 | `scripts/manage_epics.py` | Story CRUD, renumbering, section parsing. |
+| File | LOC | Role |
+|------|-----|------|
+| `scripts/validate_config.py` | 1,245 | Config validation, TOML parser, ~30 shared helpers |
+| `scripts/sprint_init.py` | 1,027 | Auto-detect project, generate sprint-config/ |
+| `scripts/kanban.py` | 809 | Kanban state machine, transitions, WIP limits, locking |
+| `skills/sprint-release/scripts/release_gate.py` | 776 | Release gates, semver, notes, publishing |
+| `skills/sprint-monitor/scripts/check_status.py` | 610 | CI + PR + milestone + drift + smoke checking |
+| `skills/sprint-setup/scripts/populate_issues.py` | 564 | Parse milestones, create GitHub issues |
+| `scripts/sprint_teardown.py` | 500 | Safe removal of sprint-config/ |
+| `scripts/manage_epics.py` | 432 | Epic CRUD: add, remove, reorder stories |
 
-## Areas most likely to harbor bugs
+## Largest test files
 
-1. **Locking consistency** — Multiple passes rewired lock_story to lock_sprint. Any script that still uses lock_story for writes (or fails to lock at all) is a concurrency bug. Check: assign_dod_level, kanban.py, sync_tracking.py, any other write path.
+| File | LOC |
+|------|-----|
+| `tests/test_verify_fixes.py` | 2,978 |
+| `tests/test_sprint_runtime.py` | 2,536 |
+| `tests/test_pipeline_scripts.py` | 2,290 |
+| `tests/test_release_gate.py` | 2,102 |
+| `tests/test_bugfix_regression.py` | 1,529 |
+| `tests/test_kanban.py` | 1,434 |
+| `tests/test_hooks.py` | 1,270 |
+| `tests/fake_github.py` | 991 (test infrastructure, not tests) |
 
-2. **Regex alignment across scripts** — Story ID patterns, table row patterns, and heading patterns have been individually patched across traceability.py, populate_issues.py, manage_epics.py, and validate_config.py. Drift between them means silent parse failures.
+## Architecture notes relevant to bug hunting
 
-3. **TOML parser edge cases** — The custom `parse_simple_toml()` has had multiple fixes (backslash escapes, comment handling, unescape). It's the most likely place for a parsing bug that silently corrupts config values.
+### Dependency policy
+- **Stdlib-only for user runtime** -- no pip install needed. Custom TOML parser instead of tomllib.
+- Dev dependencies (pytest, hypothesis, ruff) are fine. CLI tools like `gh` and `jq` are also acceptable.
 
-4. **Hooks subsystem** — `.claude-plugin/hooks/` scripts (commit_gate, review_gate, verify_agent_output, session_context) have been heavily patched. They have their own lightweight TOML parser and path resolution logic separate from validate_config.py.
+### Import chain risk area
+- Skill scripts in `skills/*/scripts/` do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up. Top-level `scripts/` use a single parent path insert. This is a potential source of import path bugs.
 
-5. **Test quality** — 40+ test file touches suggest tests were patched to match code changes. Tests that were weakened to pass (assertion relaxation, mock broadening) may no longer catch real regressions.
+### Two-path state management
+- `kanban.py` is the mutation path (local-first, syncs to GitHub on every write, validates transitions).
+- `sync_tracking.py` is the reconciliation path (accepts GitHub state for PR linkage, branch, completion metadata).
+- Both can write `status` -- kanban validates transitions, sync_tracking accepts any valid state from GitHub. Conflict potential here.
 
-6. **Cross-script import chain** — Scripts in `skills/*/scripts/` do `sys.path.insert(0, ...)` to reach shared code. Any refactor that moved or renamed functions in validate_config.py could break downstream imports that haven't been updated.
+### Cross-skill coupling
+- `scripts/sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/`. Intentional coupling for backlog auto-sync reuse.
+
+### Idempotency contract
+- All bootstrap and monitoring scripts are supposed to be idempotent (skip existing resources). Violations of this contract would be bugs.
+
+### Hooks system
+- 4 hooks registered in plugin.json: PreToolUse/Bash (commit_gate, review_gate), PostToolUse/Bash (commit_gate --post), SubagentStop (verify_agent_output), SessionStart (session_context).
+- Hooks are a newer addition (hooks LOC is ~10% of source). Worth scrutiny for edge cases.
+
+### Config system
+- Everything flows through `sprint-config/project.toml` via `validate_config.load_config()`.
+- Symlink-based: sprint-config/ files are symlinks to project files (except giles.md which is copied).
+- Required TOML keys enforced by `_REQUIRED_TOML_KEYS`; optional deep-doc keys for PRD, test plans, sagas, epics.
+
+### Test infrastructure
+- `fake_github.py` (991 LOC) -- mock GitHub CLI layer for offline testing.
+- `mock_project.py` -- scaffolds test project directories.
+- Golden recording/replay for end-to-end validation.
+- Property-based tests via hypothesis.
+
+### Prior bug-hunting passes
+- 37 prior passes completed (directories `bug-hunter-prior-pass5` through `bug-hunter-prior-pass37`).
+- Most recent commit: "bug-hunter pass 37 -- fully converged, 32/32 resolved".
+- Codebase has been heavily audited. Remaining bugs are likely subtle: edge cases, race conditions, semantic mismatches between docs and code.
+
+### Linting
+- ruff configured with E/F rules, ignoring E402 (sys.path inserts), E501 (long lines), E741 (ambiguous names).
+- Latest commit added ruff.toml and cleaned all lint violations.

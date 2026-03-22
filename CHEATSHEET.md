@@ -48,6 +48,10 @@ what you need without reading entire files.
 | §validate_config.write_tf | `write_tf()` | Serialize TF dataclass back to disk (YAML frontmatter + body) |
 | §validate_config.frontmatter_value | `frontmatter_value()` | Extract single value from YAML frontmatter by key |
 | §validate_config.short_title | `short_title()` | Strip story ID prefix from title (everything after first colon) |
+| §validate_config.slug_from_title | `slug_from_title()` | Convert story title to URL-safe slug for branch names |
+| §validate_config.safe_int | `safe_int()` | Parse int from string with default fallback |
+| §validate_config.parse_iso_date | `parse_iso_date()` | Parse ISO date string to datetime |
+| §validate_config.atomic_write_text | `atomic_write_text()` | Atomic file write via temp-then-rename (used by manage_epics/sagas) |
 
 ### scripts/sprint_init.py
 | Anchor | Function | Purpose |
@@ -102,6 +106,8 @@ what you need without reading entire files.
 | §populate_issues.build_milestone_title_map | `build_milestone_title_map()` | Map sprint num to milestone title (by content) |
 | §populate_issues.format_issue_body | `format_issue_body()` | Build GitHub issue body markdown (structured sections) |
 | §populate_issues.create_issue | `create_issue()` | Create single GitHub issue with labels + milestone |
+| §populate_issues._most_common_sprint | `_most_common_sprint()` | Find most common sprint number among stories in a milestone |
+| — | `_build_detail_block_re()` | Build regex for matching story detail block headers |
 
 ### skills/sprint-setup/scripts/setup_ci.py
 | Anchor | Function | Purpose |
@@ -166,7 +172,7 @@ what you need without reading entire files.
 | §sync_backlog.SyncResult | `SyncResult` | Dataclass: status, should_sync, message |
 | §sync_backlog._is_throttled | `_is_throttled()` | Check if last sync was within throttle floor |
 | §sync_backlog.check_sync | `check_sync()` | Decision engine: debounce + throttle + revert detection |
-| §sync_backlog.do_sync | `do_sync()` | Lazy-imports bootstrap_github + populate_issues, runs sync |
+| §sync_backlog.do_sync | `do_sync()` | Uses bootstrap_github + populate_issues (module-level import with fallback), runs sync |
 | §sync_backlog.main | `main()` | Full cycle: load config, hash, decide, sync, save state |
 
 ### scripts/sprint_analytics.py
@@ -188,7 +194,7 @@ what you need without reading entire files.
 | §check_status.check_branch_divergence | `check_branch_divergence()` | Detect branches far behind base (>10/20 commits) |
 | §check_status.check_direct_pushes | `check_direct_pushes()` | Detect non-merge commits pushed to base branch |
 | §check_status.check_smoke | `check_smoke()` | Run smoke test and report pass/fail/skip |
-| §check_status.check_integration_debt | `check_integration_debt()` | Detect stories in integration state too long |
+| §check_status.check_integration_debt | `check_integration_debt()` | Detect integration debt: sprints since last smoke pass |
 | §check_status.write_log | `write_log()` | Append timestamped entry to monitor log |
 | §check_status.main | `main()` | CLI entry point |
 

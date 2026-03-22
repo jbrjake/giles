@@ -1,43 +1,58 @@
-# Recon Summary — Pass 37
+# Phase 0g — Recon Summary (Pass 39 — Seam-Focused)
 
-**Baseline:** 1178 tests, all passing, 17.15s. 83% coverage (5305 stmts, 916 missed).
-**No code changes since pass 36** (HEAD = 356cef1). Clean-slate full audit.
+## Baseline
 
-## Critical Finding
+| Metric | Value |
+|--------|-------|
+| Python files | 56 (32 source, 24 test) |
+| Total LOC | ~31,800 |
+| Tests | 1184 pass, 0 fail, 0 skip |
+| Runtime | ~17.25s |
+| Lint issues | 0 (ruff clean) |
+| Skipped tests | 0 (1 conditional self.skipTest in golden_run) |
 
-**Duplicate test class `TestWriteBurndown`** in `tests/test_sprint_runtime.py` — defined at both line ~1546 and ~2365. Python silently overwrites the first with the second, so the first class's tests never run. This is a real coverage gap.
+## Audit Focus: Inter-Component Seams
 
-## Audit Priorities
+After 38 converged passes, individual components are well-tested. This pass targets the **contracts between components** — the assumptions one module makes about another's behavior.
 
-### 1. Shadowed test class (HIGH)
-- `TestWriteBurndown` duplicate → unknown number of tests silently lost
-- Need to check what the first class tested vs the second
+## Top 10 Seams (priority order)
 
-### 2. Low-coverage production files
-- `assign_dod_level.py` — 35% coverage (worst in project)
-- `smoke_test.py` — 57%
-- `sprint_analytics.py` — 63%
-- `test_categories.py` — 64%
-- `history_to_checklist.py` — 65%
-- `gap_scanner.py` — 67%
-- `commit.py` — 68%
+### 1. Config Path Resolution Chain (HIGH)
+load_config() resolves all [paths] values relative to project root. Every downstream consumer must use these absolute paths. Any re-resolution = breakage.
 
-### 3. High-churn files (bug magnets)
-- `validate_config.py` — 23 fix-commit touches, 57 total
-- `kanban.py` — 13-14 fix touches, 27 total
-- `sync_tracking.py` — 7-14 fix touches, 43 total
-- Hooks subsystem (review_gate, commit_gate, session_context, verify_agent_output) — 6-10 each
+### 2. TF Dataclass Round-Trip Integrity (HIGH)
+read_tf() → TF → write_tf(). _yaml_safe() escaping must handle every value. Data loss on round-trip = silent corruption.
 
-### 4. Lint issues worth fixing
-- 6 unused imports in production scripts
-- Dead f-prefix in release_gate.py:547
-- ~50 unused imports/vars in test files (auto-fixable)
+### 3. SPRINT-STATUS.md State Contract (HIGH)
+detect_sprint() regex returns int or None. Multiple scripts call it. None handling varies.
 
-### 5. Test assertion quality
-- After 36 passes of fixes, tests may have been weakened to make them pass
-- Need adversarial check: are assertions testing real behavior or just structure?
+### 4. kanban.py ↔ sync_tracking.py Divergence (MODERATE)
+Two mutation paths, different validation rules, shared lock_sprint(). Both write TF files.
 
-## Not Bugs
-- 76 E402 violations — all from sys.path.insert pattern (by design)
-- `self.skipTest()` in test_golden_run.py — intentional golden-file handling
-- Zero skipped/disabled tests otherwise
+### 5. GitHub API Error Propagation (MODERATE)
+gh_json() → [] | dict | list | RuntimeError. Callers must handle all cases.
+
+### 6. Cross-Skill Import Chain (MODERATE)
+sync_backlog.py → bootstrap_github + populate_issues via sys.path. Graceful fallback to None.
+
+### 7. Template/ConfigGenerator Variable Contract (MODERATE)
+_esc() must escape all TOML specials. String formatting injects into project.toml.
+
+### 8. Lock File Lifecycle (MODERATE)
+lock_story() + lock_sprint(). Directory must exist before lock. Process death = stale lock.
+
+### 9. Hooks ↔ Sprint Config (MODERATE)
+session_context, commit_gate, review_gate all read sprint-config. Must handle missing config.
+
+### 10. extract_story_id() Consumers (LOW)
+Fallback slug generation may collide. What do callers do with UNKNOWN?
+
+## Churn Hotspots (seam-relevant)
+1. kanban.py (12 commits) — state machine seam
+2. sync_tracking.py (10 commits) — reconciliation seam
+3. Hook files (8-10 each) — hooks↔config seam
+
+## Audit Plan
+- Phase 1: Import chains + config data flow (seams 1, 5, 6, 7, 10)
+- Phase 2: File system + state machine (seams 2, 3, 4, 8)
+- Phase 3: GitHub API + hooks + templates (seams 5, 9, remaining)

@@ -1,88 +1,68 @@
-# Bug Hunter Punchlist — Pass 37
+# Bug Hunter Punchlist — Pass 39
 
-> Generated: 2026-03-21 | Project: giles | Baseline: 1178 pass, 0 fail, 83% coverage
-> Focus: Clean-slate full audit after 36 converged passes
+> Generated: 2026-03-21 | Project: giles | Baseline: 1184 pass, 0 fail, lint-clean
+> Focus: Systemic adversarial review of inter-component seams — zero trust
 
 ## Summary
 
 | Severity | Open | Resolved | Closed |
 |----------|------|----------|--------|
-| HIGH     | 0    | 5        | 0      |
-| MEDIUM   | 0    | 14       | 0      |
-| LOW      | 0    | 13       | 0      |
+| HIGH     | 0    | 0        | 0      |
+| MEDIUM   | 0    | 5        | 2      |
+| LOW      | 0    | 4        | 3      |
+| INFO     | 0    | 0        | 1      |
 
 ---
 
 ## Open
 
-None — all 32 items resolved.
-
----
-
-### BH37-029 — Unquoted TOML numeric values may cause TypeError downstream
-
-**File:** `scripts/validate_config.py:356-359`
-**Phase:** Phase 3 (adversarial)
-**Note:** Design limitation — unquoted ints are correct per TOML spec. Downstream consumers should guard.
-
-### BH37-033 — Test name promises behavior assertions don't verify
-
-**File:** `tests/test_verify_fixes.py:2036-2057`
-**Phase:** Phase 2 (test quality L1)
-**Note:** Minor — classification IS tested, just not the print output.
+None — all 16 items resolved or closed.
 
 ---
 
 ## Resolved
 
-| ID | Title | Severity | Commit |
+| ID | Title | Severity | Test |
+|----|-------|----------|------|
+| BH39-001 | populate_issues dedup filter drops custom-pattern story IDs | MEDIUM | test_returns_custom_pattern_ids |
+| BH39-100 | tracking-formats.md stale claim about external sync logging | MEDIUM | (doc fix) |
+| BH39-103 | sync_tracking leaves stale metadata on regressed stories | MEDIUM | (documented as expected behavior) |
+| BH39-201 | check_prs() missing --limit truncates at 30 | MEDIUM | TestBH39_201_CheckPrsLimit |
+| BH39-202 | sprint_analytics review rounds --search undercount | MEDIUM | TestComputeReviewRounds (existing) |
+| BH39-101 | assign_dod_level non-atomic write_tf | LOW | TestBH39_101_AssignDodLevelAtomicWrite |
+| BH39-104 | lock_story dead code — no deprecation note | LOW | (docstring fix) |
+| BH39-207 | find_milestone missing per_page=100 | LOW | (API efficiency fix) |
+| BH39-208 | check_milestone missing isinstance guard | LOW | TestBH39_208_CheckMilestoneTypeGuard |
+
+---
+
+## Closed (won't fix)
+
+| ID | Title | Severity | Reason |
 |----|-------|----------|--------|
-| BH37-001 | Shadowed TestWriteBurndown → renamed to TestWriteBurndownEdgeCases | HIGH | d7f79ed |
-| BH37-005 | TOML parser _has_closing_bracket → added bracket depth tracking | HIGH | d7f79ed |
-| BH37-006 | Assertion-free teardown tests → added stdout capture + assertions | HIGH | d7f79ed |
-| BH37-007 | Assertion-free team_voices test → added stdout capture + assertions | HIGH | d7f79ed |
-| BH37-009 | sprint_init INDEX.md stem collision → track disambiguated stems | MEDIUM | d7f79ed |
-| BH37-010 | check_ci/check_prs assertions strengthened with content checks | MEDIUM | f6a0eca |
-| BH37-011 | Dead f-prefix in release_gate.py → removed | MEDIUM | d7f79ed |
-| BH37-012 | sync_tracking case-insensitive lookup → .upper() | MEDIUM | d7f79ed |
-| BH37-013 | session_context.py TOML unescape → proper escape map | MEDIUM | d7f79ed |
-| BH37-014 | Contract tests now verify argument ordering | MEDIUM | f6a0eca |
-| BH37-015 | check_milestone test verifies actual SP totals | MEDIUM | 391dcee |
-| BH37-016 | Added 4 boundary tests for divergence thresholds | MEDIUM | f6a0eca |
-| BH37-017 | Deduplicated TestKanbanFromLabels, merged unique tests | MEDIUM | 3bf08a5 |
-| BH37-018 | Replaced fragile stringified call_args with direct inspection | MEDIUM | f6a0eca |
-| BH37-019 | assertTrue(len==1) → assertEqual for better messages | MEDIUM | f6a0eca |
-| BH37-020 | Template count 19→20, added risk-register.md.tmpl | MEDIUM | (doc batch) |
-| BH37-021 | CHEATSHEET missing functions → added 14+ entries | MEDIUM | (doc batch) |
-| BH37-022 | Dangling § anchors → added to 6 scripts | MEDIUM | (doc batch) |
-| BH37-023 | Unused imports (4 of 6) removed + noqa for re-exports | LOW | d7f79ed |
-| BH37-024 | Reimported modules — kept, harmless due to import cache | LOW | (closed) |
-| BH37-025 | commit_gate.py empty repo → fallback to git diff --cached | LOW | 391dcee |
-| BH37-026 | sync_tracking collision → case-insensitive comparison | LOW | 391dcee |
-| BH37-030 | CHEATSHEET check_preconditions description fixed | LOW | (doc batch) |
-| BH37-031 | TRANSITIONS type corrected to "list" | LOW | (doc batch) |
-| BH37-032 | CLAUDE.md [conventions]/[release] marked optional | LOW | (doc batch) |
-| BH37-034 | Duplicate assertion removed | LOW | 391dcee |
-| BH37-035 | assertTrue(result) → assertIs(result, True) | LOW | 391dcee |
-| BH37-008 | Double-fault test → added complementary real-write test | HIGH | 20eb868 |
-| BH37-027 | Smoke timestamps → added Z suffix, updated parser | LOW | 20eb868 |
-| BH37-028 | First release → uses 0.1.0 without bumping | LOW | 20eb868 |
-| BH37-029 | TOML numeric guard → str() on binary_path | LOW | 20eb868 |
-| BH37-033 | Unknown files test → stdout capture + assertion | LOW | 20eb868 |
-| BH37-023 | frontmatter_value removed from sync_tracking | LOW | 20eb868 |
+| BH39-002 | Non-story issues get junk tracking files | MEDIUM | Architectural — would need label filter changing sync semantics. Current behavior consistent between kanban.py and sync_tracking.py. |
+| BH39-003 | smoke_test.write_history type annotation says str, callers pass Path | LOW | Cosmetic — Path(Path_obj) works fine. No runtime impact. |
+| BH39-102 | SPRINT-STATUS.md non-atomic writes | LOW | Display-only file, phase separation makes concurrent access extremely unlikely. |
+| BH39-200 | gh_json pagination could merge error dict into list | MEDIUM | gh CLI stops on HTTP errors, preventing interleaved error pages. Theoretically possible but practically prevented by gh behavior. |
+| BH39-203 | Dead isinstance(linked, dict) branch in sync_tracking | LOW | Harmless safety net — jq filter wraps in array so dict branch never fires. No functional impact. |
+| BH39-204 | _esc() missing \b\f escape for TOML spec compliance | LOW | Round-trip is correct because backslash is escaped first. Only cosmetic TOML spec violation for control chars. |
+| BH39-209 | Hook protocol question — plain text not JSON | INFO | Verified correct — all hooks use plain text consistently. Not a bug. |
 
 ---
 
 ## Pattern Blocks
 
-### PATTERN-37-A: Re-export coupling
+### PATTERN-39-A: Missing API limits / guards
+**Items:** BH39-201, BH39-207, BH39-208
+**Root cause:** When new code is added that calls GitHub API (check_prs, find_milestone), it doesn't always inherit the defensive patterns (--limit, per_page, isinstance guard) used by similar calls elsewhere. Each call site was written independently.
+**Lesson:** When adding a new gh_json call, check existing calls in the same module for --limit, isinstance guard, and warn_if_at_limit patterns. Copy the defensive posture.
 
-**Items:** BH37-023, test_property_parsing, test_bugfix_regression
-**Root cause:** sync_tracking re-exported `write_tf` and `_yaml_safe` from validate_config. Tests accessed these through sync_tracking's namespace instead of the source module. Removing "unused" imports broke downstream tests.
-**Lesson:** Before removing an import flagged as unused, grep for `module.symbol` in tests to check for re-export coupling.
+### PATTERN-39-B: Doc/code semantic drift on behavior changes
+**Items:** BH39-100, BH39-103, BH39-104
+**Root cause:** When behavior changes (adding transition logging to sync paths, moving from lock_story to lock_sprint, accepting state regression), the documentation and docstrings weren't updated to reflect the new reality.
+**Lesson:** When modifying component behavior at a seam boundary, grep the codebase for documentation of the old behavior. This is the same pattern as PATTERN-38-A from the prior pass.
 
-### PATTERN-37-B: INDEX/display divergence from data transformation
-
-**Items:** BH37-009
-**Root cause:** When code transforms data (e.g., disambiguating stems), the display/output code must use the transformed result, not re-derive from the original input.
-**Lesson:** After any data transformation loop, ensure subsequent loops reference the transformed output, not the raw input.
+### PATTERN-39-C: Dedup filter inconsistency
+**Items:** BH39-001, BH39-002
+**Root cause:** extract_story_id() has a broad fallback (sanitized slug) but consumers filter its output inconsistently. populate_issues only accepted [A-Z]+-\d+ (too strict), while kanban.py only rejected "UNKNOWN" (more permissive). The contract between producer and consumer was implicit.
+**Lesson:** When a function has multiple output paths (standard match vs fallback), document the contract for consumers: which outputs should they accept/reject?
