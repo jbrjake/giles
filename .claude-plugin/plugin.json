@@ -1,7 +1,7 @@
 {
   "name": "giles",
   "description": "A plugin for agile agentic coding that takes it too far",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "author": {
     "name": "Jon Rubin",
     "email": "jb.rubin@gmail.com",
