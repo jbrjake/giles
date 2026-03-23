@@ -560,6 +560,46 @@
         "confidence": "medium",
         "note": "NAMESPACE_MAP must list all scripts that define \u00a7-anchors"
       }
+    },
+    {
+      "source": "hook_commit_gate",
+      "target": "hook_verify_agent",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "deferred: _read_toml_key at line 178"
+      }
+    },
+    {
+      "source": "hook_verify_agent",
+      "target": "hook_commit_gate",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "deferred: mark_verified at line 241"
+      }
+    },
+    {
+      "source": "hook_commit_gate",
+      "target": "hook_verify_agent",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "both have independent TOML parsers for same project.toml"
+      }
+    },
+    {
+      "source": "hook_session_context",
+      "target": "hook_verify_agent",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "both have independent TOML parsers for same project.toml"
+      }
     }
   ]
 }

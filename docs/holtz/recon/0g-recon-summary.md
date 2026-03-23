@@ -1,34 +1,30 @@
-# Step 0g: Recon Summary
+# Step 0g: Recon Summary (Run 2)
 
-**Project:** giles — Claude Code plugin for agile sprints with persona-based development
-**Date:** 2026-03-23
-**Python 3.10+, stdlib-only runtime, 25 production scripts (~10k LOC), 1188 tests passing**
+**Project:** giles | **Date:** 2026-03-23 | **Run:** 2 (fresh after run 1 resolved 10/11)
+**Baseline:** 1193 pass, 0 fail, 0 skip, 17.07s | **Lint:** clean
 
-## Critical Facts for Audit
+## What Changed Since Run 1
 
-1. **Test baseline:** 1188 pass, 0 fail, 0 skip, 19.37s. Clean starting point.
-2. **Lint:** All py_compile pass. **21 broken anchor references** in CLAUDE.md — 6 scripts missing `§` anchor comments.
-3. **Churn hotspots (production):** sync_tracking.py (9), kanban.py (9), check_status.py (5), sprint_init.py (5), manage_epics.py (5)
-4. **Hooks relocated:** Recent refactor moved hooks from `.claude-plugin/hooks/` to `hooks/` at plugin root with JSON output protocol. hooks.json references `${CLAUDE_PLUGIN_ROOT}/hooks/` paths. **Verify all references updated.**
-5. **Impact graph:** 31 nodes, 30 import edges. validate_config is the hub (20 dependents).
-6. **Prior audit context:** 39 bug-hunter passes converged the codebase. Patterns found: missing API limits, doc/code drift, dedup inconsistency. All seams verified clean.
-7. **Cross-skill coupling:** sync_backlog imports from bootstrap_github + populate_issues (documented, intentional).
+Run 1 resolved 10 items (2 HIGH, 4 MEDIUM, 1 LOW + 3 from Justine merge). Code committed as `8599765`. The following areas were touched:
+- validate_anchors.py, Makefile, CLAUDE.md (wiring fixes)
+- hooks/commit_gate.py, review_gate.py, session_context.py, verify_agent_output.py (security/data-flow fixes)
+- scripts/validate_config.py (find_milestone state=all)
+- tests/test_hooks.py (+5 regression tests)
 
-## Test File Locations
+## Key Finding This Run: Architectural Drift
 
-- `tests/test_pipeline_scripts.py` — validate_config, TOML parser
-- `tests/test_kanban.py` — kanban state machine
-- `tests/test_sprint_runtime.py` — sprint_init, check_status
-- `tests/test_hooks.py` — hook system (highest churn: 18 changes)
-- `tests/test_verify_fixes.py` — regression tests for bug-hunter fixes
-- `tests/test_bugfix_regression.py` — earlier regression tests
-- `tests/test_release_gate.py` — release gates
-- `tests/test_new_scripts.py` — smoke_test, gap_scanner, test_categories, risk_register, etc.
+**Bidirectional deferred imports** between commit_gate and verify_agent_output:
+- commit_gate:178 imports `_read_toml_key` from verify_agent_output
+- verify_agent_output:241 imports `mark_verified` from commit_gate
+- Baseline recorded these as independent — deferred imports were invisible to top-level analysis
 
-## Key Risk Areas
+## Recommendation Escalation
 
-1. **Broken anchor references** — 21 broken refs, 6 scripts missing anchors. Known doc/code drift.
-2. **Hooks relocation** — recent structural change. Verify hooks.json, plugin.json, test mocking paths all consistent.
-3. **validate_config.py (1245 LOC)** — hub module. Any subtle bug cascades everywhere.
-4. **Two-path state management** — kanban.py vs sync_tracking.py. High churn on both (9 changes each).
-5. **Makefile lint incomplete** — ruff not installed, Makefile lint uses py_compile only (no type/style checking). 6 scripts missing from py_compile list in Makefile.
+**"Consolidate hook TOML parsers"** appeared in both Holtz and Justine summaries from run 1 → escalated to punchlist per protocol.
+
+## Outstanding
+
+1. **BH-004 (deferred LOW):** test_new_scripts.py missing main() coverage
+2. **PAT-003:** Triple TOML parser divergence — 3+ parsers for same file
+3. **Circular hook dependency:** commit_gate ↔ verify_agent_output
+4. **Impact graph:** 31 nodes, 35 edges (was 31 edges — +4 from drift detection)

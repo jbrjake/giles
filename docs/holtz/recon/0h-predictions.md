@@ -1,78 +1,51 @@
-# Step 0h: Predictive Recon
+# Step 0h: Predictive Recon (Run 2)
 
 **Date:** 2026-03-23
-**Inputs:** Recon 0a-0g, impact graph, prior audit patterns, churn data
+**Context:** Post-fix audit. Run 1 resolved 10 items. Focus shifts to residual issues and new code introduced by fixes.
 
 ## Predictions
 
 ### Prediction 1
-**Target:** CLAUDE.md lines 57-62 (scripts table), 6 scripts missing §-anchors
-**Predicted Issue:** doc/drift — CLAUDE.md references §-anchors that don't exist in source files
-**Confidence:** HIGH
-**Basis:** Lint results (0d) — 21 broken references confirmed. Direct observation.
-**Lens:** contract
-**Graph Support:** smoke_test, gap_scanner, test_categories, risk_register, assign_dod_level, history_to_checklist all have zero §-anchor definitions
+**Target:** hooks/commit_gate.py `_check_commit_single()`, hooks/session_context.py `_read_toml_string()`
+**Predicted Issue:** bug/logic — run 1 fixes introduced new code that may have its own edge cases
+**Confidence:** MEDIUM
+**Basis:** New code (compound splitting, unquoted TOML) hasn't been audited by a fresh pass. Run 1 tested the happy path but edge cases in the new code are untested.
+**Lens:** component
+**Graph Support:** hook_commit_gate node, hook_session_context node
 **Outcome:** —
 
 ### Prediction 2
-**Target:** Makefile lint target (lines 29-49)
-**Predicted Issue:** doc/drift or design/inconsistency — Makefile py_compile list may be missing recently added scripts
+**Target:** hooks/commit_gate.py ↔ hooks/verify_agent_output.py circular dependency
+**Predicted Issue:** design/coupling — bidirectional deferred imports create fragile coupling
 **Confidence:** HIGH
-**Basis:** 6 scripts referenced in CLAUDE.md lack §-anchors, suggesting they were added later and may not have been wired into all build targets. Churn data shows smoke_test.py had 4 changes in last 50 commits.
-**Lens:** contract
-**Graph Support:** —
+**Basis:** Architecture drift detection found circular dependency. Impact graph now has bidirectional imports edges. PAT-003 (TOML divergence) adds to the coupling concern.
+**Lens:** integration
+**Graph Support:** hook_commit_gate→hook_verify_agent (imports), hook_verify_agent→hook_commit_gate (imports)
 **Outcome:** —
 
 ### Prediction 3
-**Target:** hooks/hooks.json, tests/test_hooks.py
-**Predicted Issue:** doc/drift or bug/state — stale references to old hook paths (`.claude-plugin/hooks/`) after recent refactor
-**Confidence:** MEDIUM
-**Basis:** Churn (0e) shows 18 changes to test_hooks.py, 10 to commit_gate.py. Recent commit `2dc773d` moved hooks. Structural change = high drift risk.
-**Lens:** integration
-**Graph Support:** hook_common → hook_* dependency chain
+**Target:** hooks/ TOML parsers (session_context._read_toml_string, verify_agent_output._read_toml_key, review_gate._get_base_branch)
+**Predicted Issue:** design/inconsistency — remaining TOML divergence beyond what run 1 fixed
+**Confidence:** HIGH
+**Basis:** Run 1's BJ-001 fix added unquoted value support to session_context, but review_gate and verify_agent_output still have limited parsers. Recommendation escalated from 2 summaries.
+**Lens:** contract
+**Graph Support:** diverges_from edges between hook_commit_gate/hook_session_context and hook_verify_agent
 **Outcome:** —
 
 ### Prediction 4
-**Target:** scripts/validate_config.py — TOML parser edge cases
-**Predicted Issue:** bug/logic — TOML parser may have remaining edge cases in escape handling or type coercion
-**Confidence:** MEDIUM
-**Basis:** Prior passes found TOML parser issues (BH21, BH24). 1245 LOC with custom parser is inherently risky. Prior pattern: BH-021 (quoted keys), BH-024 (unquoted garbage).
-**Lens:** component
-**Graph Support:** validate_config has 20 dependents — any parser bug cascades
+**Target:** hooks/review_gate.py `_get_base_branch()` line 44
+**Predicted Issue:** bug/logic — unquoted base_branch value not handled (same class as BJ-001)
+**Confidence:** HIGH
+**Basis:** PAT-003 sibling. Run 1 fixed session_context but review_gate's inline parser at line 44 still requires quotes.
+**Lens:** contract
+**Graph Support:** PAT-003 pattern
 **Outcome:** —
 
 ### Prediction 5
-**Target:** scripts/kanban.py ↔ skills/sprint-run/scripts/sync_tracking.py
-**Predicted Issue:** bug/state — two-path state management may have edge cases where both paths write conflicting state
-**Confidence:** MEDIUM
-**Basis:** Both have 9 changes in churn (highest production files). Prior passes found lock coordination issues (BH24-002). Two writers to the same file = concurrency risk.
-**Lens:** integration
-**Graph Support:** sync_tracking→kanban imports edge, sync_tracking→validate_config imports edge
-**Outcome:** —
-
-### Prediction 6
-**Target:** scripts/sync_backlog.py import handling
-**Predicted Issue:** bug/error-handling — cross-skill import with try/except may silently degrade
+**Target:** tests/test_hooks.py — new compound command tests
+**Predicted Issue:** test/shallow — run 1 added 5 compound tests but may not cover pipe (|) or double-pipe (||)
 **Confidence:** LOW
-**Basis:** sync_backlog lines 27-35 catch ImportError and set modules to None. Callers must check for None before use. Single weak signal.
-**Lens:** error-propagation
-**Graph Support:** sync_backlog→bootstrap_github, sync_backlog→populate_issues edges
-**Outcome:** —
-
-### Prediction 7
-**Target:** hooks/_common.py, hooks/session_context.py
-**Predicted Issue:** bug/error-handling — hooks may not handle all error conditions cleanly after JSON protocol switch
-**Confidence:** MEDIUM
-**Basis:** Recent commit switched to JSON output protocol. New protocol = new failure modes. session_context has 9 changes in churn.
-**Lens:** error-propagation
-**Graph Support:** hook_session_context→hook_common edge
-**Outcome:** —
-
-### Prediction 8
-**Target:** tests/test_new_scripts.py
-**Predicted Issue:** test/shallow — newer scripts (smoke_test, gap_scanner, test_categories, risk_register, assign_dod_level, history_to_checklist) may have minimal test coverage
-**Confidence:** MEDIUM
-**Basis:** These 6 scripts all lack §-anchors, suggesting they were added as a batch. test_new_scripts.py is their test file. Name suggests catch-all test file.
+**Basis:** review_gate already handles pipe splitting; commit_gate's new splitting should too. Single weak signal.
 **Lens:** component
 **Graph Support:** —
 **Outcome:** —

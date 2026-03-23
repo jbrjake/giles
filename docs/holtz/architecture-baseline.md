@@ -113,4 +113,10 @@ Source: CLAUDE.md, README.md, plugin.json
 
 ## Drift Log
 
-(No prior runs — baseline established today)
+### 2026-03-23 (run 1): Baseline established
+
+### 2026-03-23 (run 2): Bidirectional deferred imports between commit_gate and verify_agent_output
+**Type:** dependency-reversal
+**Evidence:** `commit_gate.py:178` does `from verify_agent_output import _read_toml_key` (deferred, inside `_load_config_check_commands()`). `verify_agent_output.py:241` does `from commit_gate import mark_verified` (deferred, inside main flow). Both are function-level imports, not top-level. The run 1 baseline recorded these hooks as independent (both only depending on `_common`). The deferred nature prevented detection during top-level import analysis.
+**Severity:** MEDIUM
+**Punchlist item:** BH-009 (escalated — combines with PAT-003 recommendation)

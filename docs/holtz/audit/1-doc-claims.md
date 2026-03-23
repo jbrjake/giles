@@ -1,37 +1,28 @@
-# Phase 1: Doc-to-Implementation Claims Checklist
+# Phase 1: Doc-to-Implementation Claims (Run 2)
 
-## CLAUDE.md Claims (prioritized by prediction confidence)
+## Focus: Verify run 1 fixes and remaining divergence
 
-### HIGH confidence predictions (verified first)
+### HIGH confidence predictions
 
-- [x] **CLAIM: §-anchors exist for all scripts listed in CLAUDE.md** → FAIL
-  - 6 scripts have anchors in source but NAMESPACE_MAP missing entries → BH-001
-- [x] **CLAIM: Makefile lint covers all production scripts** → FAIL
-  - 7 scripts missing from py_compile list → BH-002
-- [x] **CLAIM: Plugin Structure accurately reflects directory layout** → FAIL
-  - `hooks/` directory and `hooks.json` not mentioned at all → BH-003
+- [x] **Prediction 2: Circular hook dependency** → CONFIRMED (drift log entry, BH-009 scope)
+- [x] **Prediction 3: Remaining TOML divergence** → CONFIRMED
+  - session_context: fixed (unquoted values handled)
+  - verify_agent_output: handles unquoted (line 147: bare return val)
+  - review_gate._get_base_branch: STILL BROKEN for unquoted → BH-010
+  - review_gate._log_blocked sprints_dir: STILL BROKEN for unquoted (LOW, BJ-007 from run 1)
+- [x] **Prediction 4: review_gate unquoted base_branch** → CONFIRMED → BH-010
 
-### MEDIUM confidence predictions (verified second)
+### MEDIUM confidence predictions
 
-- [x] **CLAIM: "5 skills, each with SKILL.md entry point"** → PASS (5 SKILL.md files found)
-- [x] **CLAIM: "20 templates" (9 core + 11 deep docs)** → PASS (20 .tmpl files, count matches)
-- [x] **CLAIM: Skill scripts use sys.path.insert 4 dirs up** → PASS (all 7 skill scripts verified)
-- [x] **CLAIM: Top-level scripts use single-level parent path** → PASS (16 scripts verified)
-- [x] **CLAIM: Required TOML keys match code** → PASS (_REQUIRED_TOML_KEYS matches doc exactly)
-- [x] **CLAIM: "6 states" kanban** → PASS (KANBAN_STATES = todo, design, dev, review, integration, done)
-- [x] **CLAIM: validate_config.load_config() single entry point** → PASS (all scripts use it)
-- [x] **CLAIM: Idempotent scripts** → PASS (documented, verified in bootstrap_github, populate_issues)
-- [x] **CLAIM: Cross-skill dependency sync_backlog** → PASS (imports bootstrap_github, populate_issues)
-- [x] **CLAIM: Custom TOML parser, no tomllib** → PASS (parse_simple_toml in validate_config.py)
-- [x] **CLAIM: Symlink-based config** → PASS (documented, tested in test_sprint_runtime)
-- [x] **CLAIM: Two-path state management** → PASS (kanban.py + sync_tracking.py documented)
+- [x] **Prediction 1: New code edge cases** → UNCONFIRMED
+  - _check_commit_single: correct extraction from old logic, no new edge cases found
+  - session_context unquoted handler: \S+ correctly matches non-space, quoted matchers take priority, inline comments stripped
 
-### Unchecked (lower priority)
+### LOW confidence predictions
 
-- [ ] Template file names match CLAUDE.md's core/deep-docs lists
-- [ ] Reference files all exist at documented paths
-- [ ] evals/evals.json has valid scenarios
+- [x] **Prediction 5: Pipe splitting** → UNCONFIRMED
+  - Regex `(?:&&|\|\||\||;)` handles pipe. Same regex as review_gate.
 
 ## Summary
 
-3 FAIL / 12 PASS = 80% doc accuracy. All failures are in the "recently changed" category — hooks refactor + batch script additions.
+2 CONFIRMED / 3 UNCONFIRMED — 40% accuracy. The TOML divergence PAT-003 continues to produce siblings.
