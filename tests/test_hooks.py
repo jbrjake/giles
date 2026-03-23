@@ -335,6 +335,41 @@ class TestGetBaseBranch(unittest.TestCase):
                 os.chdir(orig)
 
 
+    def test_unquoted_base_branch(self):
+        """BH-010: unquoted base_branch must be read correctly (PAT-003)."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    "[project]\nname = \"test\"\nbase_branch = develop\n"
+                )
+                self.assertEqual(_get_base_branch(), "develop")
+            finally:
+                os.chdir(orig)
+
+    def test_unquoted_base_branch_with_comment(self):
+        """BH-010: unquoted base_branch with inline comment."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            orig = os.getcwd()
+            try:
+                os.chdir(td)
+                sc = Path("sprint-config")
+                sc.mkdir()
+                (sc / "project.toml").write_text(
+                    "[project]\nname = \"test\"\nbase_branch = develop # main branch\n"
+                )
+                self.assertEqual(_get_base_branch(), "develop")
+            finally:
+                os.chdir(orig)
+
+
 class TestInlineTomlSectionComments(unittest.TestCase):
     """BH35-005: Inline TOML parsers must handle section header comments."""
 

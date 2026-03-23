@@ -17,136 +17,23 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import _find_project_root, exit_ok, exit_warn, read_event
+from _common import (
+    _find_project_root, exit_ok, exit_warn, read_event,
+    read_toml_key, _unescape_basic_string, _strip_inline_comment,
+    _has_unquoted_bracket,
+)
 
 
 # ---------------------------------------------------------------------------
-# Config reading (lightweight, no import dependency on validate_config)
+# Config reading — BH-009: core TOML parsing now in _common.py
+# Legacy wrappers kept for backward compatibility with commit_gate import
 # ---------------------------------------------------------------------------
 
 
-def _unescape_basic_string(s: str) -> str:
-    """Unescape TOML basic string escape sequences (BH29-001).
-
-    Per TOML spec, double-quoted strings process escape sequences:
-    \\\" -> \", \\\\ -> \\, \\n -> newline, \\t -> tab, \\r -> CR.
-    Unknown escapes are preserved as-is for safety.
-    """
-    result: list[str] = []
-    i = 0
-    while i < len(s):
-        if s[i] == '\\' and i + 1 < len(s):
-            nxt = s[i + 1]
-            if nxt == '"':
-                result.append('"')
-            elif nxt == '\\':
-                result.append('\\')
-            elif nxt == 'n':
-                result.append('\n')
-            elif nxt == 't':
-                result.append('\t')
-            elif nxt == 'r':
-                result.append('\r')
-            else:
-                result.append(s[i])
-                result.append(nxt)
-            i += 2
-        else:
-            result.append(s[i])
-            i += 1
-    return "".join(result)
-
-
-def _strip_inline_comment(val: str) -> str:
-    """Strip an inline TOML comment, respecting quoted strings.
-
-    Handles backslash-escaped quotes inside double-quoted TOML strings.
-    Single-quoted strings are TOML literal strings (no escape processing).
-    """
-    in_quote = False
-    quote_char = ""
-    i = 0
-    while i < len(val):
-        ch = val[i]
-        if ch == "\\" and in_quote and quote_char == '"':
-            i += 2  # skip escaped char in double-quoted strings
-            continue
-        if ch in ('"', "'") and not in_quote:
-            in_quote = True
-            quote_char = ch
-        elif ch == quote_char and in_quote:
-            in_quote = False
-        elif ch == "#" and not in_quote:
-            return val[:i].rstrip()
-        i += 1
-    return val
-
-
-def _has_unquoted_bracket(s: str) -> bool:
-    """Check if s contains a ] that is not inside quotes.
-
-    Handles backslash-escaped quotes inside double-quoted TOML strings.
-    Single-quoted strings are TOML literal strings (no escape processing).
-    """
-    in_quote = False
-    quote_char = ""
-    i = 0
-    while i < len(s):
-        ch = s[i]
-        if ch == "\\" and in_quote and quote_char == '"':
-            i += 2  # skip escaped char in double-quoted strings
-            continue
-        if ch in ('"', "'") and not in_quote:
-            in_quote = True
-            quote_char = ch
-        elif ch == quote_char and in_quote:
-            in_quote = False
-        elif ch == "]" and not in_quote:
-            return True
-        i += 1
-    return False
-
-
-def _read_toml_key(text: str, section: str, key: str) -> str | list[str] | None:
-    """Extract a key from a TOML section.  Minimal parser for hook use."""
-    in_section = False
-    # BH35-009: Use split('\n') instead of splitlines() per BH20-001
-    lines = text.split('\n')
-    i = 0
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if stripped.startswith("["):
-            # BH35-005: Strip trailing comments before comparing
-            in_section = stripped.split('#')[0].strip() == f"[{section}]"
-            i += 1
-            continue
-        if not in_section:
-            i += 1
-            continue
-        m = re.match(rf'{re.escape(key)}\s*=\s*(.*)', stripped)
-        if m:
-            val = _strip_inline_comment(m.group(1).strip())
-            if val.startswith("["):
-                # Collect multi-line array: accumulate until unquoted ]
-                array_text = val
-                while not _has_unquoted_bracket(array_text) and i + 1 < len(lines):
-                    i += 1
-                    # BH35-017: Strip inline comments from continuation lines
-                    # to prevent quoted strings in comments becoming phantom items
-                    array_text += " " + _strip_inline_comment(lines[i].strip())
-                # Match quoted strings; double-quoted handles \" escapes,
-                # single-quoted is literal (TOML spec).
-                items = re.findall(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'', array_text)
-                # BH29-001: unescape double-quoted items; single-quoted are literal
-                return [_unescape_basic_string(a) if a else b for a, b in items]
-            if val.startswith('"') and val.endswith('"'):
-                # BH29-001: unescape TOML basic string escape sequences
-                return _unescape_basic_string(val[1:-1])
-            if val.startswith("'") and val.endswith("'"):
-                return val[1:-1]
-            return val
-        i += 1
-    return None
+# BH-009: These functions are now canonical in _common.py.
+# Re-exported here for backward compatibility (commit_gate imports _read_toml_key).
+# The imports from _common at the top of this file make them available.
+_read_toml_key = read_toml_key  # type: ignore[assignment]
 
 
 def load_check_commands(config_path: str | None = None,

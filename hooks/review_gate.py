@@ -19,7 +19,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import _find_project_root, exit_block, exit_ok, exit_warn, read_event
+from _common import _find_project_root, exit_block, exit_ok, exit_warn, read_event, read_toml_key
 
 
 # ---------------------------------------------------------------------------
@@ -28,22 +28,14 @@ from _common import _find_project_root, exit_block, exit_ok, exit_warn, read_eve
 
 def _get_base_branch() -> str:
     """Read base_branch from project.toml's [project] section, defaulting to 'main'."""
+    # BH-009: Consolidated to shared TOML reader (PAT-003 fix)
     try:
         toml_path = _find_project_root() / "sprint-config" / "project.toml"
         if not toml_path.is_file():
             return "main"
         text = toml_path.read_text(encoding="utf-8")
-        current_section = ""
-        for line in text.split('\n'):
-            section_m = re.match(r'^\s*\[([^\]]+)\]', line)
-            if section_m:
-                current_section = section_m.group(1).strip()
-                continue
-            if current_section == "project":
-                # BH35-008: Match both double-quoted and single-quoted strings
-                m = re.match(r"""\s*base_branch\s*=\s*(?:"([^"]+)"|'([^']+)')""", line)
-                if m:
-                    return m.group(1) or m.group(2)
+        val = read_toml_key(text, "project", "base_branch")
+        return val if isinstance(val, str) and val else "main"
     except Exception:
         pass
     return "main"
@@ -196,22 +188,13 @@ def _log_blocked(command: str, reason: str) -> None:
     toml_path = root / "sprint-config" / "project.toml"
     if not toml_path.is_file():
         return
-    # Read sprints_dir from config, fall back to sprint-config/sprints
+    # BH-009: Use shared TOML reader for sprints_dir (PAT-003 fix)
     sprints_dir = "sprint-config/sprints"
     try:
         text = toml_path.read_text(encoding="utf-8")
-        in_paths = False
-        for line in text.split('\n'):
-            s = line.strip()
-            if s.startswith("["):
-                # BH35-005: Strip trailing comments before comparing
-                in_paths = s.split('#')[0].strip() == "[paths]"
-                continue
-            if in_paths:
-                m = re.match(r'sprints_dir\s*=\s*["\']([^"\']*)["\']', s)
-                if m:
-                    sprints_dir = m.group(1)
-                    break
+        val = read_toml_key(text, "paths", "sprints_dir")
+        if isinstance(val, str) and val:
+            sprints_dir = val
     except Exception:
         pass
     log_dir = root / sprints_dir

@@ -13,46 +13,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import _find_project_root, exit_ok, exit_warn
+from _common import _find_project_root, exit_ok, exit_warn, read_toml_key
 
 
-# ---------------------------------------------------------------------------
-# Config helpers (lightweight, no validate_config import)
-# ---------------------------------------------------------------------------
-
+# BH-009: TOML reading consolidated into _common.read_toml_key (PAT-003 fix)
+# Legacy _read_toml_string kept as thin wrapper for backward compatibility
 def _read_toml_string(text: str, section: str, key: str) -> str:
-    """Read a string value from a TOML section.
-
-    Handles both double-quoted and single-quoted (literal) TOML strings.
-    """
-    in_section = False
-    # BH35-009: Use split('\n') instead of splitlines() per BH20-001
-    for line in text.split('\n'):
-        stripped = line.strip()
-        if stripped.startswith("["):
-            # BH35-005: Strip trailing comments before comparing
-            in_section = stripped.split('#')[0].strip() == f"[{section}]"
-            continue
-        if not in_section:
-            continue
-        # Double-quoted strings (BH29-007: handle \" escape sequences)
-        m = re.match(rf'{key}\s*=\s*"((?:[^"\\]|\\.)*)"', stripped)
-        if m:
-            # Unescape TOML basic string escape sequences
-            _ESC = {'"': '"', '\\': '\\', 'n': '\n', 'r': '\r', 't': '\t'}
-            return re.sub(r'\\(.)', lambda x: _ESC.get(x.group(1), x.group(1)), m.group(1))
-        # Single-quoted literal strings (TOML spec)
-        m = re.match(rf"{key}\s*=\s*'([^']*)'", stripped)
-        if m:
-            return m.group(1)
-        # BJ-001: Unquoted values (validate_config accepts these as raw strings)
-        m = re.match(rf"{key}\s*=\s*(\S+)", stripped)
-        if m:
-            # Strip inline comments
-            val = m.group(1).split('#')[0].strip()
-            if val:
-                return val
-    return ""
+    """Read a string value from a TOML section. Delegates to shared reader."""
+    result = read_toml_key(text, section, key)
+    return result if isinstance(result, str) else ""
 
 
 def _get_config_paths() -> dict[str, str]:

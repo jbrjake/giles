@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import _find_project_root, exit_block, exit_ok, read_event
+from _common import _find_project_root, exit_block, exit_ok, read_event, read_toml_key
 
 
 # Source file extensions that require verification before commit
@@ -166,17 +166,15 @@ def _check_commit_single(command: str,
 def _load_config_check_commands() -> list[str]:
     """Read check_commands from project.toml if available.
 
-    BH30-002: Uses verify_agent_output._read_toml_key (proper array-bounded
-    parser) instead of an inline parser that read past the array boundary.
-    Falls back to empty list if config not found.
+    BH-009: Uses shared read_toml_key from _common (was deferred import
+    from verify_agent_output — circular dependency eliminated).
     """
     try:
         toml_path = _find_project_root() / "sprint-config" / "project.toml"
         if not toml_path.is_file():
             return []
         text = toml_path.read_text(encoding="utf-8")
-        from verify_agent_output import _read_toml_key
-        result = _read_toml_key(text, "ci", "check_commands")
+        result = read_toml_key(text, "ci", "check_commands")
         if isinstance(result, list):
             return result
     except Exception:
