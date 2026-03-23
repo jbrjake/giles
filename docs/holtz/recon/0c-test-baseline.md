@@ -1,14 +1,7 @@
-# Step 0c: Test Baseline (Run 2)
+# 0c: Test Baseline (Run 3)
 
-**Date:** 2026-03-23
-**Command:** `.venv/bin/python -m pytest tests/ -v`
+**Command:** `python3 -m pytest tests/ -v --tb=short`
+**Result:** 1205 passed, 0 failed, 0 skipped, 19 subtests passed
+**Time:** 17.84s
 
-| Metric | Run 1 | Run 2 |
-|--------|-------|-------|
-| Tests passing | 1188 | 1193 |
-| Subtests passing | 19 | 19 |
-| Tests failing | 0 | 0 |
-| Tests skipped | 0 | 0 |
-| Total time | 19.37s | 17.07s |
-
-+5 tests from run 1 fixes (compound command bypass tests in test_hooks.py).
+**Delta from Run 2:** +10 tests (1195 → 1205). New tests added in test_new_scripts.py (main() and assign_levels() coverage for 6 scripts — BH-004 fix) and test_hooks.py.

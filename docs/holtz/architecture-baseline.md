@@ -53,7 +53,7 @@ Source: CLAUDE.md, README.md, plugin.json
 | sync_backlog | validate_config, bootstrap_github, populate_issues |
 | commit | (none — standalone) |
 | manage_epics | validate_config |
-| manage_sagas | validate_config |
+| manage_sagas | validate_config, manage_epics (deferred: parse_epic) |
 | sprint_analytics | validate_config |
 | traceability | validate_config |
 | test_coverage | validate_config |
@@ -69,13 +69,13 @@ Source: CLAUDE.md, README.md, plugin.json
 | setup_ci | validate_config |
 | sync_tracking | validate_config, kanban |
 | update_burndown | validate_config |
-| check_status | validate_config |
+| check_status | validate_config, sync_backlog (conditional), smoke_test (conditional) |
 | release_gate | validate_config |
 | hook_common | (none — hook foundation) |
 | hook_commit_gate | hook_common |
 | hook_review_gate | hook_common |
 | hook_session_context | hook_common |
-| hook_verify_agent | hook_common |
+| hook_verify_agent | hook_common, commit_gate (deferred: mark_verified) |
 | validate_anchors | (none — standalone) |
 
 ### Layering Direction
@@ -120,3 +120,10 @@ Source: CLAUDE.md, README.md, plugin.json
 **Evidence:** `commit_gate.py:178` does `from verify_agent_output import _read_toml_key` (deferred, inside `_load_config_check_commands()`). `verify_agent_output.py:241` does `from commit_gate import mark_verified` (deferred, inside main flow). Both are function-level imports, not top-level. The run 1 baseline recorded these hooks as independent (both only depending on `_common`). The deferred nature prevented detection during top-level import analysis.
 **Severity:** MEDIUM
 **Punchlist item:** BH-009 (escalated — combines with PAT-003 recommendation)
+**Resolution:** commit_gate no longer imports from verify_agent_output (imports read_toml_key from _common). Remaining one-way dependency: verify_agent_output → commit_gate (mark_verified) is intentional bridging.
+
+### 2026-03-23 (run 3): Baseline accuracy — three undocumented dependencies
+**Type:** baseline-omission
+**Evidence:** Dependency scan revealed three dependencies not in Run 1 baseline: (1) check_status imports sync_backlog.main and smoke_test.write_history at module level (conditional, with error handling), (2) manage_sagas imports manage_epics.parse_epic (deferred, inside function), (3) verify_agent_output imports commit_gate.mark_verified (deferred, inside function — the surviving direction from Run 2's bidirectional fix). All three predate Run 3; the baseline was incomplete.
+**Severity:** LOW (no bugs — baseline accuracy correction)
+**Punchlist item:** None — baseline updated inline

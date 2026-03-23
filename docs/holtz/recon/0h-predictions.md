@@ -1,51 +1,38 @@
-# Step 0h: Predictive Recon (Run 2)
+# 0h: Predictive Recon (Run 3)
 
-**Date:** 2026-03-23
-**Context:** Post-fix audit. Run 1 resolved 10 items. Focus shifts to residual issues and new code introduced by fixes.
+## Input Sources
+- Pattern Brief: none (no patterns-brief.md from prior runs)
+- Impact Graph: 31 nodes, 35 edges (stable)
+- Git churn: hooks remain highest-churn subsystem
+- Prior findings: 12 resolved across 2 runs (PAT-001 batch wiring, PAT-002 hook inconsistency, PAT-003 TOML divergence — all resolved)
+- Recon observations: minimal code delta, stale comments, baseline inaccuracies
+- Global pattern library: all 6 heuristics clean
 
 ## Predictions
 
 ### Prediction 1
-**Target:** hooks/commit_gate.py `_check_commit_single()`, hooks/session_context.py `_read_toml_string()`
-**Predicted Issue:** bug/logic — run 1 fixes introduced new code that may have its own edge cases
-**Confidence:** MEDIUM
-**Basis:** New code (compound splitting, unquoted TOML) hasn't been audited by a fresh pass. Run 1 tested the happy path but edge cases in the new code are untested.
+**Target:** `hooks/verify_agent_output.py:29-36`
+**Predicted Issue:** Stale comment/code — backward-compat rationale references a dependency that was eliminated in Run 2
+**Confidence:** HIGH
+**Basis:** Direct observation during recon (0a drift detection). commit_gate no longer imports _read_toml_key from verify_agent_output.
 **Lens:** component
-**Graph Support:** hook_commit_gate node, hook_session_context node
-**Outcome:** —
+**Graph Support:** verify_agent → commit_gate edge (one-way after Run 2 fix)
+**Outcome:** CONFIRMED — BK-001
 
 ### Prediction 2
-**Target:** hooks/commit_gate.py ↔ hooks/verify_agent_output.py circular dependency
-**Predicted Issue:** design/coupling — bidirectional deferred imports create fragile coupling
-**Confidence:** HIGH
-**Basis:** Architecture drift detection found circular dependency. Impact graph now has bidirectional imports edges. PAT-003 (TOML divergence) adds to the coupling concern.
-**Lens:** integration
-**Graph Support:** hook_commit_gate→hook_verify_agent (imports), hook_verify_agent→hook_commit_gate (imports)
-**Outcome:** —
+**Target:** `hooks/session_context.py` — `_add_section()` and `format_context()` refactoring
+**Predicted Issue:** Edge cases in truncation logic (empty lists, exactly-at-limit, negative remaining)
+**Confidence:** MEDIUM
+**Basis:** New code since Run 2 (BJ-010 fix). Refactoring introduces _MAX_ITEMS_PER_SECTION truncation. New helper functions are prime candidates for edge-case gaps.
+**Lens:** component
+**Graph Support:** session_context node (risk_score stable)
+**Outcome:** UNCONFIRMED — code and tests are solid, no edge-case gaps
 
 ### Prediction 3
-**Target:** hooks/ TOML parsers (session_context._read_toml_string, verify_agent_output._read_toml_key, review_gate._get_base_branch)
-**Predicted Issue:** design/inconsistency — remaining TOML divergence beyond what run 1 fixed
-**Confidence:** HIGH
-**Basis:** Run 1's BJ-001 fix added unquoted value support to session_context, but review_gate and verify_agent_output still have limited parsers. Recommendation escalated from 2 summaries.
-**Lens:** contract
-**Graph Support:** diverges_from edges between hook_commit_gate/hook_session_context and hook_verify_agent
-**Outcome:** —
-
-### Prediction 4
-**Target:** hooks/review_gate.py `_get_base_branch()` line 44
-**Predicted Issue:** bug/logic — unquoted base_branch value not handled (same class as BJ-001)
-**Confidence:** HIGH
-**Basis:** PAT-003 sibling. Run 1 fixed session_context but review_gate's inline parser at line 44 still requires quotes.
-**Lens:** contract
-**Graph Support:** PAT-003 pattern
-**Outcome:** —
-
-### Prediction 5
-**Target:** tests/test_hooks.py — new compound command tests
-**Predicted Issue:** test/shallow — run 1 added 5 compound tests but may not cover pipe (|) or double-pipe (||)
+**Target:** `hooks/verify_agent_output.py:125-131` — `mark_verified()` bridge
+**Predicted Issue:** Silent failure if commit_gate module has import errors (try/except ImportError swallows all errors)
 **Confidence:** LOW
-**Basis:** review_gate already handles pipe splitting; commit_gate's new splitting should too. Single weak signal.
-**Lens:** component
-**Graph Support:** —
-**Outcome:** —
+**Basis:** Deferred import inside try/except with bare `pass`. If commit_gate has a syntax error or broken import chain, the bridge silently fails. This was acceptable as a safety net but could mask real failures.
+**Lens:** error-propagation
+**Graph Support:** verify_agent → commit_gate edge
+**Outcome:** UNCONFIRMED — except ImportError is appropriate narrowing; SyntaxError/RuntimeError correctly propagate

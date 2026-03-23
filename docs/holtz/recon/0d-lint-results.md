@@ -1,11 +1,4 @@
-# Step 0d: Lint Results (Run 2)
+# 0d: Lint Results (Run 3)
 
-**Command:** `make lint`
-**Result:** PASS (exit 0)
-
-- 26 py_compile checks: all pass
-- validate_anchors: 552 references checked, all resolved
-- 18 unreferenced anchors (info level, same as run 1)
-- 0 broken references (fixed in run 1 by BH-001)
-
-Lint is fully clean.
+**Method:** py_compile on all 31 production files + validate_anchors --check
+**Result:** All 31 files compile clean. 552 anchor references resolved, 0 broken. 18 defined-but-unreferenced anchors (informational).

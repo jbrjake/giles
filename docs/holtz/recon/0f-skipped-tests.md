@@ -1,3 +1,4 @@
-# Step 0f: Skipped Tests (Run 2)
+# 0f: Skipped Tests (Run 3)
 
-Same as run 1: 1 conditional skipTest in test_golden_run.py:116 (golden replay without snapshots). No other skipped or disabled tests.
+**1 conditional skip** (unchanged from Run 2):
+- `tests/test_golden_run.py:116` — `self.skipTest()` — conditional skip for golden run tests that require specific project setup. This is intentional, not a coverage gap.

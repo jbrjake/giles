@@ -1,0 +1,118 @@
+{
+  "nodes": {
+    "validate_config:parse_simple_toml": {
+      "id": "validate_config:parse_simple_toml",
+      "type": "function",
+      "file": "scripts/validate_config.py",
+      "line": 135,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "_common:_unescape_basic_string": {
+      "id": "_common:_unescape_basic_string",
+      "type": "function",
+      "file": "hooks/_common.py",
+      "line": 109,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "validate_config:_unescape_toml_string": {
+      "id": "validate_config:_unescape_toml_string",
+      "type": "function",
+      "file": "scripts/validate_config.py",
+      "line": 280,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "_common:read_toml_key": {
+      "id": "_common:read_toml_key",
+      "type": "function",
+      "file": "hooks/_common.py",
+      "line": 183,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "_common:_strip_inline_comment": {
+      "id": "_common:_strip_inline_comment",
+      "type": "function",
+      "file": "hooks/_common.py",
+      "line": 141,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "validate_config:_strip_inline_comment": {
+      "id": "validate_config:_strip_inline_comment",
+      "type": "function",
+      "file": "scripts/validate_config.py",
+      "line": 239,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "session_context:extract_high_risks": {
+      "id": "session_context:extract_high_risks",
+      "type": "function",
+      "file": "hooks/session_context.py",
+      "line": 103,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "risk_register:_split_table_row": {
+      "id": "risk_register:_split_table_row",
+      "type": "function",
+      "file": "scripts/risk_register.py",
+      "line": 68,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    }
+  },
+  "edges": [
+    {
+      "source": "_common:_unescape_basic_string",
+      "target": "validate_config:_unescape_toml_string",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "hooks version missing \\b, \\f, \\uXXXX, \\UXXXXXXXX escapes"
+      }
+    },
+    {
+      "source": "_common:_strip_inline_comment",
+      "target": "validate_config:_strip_inline_comment",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Different implementation: enumerate vs while-loop, different escape tracking"
+      }
+    },
+    {
+      "source": "session_context:extract_high_risks",
+      "target": "risk_register:_split_table_row",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "session_context uses raw split, risk_register uses escaped-pipe-aware split"
+      }
+    },
+    {
+      "source": "_common:read_toml_key",
+      "target": "validate_config:parse_simple_toml",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Different TOML parsers for same format with different escape handling"
+      }
+    }
+  ]
+}
