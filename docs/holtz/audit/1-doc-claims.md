@@ -1,110 +1,58 @@
-# Phase 1: Doc-to-Implementation Audit (Run 4)
+# Phase 1: Doc-to-Implementation Claims
 
-## Semantic-Fidelity Lens: State Descriptions vs Runtime
+## HIGH Priority Claims (Predictions 1, 5)
 
-For each state, trace when the value is set across all callers and compare against the documented description.
+### C-01: populate_issues.py regex on body content is code-fence safe
+**Source:** CLAUDE.md says scripts parse milestone docs with story tables
+**Verdict:** PARTIAL CONCERN — `us_match` at line 249 applies `re.search(r"\*\*As a\*\*\s+(.+?)...", body, re.DOTALL)` where body is the text between detail block headings. If a code block in a story detail contains `**As a**`, this would match inside the fence. However, the risk is LOW because: (a) the regex matches bold markdown syntax (`**As a**`) which is unlikely inside a code fence, (b) `parse_detail_blocks` splits on `### US-XXXX:` headings first, so `body` is one story's section, not the whole file.
+**Finding:** No punchlist item — false positive. The `**As a**` pattern is markdown-specific syntax that would not appear in code fences in practice.
 
-### todo — "Story accepted into sprint, not yet started"
-- **Set by:** do_sync (new story creation), create_from_issue (sync_tracking)
-- **Runtime meaning:** Story exists in tracking file but no work has begun
-- **Verdict:** ACCURATE ✓
+### C-02: check_status.py CI error parsing handles conflicting patterns
+**Source:** Prediction 5 — `_first_error` uses `_FALSE_POSITIVE` and `_ERROR_KW` patterns
+**Verdict:** SAFE — The implementation at lines 109-132 correctly handles the case: if both patterns match the same line, `_FALSE_POSITIVE` (which matches "0 errors" / "no failures") takes precedence via `continue`, and the error keyword is skipped. The code processes line-by-line (no cross-line leakage). The `_ANSI_RE` stripping ensures ANSI color codes don't break matching.
+**Finding:** No punchlist item — prediction not confirmed.
 
-### design — "Implementer creating branch, opening draft PR, writing design notes"
-- **Set by:** do_transition (orchestrator: todo → design)
-- **Entry guard:** implementer must be set
-- **Runtime meaning:** Implementer has been assigned and dispatched. Design work is in progress.
-- **Progressive form ("creating"):** Correctly implies ongoing work, not completion.
-- **Verdict:** ACCURATE ✓
+## MEDIUM Priority Claims (Predictions 2, 3, 4, 7, 8)
 
-### dev — "TDD in progress: failing tests, implementation, green, push"
-- **Set by:** do_transition (implementer: design → dev)
-- **Entry guard:** branch and pr_number must exist (design deliverables)
-- **Runtime meaning:** Design is complete, TDD implementation in progress.
-- **Verdict:** ACCURATE ✓
+### C-03: release_gate.py write_version_to_toml handles edge cases
+**Source:** Prediction 2 — TOML section parsing
+**Verdict:** SAFE — The regex at line 308 `r"^(?!#)\[release\]"` correctly excludes comments. The next-section detection at line 314 `r"^\[(?![\[\s\"\'])"` handles array-of-tables, quoted keys, and spaced headers. The version regex at line 319 handles both single and double quoted values.
+**Finding:** No punchlist item — well-defended code.
 
-### review — "Reviewer persona evaluating the PR"
-- **Set by:** do_transition (orchestrator: dev → review)
-- **Entry guard:** implementer and reviewer must be set
-- **Runtime meaning:** Reviewer has been assigned and dispatched. PR review in progress.
-- **Verdict:** ACCURATE ✓
+### C-04: validate_config.py read_tf frontmatter parsing
+**Source:** Prediction 3 — `re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)", content, re.DOTALL)`
+**Verdict:** SAFE — The regex anchors to `^---` which requires the file to START with `---`. A `---` inside a code fence in the body would not match because `(.*?)` is non-greedy and stops at the first `\n---\s*\n`. BOM handling is present. Edge case: what if frontmatter contains a line that is exactly `---`? The non-greedy `(.*?)` would stop at that line, truncating the frontmatter. However, `---` is a YAML document separator and should not appear in valid frontmatter values. The `_yaml_safe` function would quote any value containing `---`.
+**Finding:** CONCERN — If a frontmatter VALUE somehow contains a literal `---` on its own line, `read_tf` would truncate the frontmatter. However, `_yaml_safe` quotes values with YAML-sensitive characters, and `---` would need quoting. Let me check: does `_yaml_safe` quote `---`?
 
-### integration — "Review approved — verifying CI, merging, closing issue"
-- **Set by:** do_transition (orchestrator: review → integration)
-- **Entry guard:** NONE (no preconditions checked)
-- **Runtime meaning:** Orchestrator has decided to proceed with integration. CI/merge work begins.
-- **Gap:** Description says "Review approved" but code doesn't verify review status.
-  This is documented intentional behavior (Rules: "process guidelines, not programmatically enforced").
-- **Verdict:** ACCURATE in practice (orchestrator only transitions after approval), but NOT code-enforced.
+### C-05: extract_sp body regex on arbitrary markdown
+**Source:** Prediction 3 — body may contain code blocks
+**Verdict:** LOW RISK — The regexes search for specific patterns like `| SP | N |` and `story points: N`. These could theoretically match inside code blocks, but the patterns are specific enough (table format with pipes, or "story points" keyword) that false matches are unlikely in practice.
+**Finding:** No punchlist item — acceptable risk.
 
-### done — "Merged, issue closed, burndown updated"
-- **Set by:** do_transition (orchestrator: integration → done), do_sync (forced close)
-- **Entry guard:** pr_number must exist (code path); bypassed by do_sync forced close
-- **Runtime meaning at entry:** PR is merged, issue IS closed (close happens inside do_transition). Burndown is NOT yet updated.
-- **Gap:** "burndown updated" is post-transition work — happens in a separate step after the transition.
-- **Verdict:** INACCURATE — burndown is not updated at the moment of entry. See SF-001.
+### C-06: kanban-protocol.md preconditions match check_preconditions()
+**Source:** Prediction 7 — semantic-fidelity lens
+**Verdict:** MATCH — The protocol doc (lines 67-74) and check_preconditions (lines 89-134) agree on all required fields for each state. The integration entry guard (SF-002 from run 4) is present in both.
+**Finding:** No punchlist item — aligned after run 4 fixes.
 
-## Semantic-Fidelity Lens: Entry Guards vs Transition Descriptions
+### C-07: Two-path state management documented vs actual behavior
+**Source:** Prediction 8 — temporal-protocol lens
+**Verdict:** The documentation in kanban-protocol.md (lines 96-101) and CLAUDE.md accurately describe the two-path behavior. kanban.py `do_sync` validates transitions. sync_tracking.py accepts any valid state. Both use `lock_sprint` for mutual exclusion. The `sync_tracking.sync_one` docstring at line 133 explicitly states the design difference.
+**Finding:** No punchlist item — well-documented.
 
-| Transition | Documented condition | Code enforcement | Match? |
-|------------|---------------------|------------------|--------|
-| todo → design | "Implementer assigned, ready to begin" | implementer required | ✓ |
-| design → dev | "Design deliverables ready (branch, draft PR, design notes)" | branch + pr_number required | Partial — "design notes" not checked |
-| dev → review | "Implementation complete, PR ready, reviewer assigned" | implementer + reviewer required | Partial — "PR ready" not checked |
-| review → dev | "Changes requested — returning to development" | (none) | Not enforced |
-| review → integration | "Review approved by reviewer" | (none) | Not enforced |
-| integration → done | "CI green, PR merged, issue closed" | pr_number required | Partial — merge/CI not checked |
+### C-08: _yaml_safe does not quote `---` separator
+**Source:** Follow-up from C-04
+**Verdict:** Checking _yaml_safe (lines 1066-1096): The function quotes values containing `: `, `#`, `,`, `\`, `\n`, `\r`, `\t`, trailing `:`, leading special chars, YAML bool keywords, numeric strings, or leading/trailing whitespace. The string `---` does NOT trigger any of these conditions. So if a frontmatter field value is literally `---`, it would be written unquoted as `field: ---`, and `read_tf` would see `---` as the frontmatter terminator, truncating all subsequent fields.
+**Finding:** PUNCHLIST ITEM — `_yaml_safe` does not quote values that would be parsed as YAML document separators.
 
-**Pattern:** The code enforces FIELD PRESENCE (metadata exists) but not WORKFLOW STATE (work was actually done). This is consistent and intentional — the docs could be clearer about which conditions are code-enforced vs process-enforced.
+### C-09: CLAUDE.md claims all gh calls go through gh()/gh_json() wrappers
+**Source:** CLAUDE.md Invariants: "All `gh` CLI calls go through `validate_config.gh()` or `validate_config.gh_json()` wrappers"
+**Verdict:** Need to verify — `populate_issues.py` line 39 calls `subprocess.run(["gh", "auth", "status"])` directly, bypassing the wrapper.
+**Finding:** PUNCHLIST ITEM — direct subprocess.run(["gh", ...]) bypasses the wrapper.
 
-## Temporal-Protocol Lens: Orchestration Flow Trace
+### C-10: CLAUDE.md says "Giles is copied (plugin-owned), not symlinked"
+**Source:** CLAUDE.md Configuration System section
+**Verdict:** Need to verify in sprint_init.py
 
-### Normal lifecycle (no rework)
-```
-1. Orchestrator: assign --implementer → transition todo → design → dispatch implementer
-   Work: design (branch, draft PR, notes)
-2. Implementer: update --branch --pr-number → transition design → dev
-   Work: TDD (tests, implementation, push, mark ready)
-3. Implementer exits → Orchestrator: assign --reviewer → transition dev → review → dispatch reviewer
-   Work: three-pass review
-4. Reviewer approves → Orchestrator: transition review → integration
-   Work: verify CI, squash-merge
-5. Orchestrator: transition integration → done (closes issue inside transition)
-   Post-transition: update burndown, sync tracking
-```
-
-- **Phantom states:** None. Each state has a non-zero work window.
-- **Double-taps:** None. No consecutive transitions without intervening work.
-- **Protocol drift:** None between kanban-protocol.md and story-execution.md — both now use consistent entry-semantics language.
-
-### Rework loop (review → dev → review)
-```
-1. Reviewer requests changes → Orchestrator: transition review → dev
-2. Orchestrator re-dispatches implementer with review feedback
-3. Implementer fixes, pushes, marks ready, exits
-4. Orchestrator: transition dev → review → dispatch new reviewer instance
-```
-
-- **Temporal gap:** Fresh implementer subagent must reconstruct context from PR reviews. This is by design but is a known fragility.
-- **Entry guard re-check:** dev entry guard (branch + pr_number) was already satisfied from the first design phase. Re-entering dev doesn't re-validate.
-
-### Forced-done via sync
-```
-1. Someone closes GitHub issue manually (any state)
-2. do_sync detects closed issue → forces local state to "done"
-3. Bypasses check_preconditions — tracking file may lack pr_number
-```
-
-- **Entry guard bypass:** Intentional (BH22-050). Downstream consumers handle gracefully.
-- **Transition log:** Records as "external: GitHub sync" — traceable.
-
-## Two-Sync-Path Temporal Analysis
-
-| Aspect | kanban.py sync (do_sync) | sync_tracking.py (sync_one) |
-|--------|--------------------------|------------------------------|
-| Transition validation | Yes (validate_transition) | No |
-| Entry guard enforcement | No | No |
-| Illegal transition handling | Rejects with warning | Accepts silently |
-| State regression | Rejects (e.g., review→todo) | Accepts |
-| Stale metadata cleanup | N/A | No (BH39-103: "by design") |
-
-**Gap:** kanban-protocol.md mentions "sync local tracking files with GitHub state" but doesn't differentiate the two paths or their enforcement levels. See TP-003.
+### C-11: Makefile lint target covers all production scripts
+**Source:** Run 1 (PAT-001) identified this gap. Run 1 added all scripts.
+**Verdict:** Let me count.
