@@ -1,9 +1,11 @@
-# Holtz Audit Summary (Run 3)
+# Holtz Audit Summary (Run 4 — Targeted)
 
 **Date:** 2026-03-23
 **Project:** giles (Claude Code agile sprint plugin)
-**Baseline:** 1205 tests, 0 failures, lint clean, 17.84s
-**Final:** 1220 tests, 0 failures, lint clean, 17.11s
+**Mode:** Targeted — kanban state flow + custom lenses (semantic-fidelity, temporal-protocol)
+**Scope:** Commit ae4fa33 ("fix: apply entry semantics to kanban state transitions")
+**Baseline:** 1220 tests, 0 failures, lint clean, 16.65s
+**Final:** 1220 tests, 0 failures, lint clean, 16.82s
 
 ## Results
 
@@ -11,55 +13,53 @@
 |----------|-------|----------|----------|
 | CRITICAL | 0 | 0 | 0 |
 | HIGH | 0 | 0 | 0 |
-| MEDIUM | 3 | 3 | 0 |
-| LOW | 2 | 1 | 1 |
-| **Total** | **5** | **5** | **0** |
+| MEDIUM | 0 | 0 | 0 |
+| LOW | 4 | 2 | 2 |
+| **Total** | **4** | **2** | **2** |
 
-**Tests:** 1205 → 1220 (+15 new)
+**Tests:** 1220 → 1220 (no change — doc-only fixes)
 **Lint:** clean → clean
-**TOML escape handling:** aligned between hooks and scripts (PAT-004 fix)
-**Pipe splitting:** session_context now handles escaped pipes (BK-003 fix)
-**Test assertions:** deep doc tests strengthened from rubber stamps to value checks (BK-004 fix)
 
-## Notable Fixes
+## Key Assessment
 
-### 1. TOML escape sequence alignment (BK-002, MEDIUM)
-`_common.py:_unescape_basic_string` was missing 4 TOML-spec escape sequences (`\b`, `\f`, `\uXXXX`, `\UXXXXXXXX`) that `validate_config.py:_unescape_toml_string` handles. Added the missing escapes with 5 new tests including a parity test that verifies both parsers produce identical output for all escape types.
+The entry-semantics documentation change (ae4fa33) was **overwhelmingly accurate**. The commit updated 6 documentation files to frame the kanban state machine as using "entry semantics" — states are entered when work BEGINS, not when it ends. The code was already implementing this correctly; the commit documented what was already true.
 
-### 2. Escaped pipe handling in risk extraction (BK-003, MEDIUM)
-`session_context.extract_high_risks` used raw `line.split("|")`, which would misparse risk titles containing escaped pipes (`\|`). Replaced with `re.split(r'(?<!\\)\|', line)` matching `risk_register.py`'s approach. New test verifies correct extraction of risks with pipe characters in titles.
+The custom lenses found two small doc inaccuracies that standard lenses would have missed:
 
-### 3. Deep doc test assertions strengthened (BK-004, MEDIUM)
-`test_hexwise_setup.test_optional_paths_present` had 5 `assertIsNotNone` rubber stamps that would pass with any non-None path. Replaced with `assertIn` checks verifying the returned paths contain expected directory names (prd, test-plan, sagas, epics, story-map).
+### SF-001: `done` description claimed "burndown updated" at entry (RESOLVED)
+The `done` state description said "Merged, issue closed, burndown updated" but burndown is updated in a separate post-transition step. Changed to "Merged and issue closed — terminal state."
 
-### 4. Stale backward-compat comments updated (BK-001, LOW)
-Two hooks had comments claiming TOML wrappers existed for backward compatibility with commit_gate — but commit_gate no longer imports from these modules (fixed in Run 2). Updated comments to accurately describe the actual purpose.
+### TP-001: Two sync paths not documented in protocol reference (RESOLVED)
+kanban-protocol.md's "GitHub Label Sync" section only mentioned `kanban.py` commands, omitting that `sync_tracking.py` is a complementary path with different enforcement. Added a blockquote noting the two-path design.
 
-### 5. Inline comment stripping aligned (BK-005, LOW)
-Replaced `_common.py`'s skip-2-chars approach with `validate_config.py`'s `_count_trailing_backslashes` parity-check algorithm. Added the shared helper function. 9 new parity tests verify identical output across all edge cases (escaped quotes, consecutive backslashes, single-quoted strings).
+### SF-002: `integration` has no entry guard (DEFERRED — intentional design)
+All working states except `integration` have code-enforced entry guards. The `integration` state's condition ("Review approved") is purely process-enforced. Documented in the Rules section as intentional.
 
-## Pattern Analysis
+### SF-003: Forced-done via sync bypasses entry guard (DEFERRED — intentional design)
+`do_sync` can force a story to `done` without `pr_number` when GitHub issue is closed externally. Downstream consumers handle the missing field gracefully with fallback defaults.
 
-### PAT-004: Dual parser divergence (hooks vs scripts) — NEW
-The BH-009 TOML consolidation in Run 2 resolved intra-hook divergence (PAT-003), but left a cross-boundary gap between the hooks' lightweight parser (`_common.py`) and the scripts' full parser (`validate_config.py`). BK-002 closed the escape-handling gap. BK-005 aligned the inline comment stripping algorithm — both files now use the same parity-check approach.
+## Custom Lens Value Assessment
 
-## Adversarial Self-Play
+| Lens | Findings | Standard lens equivalent |
+|------|----------|------------------------|
+| semantic-fidelity | 3 (SF-001, SF-002, SF-003) | 0 — standard lenses don't reason about temporal truthfulness of labels |
+| temporal-protocol | 1 (TP-001) + confirmation that entry semantics are clean | 0 — standard lenses don't trace multi-file orchestration sequences |
 
-Justine was dispatched in parallel and found the same 4 items independently. Holtz found 1 item (stale comments) that Justine missed. Key insight: Justine's breadth-first cross-module comparison caught parser divergences that Holtz's prediction-driven approach did not — the expected self-play dynamic.
+The custom lenses proved their value: 4 findings that no standard lens would have caught. The `semantic-fidelity` lens is particularly useful for state machines — it asks "does this label tell the truth right now?" which surfaces documentation-reality mismatches that only manifest during execution.
 
 ## Prediction Accuracy
 
 | Confidence | Predicted | Confirmed | Accuracy |
 |------------|-----------|-----------|----------|
 | HIGH | 1 | 1 | 100% |
-| MEDIUM | 1 | 0 | 0% |
-| LOW | 1 | 0 | 0% |
-| **Total** | **3** | **1** | **33%** |
+| MEDIUM | 1 | 1 | 100% |
+| LOW | 1 | 1 | 100% |
+| **Total** | **3** | **3** | **100%** |
 
-Low accuracy is expected — the codebase has been through 2 prior converged audit cycles and most bugs were already found.
+High accuracy reflects a well-scoped targeted audit with specific, testable predictions derived from the custom lens definitions.
 
 ## Recommendation
 
-The codebase is converged. Three runs have progressively hardened it from 1128 tests (Run 1) to 1211 tests (Run 3), resolving 17 total findings (11 + 2 + 4). The hooks subsystem, which was the highest-risk area in Run 1, now has aligned TOML parsing, consistent pipe handling, and clean architecture documentation.
+The entry-semantics documentation is now accurate and consistent across all files. The two doc fixes align the protocol reference with the actual runtime behavior. The deferred items are documented intentional design choices that don't need code changes.
 
-No new tactical or strategic recommendations. The hooks and scripts TOML parsers are now fully aligned in escape handling, comment stripping, and all documented TOML spec features. The codebase is mature and well-tested.
+The custom lenses (`semantic-fidelity` and `temporal-protocol`) are strong candidates for the standard lens registry — they found genuine issues that four runs of standard lenses never caught.

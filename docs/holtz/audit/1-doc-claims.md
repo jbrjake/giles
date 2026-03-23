@@ -1,240 +1,110 @@
-# CLAUDE.md Doc-to-Implementation Audit
+# Phase 1: Doc-to-Implementation Audit (Run 4)
 
-Auditor: Holtz run 3
-Date: 2026-03-23
+## Semantic-Fidelity Lens: State Descriptions vs Runtime
 
----
+For each state, trace when the value is set across all callers and compare against the documented description.
 
-## 1. Script Table — Function Existence
+### todo — "Story accepted into sprint, not yet started"
+- **Set by:** do_sync (new story creation), create_from_issue (sync_tracking)
+- **Runtime meaning:** Story exists in tracking file but no work has begun
+- **Verdict:** ACCURATE ✓
 
-### scripts/validate_config.py
+### design — "Implementer creating branch, opening draft PR, writing design notes"
+- **Set by:** do_transition (orchestrator: todo → design)
+- **Entry guard:** implementer must be set
+- **Runtime meaning:** Implementer has been assigned and dispatched. Design work is in progress.
+- **Progressive form ("creating"):** Correctly implies ongoing work, not completion.
+- **Verdict:** ACCURATE ✓
 
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `parse_simple_toml()` | VERIFIED | Defined at line 135 |
-| `validate_project()` | VERIFIED | Defined at line 484 |
-| `load_config()` | VERIFIED | Defined at line 684 |
-| `safe_int()` | VERIFIED | Defined at line 34 |
-| `parse_iso_date()` | VERIFIED | Defined at line 41 |
-| `gh()` | VERIFIED | Defined at line 66 |
-| `gh_json()` | VERIFIED | Defined at line 82 |
-| `extract_sp()` | VERIFIED | Defined at line 843 |
-| `get_team_personas()` | VERIFIED | Defined at line 735 |
-| `get_milestones()` | VERIFIED | Defined at line 764 |
-| `get_base_branch()` | VERIFIED | Defined at line 790 |
-| `get_sprints_dir()` | VERIFIED | Defined at line 797 |
-| `get_prd_dir()` | VERIFIED | Defined at line 803 |
-| `get_test_plan_dir()` | VERIFIED | Defined at line 813 |
-| `get_sagas_dir()` | VERIFIED | Defined at line 823 |
-| `get_epics_dir()` | VERIFIED | Defined at line 833 |
-| `get_story_map()` | VERIFIED | Defined at line 879 |
-| `extract_story_id()` | VERIFIED | Defined at line 972 |
-| `kanban_from_labels()` | VERIFIED | Defined at line 1003 |
-| `find_milestone()` | VERIFIED | Defined at line 1169 |
-| `warn_if_at_limit()` | VERIFIED | Defined at line 1214 |
-| `list_milestone_issues()` | VERIFIED | Defined at line 1193 |
-| `detect_sprint()` | VERIFIED | Defined at line 959 |
-| `get_ci_commands()` | VERIFIED | Defined at line 780 |
-| `TF` | VERIFIED | Class defined at line 1049 |
-| `read_tf()` | VERIFIED | Defined at line 1100 |
-| `write_tf()` | VERIFIED | Defined at line 1145 |
-| `slug_from_title()` | VERIFIED | Defined at line 1038 |
-| `atomic_write_text()` | VERIFIED | Defined at line 1132 |
+### dev — "TDD in progress: failing tests, implementation, green, push"
+- **Set by:** do_transition (implementer: design → dev)
+- **Entry guard:** branch and pr_number must exist (design deliverables)
+- **Runtime meaning:** Design is complete, TDD implementation in progress.
+- **Verdict:** ACCURATE ✓
 
-All 29 claimed entries present. No divergence.
+### review — "Reviewer persona evaluating the PR"
+- **Set by:** do_transition (orchestrator: dev → review)
+- **Entry guard:** implementer and reviewer must be set
+- **Runtime meaning:** Reviewer has been assigned and dispatched. PR review in progress.
+- **Verdict:** ACCURATE ✓
 
-### scripts/kanban.py
+### integration — "Review approved — verifying CI, merging, closing issue"
+- **Set by:** do_transition (orchestrator: review → integration)
+- **Entry guard:** NONE (no preconditions checked)
+- **Runtime meaning:** Orchestrator has decided to proceed with integration. CI/merge work begins.
+- **Gap:** Description says "Review approved" but code doesn't verify review status.
+  This is documented intentional behavior (Rules: "process guidelines, not programmatically enforced").
+- **Verdict:** ACCURATE in practice (orchestrator only transitions after approval), but NOT code-enforced.
 
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `TRANSITIONS` | VERIFIED | Dict defined at line 48 |
-| `validate_transition()` | VERIFIED | Defined at line 63 |
-| `check_preconditions()` | VERIFIED | Defined at line 89 |
-| `check_wip_limit()` | VERIFIED | Defined at line 248 |
-| `_count_review_rounds()` | VERIFIED | Defined at line 309 |
-| `do_transition()` | VERIFIED | Defined at line 329 |
-| `do_assign()` | VERIFIED | Defined at line 432 |
-| `do_update()` | VERIFIED | Defined at line 624 |
-| `do_sync()` | VERIFIED | Defined at line 495 |
-| `do_status()` | VERIFIED | Defined at line 654 |
-| `find_story()` | VERIFIED | Defined at line 207 |
-| `atomic_write_tf()` | VERIFIED | Defined at line 137 |
-| `lock_story()` | VERIFIED | Defined at line 163 |
-| `lock_sprint()` | VERIFIED | Defined at line 186 |
+### done — "Merged, issue closed, burndown updated"
+- **Set by:** do_transition (orchestrator: integration → done), do_sync (forced close)
+- **Entry guard:** pr_number must exist (code path); bypassed by do_sync forced close
+- **Runtime meaning at entry:** PR is merged, issue IS closed (close happens inside do_transition). Burndown is NOT yet updated.
+- **Gap:** "burndown updated" is post-transition work — happens in a separate step after the transition.
+- **Verdict:** INACCURATE — burndown is not updated at the moment of entry. See SF-001.
 
-All 14 claimed entries present. No divergence.
+## Semantic-Fidelity Lens: Entry Guards vs Transition Descriptions
 
-### scripts/sprint_init.py
+| Transition | Documented condition | Code enforcement | Match? |
+|------------|---------------------|------------------|--------|
+| todo → design | "Implementer assigned, ready to begin" | implementer required | ✓ |
+| design → dev | "Design deliverables ready (branch, draft PR, design notes)" | branch + pr_number required | Partial — "design notes" not checked |
+| dev → review | "Implementation complete, PR ready, reviewer assigned" | implementer + reviewer required | Partial — "PR ready" not checked |
+| review → dev | "Changes requested — returning to development" | (none) | Not enforced |
+| review → integration | "Review approved by reviewer" | (none) | Not enforced |
+| integration → done | "CI green, PR merged, issue closed" | pr_number required | Partial — merge/CI not checked |
 
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `ProjectScanner` | VERIFIED | Class defined at line 94 |
-| `ConfigGenerator` | VERIFIED | Class defined at line 535 |
-| `main()` | VERIFIED | Defined at line 991 |
+**Pattern:** The code enforces FIELD PRESENCE (metadata exists) but not WORKFLOW STATE (work was actually done). This is consistent and intentional — the docs could be clearer about which conditions are code-enforced vs process-enforced.
 
-### skills/sprint-setup/scripts/bootstrap_github.py
+## Temporal-Protocol Lens: Orchestration Flow Trace
 
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `create_label()` | VERIFIED | Defined at line 45 |
-| `create_persona_labels()` | VERIFIED | Defined at line 66 |
-| `_collect_sprint_numbers()` | VERIFIED | Defined at line 80 |
-| `create_sprint_labels()` | VERIFIED | Defined at line 111 |
-| `create_saga_labels()` | VERIFIED | Defined at line 160 |
-| `create_static_labels()` | VERIFIED | Defined at line 192 |
-| `create_epic_labels()` | VERIFIED | Defined at line 222 |
-| `create_milestones_on_github()` | VERIFIED | Defined at line 234 |
-| `main()` | VERIFIED | Defined at line 307 |
-
-### skills/sprint-release/scripts/release_gate.py
-
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `find_latest_semver_tag()` | VERIFIED | Defined at line 39 |
-| `parse_commits_since()` | VERIFIED | Defined at line 60 |
-| `calculate_version()` | VERIFIED | Defined at line 120 |
-| `gate_stories()` | VERIFIED | Defined at line 143 |
-| `gate_ci()` | VERIFIED | Defined at line 159 |
-| `gate_prs()` | VERIFIED | Defined at line 184 |
-| `gate_tests()` | VERIFIED | Defined at line 211 |
-| `gate_build()` | VERIFIED | Defined at line 238 |
-| `validate_gates()` | VERIFIED | Defined at line 260 |
-| `write_version_to_toml()` | VERIFIED | Defined at line 299 |
-| `generate_release_notes()` | VERIFIED | Defined at line 345 |
-| `do_release()` | VERIFIED | Defined at line 455 |
-| `main()` | VERIFIED | Defined at line 731 |
-
-### scripts/smoke_test.py
-
-| Claimed function | Verdict | Evidence |
-|---|---|---|
-| `run_smoke()` | VERIFIED | Defined at line 29 |
-| `write_history()` | VERIFIED | Defined at line 60 |
-| `main()` | VERIFIED | Defined at line 99 |
-
-All 6 spot-checked scripts: every claimed function exists. No divergence found.
-
----
-
-## 2. Required TOML Keys
-
-**CLAUDE.md claims** (line 122):
-> Required TOML keys: `project.name`, `project.repo`, `project.language`, `paths.team_dir`, `paths.backlog_dir`, `paths.sprints_dir`, `ci.check_commands`, `ci.build_command`
-
-**Code** (`_REQUIRED_TOML_KEYS` at line 468 of validate_config.py):
-```python
-_REQUIRED_TOML_KEYS: list[tuple[str, ...]] = [
-    ("project", "name"),
-    ("project", "repo"),
-    ("project", "language"),
-    ("paths", "team_dir"),
-    ("paths", "backlog_dir"),
-    ("paths", "sprints_dir"),
-    ("ci", "check_commands"),
-    ("ci", "build_command"),
-]
+### Normal lifecycle (no rework)
+```
+1. Orchestrator: assign --implementer → transition todo → design → dispatch implementer
+   Work: design (branch, draft PR, notes)
+2. Implementer: update --branch --pr-number → transition design → dev
+   Work: TDD (tests, implementation, push, mark ready)
+3. Implementer exits → Orchestrator: assign --reviewer → transition dev → review → dispatch reviewer
+   Work: three-pass review
+4. Reviewer approves → Orchestrator: transition review → integration
+   Work: verify CI, squash-merge
+5. Orchestrator: transition integration → done (closes issue inside transition)
+   Post-transition: update burndown, sync tracking
 ```
 
-**Verdict: VERIFIED** -- Exact 1:1 match, same 8 keys in same order.
+- **Phantom states:** None. Each state has a non-zero work window.
+- **Double-taps:** None. No consecutive transitions without intervening work.
+- **Protocol drift:** None between kanban-protocol.md and story-execution.md — both now use consistent entry-semantics language.
 
----
+### Rework loop (review → dev → review)
+```
+1. Reviewer requests changes → Orchestrator: transition review → dev
+2. Orchestrator re-dispatches implementer with review feedback
+3. Implementer fixes, pushes, marks ready, exits
+4. Orchestrator: transition dev → review → dispatch new reviewer instance
+```
 
-## 3. Hooks Section
+- **Temporal gap:** Fresh implementer subagent must reconstruct context from PR reviews. This is by design but is a known fragility.
+- **Entry guard re-check:** dev entry guard (branch + pr_number) was already satisfied from the first design phase. Re-entering dev doesn't re-validate.
 
-**CLAUDE.md claims** (lines 20-26):
-- hooks.json registers PreToolUse, PostToolUse, SubagentStop, SessionStart
-- commit_gate.py: blocks commits until tests pass (PreToolUse + PostToolUse)
-- review_gate.py: blocks unreviewed PR merges and direct pushes (PreToolUse)
-- session_context.py: injects sprint context at session start (SessionStart)
-- verify_agent_output.py: validates implementer subagent output (SubagentStop)
-- _common.py: shared hook utilities (read_event, exit_ok/warn/block)
+### Forced-done via sync
+```
+1. Someone closes GitHub issue manually (any state)
+2. do_sync detects closed issue → forces local state to "done"
+3. Bypasses check_preconditions — tracking file may lack pr_number
+```
 
-**hooks.json actual content:**
+- **Entry guard bypass:** Intentional (BH22-050). Downstream consumers handle gracefully.
+- **Transition log:** Records as "external: GitHub sync" — traceable.
 
-| Hook type | Scripts registered | Matcher |
-|---|---|---|
-| PreToolUse | review_gate.py, commit_gate.py | Bash |
-| PostToolUse | commit_gate.py --post | Bash |
-| SubagentStop | verify_agent_output.py | (none) |
-| SessionStart | session_context.py | (none) |
+## Two-Sync-Path Temporal Analysis
 
-**_common.py actual exports:** `read_event()`, `exit_ok()`, `exit_warn()`, `exit_block()` -- all present.
+| Aspect | kanban.py sync (do_sync) | sync_tracking.py (sync_one) |
+|--------|--------------------------|------------------------------|
+| Transition validation | Yes (validate_transition) | No |
+| Entry guard enforcement | No | No |
+| Illegal transition handling | Rejects with warning | Accepts silently |
+| State regression | Rejects (e.g., review→todo) | Accepts |
+| Stale metadata cleanup | N/A | No (BH39-103: "by design") |
 
-**Hook files on disk:** `_common.py`, `commit_gate.py`, `review_gate.py`, `session_context.py`, `verify_agent_output.py`, `__init__.py` -- all present.
-
-**Verdict: VERIFIED** -- All 4 hook types match, all 4 hook scripts match their described roles, _common.py has the 3 claimed exit functions plus read_event.
-
----
-
-## 4. Key Architectural Decisions
-
-### 4a. Symlink-based config
-
-**Claim:** `sprint_init.py` creates symlinks from `sprint-config/` to existing project files. Teardown removes symlinks without touching originals. Exception: Giles is copied (plugin-owned), not symlinked.
-
-**Evidence:**
-- `sprint_init.py` has `_symlink()` method (line 556) that calls `link_path.symlink_to(rel)` (line 580).
-- Persona files, milestones, doc files all route through `_symlink()` (lines 740, 786, 805, 818, 824, 828).
-- Giles uses `_inject_giles()` (line 756) which calls `_copy_skeleton("giles.md.tmpl", ...)` (line 772) -- copy, not symlink.
-- The code explicitly checks `if dest.is_symlink()` for Giles (line 767) to preserve user customizations.
-- `sprint_teardown.py` has `classify_entries()` which separates symlinks from generated files, and `remove_symlinks()` (line 214) handles symlink-only removal.
-
-**Verdict: VERIFIED** -- Symlink pattern for project files, copy for Giles, teardown separates symlinks.
-
-### 4b. Custom TOML parser
-
-**Claim:** Minimal TOML parser (no `tomllib` dependency) supporting double-quoted strings (with escape processing including `\uXXXX` and `\UXXXXXXXX`), single-quoted literal strings, ints, bools, arrays, bare keys, and sections. Floats are not supported (returned as raw strings).
-
-**Evidence:**
-- `parse_simple_toml()` at line 135, docstring confirms strings/ints/bools/arrays/sections/comments.
-- `_unescape_toml_string()` (line 280) handles `\uXXXX` (line 301) and `\UXXXXXXXX` (line 308).
-- Single-quoted literal strings handled at line 348-350 in `_parse_value()`.
-- No `import tomllib` anywhere in the file.
-- Float handling: `int()` is tried (line 366); if it fails, value falls through to raw string (line 379). No explicit float parsing exists.
-
-**Verdict: VERIFIED** -- All claimed features present, float limitation confirmed.
-
-### 4c. Scripts import chain
-
-**Claim:** Skill scripts in `skills/*/scripts/` do `sys.path.insert(0, ...)` to reach `scripts/validate_config.py` four directories up. Scripts in the top-level `scripts/` directory use a single-level parent path.
-
-**Evidence:**
-- `skills/sprint-setup/scripts/bootstrap_github.py` line 14: `sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))` -- 4 levels up.
-- `skills/sprint-run/scripts/sync_tracking.py` line 27: `sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))` -- 4 levels up.
-- `scripts/kanban.py` line 33: `sys.path.insert(0, str(Path(__file__).resolve().parent))` -- 1 level (parent directory, i.e., scripts/).
-
-**Verdict: VERIFIED** -- Four-level path for skill scripts, single-level for top-level scripts.
-
-### 4d. Two-path state management
-
-**Claim:** `kanban.py` is the mutation path (local-first, syncs to GitHub on every write). `sync_tracking.py` is the reconciliation path (accepts GitHub state). Both can write `status` -- kanban validates transitions, sync_tracking accepts any valid state from GitHub.
-
-**Evidence:**
-- `kanban.py do_transition()` calls `validate_transition()` (line 350) before state change, then syncs to GitHub via `gh()` calls (lines 406-408).
-- `sync_tracking.py sync_one()` (line 128) explicitly documents it "intentionally accepts ANY valid GitHub state without transition validation" (lines 133-137).
-- `sync_one()` writes status directly: `tf.status = gh_status` (line 154) with only a membership check (`gh_status in KANBAN_STATES`, line 148).
-- The docstring in sync_tracking.py explicitly references the "Two-path state management" section of CLAUDE.md (line 138).
-
-**Verdict: VERIFIED** -- kanban.py validates transitions + syncs to GitHub; sync_tracking.py accepts any valid GitHub state.
-
-### 4e. Cross-skill dependency (bonus check)
-
-**Claim:** `scripts/sync_backlog.py` imports `bootstrap_github` and `populate_issues` from `skills/sprint-setup/scripts/`.
-
-**Evidence:** `sync_backlog.py` lines 28-29: `import bootstrap_github` / `import populate_issues`.
-
-**Verdict: VERIFIED** -- Imports confirmed.
-
----
-
-## Summary
-
-| Area | Claims checked | Verified | Diverged |
-|---|---|---|---|
-| Script function table (6 scripts) | 72 functions | 72 | 0 |
-| Required TOML keys | 8 keys | 8 | 0 |
-| Hooks registration | 4 hook types, 5 files | all | 0 |
-| Architectural decisions | 5 claims | 5 | 0 |
-| **Total** | **~90 claims** | **90** | **0** |
-
-No divergences found. CLAUDE.md is accurate against current implementation.
+**Gap:** kanban-protocol.md mentions "sync local tracking files with GitHub state" but doesn't differentiate the two paths or their enforcement levels. See TP-003.

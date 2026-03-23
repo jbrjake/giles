@@ -1,180 +1,102 @@
-# Holtz Punchlist (Run 3 — Merged)
-> Generated: 2026-03-23 | Project: giles | Baseline: 1205 pass, 0 fail, 0 skip
+# Holtz Punchlist (Run 4 — Targeted)
 
-## Summary
-| Severity | Open | Resolved | Deferred |
-|----------|------|----------|----------|
-| CRITICAL | 0 | 0 | 0 |
-| HIGH | 0 | 0 | 0 |
-| MEDIUM | 0 | 3 | 0 |
-| LOW | 0 | 2 | 0 |
+## SF-001: `done` state description includes post-transition work
 
-## Patterns
+- **Category:** `doc/semantic-fidelity`
+- **Severity:** LOW
+- **File:** `skills/sprint-run/references/kanban-protocol.md:21`
+- **Lens:** semantic-fidelity
+- **Predicted:** P1 (HIGH) — CONFIRMED
+- **Discovery Chain:** custom-lenses.md defines semantic-fidelity → trace when `done` label is applied → burndown is updated AFTER transition (story-execution.md:222) → description says "burndown updated" but this is post-entry
 
-(Inherited from prior runs: PAT-001 batch wiring, PAT-002 hook inconsistency, PAT-003 TOML divergence — all code-level resolved)
-
-## Pattern: PAT-004: Dual Parser Divergence (hooks vs scripts)
-**Instances:** BK-002, BK-003
-**Root Cause:** hooks/_common.py was consolidated from individual hooks (BH-009) but was never fully aligned with validate_config.py's TOML parser. The hooks parser is a lightweight subset — intentional for isolation, but the subset has gaps for edge-case inputs.
-**Systemic Fix:** Add missing escape sequences to _common.py's _unescape_basic_string. The inline comment stripping divergence is theoretical and lower priority.
-**Detection Rule:** `grep -rn 'def _unescape' --include='*.py'` — if >1 result, compare escape handling.
-
-## Items
-
-### BK-001: Stale backward-compat comments from BH-009 TOML consolidation
-**Severity:** LOW
-**Category:** doc/drift
-**Location:** `hooks/verify_agent_output.py:29-36`, `hooks/session_context.py:20`
-**Status:** RESOLVED
-**Pattern:** PAT-003 (residual artifact)
-**Lens:** component
-**Predicted:** Prediction 1 (confidence: HIGH)
-
-**Problem:** Two hooks contain stale comments claiming their TOML wrapper functions exist for backward compatibility with commit_gate imports. After the BH-009 fix in Run 2, commit_gate no longer imports from verify_agent_output — it imports `read_toml_key` directly from `_common.py`. The aliases/wrappers are used internally but the stated rationale is misleading.
+**Description:** The `done` state description reads "Merged, issue closed, burndown updated." Under entry semantics, the description should reflect what is true at the moment the state is entered. At the moment of `done` entry: merged ✓, issue closed ✓ (closed inside do_transition), burndown updated ✗ (happens in a separate step after the transition).
 
 **Evidence:**
-- `verify_agent_output.py:29`: "Legacy wrappers kept for backward compatibility with commit_gate import"
-- `commit_gate.py:20`: Actually imports `read_toml_key` from `_common` (not verify_agent_output)
+- kanban-protocol.md line 21: `| done | kanban:done | Merged, issue closed, burndown updated |`
+- story-execution.md lines 218-228: Step 1 transitions to done, Step 2 updates burndown (separate command)
+- kanban.py line 405-406: issue close happens inside do_transition, before label swap
 
-**Discovery Chain:** Architecture drift scan → checked commit_gate imports → confirmed commit_gate imports from _common → backward-compat comments are stale
+**Acceptance criteria:** The `done` description should not include "burndown updated" since that happens post-transition. Suggested: "Merged and issue closed — terminal state."
+**Validation:** Read kanban-protocol.md line 21 and verify it no longer claims burndown is updated at entry.
+**Status:** RESOLVED — changed to "Merged and issue closed — terminal state"
 
-**Acceptance Criteria:**
-- [ ] Comments accurately describe the actual purpose of each wrapper/alias
-- [ ] No test regressions
+---
 
-**Validation Command:**
-```bash
-grep -n "backward compat" hooks/verify_agent_output.py hooks/session_context.py | grep -c "commit_gate"
-# Expected: 0
-```
+## SF-002: `integration` is the only working state with no entry guard
 
-**Resolution:** Updated comments in both files to accurately describe the purpose of each wrapper/alias. Removed stale references to commit_gate backward compatibility.
+- **Category:** `design/semantic-fidelity`
+- **Severity:** LOW
+- **File:** `scripts/kanban.py:89-129` (check_preconditions)
+- **Lens:** semantic-fidelity
+- **Predicted:** P2 (MEDIUM) — CONFIRMED
+- **Discovery Chain:** semantic-fidelity lens entry point → enumerate entry guards per state → design/dev/review/done all have guards → integration has none → description says "Review approved" but code doesn't verify
 
-### BK-002: Hooks TOML unescape missing \b, \f, \uXXXX, \UXXXXXXXX escape sequences
-**Severity:** MEDIUM
-**Category:** design/inconsistency
-**Location:** `hooks/_common.py:109`
-**Status:** RESOLVED
-**Pattern:** PAT-004
-**Lens:** contract
-**Source:** Justine (BJ-001)
+**Description:** Every working state except `integration` has at least one entry guard:
+- `design`: implementer
+- `dev`: branch + pr_number
+- `review`: implementer + reviewer
+- `done`: pr_number
+- `integration`: (nothing)
 
-**Problem:** `_common.py:_unescape_basic_string` handles 5 TOML escape sequences (`\"`, `\\`, `\n`, `\t`, `\r`). `validate_config.py:_unescape_toml_string` handles 9 (adds `\b`, `\f`, `\uXXXX`, `\UXXXXXXXX`). Both parse values from the same `project.toml` file. If a config value contains `\u00e9`, hooks read the literal string while scripts read the character.
+The `integration` description says "Review approved — verifying CI, merging, closing issue." The "Review approved" part is entirely process-enforced — no code verifies that a PR review was submitted or approved. This is documented in the Rules section ("process guidelines, not programmatically enforced constraints") but creates an asymmetry that the semantic-fidelity lens flags.
 
-**Evidence:** `hooks/_common.py:109-138` handles 5 escapes. `scripts/validate_config.py:280-324` handles all 9.
+**Evidence:**
+- check_preconditions() has no branch for `target == "integration"` — falls through to `return None`
+- test_unchecked_states_return_none (line 216): explicitly tests that integration has no guards
+- kanban-protocol.md preconditions table: "todo, integration | (no preconditions)"
 
-**Discovery Chain:** Justine cross-module comparison → _common.py handles 5 escapes → validate_config.py handles 9 → divergent output for same input on Unicode escapes
+**Acceptance criteria:** This is a documented design choice. The finding is informational — no code change needed. If a guard were desired, it could verify PR review status via `gh pr reviews --json state`.
+**Validation:** N/A — informational finding, no fix needed.
+**Status:** DEFERRED (intentional design)
 
-**Acceptance Criteria:**
-- [ ] `_common.py:_unescape_basic_string` handles `\b`, `\f`, `\uXXXX`, and `\UXXXXXXXX`
-- [ ] Test: `\u00e9` in a TOML value produces same result through both parsers
+---
 
-**Validation Command:**
-```bash
-python3 -c "
-import sys; sys.path.insert(0, 'hooks'); sys.path.insert(0, 'scripts')
-from _common import _unescape_basic_string
-from validate_config import _unescape_toml_string
-s = r'caf\u00e9'
-a, b = _unescape_basic_string(s), _unescape_toml_string(s)
-assert a == b, f'Divergence: {a!r} != {b!r}'
-print('PASS')
-"
-```
+## TP-001: kanban-protocol.md doesn't document two-sync-path enforcement differences
 
-**Resolution:** Added `\b`, `\f`, `\uXXXX`, `\UXXXXXXXX` escape handling to `_common.py:_unescape_basic_string`. 5 new tests (parity, backspace/formfeed, unicode-4, unicode-8, invalid-preserved). 1211 tests pass.
+- **Category:** `doc/temporal-protocol`
+- **Severity:** LOW
+- **File:** `skills/sprint-run/references/kanban-protocol.md:78-94`
+- **Lens:** temporal-protocol
+- **Predicted:** P3 (LOW) — CONFIRMED
+- **Discovery Chain:** temporal-protocol lens entry point → trace multi-file orchestration → discover do_sync validates transitions but sync_one doesn't → kanban-protocol.md §GitHub Label Sync only shows `kanban.py` commands → reader wouldn't know sync_tracking.py exists or behaves differently
 
-### BK-003: session_context.extract_high_risks uses raw pipe split
-**Severity:** MEDIUM
-**Category:** bug/logic
-**Location:** `hooks/session_context.py:114`
-**Status:** RESOLVED
-**Determinism:** deterministic
-**Lens:** data-flow
-**Source:** Justine (BJ-003)
+**Description:** kanban-protocol.md's "GitHub Label Sync" section (lines 78-94) documents `kanban.py` as "the centralized state machine" for "all state management." But `sync_tracking.py` is a separate sync path that accepts any valid GitHub state without transition validation. A reader of kanban-protocol.md alone would not know that:
+1. A second sync path exists (sync_tracking.py)
+2. It bypasses transition validation
+3. It can create state regressions (e.g., review → todo)
 
-**Problem:** `session_context.extract_high_risks` splits markdown table rows using `line.split("|")`, which treats escaped pipes (`\|`) the same as column delimiters. `risk_register.py:_split_table_row` uses `re.split(r'(?<!\\)\|', line)` to respect escaped pipes. If a risk title contains a literal pipe character, session_context will misparse column positions and may miss high-severity risks or misidentify them.
+This is documented in CLAUDE.md ("Two-path state management") and in sync_tracking.py's docstring, but not in the protocol reference that agents actually read during sprint execution.
 
-**Evidence:** `hooks/session_context.py:114`: `cells = [c.strip() for c in line.split("|")]` — raw split. `scripts/risk_register.py:74`: `re.split(r'(?<!\\)\|', line)` — escaped-pipe-aware.
+**Evidence:**
+- kanban-protocol.md lines 78-94: only mentions `kanban.py` commands
+- sync_tracking.py line 134-138: docstring explains intentional bypass
+- CLAUDE.md: "Two-path state management" section describes the design
 
-**Discovery Chain:** Justine cross-module comparison → session_context reads risk-register.md → risk_register writes with escaped pipes → raw split shifts columns on pipe-containing titles
+**Acceptance criteria:** Add a note to kanban-protocol.md mentioning that `sync_tracking.py` is a complementary path with different enforcement (reference CLAUDE.md for details), OR add a brief section after the GitHub Label Sync section.
+**Validation:** Read kanban-protocol.md and verify the two-path design is mentioned.
+**Status:** RESOLVED — added blockquote after GitHub Label Sync section
 
-**Acceptance Criteria:**
-- [ ] `session_context.extract_high_risks` handles escaped pipes in risk titles
-- [ ] Test: a risk with title containing `\|` is correctly identified as HIGH severity
+---
 
-**Validation Command:**
-```bash
-python3 -c "
-import sys, tempfile, os; sys.path.insert(0, 'hooks')
-from session_context import extract_high_risks
-with tempfile.TemporaryDirectory() as td:
-    rp = os.path.join(td, 'risk-register.md')
-    with open(rp, 'w') as f:
-        f.write('# Risk Register\n\n| ID | Title | Severity | Status | Raised | Sprints Open | Resolution |\n|----|-------|----------|--------|--------|-------------|------------|\n')
-        f.write('| R1 | Auth \| AuthZ boundary | High | Open | 2026-03-01 | 1 | |\n')
-    risks = extract_high_risks(td)
-    assert len(risks) == 1, f'Expected 1 risk, got {len(risks)}: {risks}'
-    print('PASS')
-"
-```
+## SF-003: Forced-done via sync bypasses `done` entry guard
 
-**Resolution:** Replaced `line.split("|")` with `re.split(r'(?<!\\)\|', line)` in `session_context.extract_high_risks`. 1 new test for escaped-pipe risk titles. 1211 tests pass.
+- **Category:** `design/semantic-fidelity`
+- **Severity:** LOW
+- **File:** `scripts/kanban.py:538-549` (do_sync)
+- **Lens:** semantic-fidelity
+- **Discovery Chain:** trace `done` entry guard (pr_number required) → find do_sync forced-close path → BH22-050 bypasses check_preconditions → tracking file in `done` without pr_number → check consumers → update_burndown.py uses `or "—"` default → safe
 
-### BK-004: test_hexwise_setup deep doc assertions are rubber stamps
-**Severity:** MEDIUM
-**Category:** test/shallow
-**Location:** `tests/test_hexwise_setup.py:161-165`
-**Status:** RESOLVED
-**Lens:** contract
-**Source:** Justine (BJ-004)
+**Description:** When `do_sync` encounters a closed GitHub issue, it forces the local state to `done` regardless of the kanban transition graph (BH22-050). This bypasses `check_preconditions`, so the `done` entry guard (`pr_number` required) is not enforced. A tracking file can end up in `done` state without `pr_number`.
 
-**Problem:** `test_generated_config_has_deep_doc_paths` (lines 161-165) uses 5 `assertIsNotNone` checks for deep doc detection results. These verify that detection returned something but not the correct paths. A detection that returned `/tmp/wrong/path` would pass. The sister test `test_scanner_detects_hexwise_deep_docs` (lines 171-179) has both `assertIsNotNone` AND `assertIn` content checks (BH-013), but the config test does not.
+Downstream consumers handle this gracefully:
+- `update_burndown.py` line 137: `frontmatter_value(fm, "pr_number") or "—"` (em dash fallback)
+- `sprint_analytics.py`: doesn't reference `pr_number`
 
-**Evidence:** Lines 161-165: bare `assertIsNotNone(get_prd_dir(config))` etc. Compare with lines 177-179 which add `assertIn("prd", ...)`.
+**Evidence:**
+- kanban.py lines 538-549: closed-issue override with BH22-050 comment
+- check_preconditions is not called in the do_sync forced-close path
+- update_burndown.py line 137: graceful fallback
 
-**Discovery Chain:** Justine test audit → assertIsNotNone pattern scan → 5 instances with no value verification → sister test has content checks but this test does not → rubber stamp
-
-**Acceptance Criteria:**
-- [ ] Each `assertIsNotNone` in `test_generated_config_has_deep_doc_paths` replaced with or supplemented by value assertions
-- [ ] Tests would fail if detection returned an incorrect but non-None path
-
-**Validation Command:**
-```bash
-python3 -m pytest tests/test_hexwise_setup.py::TestHexwiseSetup::test_generated_config_has_deep_doc_paths -v 2>&1 | tail -5
-```
-
-**Resolution:** Replaced 5 `assertIsNotNone` with `assertIsNotNone` + `assertIn` checking expected directory names (prd, test-plan, sagas, epics, story-map). 1211 tests pass.
-
-### BK-005: Two separate _strip_inline_comment implementations with divergent escape handling
-**Severity:** LOW
-**Category:** design/inconsistency
-**Location:** `hooks/_common.py:141` vs `scripts/validate_config.py:239`
-**Status:** RESOLVED
-**Pattern:** PAT-004
-**Lens:** contract
-**Source:** Justine (BJ-002)
-
-**Problem:** Two `_strip_inline_comment` functions exist with different escape tracking. `_common.py` uses `while` loop with `in_quote`/`quote_char` and skips 2 chars on backslash. `validate_config.py` uses `for`/`enumerate` with `_count_trailing_backslashes` parity check. The parity check is more correct for edge cases like `\\\\"` (even number of trailing backslashes). Theoretical divergence only — would require pathological TOML input.
-
-**Evidence:** Different loop styles and escape tracking in the two implementations.
-
-**Discovery Chain:** Justine cross-module comparison → two `_strip_inline_comment` functions → different escape handling strategies → theoretical divergence on edge cases
-
-**Acceptance Criteria:**
-- [ ] Either consolidated into one function, or documented reason for the divergence
-- [ ] Test covering edge case with consecutive backslashes before inline comment
-
-**Validation Command:**
-```bash
-python3 -c "
-import sys; sys.path.insert(0, 'hooks'); sys.path.insert(0, 'scripts')
-from _common import _strip_inline_comment as h
-from validate_config import _strip_inline_comment as v
-test = '\"val\\\\\\\\\"  # comment'
-assert h(test) == v(test), f'Divergence: {h(test)!r} != {v(test)!r}'
-print('PASS')
-"
-```
-
-**Resolution:** Replaced _common.py's skip-2-chars approach with validate_config.py's parity-check algorithm. Added `_count_trailing_backslashes` to _common.py. 9 new parity tests. 1220 tests pass.
+**Acceptance criteria:** No code change needed — downstream consumers are safe. The finding documents the gap for future consumers that might assume `done` stories always have `pr_number`.
+**Validation:** N/A — informational finding.
+**Status:** DEFERRED (intentional design, consumers handle gracefully)
