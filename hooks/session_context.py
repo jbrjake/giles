@@ -124,32 +124,37 @@ def extract_high_risks(config_dir: str = "sprint-config") -> list[str]:
     return risks
 
 
+_MAX_ITEMS_PER_SECTION = 10
+
+
 def format_context(action_items: list[str],
                    dod_additions: list[str],
                    risks: list[str]) -> str:
-    """Format extracted context as a compact summary (<50 lines target)."""
+    """Format extracted context as a compact summary.
+
+    BJ-010: Truncates each section to _MAX_ITEMS_PER_SECTION items
+    to keep output bounded for large projects.
+    """
     if not action_items and not dod_additions and not risks:
         return ""
 
     lines: list[str] = ["## Sprint Context (auto-injected by Giles)", ""]
 
-    if action_items:
-        lines.append("### Retro Action Items (from last sprint)")
-        for item in action_items:
+    def _add_section(title: str, items: list[str]) -> None:
+        if not items:
+            return
+        lines.append(f"### {title}")
+        shown = items[:_MAX_ITEMS_PER_SECTION]
+        for item in shown:
             lines.append(f"- {item}")
+        remaining = len(items) - len(shown)
+        if remaining > 0:
+            lines.append(f"- ...and {remaining} more")
         lines.append("")
 
-    if dod_additions:
-        lines.append("### Retro-Driven DoD Additions")
-        for item in dod_additions:
-            lines.append(f"- {item}")
-        lines.append("")
-
-    if risks:
-        lines.append("### Open Risks (high severity)")
-        for risk in risks:
-            lines.append(f"- {risk}")
-        lines.append("")
+    _add_section("Retro Action Items (from last sprint)", action_items)
+    _add_section("Retro-Driven DoD Additions", dod_additions)
+    _add_section("Open Risks (high severity)", risks)
 
     return "\n".join(lines)
 

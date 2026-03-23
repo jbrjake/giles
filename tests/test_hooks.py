@@ -672,6 +672,19 @@ class TestSessionContext(unittest.TestCase):
         self.assertIn("Action item", output)
         self.assertIn("Risk", output)
 
+    def test_format_context_truncates_large_input(self):
+        """BJ-010: Large input is truncated with '...and N more' per section."""
+        big_actions = [f"Action {i}" for i in range(50)]
+        big_dod = [f"DoD {i}" for i in range(30)]
+        big_risks = [f"Risk {i}" for i in range(20)]
+        output = format_context(big_actions, big_dod, big_risks)
+        line_count = len(output.strip().splitlines())
+        self.assertLess(line_count, 50,
+                        f"Truncation should keep output under 50 lines, got {line_count}")
+        self.assertIn("and 40 more", output)  # 50 - 10 = 40 truncated
+        self.assertIn("and 20 more", output)  # 30 - 10 = 20 truncated
+        self.assertIn("and 10 more", output)  # 20 - 10 = 10 truncated
+
     def test_format_context_empty_when_no_data(self):
         """No data produces empty output."""
         output = format_context([], [], [])

@@ -133,7 +133,10 @@ def check_commit_allowed(command: str,
     *_state_override* is for testing -- when provided, uses this value
     instead of the actual working tree state check.
     """
-    # BH-005: Split compound commands and check each subcommand
+    # BH-005: Split compound commands and check each subcommand.
+    # BJ-011: This split does not respect shell quoting (e.g., operators inside
+    # commit messages). This is fail-closed: over-splitting produces MORE
+    # subcommands to check, never fewer, so it cannot bypass the gate.
     for subcommand in re.split(r'\s*(?:&&|\|\||\||;)\s*', command):
         result = _check_commit_single(subcommand.strip(),
                                       _state_override=_state_override)
