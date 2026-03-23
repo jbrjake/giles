@@ -34,6 +34,12 @@ NAMESPACE_MAP: dict[str, str] = {
     "manage_sagas": "scripts/manage_sagas.py",
     "commit": "scripts/commit.py",
     "kanban": "scripts/kanban.py",
+    "smoke_test": "scripts/smoke_test.py",
+    "gap_scanner": "scripts/gap_scanner.py",
+    "test_categories": "scripts/test_categories.py",
+    "risk_register": "scripts/risk_register.py",
+    "assign_dod_level": "scripts/assign_dod_level.py",
+    "history_to_checklist": "scripts/history_to_checklist.py",
     # Skill scripts (nested under skills/)
     "bootstrap_github": "skills/sprint-setup/scripts/bootstrap_github.py",
     "populate_issues": "skills/sprint-setup/scripts/populate_issues.py",

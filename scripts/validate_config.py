@@ -1173,8 +1173,10 @@ def find_milestone(sprint_num: int) -> dict | None:
     Returns the milestone dict or None.
     """
     num = int(sprint_num)
+    # BH-007: Include state=all so closed milestones are also found
     milestones = gh_json([
-        "api", "repos/{owner}/{repo}/milestones?per_page=100", "--paginate",
+        "api", "repos/{owner}/{repo}/milestones?per_page=100&state=all",
+        "--paginate",
     ])
     if not isinstance(milestones, list):
         return None

@@ -17,6 +17,13 @@ skills/                      — 5 skills, each with SKILL.md entry point
   sprint-release/            — milestone release management (gates, tag, GitHub Release)
   sprint-teardown/           — safe removal of sprint-config/
 scripts/                     — shared Python scripts (stdlib only, no external deps)
+hooks/                       — plugin hooks (JSON output protocol)
+  hooks.json                 — hook registration (PreToolUse, PostToolUse, SubagentStop, SessionStart)
+  _common.py                 — shared hook utilities (read_event, exit_ok/warn/block)
+  commit_gate.py             — blocks commits until tests pass (PreToolUse + PostToolUse)
+  review_gate.py             — blocks unreviewed PR merges and direct pushes (PreToolUse)
+  session_context.py         — injects sprint context at session start (SessionStart)
+  verify_agent_output.py     — validates implementer subagent output (SubagentStop)
 references/skeletons/        — .tmpl files used by sprint_init.py to scaffold sprint-config/
 evals/evals.json             — skill evaluation scenarios
 ```

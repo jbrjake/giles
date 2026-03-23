@@ -31,6 +31,7 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile scripts/sprint_init.py
 	$(PYTHON) -m py_compile scripts/sprint_teardown.py
 	$(PYTHON) -m py_compile scripts/commit.py
+	$(PYTHON) -m py_compile scripts/kanban.py
 	$(PYTHON) -m py_compile scripts/sync_backlog.py
 	$(PYTHON) -m py_compile scripts/manage_epics.py
 	$(PYTHON) -m py_compile scripts/manage_sagas.py
@@ -38,6 +39,12 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile scripts/team_voices.py
 	$(PYTHON) -m py_compile scripts/test_coverage.py
 	$(PYTHON) -m py_compile scripts/traceability.py
+	$(PYTHON) -m py_compile scripts/smoke_test.py
+	$(PYTHON) -m py_compile scripts/gap_scanner.py
+	$(PYTHON) -m py_compile scripts/test_categories.py
+	$(PYTHON) -m py_compile scripts/risk_register.py
+	$(PYTHON) -m py_compile scripts/assign_dod_level.py
+	$(PYTHON) -m py_compile scripts/history_to_checklist.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/bootstrap_github.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/populate_issues.py
 	$(PYTHON) -m py_compile skills/sprint-setup/scripts/setup_ci.py

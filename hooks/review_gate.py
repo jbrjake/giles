@@ -245,7 +245,11 @@ def main() -> None:
                 "Review required: PR merge blocked because the PR has no "
                 "approved review. Get a review approved before merging."
             )
-            _log_blocked(command, reason)
+            # BH-006: Log first, but don't let logging failure prevent blocking
+            try:
+                _log_blocked(command, reason)
+            except OSError:
+                pass
             exit_block(reason)
 
     # Check for direct push to base branch
@@ -256,7 +260,11 @@ def main() -> None:
                 f"Direct push to {base} is not allowed. "
                 f"Create a PR instead."
             )
-            _log_blocked(command, reason)
+            # BH-006: Log first, but don't let logging failure prevent blocking
+            try:
+                _log_blocked(command, reason)
+            except OSError:
+                pass
             exit_block(reason)
         if result == "warn":
             exit_warn(

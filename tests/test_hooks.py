@@ -750,6 +750,47 @@ class TestCommitGate(unittest.TestCase):
         )
         self.assertEqual(result, "allowed")
 
+    def test_compound_command_dry_run_does_not_bypass_commit(self):
+        """BH-005: --dry-run in one subcommand must not allow commit in another."""
+        result = check_commit_allowed(
+            "git stash --dry-run; git commit -m 'evil'",
+            _state_override=True,
+        )
+        self.assertEqual(result, "blocked",
+                         "dry-run in stash subcommand must not bypass commit gate")
+
+    def test_compound_command_commit_blocked_with_semicolon(self):
+        """BH-005: compound command with semicolon — commit subcommand checked."""
+        result = check_commit_allowed(
+            "echo hello; git commit -m 'test'",
+            _state_override=True,
+        )
+        self.assertEqual(result, "blocked")
+
+    def test_compound_command_commit_blocked_with_and(self):
+        """BH-005: compound command with && — commit subcommand checked."""
+        result = check_commit_allowed(
+            "git add . && git commit -m 'test'",
+            _state_override=True,
+        )
+        self.assertEqual(result, "blocked")
+
+    def test_compound_command_allowed_when_verified(self):
+        """BH-005: compound commands allowed when verification passes."""
+        result = check_commit_allowed(
+            "git add . && git commit -m 'test'",
+            _state_override=False,
+        )
+        self.assertEqual(result, "allowed")
+
+    def test_compound_dry_run_only_is_allowed(self):
+        """BH-005: pure dry-run command (no real commit) is still allowed."""
+        result = check_commit_allowed(
+            "git commit --dry-run -m 'test'",
+            _state_override=True,
+        )
+        self.assertEqual(result, "allowed")
+
     def test_source_file_detection(self):
         """Source files vs non-source files."""
         self.assertTrue(is_source_file("src/main.py"))

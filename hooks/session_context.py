@@ -45,6 +45,13 @@ def _read_toml_string(text: str, section: str, key: str) -> str:
         m = re.match(rf"{key}\s*=\s*'([^']*)'", stripped)
         if m:
             return m.group(1)
+        # BJ-001: Unquoted values (validate_config accepts these as raw strings)
+        m = re.match(rf"{key}\s*=\s*(\S+)", stripped)
+        if m:
+            # Strip inline comments
+            val = m.group(1).split('#')[0].strip()
+            if val:
+                return val
     return ""
 
 
@@ -134,13 +141,16 @@ def extract_high_risks(config_dir: str = "sprint-config") -> list[str]:
     for line in text.splitlines():
         if "|" not in line or line.strip().startswith("|--"):
             continue
+        # BJ-006: Use raw split to preserve column positions; don't filter empties
         cells = [c.strip() for c in line.split("|")]
-        cells = [c for c in cells if c]
-        if len(cells) >= 4:
-            severity = cells[2].lower() if len(cells) > 2 else ""
-            status = cells[3].lower() if len(cells) > 3 else ""
+        # Pipe-delimited rows start/end with |, so cells[0] and cells[-1] are empty
+        # cells[0]='' (leading |), cells[1]=ID, cells[2]=Title,
+        # cells[3]=Severity, cells[4]=Status, cells[5]='' (trailing |)
+        if len(cells) >= 5:
+            severity = cells[3].lower() if len(cells) > 3 else ""
+            status = cells[4].lower() if len(cells) > 4 else ""
             if severity in ("high", "critical") and status in ("open", "unresolved"):
-                title = cells[1] if len(cells) > 1 else cells[0]
+                title = cells[2] if len(cells) > 2 else cells[1]
                 risks.append(f"[{severity.upper()}] {title}")
     return risks
 

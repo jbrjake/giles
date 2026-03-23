@@ -10,7 +10,6 @@ Optionally runs ``smoke_command`` if configured.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess

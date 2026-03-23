@@ -9,7 +9,6 @@ Blocks commit if the working tree has changed since tests last ran.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -128,9 +127,24 @@ def check_commit_allowed(command: str,
 
     Returns 'allowed' or 'blocked'.
 
+    Handles compound shell commands (``&&``, ``;``, ``|``) by splitting
+    on shell operators and checking each subcommand independently.
+
     *_state_override* is for testing -- when provided, uses this value
     instead of the actual working tree state check.
     """
+    # BH-005: Split compound commands and check each subcommand
+    for subcommand in re.split(r'\s*(?:&&|\|\||\||;)\s*', command):
+        result = _check_commit_single(subcommand.strip(),
+                                      _state_override=_state_override)
+        if result != "allowed":
+            return result
+    return "allowed"
+
+
+def _check_commit_single(command: str,
+                          _state_override: bool | None = None) -> str:
+    """Check a single (non-compound) command for git commit."""
     # Only intercept git commit and scripts/commit.py
     is_commit = (
         re.search(r'\bgit\s+commit\b', command) or
@@ -250,6 +264,9 @@ def post_main() -> None:
     tool_output = input_data.get("tool_output",
                     input_data.get("tool_response",
                     input_data.get("output", {})))
+    # BH-008: tool_output may be a string instead of dict
+    if not isinstance(tool_output, dict):
+        tool_output = {}
     exit_code = tool_output.get("exit_code", tool_output.get("exitCode", -1))
     if isinstance(exit_code, str):
         try:
