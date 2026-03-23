@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SubagentStop verification hook — runs check_commands after agent completion.
+"""SubagentStop verification hook -- runs check_commands after agent completion.
 
 When an implementer or fix agent completes, this hook runs the project's
 ``[ci] check_commands`` and compares results against the agent's claims.
@@ -11,12 +11,14 @@ Optionally runs ``smoke_command`` if configured.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-from hooks._common import _find_project_root, exit_ok
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import _find_project_root, exit_ok, exit_warn, read_event
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +30,7 @@ def _unescape_basic_string(s: str) -> str:
     """Unescape TOML basic string escape sequences (BH29-001).
 
     Per TOML spec, double-quoted strings process escape sequences:
-    \\\" → \", \\\\ → \\, \\n → newline, \\t → tab, \\r → CR.
+    \\\" -> \", \\\\ -> \\, \\n -> newline, \\t -> tab, \\r -> CR.
     Unknown escapes are preserved as-is for safety.
     """
     result: list[str] = []
@@ -234,13 +236,13 @@ def run_verification(check_commands: list[str],
     n = len(check_commands) + (1 if smoke_command else 0)
     if all_passed:
         header = f"VERIFICATION PASSED: {n} check command(s) confirmed"
-        # BH27-003: Bridge to commit_gate — record that working tree is verified
+        # BH27-003: Bridge to commit_gate -- record that working tree is verified
         # so the commit gate doesn't block commits after agent verification.
         try:
-            from hooks.commit_gate import mark_verified
+            from commit_gate import mark_verified
             mark_verified()
         except ImportError:
-            pass  # commit_gate not available — skip bridging
+            pass  # commit_gate not available -- skip bridging
     else:
         header = "VERIFICATION FAILED: agent claimed completion but checks failed"
 
@@ -342,11 +344,7 @@ def _is_implementer_output(output: str, check_commands: list[str]) -> bool:
 
 def main() -> None:
     """Read event data from stdin, run verification, output results."""
-    # Read stdin JSON event data (SubagentStop format)
-    try:
-        event = json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError):
-        event = {}
+    event = read_event()
 
     output_text = event.get("output", "")
 
@@ -354,11 +352,9 @@ def main() -> None:
 
     # H-014: Skip verification for non-implementer agents
     if not _is_implementer_output(output_text, check_commands):
-        print("VERIFICATION SKIPPED: non-implementer agent")
         exit_ok()
 
     report, passed = run_verification(check_commands, smoke_command)
-    print(report)
 
     # H-006: Update tracking file if a story path is found in the output
     m = _TRACKING_PATH_PATTERN.search(output_text)
@@ -367,9 +363,8 @@ def main() -> None:
         if resolved:
             update_tracking_verification(resolved, passed, report)
 
-    # Exit 0 regardless — we inject information, not block.
-    # The orchestrator decides whether to accept the agent's output.
-    exit_ok()
+    # Inject verification report as context -- don't block.
+    exit_warn(report)
 
 
 if __name__ == "__main__":

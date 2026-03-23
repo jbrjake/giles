@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Commit gate hook — blocks git commit if tests haven't been run
+"""Commit gate hook -- blocks git commit if tests haven't been run
 since the last code change.
 
 Uses git working-tree state comparison instead of Write/Edit hooks.
@@ -17,7 +17,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from hooks._common import exit_ok
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import _find_project_root, exit_block, exit_ok, read_event
 
 
 # Source file extensions that require verification before commit
@@ -49,7 +50,7 @@ def is_source_file(path: str) -> bool:
         return True
     if ext in _NON_SOURCE_EXTENSIONS:
         return False
-    # Unknown extension — conservative: not source
+    # Unknown extension -- conservative: not source
     return False
 
 
@@ -108,7 +109,7 @@ def needs_verification() -> bool:
     Returns True if:
     - No verification has ever happened AND there are staged source files
     - The working tree hash has changed since last verification
-    - Git is unavailable (fail closed — assume verification needed)
+    - Git is unavailable (fail closed -- assume verification needed)
     """
     sf = _state_file()
     if not sf.exists():
@@ -116,7 +117,7 @@ def needs_verification() -> bool:
     stored = sf.read_text(encoding="utf-8").strip()
     current = _working_tree_hash()
     if not current:
-        # Git failed — can't determine state, assume verification needed
+        # Git failed -- can't determine state, assume verification needed
         return True
     return stored != current
 
@@ -127,7 +128,7 @@ def check_commit_allowed(command: str,
 
     Returns 'allowed' or 'blocked'.
 
-    *_state_override* is for testing — when provided, uses this value
+    *_state_override* is for testing -- when provided, uses this value
     instead of the actual working tree state check.
     """
     # Only intercept git commit and scripts/commit.py
@@ -138,7 +139,7 @@ def check_commit_allowed(command: str,
     if not is_commit:
         return "allowed"
 
-    # BH31-001: Allow --dry-run through — it validates without committing
+    # BH31-001: Allow --dry-run through -- it validates without committing
     if re.search(r'--dry-run\b', command):
         return "allowed"
 
@@ -156,12 +157,11 @@ def _load_config_check_commands() -> list[str]:
     Falls back to empty list if config not found.
     """
     try:
-        from hooks._common import _find_project_root
         toml_path = _find_project_root() / "sprint-config" / "project.toml"
         if not toml_path.is_file():
             return []
         text = toml_path.read_text(encoding="utf-8")
-        from hooks.verify_agent_output import _read_toml_key
+        from verify_agent_output import _read_toml_key
         result = _read_toml_key(text, "ci", "check_commands")
         if isinstance(result, list):
             return result
@@ -170,7 +170,7 @@ def _load_config_check_commands() -> list[str]:
     return []
 
 
-# BH27-004: Cached config commands — loaded once per process.
+# BH27-004: Cached config commands -- loaded once per process.
 _CONFIG_CHECK_COMMANDS: list[str] | None = None
 
 
@@ -222,36 +222,28 @@ def handle_post_tool_use(command: str, *, exit_code: int) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """PreToolUse hook for Bash tool — gate commits on test verification."""
-    try:
-        input_data = json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError):
-        exit_ok()
+    """PreToolUse hook for Bash tool -- gate commits on test verification."""
+    input_data = read_event()
 
     tool_input = input_data.get("tool_input", input_data.get("input", {}))
     command = tool_input.get("command", "")
     if not command:
-        exit_ok()
+        exit_ok(hook_event="PreToolUse")
 
     # If committing, check verification state
     result = check_commit_allowed(command)
     if result == "blocked":
-        msg = (
+        exit_block(
             "Tests have not been run since the last code change. "
             "Run check_commands before committing."
         )
-        print(msg)
-        sys.exit(2)
 
-    exit_ok()
+    exit_ok(hook_event="PreToolUse")
 
 
 def post_main() -> None:
-    """PostToolUse hook for Bash tool — record verification after tests pass."""
-    try:
-        input_data = json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError):
-        exit_ok()
+    """PostToolUse hook for Bash tool -- record verification after tests pass."""
+    input_data = read_event()
 
     tool_input = input_data.get("tool_input", input_data.get("input", {}))
     command = tool_input.get("command", "")

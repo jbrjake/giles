@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Review gate hook — blocks PR merges without approved reviews
+"""Review gate hook -- blocks PR merges without approved reviews
 and direct pushes to the base branch.
 
 Registered as a PreToolUse hook for the Bash tool.  Inspects command
@@ -7,17 +7,19 @@ strings for ``gh pr merge`` and ``git push origin {base_branch}``
 patterns.
 
 When run as a hook, reads JSON from stdin with the tool input and
-writes a reason string to stdout.  Exit code 2 blocks the action.
+communicates decisions via JSON on stdout.
 """
 from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
 import subprocess
 import sys
 
-from hooks._common import _find_project_root, exit_ok
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import _find_project_root, exit_block, exit_ok, exit_warn, read_event
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +83,7 @@ def check_merge(command: str, *, base: str = "main",
     cannot look up the review status, so we fail closed (return
     ``'blocked'``).
 
-    The *_review_decision* parameter is for testing — when provided,
+    The *_review_decision* parameter is for testing -- when provided,
     skips the actual GitHub API call.
     """
     # Match with an explicit PR number
@@ -152,12 +154,12 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
         i += 1
 
     # BH33-001: --mirror pushes ALL refs (including base) and deletes remote
-    # refs not present locally. Always block — too destructive to allow.
+    # refs not present locally. Always block -- too destructive to allow.
     # BH34-002: --all pushes every local branch, including base. Same risk class.
     if "--mirror" in parts or "--all" in parts:
         return "blocked"
 
-    # Bare "git push" with no remote or refspec — could push to base branch
+    # Bare "git push" with no remote or refspec -- could push to base branch
     # if current branch tracks origin/base. Warn rather than silently allow.
     if not positional:
         return "warn"
@@ -187,7 +189,7 @@ def _check_push_single(command: str, *, base: str = "main") -> str:
 def _log_blocked(command: str, reason: str) -> None:
     """Append a blocked attempt to the hook audit log.
 
-    Only writes if sprint-config/project.toml exists — avoids creating
+    Only writes if sprint-config/project.toml exists -- avoids creating
     sprint-config/ directories in projects that don't use giles.
     """
     root = _find_project_root()
@@ -226,15 +228,12 @@ def _log_blocked(command: str, reason: str) -> None:
 
 def main() -> None:
     """Read tool input from stdin JSON, decide allow/block."""
-    try:
-        input_data = json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError):
-        exit_ok()
+    input_data = read_event()
 
     tool_input = input_data.get("tool_input", input_data.get("input", {}))
     command = tool_input.get("command", "")
     if not command:
-        exit_ok()
+        exit_ok(hook_event="PreToolUse")
 
     base = _get_base_branch()
 
@@ -247,8 +246,7 @@ def main() -> None:
                 "approved review. Get a review approved before merging."
             )
             _log_blocked(command, reason)
-            print(reason)
-            sys.exit(2)
+            exit_block(reason)
 
     # Check for direct push to base branch
     if "git" in command and "push" in command:
@@ -259,17 +257,15 @@ def main() -> None:
                 f"Create a PR instead."
             )
             _log_blocked(command, reason)
-            print(reason)
-            sys.exit(2)
+            exit_block(reason)
         if result == "warn":
-            print(
+            exit_warn(
                 f"Warning: bare 'git push' may push to {base} if the "
                 f"current branch tracks origin/{base}. "
                 f"Specify a remote and branch explicitly."
             )
-            # Don't block — just warn. The user might be on a feature branch.
 
-    exit_ok()
+    exit_ok(hook_event="PreToolUse")
 
 
 if __name__ == "__main__":

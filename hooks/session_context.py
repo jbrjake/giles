@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SessionStart context injection hook — injects retro action items,
+"""SessionStart context injection hook -- injects retro action items,
 DoD additions, and high-severity open risks into the conversation.
 
 Makes retro learnings part of the prompt context, not a file the
@@ -7,11 +7,13 @@ agent might skip reading.
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
 
-from hooks._common import _find_project_root, exit_ok
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import _find_project_root, exit_ok, exit_warn
 
 
 # ---------------------------------------------------------------------------
@@ -183,13 +185,13 @@ def main() -> None:
     Note: This hook intentionally does not read JSON from stdin.
     SessionStart hooks receive event metadata on stdin, but this hook
     only needs to read config files and output context to stdout.
-    Stdout is injected into Claude's context as a system message.
+    The additionalContext field is injected into Claude's context.
     """
     paths = _get_config_paths()
     if not paths:
         exit_ok()
 
-    # BH27-002: Resolve all paths against project root — TOML values are
+    # BH27-002: Resolve all paths against project root -- TOML values are
     # relative to the project root, not CWD.
     root = _find_project_root()
     sprints_dir = paths.get("sprints_dir", "")
@@ -203,7 +205,7 @@ def main() -> None:
 
     output = format_context(action_items, dod_additions, risks)
     if output:
-        print(output)
+        exit_warn(output)
 
     exit_ok()
 

@@ -6,8 +6,8 @@ import textwrap
 import unittest
 from pathlib import Path
 
-# Add .claude-plugin to path so we can import hooks package
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".claude-plugin"))
+# Add project root to path so we can import hooks package
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from hooks.review_gate import check_merge, check_push, _log_blocked, _get_base_branch
 from hooks.verify_agent_output import (
@@ -852,17 +852,24 @@ class TestHookMainEntryPoints(unittest.TestCase):
     def test_commit_gate_main_blocks_with_stale_hash(self):
         """commit_gate.main() blocks commit when verification state is stale."""
         import io
+        import json
         from hooks.commit_gate import _state_file
         sf = _state_file()
         try:
             sf.write_text("stale_hash_wont_match", encoding="utf-8")
             stdin_data = '{"tool_input": {"command": "git commit -m \\"fix\\""}}'
             from unittest.mock import patch as _patch
-            with _patch("sys.stdin", io.StringIO(stdin_data)):
+            captured = io.StringIO()
+            with _patch("sys.stdin", io.StringIO(stdin_data)), \
+                 _patch("sys.stdout", captured):
                 from hooks.commit_gate import main as commit_main
                 with self.assertRaises(SystemExit) as ctx:
                     commit_main()
-                self.assertEqual(ctx.exception.code, 2)
+                self.assertEqual(ctx.exception.code, 0)
+            output = json.loads(captured.getvalue())
+            self.assertFalse(output["continue"])
+            self.assertEqual(
+                output["hookSpecificOutput"]["permissionDecision"], "block")
         finally:
             if sf.exists():
                 sf.unlink()
@@ -870,28 +877,38 @@ class TestHookMainEntryPoints(unittest.TestCase):
     def test_commit_gate_main_allows_non_commit(self):
         """commit_gate.main() allows non-commit commands."""
         import io
+        import json
         stdin_data = '{"tool_input": {"command": "git status"}}'
         from unittest.mock import patch as _patch
-        with _patch("sys.stdin", io.StringIO(stdin_data)):
+        captured = io.StringIO()
+        with _patch("sys.stdin", io.StringIO(stdin_data)), \
+             _patch("sys.stdout", captured):
             from hooks.commit_gate import main as commit_main
             with self.assertRaises(SystemExit) as ctx:
                 commit_main()
             self.assertEqual(ctx.exception.code, 0)
+        output = json.loads(captured.getvalue())
+        self.assertTrue(output["continue"])
 
     def test_commit_gate_post_main_records_on_success(self):
         """commit_gate.post_main() records verification on exit code 0."""
         import io
+        import json
         from hooks.commit_gate import _state_file, needs_verification
         sf = _state_file()
         try:
             sf.write_text("stale_hash", encoding="utf-8")
             stdin_data = '{"tool_input": {"command": "pytest tests/"}, "tool_output": {"exit_code": 0}}'
             from unittest.mock import patch as _patch
-            with _patch("sys.stdin", io.StringIO(stdin_data)):
+            captured = io.StringIO()
+            with _patch("sys.stdin", io.StringIO(stdin_data)), \
+                 _patch("sys.stdout", captured):
                 from hooks.commit_gate import post_main
                 with self.assertRaises(SystemExit) as ctx:
                     post_main()
                 self.assertEqual(ctx.exception.code, 0)
+            output = json.loads(captured.getvalue())
+            self.assertTrue(output["continue"])
             self.assertFalse(needs_verification())
         finally:
             if sf.exists():
@@ -900,6 +917,7 @@ class TestHookMainEntryPoints(unittest.TestCase):
     def test_review_gate_main_blocks_push_to_base(self):
         """review_gate.main() blocks direct push to base branch."""
         import io
+        import json
         import os
         import tempfile
         with tempfile.TemporaryDirectory() as td:
@@ -908,11 +926,17 @@ class TestHookMainEntryPoints(unittest.TestCase):
                 os.chdir(td)
                 stdin_data = '{"tool_input": {"command": "git push origin main"}}'
                 from unittest.mock import patch as _patch
-                with _patch("sys.stdin", io.StringIO(stdin_data)):
+                captured = io.StringIO()
+                with _patch("sys.stdin", io.StringIO(stdin_data)), \
+                     _patch("sys.stdout", captured):
                     from hooks.review_gate import main as review_main
                     with self.assertRaises(SystemExit) as ctx:
                         review_main()
-                    self.assertEqual(ctx.exception.code, 2)
+                    self.assertEqual(ctx.exception.code, 0)
+                output = json.loads(captured.getvalue())
+                self.assertFalse(output["continue"])
+                self.assertEqual(
+                    output["hookSpecificOutput"]["permissionDecision"], "block")
             finally:
                 os.chdir(orig)
 
