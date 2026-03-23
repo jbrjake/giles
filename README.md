@@ -173,13 +173,13 @@ This is how fictional team members develop institutional memory.
 
 Six states. WIP limits. Label sync on every transition.
 
-| State | What's happening |
-|-------|-----------------|
+| State | What's happening right now |
+|-------|---------------------------|
 | `todo` | Story accepted into sprint, not started |
-| `design` | Implementer reading PRDs, writing design notes, creating branch |
-| `dev` | TDD in progress: failing tests, implementation, green |
-| `review` | PR ready, reviewer persona evaluating |
-| `integration` | Approved, CI green, merging |
+| `design` | Implementer creating branch, opening draft PR, writing design notes |
+| `dev` | TDD in progress: failing tests, implementation, green, push |
+| `review` | Reviewer persona evaluating the PR |
+| `integration` | Review approved — verifying CI, merging, closing issue |
 | `done` | Merged, issue closed, burndown updated |
 
 Every transition updates three artifacts: the GitHub issue label, the local

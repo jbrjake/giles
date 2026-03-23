@@ -7,25 +7,32 @@ tracking artifacts.
 <!-- §kanban-protocol.states -->
 ## States
 
+States use **entry semantics** — a story enters a state when that type of
+work BEGINS, not when it ends. The board answers "what is this story doing
+right now?"
+
 | State | Label | Description |
 |---|---|---|
 | todo | `kanban:todo` | Story accepted into sprint, not yet started |
-| design | `kanban:design` | Implementer reading PRDs, writing design notes, creating branch |
-| dev | `kanban:dev` | TDD in progress: failing tests, implementation, green |
-| review | `kanban:review` | PR ready, reviewer persona evaluating |
-| integration | `kanban:integration` | Approved, CI green, merging |
+| design | `kanban:design` | Implementer creating branch, opening draft PR, writing design notes |
+| dev | `kanban:dev` | TDD in progress: failing tests, implementation, green, push |
+| review | `kanban:review` | Reviewer persona evaluating the PR |
+| integration | `kanban:integration` | Review approved — verifying CI, merging, closing issue |
 | done | `kanban:done` | Merged, issue closed, burndown updated |
 
 <!-- §kanban-protocol.transitions_allowed_state_changes -->
 ## Transitions
 
+Transitions fire on **entry** to the target state. Each transition's
+description is the condition that must be true BEFORE entering.
+
 ```
-todo → design       Implementer starts reading PRDs, creates branch
-design → dev        Design notes written, draft PR opened
-dev → review        Tests pass, PR marked ready for review
-review → dev        Changes requested by reviewer
-review → integration Approved by reviewer
-integration → done  CI green, merged, issue closed
+todo → design       Implementer assigned, ready to begin design work
+design → dev        Design deliverables ready (branch, draft PR, design notes)
+dev → review        Implementation complete, PR ready, reviewer assigned
+review → dev        Changes requested — returning to development
+review → integration Review approved by reviewer
+integration → done  CI green, PR merged, issue closed
 ```
 
 <!-- §kanban-protocol.rules_one_story_per_persona_in_dev_3_round_review_limit -->
@@ -52,8 +59,10 @@ integration → done  CI green, merged, issue closed
 <!-- §kanban-protocol.preconditions -->
 ## Preconditions
 
-The state machine enforces entry conditions before allowing a transition.
-Set required fields before calling `kanban.py transition`:
+The state machine enforces **entry guards** — conditions that must be met
+before a story can enter the target state. These verify that the previous
+phase's deliverables exist. Set required fields before calling
+`kanban.py transition`:
 
 | Target state | Required fields | How to set them |
 |---|---|---|

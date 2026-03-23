@@ -77,6 +77,11 @@ Large stories consume a lot of context. Manage it deliberately:
 
 ## Your Process
 
+You are dispatched in the `design` state — the orchestrator has already
+assigned you and transitioned the story. Your job: complete design, enter
+`dev`, implement with TDD, then signal completion. The orchestrator handles
+the transition to `review` after you're done.
+
 ### 1. Create Branch and Draft PR
 ```bash
 git checkout -b {branch_name} {base_branch}
@@ -128,10 +133,9 @@ The PR description is CRITICAL — the reviewer will work entirely from it. The 
 - Design decisions you made and why
 - Use the PR template from `skills/sprint-setup/references/github-conventions.md`
 
-After creating the draft PR, set `pr_number` and `branch` in the tracking file, then transition:
+After creating the draft PR, set tracking fields (these are entry guards for `dev`):
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" update {story_id} --pr-number {pr_number} --branch {branch_name} --sprint {sprint_number}
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design --sprint {sprint_number}
 ```
 
 <!-- §implementer.design -->
@@ -139,6 +143,8 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} design --
 Write design notes in the story tracking file at `{sprints_dir}/sprint-{N}/stories/{story_file}`.
 Think through the approach IN CHARACTER — what would {persona_name} prioritize? What concerns would they raise?
 
+When design is complete, enter dev (the entry guard checks that `branch`
+and `pr_number` exist — your design deliverables):
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} dev --sprint {sprint_number}
 ```
@@ -170,13 +176,11 @@ git push origin {branch_name}
 
 # Mark PR as ready for review
 gh pr ready {pr_number}
-
-# Add reviewer persona label
-gh pr edit {pr_number} --add-label "persona:{reviewer_name}"
-
-# Update GitHub issue kanban label
-python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" transition {story_id} review --sprint {sprint_number}
 ```
+
+The orchestrator handles the transition to `review` — it will assign the
+reviewer persona and dispatch the reviewer subagent. Do NOT transition
+to review yourself.
 
 Before pushing, update the PR description with:
 - Final design decisions
@@ -214,8 +218,6 @@ a count of omitted lines.
 
 Statements like "tests pass" or "clean build" without raw output will be
 rejected by the verification hook.
-
-Also update the story tracking file: set status = review.
 
 ### 6. Respond to Review Feedback
 If the reviewer requests changes:

@@ -118,14 +118,21 @@ needed (reorder stories, flag at-risk scope). Then resume story execution.
 <!-- §sprint-run.story_dispatch_kanban_state_table -->
 ### Story Dispatch
 
-Determine each story's current kanban state and execute the appropriate transition:
+States use **entry semantics** — transition into a state when that work
+BEGINS. Determine each story's current kanban state and execute:
 
-| Current State | Transition | Key Action |
-|---------------|------------|------------|
-| todo | TO-DO --> DESIGN | Create design notes, draft PR, apply labels |
-| design | DESIGN --> DEV | Dispatch implementer subagent, TDD, push code |
-| dev | DEV --> REVIEW | Dispatch reviewer (or pair reviewers for SP >= 5 + multi-domain). See story-execution.md |
-| review | REVIEW --> INTEGRATION | CI green, squash-merge, close issue, update burndown |
+| Current State | Who Acts | Action |
+|---------------|----------|--------|
+| todo | Orchestrator | Assign implementer → transition to `design` → dispatch implementer subagent. Implementer handles design work + transition to `dev` + TDD internally. |
+| design | Orchestrator | Context recovery — re-dispatch implementer to continue design work. |
+| dev | Orchestrator | Implementation complete. Assign reviewer → transition to `review` → dispatch reviewer subagent. |
+| review (approved) | Orchestrator | Transition to `integration` → verify CI → squash-merge → transition to `done` → update burndown. |
+| review (changes) | Orchestrator | Transition to `dev` → re-dispatch implementer with review feedback. |
+| integration | Orchestrator | Context recovery — resume merge process. |
+
+The orchestrator owns cross-agent transitions (`design`, `review`,
+`integration`, `done`). The implementer subagent owns the internal
+`design → dev` transition.
 
 Stories with no dependencies can run in parallel via `superpowers:dispatching-parallel-agents`. Dependent stories wait.
 
