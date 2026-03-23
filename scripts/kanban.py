@@ -97,8 +97,9 @@ def check_preconditions(tf: TF, target: str) -> str | None:
     design      — tf.implementer must be set
     dev         — tf.branch and tf.pr_number must both be set
     review      — tf.implementer and tf.reviewer must be set
+    integration — tf.reviewer must be set (review must have been assigned)
     done        — tf.pr_number must be set
-    todo / integration — no preconditions
+    todo        — no preconditions
     """
     if target == "design":
         if not tf.implementer:
@@ -123,6 +124,10 @@ def check_preconditions(tf: TF, target: str) -> str | None:
             return (
                 f"Precondition failed: {', '.join(missing)} must be set before entering review."
             )
+    elif target == "integration":
+        # SF-002: Review must have been assigned before integration begins.
+        if not tf.reviewer:
+            return "Precondition failed: 'reviewer' must be set before entering integration."
     elif target == "done":
         if not tf.pr_number:
             return "Precondition failed: 'pr_number' must be set before entering done."
@@ -546,6 +551,12 @@ def do_sync(sprints_dir: Path, sprint: int, issues: list,
                     f"accepted external transition {story_id}: {old} → done "
                     f"(issue closed on GitHub)"
                 )
+                # SF-003: Warn when forced-done bypasses entry guard metadata.
+                if not tf.pr_number:
+                    changes.append(
+                        f"WARNING: {story_id} forced to done without pr_number "
+                        f"(issue closed externally from {old} state)"
+                    )
                 continue
             # States diverge — validate the external transition
             err = validate_transition(tf.status, github_state)

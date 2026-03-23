@@ -213,11 +213,21 @@ class TestPreconditions(unittest.TestCase):
         tf = self._tf(pr_number="99")
         self.assertIsNone(check_preconditions(tf, "done"))
 
+    def test_integration_requires_reviewer(self):
+        """SF-002: integration requires reviewer (review must have been assigned)."""
+        tf = self._tf(reviewer="")
+        self.assertIsNotNone(check_preconditions(tf, "integration"))
+        self.assertIn("reviewer", check_preconditions(tf, "integration"))
+
+    def test_integration_ok_with_reviewer(self):
+        """SF-002: integration passes when reviewer is set."""
+        tf = self._tf(reviewer="chen")
+        self.assertIsNone(check_preconditions(tf, "integration"))
+
     def test_unchecked_states_return_none(self):
-        """States without preconditions (todo, integration) always pass."""
+        """States without preconditions (todo) always pass."""
         tf = self._tf()  # all empty
         self.assertIsNone(check_preconditions(tf, "todo"))
-        self.assertIsNone(check_preconditions(tf, "integration"))
 
 
 class TestAtomicWrite(unittest.TestCase):
@@ -1184,6 +1194,35 @@ class TestSyncCommand(unittest.TestCase):
             do_sync(sprints_dir, 1, issues)
             result = find_story("US-0048", sprints_dir, 1)
             self.assertEqual(result.status, "done")
+
+    # SF-003: Forced-done without pr_number emits warning
+    def test_sync_forced_done_warns_without_pr_number(self):
+        """Closed issue forced to done without pr_number emits a warning."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            # Story in design state — no pr_number set yet
+            self._write_tf(sprints_dir, 1, story="US-0050", status="design")
+            issues = [{"number": 50, "title": "US-0050: Early close",
+                       "state": "closed", "labels": [],
+                       "closedAt": "2026-03-18T00:00:00Z"}]
+            changes = do_sync(sprints_dir, 1, issues)
+            result = find_story("US-0050", sprints_dir, 1)
+            self.assertEqual(result.status, "done")
+            warnings = [c for c in changes if "WARNING" in c and "pr_number" in c]
+            self.assertTrue(warnings, f"Expected pr_number warning, got: {changes}")
+
+    def test_sync_forced_done_no_warning_with_pr_number(self):
+        """Closed issue forced to done WITH pr_number emits no warning."""
+        with tempfile.TemporaryDirectory() as td:
+            sprints_dir = self._sprints_dir(td)
+            self._write_tf(sprints_dir, 1, story="US-0051", status="review",
+                           pr_number="88")
+            issues = [{"number": 51, "title": "US-0051: Normal close",
+                       "state": "closed", "labels": [],
+                       "closedAt": "2026-03-18T00:00:00Z"}]
+            changes = do_sync(sprints_dir, 1, issues)
+            warnings = [c for c in changes if "WARNING" in c and "pr_number" in c]
+            self.assertFalse(warnings, f"Unexpected pr_number warning: {changes}")
 
     # BH22-056: Local story absent from GitHub warning
     def test_sync_warns_about_local_story_absent_from_github(self):

@@ -69,8 +69,9 @@ phase's deliverables exist. Set required fields before calling
 | design | `implementer` | `kanban.py assign --implementer {name}` |
 | dev | `branch` and `pr_number` | `kanban.py update --branch {name} --pr-number {N}` |
 | review | `implementer` and `reviewer` | `kanban.py assign --implementer {name} --reviewer {name}` |
+| integration | `reviewer` | `kanban.py assign --reviewer {name}` (set during review entry) |
 | done | `pr_number` | `kanban.py update --pr-number {N}` |
-| todo, integration | (no preconditions) | — |
+| todo | (no preconditions) | — |
 
 <!-- §kanban-protocol.github_label_sync_procedure -->
 ## GitHub Label Sync
