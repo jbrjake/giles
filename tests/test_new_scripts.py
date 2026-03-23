@@ -453,5 +453,190 @@ class TestHistoryToChecklist(unittest.TestCase):
             self.assertEqual(checklists, {})
 
 
+# ---------------------------------------------------------------------------
+# BH-004: main() entry point tests for all 6 scripts
+# ---------------------------------------------------------------------------
+
+class TestSmokeTestMain(unittest.TestCase):
+    """BH-004: smoke_test.main() exits 1 on missing config."""
+
+    def test_missing_config_exits_1(self):
+        from smoke_test import main as smoke_main
+        with tempfile.TemporaryDirectory() as td:
+            with patch("sys.argv", ["smoke_test", "--config",
+                                     str(Path(td) / "project.toml")]):
+                with self.assertRaises(SystemExit) as cm:
+                    smoke_main()
+                self.assertEqual(cm.exception.code, 1)
+
+
+class TestGapScannerMain(unittest.TestCase):
+    """BH-004: gap_scanner.main() exits 1 on missing config."""
+
+    def test_missing_config_exits_1(self):
+        from gap_scanner import main as gap_main
+        with tempfile.TemporaryDirectory() as td:
+            with patch("sys.argv", ["gap_scanner", "--config",
+                                     str(Path(td) / "project.toml")]):
+                with self.assertRaises(SystemExit) as cm:
+                    gap_main()
+                self.assertEqual(cm.exception.code, 1)
+
+
+class TestTestCategoriesMain(unittest.TestCase):
+    """BH-004: test_categories.main() runs without config."""
+
+    def test_runs_without_config(self):
+        """main() with --root pointing at a temp dir with test files.
+
+        test_categories exits 1 when no integration tests are found,
+        so we include one to get exit 0.
+        """
+        from test_categories import main as cat_main
+        with tempfile.TemporaryDirectory() as td:
+            tests_dir = Path(td) / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_sample.py").write_text("def test_a(): pass\n")
+            int_dir = tests_dir / "integration"
+            int_dir.mkdir()
+            (int_dir / "test_int.py").write_text("def test_api(): pass\n")
+            with patch("sys.argv", ["test_categories", "--root", td]):
+                with patch("builtins.print") as mock_print:
+                    with self.assertRaises(SystemExit) as cm:
+                        cat_main()
+                    self.assertEqual(cm.exception.code, 0)
+            output = " ".join(str(c) for c in mock_print.call_args_list)
+            self.assertIn("unit", output)
+
+
+class TestRiskRegisterMain(unittest.TestCase):
+    """BH-004: risk_register.main() exercises the CLI entry point."""
+
+    def test_no_subcommand_exits_2(self):
+        """No subcommand prints help and exits 2."""
+        from risk_register import main as risk_main
+        with patch("sys.argv", ["risk_register"]):
+            with self.assertRaises(SystemExit) as cm:
+                risk_main()
+            self.assertEqual(cm.exception.code, 2)
+
+    def test_list_open_risks_with_mock(self):
+        """list_open_risks subcommand runs through main()."""
+        from risk_register import main as risk_main
+        with patch("risk_register._register_path") as mock_rp:
+            with tempfile.TemporaryDirectory() as td:
+                rp = Path(td) / "risk-register.md"
+                rp.write_text(
+                    "# Risk Register\n"
+                    "| ID | Title | Severity | Status | Raised | Sprints Open | Resolution |\n"
+                    "|----|-------|----------|--------|--------|-------------|------------|\n"
+                )
+                mock_rp.return_value = rp
+                with patch("sys.argv", ["risk_register", "list_open_risks"]):
+                    with patch("builtins.print"):
+                        risk_main()
+
+
+class TestAssignDodLevelMain(unittest.TestCase):
+    """BH-004: assign_dod_level.main() exits 1 on missing config."""
+
+    def test_missing_config_exits_1(self):
+        from assign_dod_level import main as dod_main
+        with tempfile.TemporaryDirectory() as td:
+            orig = __import__("os").getcwd()
+            try:
+                __import__("os").chdir(td)
+                with patch("sys.argv", ["assign_dod_level"]):
+                    with self.assertRaises(SystemExit) as cm:
+                        dod_main()
+                    self.assertEqual(cm.exception.code, 1)
+            finally:
+                __import__("os").chdir(orig)
+
+
+class TestHistoryToChecklistMain(unittest.TestCase):
+    """BH-004: history_to_checklist.main() runs with explicit --team-dir."""
+
+    def test_runs_with_team_dir(self):
+        from history_to_checklist import main as hist_main
+        with tempfile.TemporaryDirectory() as td:
+            history_dir = Path(td) / "history"
+            history_dir.mkdir()
+            (history_dir / "rae.md").write_text(
+                "### Sprint 1\nCaught a regression in parser.\n"
+            )
+            with patch("sys.argv", ["history_to_checklist", "--team-dir", td]):
+                with patch("builtins.print") as mock_print:
+                    hist_main()
+            output = " ".join(str(c) for c in mock_print.call_args_list)
+            self.assertIn("rae", output)
+
+
+# ---------------------------------------------------------------------------
+# BH-004: assign_levels() write path test
+# ---------------------------------------------------------------------------
+
+class TestAssignLevelsWritePath(unittest.TestCase):
+    """BH-004: assign_levels() reads tracking files and writes dod_level."""
+
+    def test_assigns_and_writes_dod_level(self):
+        from assign_dod_level import assign_levels
+        from validate_config import TF, write_tf, read_tf
+
+        with tempfile.TemporaryDirectory() as td:
+            stories_dir = Path(td) / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+
+            # Create a user-facing story (should get "app")
+            tf1 = TF(
+                path=stories_dir / "US-0001-display.md",
+                story="US-0001", title="Display results to user", sprint=1,
+            )
+            tf1.body_text = "Show the filtered results on screen"
+            write_tf(tf1)
+
+            # Create an internal story (should get "library")
+            tf2 = TF(
+                path=stories_dir / "US-0002-parser.md",
+                story="US-0002", title="Optimize parser internals", sprint=1,
+            )
+            tf2.body_text = "Reduce FFT buffer allocation overhead"
+            write_tf(tf2)
+
+            counts = assign_levels(td, 1)
+            self.assertEqual(counts["app"], 1)
+            self.assertEqual(counts["library"], 1)
+
+            # Verify dod_level was written to the files
+            tf1_after = read_tf(stories_dir / "US-0001-display.md")
+            self.assertIn("dod_level: app", tf1_after.body_text)
+
+            tf2_after = read_tf(stories_dir / "US-0002-parser.md")
+            self.assertIn("dod_level: library", tf2_after.body_text)
+
+    def test_idempotent_does_not_double_write(self):
+        """Running assign_levels twice does not duplicate dod_level."""
+        from assign_dod_level import assign_levels
+        from validate_config import TF, write_tf, read_tf
+
+        with tempfile.TemporaryDirectory() as td:
+            stories_dir = Path(td) / "sprint-1" / "stories"
+            stories_dir.mkdir(parents=True)
+
+            tf = TF(
+                path=stories_dir / "US-0001-test.md",
+                story="US-0001", title="Display widget", sprint=1,
+            )
+            tf.body_text = "User sees the widget on screen"
+            write_tf(tf)
+
+            assign_levels(td, 1)
+            assign_levels(td, 1)  # second call
+
+            content = read_tf(stories_dir / "US-0001-test.md").body_text
+            self.assertEqual(content.count("dod_level:"), 1,
+                             "dod_level should appear exactly once")
+
+
 if __name__ == "__main__":
     unittest.main()
