@@ -52,6 +52,11 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile skills/sprint-run/scripts/update_burndown.py
 	$(PYTHON) -m py_compile skills/sprint-monitor/scripts/check_status.py
 	$(PYTHON) -m py_compile skills/sprint-release/scripts/release_gate.py
+	$(PYTHON) -m py_compile hooks/_common.py
+	$(PYTHON) -m py_compile hooks/commit_gate.py
+	$(PYTHON) -m py_compile hooks/review_gate.py
+	$(PYTHON) -m py_compile hooks/session_context.py
+	$(PYTHON) -m py_compile hooks/verify_agent_output.py
 	$(PYTHON) -m py_compile scripts/validate_anchors.py
 	$(PYTHON) scripts/validate_anchors.py
 

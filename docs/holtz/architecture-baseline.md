@@ -37,7 +37,7 @@ Source: CLAUDE.md, README.md, plugin.json
 
 - No external Python packages required for plugin users
 - `validate_config.load_config()` is the single entry point for reading project.toml
-- All `gh` CLI calls go through `validate_config.gh()` or `validate_config.gh_json()` wrappers
+- All data/mutation `gh` CLI calls go through `validate_config.gh()` or `validate_config.gh_json()` wrappers (exception: `populate_issues.check_prerequisites()` calls `gh auth status` directly as a pre-config auth check)
 - Tracking files use YAML frontmatter format parsed by `validate_config.read_tf()` / `write_tf()`
 
 ## Structural Snapshot
