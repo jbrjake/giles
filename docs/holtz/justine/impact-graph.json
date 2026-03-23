@@ -1,0 +1,104 @@
+{
+  "nodes": {
+    "commit_gate": {
+      "type": "module",
+      "file_path": "hooks/commit_gate.py",
+      "line": 1,
+      "risk_score": 0.3
+    },
+    "session_context": {
+      "type": "module",
+      "file_path": "hooks/session_context.py",
+      "line": 1,
+      "risk_score": 0.2
+    },
+    "review_gate": {
+      "type": "module",
+      "file_path": "hooks/review_gate.py",
+      "line": 1,
+      "risk_score": 0.2
+    },
+    "verify_agent_output": {
+      "type": "module",
+      "file_path": "hooks/verify_agent_output.py",
+      "line": 1,
+      "risk_score": 0.3
+    },
+    "_common": {
+      "type": "module",
+      "file_path": "hooks/_common.py",
+      "line": 1,
+      "risk_score": 0.1
+    },
+    "validate_config": {
+      "type": "module",
+      "file_path": "scripts/validate_config.py",
+      "line": 1,
+      "risk_score": 0.1
+    },
+    "format_context": {
+      "type": "function",
+      "file_path": "hooks/session_context.py",
+      "line": 158,
+      "risk_score": 0.2
+    }
+  },
+  "edges": [
+    {
+      "source": "commit_gate",
+      "target": "_common",
+      "type": "imports"
+    },
+    {
+      "source": "session_context",
+      "target": "_common",
+      "type": "imports"
+    },
+    {
+      "source": "review_gate",
+      "target": "_common",
+      "type": "imports"
+    },
+    {
+      "source": "verify_agent_output",
+      "target": "_common",
+      "type": "imports"
+    },
+    {
+      "source": "commit_gate",
+      "target": "verify_agent_output",
+      "type": "imports",
+      "note": "deferred import of _read_toml_key at line 178"
+    },
+    {
+      "source": "verify_agent_output",
+      "target": "commit_gate",
+      "type": "imports",
+      "note": "deferred import of mark_verified at line 241"
+    },
+    {
+      "source": "commit_gate",
+      "target": "verify_agent_output",
+      "type": "assumes",
+      "note": "assumes _read_toml_key returns list for array values"
+    },
+    {
+      "source": "verify_agent_output",
+      "target": "commit_gate",
+      "type": "assumes",
+      "note": "assumes mark_verified records working tree hash"
+    },
+    {
+      "source": "session_context",
+      "target": "validate_config",
+      "type": "diverges_from",
+      "note": "PAT-003: boolean/integer types differ; session_context returns strings"
+    },
+    {
+      "source": "verify_agent_output",
+      "target": "validate_config",
+      "type": "diverges_from",
+      "note": "PAT-003: boolean types differ; verify_agent_output returns strings"
+    }
+  ]
+}
