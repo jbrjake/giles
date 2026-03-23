@@ -1,0 +1,565 @@
+{
+  "nodes": {
+    "validate_config": {
+      "id": "validate_config",
+      "type": "module",
+      "file": "scripts/validate_config.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "kanban": {
+      "id": "kanban",
+      "type": "module",
+      "file": "scripts/kanban.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sprint_init": {
+      "id": "sprint_init",
+      "type": "module",
+      "file": "scripts/sprint_init.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sprint_teardown": {
+      "id": "sprint_teardown",
+      "type": "module",
+      "file": "scripts/sprint_teardown.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sync_backlog": {
+      "id": "sync_backlog",
+      "type": "module",
+      "file": "scripts/sync_backlog.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "commit": {
+      "id": "commit",
+      "type": "module",
+      "file": "scripts/commit.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "manage_epics": {
+      "id": "manage_epics",
+      "type": "module",
+      "file": "scripts/manage_epics.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "manage_sagas": {
+      "id": "manage_sagas",
+      "type": "module",
+      "file": "scripts/manage_sagas.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sprint_analytics": {
+      "id": "sprint_analytics",
+      "type": "module",
+      "file": "scripts/sprint_analytics.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "validate_anchors": {
+      "id": "validate_anchors",
+      "type": "module",
+      "file": "scripts/validate_anchors.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "traceability": {
+      "id": "traceability",
+      "type": "module",
+      "file": "scripts/traceability.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "test_coverage": {
+      "id": "test_coverage",
+      "type": "module",
+      "file": "scripts/test_coverage.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "team_voices": {
+      "id": "team_voices",
+      "type": "module",
+      "file": "scripts/team_voices.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "smoke_test": {
+      "id": "smoke_test",
+      "type": "module",
+      "file": "scripts/smoke_test.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "gap_scanner": {
+      "id": "gap_scanner",
+      "type": "module",
+      "file": "scripts/gap_scanner.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "test_categories": {
+      "id": "test_categories",
+      "type": "module",
+      "file": "scripts/test_categories.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "risk_register": {
+      "id": "risk_register",
+      "type": "module",
+      "file": "scripts/risk_register.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "assign_dod_level": {
+      "id": "assign_dod_level",
+      "type": "module",
+      "file": "scripts/assign_dod_level.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "history_to_checklist": {
+      "id": "history_to_checklist",
+      "type": "module",
+      "file": "scripts/history_to_checklist.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "bootstrap_github": {
+      "id": "bootstrap_github",
+      "type": "module",
+      "file": "skills/sprint-setup/scripts/bootstrap_github.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "populate_issues": {
+      "id": "populate_issues",
+      "type": "module",
+      "file": "skills/sprint-setup/scripts/populate_issues.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "setup_ci": {
+      "id": "setup_ci",
+      "type": "module",
+      "file": "skills/sprint-setup/scripts/setup_ci.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sync_tracking": {
+      "id": "sync_tracking",
+      "type": "module",
+      "file": "skills/sprint-run/scripts/sync_tracking.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "update_burndown": {
+      "id": "update_burndown",
+      "type": "module",
+      "file": "skills/sprint-run/scripts/update_burndown.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "check_status": {
+      "id": "check_status",
+      "type": "module",
+      "file": "skills/sprint-monitor/scripts/check_status.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "release_gate": {
+      "id": "release_gate",
+      "type": "module",
+      "file": "skills/sprint-release/scripts/release_gate.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "hook_common": {
+      "id": "hook_common",
+      "type": "module",
+      "file": "hooks/_common.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "hook_commit_gate": {
+      "id": "hook_commit_gate",
+      "type": "module",
+      "file": "hooks/commit_gate.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "hook_review_gate": {
+      "id": "hook_review_gate",
+      "type": "module",
+      "file": "hooks/review_gate.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "hook_session_context": {
+      "id": "hook_session_context",
+      "type": "module",
+      "file": "hooks/session_context.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "hook_verify_agent": {
+      "id": "hook_verify_agent",
+      "type": "module",
+      "file": "hooks/verify_agent_output.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    }
+  },
+  "edges": [
+    {
+      "source": "kanban",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sprint_init",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sync_backlog",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sync_backlog",
+      "target": "bootstrap_github",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sync_backlog",
+      "target": "populate_issues",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "manage_epics",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "manage_sagas",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sprint_analytics",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "traceability",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "test_coverage",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "team_voices",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "smoke_test",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "gap_scanner",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "test_categories",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "risk_register",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "assign_dod_level",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "assign_dod_level",
+      "target": "kanban",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "history_to_checklist",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "bootstrap_github",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "populate_issues",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "setup_ci",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sync_tracking",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "sync_tracking",
+      "target": "kanban",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "update_burndown",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "check_status",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "release_gate",
+      "target": "validate_config",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "hook_commit_gate",
+      "target": "hook_common",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "hook_review_gate",
+      "target": "hook_common",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "hook_session_context",
+      "target": "hook_common",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "hook_verify_agent",
+      "target": "hook_common",
+      "type": "imports",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "validate_anchors",
+      "target": "validate_config",
+      "type": "assumes",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "NAMESPACE_MAP must list all scripts that define \u00a7-anchors"
+      }
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "nodes": {
+    "validate_config:parse_simple_toml": {
+      "id": "validate_config:parse_simple_toml",
+      "type": "function",
+      "file": "scripts/validate_config.py",
+      "line": 135,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "verify_agent_output:_read_toml_key": {
+      "id": "verify_agent_output:_read_toml_key",
+      "type": "function",
+      "file": "hooks/verify_agent_output.py",
+      "line": 111,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "session_context:_read_toml_string": {
+      "id": "session_context:_read_toml_string",
+      "type": "function",
+      "file": "hooks/session_context.py",
+      "line": 23,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "review_gate:_get_base_branch": {
+      "id": "review_gate:_get_base_branch",
+      "type": "function",
+      "file": "hooks/review_gate.py",
+      "line": 29,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "commit_gate:_working_tree_hash": {
+      "id": "commit_gate:_working_tree_hash",
+      "type": "function",
+      "file": "hooks/commit_gate.py",
+      "line": 57,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "kanban:do_transition": {
+      "id": "kanban:do_transition",
+      "type": "function",
+      "file": "scripts/kanban.py",
+      "line": 329,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "kanban:do_sync": {
+      "id": "kanban:do_sync",
+      "type": "function",
+      "file": "scripts/kanban.py",
+      "line": 495,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "sync_tracking:sync_one": {
+      "id": "sync_tracking:sync_one",
+      "type": "function",
+      "file": "skills/sprint-run/scripts/sync_tracking.py",
+      "line": 128,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "session_context:extract_high_risks": {
+      "id": "session_context:extract_high_risks",
+      "type": "function",
+      "file": "hooks/session_context.py",
+      "line": 127,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    }
+  },
+  "edges": [
+    {
+      "source": "verify_agent_output:_read_toml_key",
+      "target": "validate_config:parse_simple_toml",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Independent TOML parsers for same project.toml format"
+      }
+    },
+    {
+      "source": "session_context:_read_toml_string",
+      "target": "validate_config:parse_simple_toml",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Independent TOML string parser with different escape handling"
+      }
+    },
+    {
+      "source": "review_gate:_get_base_branch",
+      "target": "validate_config:parse_simple_toml",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Inline regex TOML parser, simplest of three independent parsers"
+      }
+    },
+    {
+      "source": "kanban:do_sync",
+      "target": "sync_tracking:sync_one",
+      "type": "diverges_from",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "Both write tracking files with different acceptance rules"
+      }
+    }
+  ]
+}
