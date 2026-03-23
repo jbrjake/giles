@@ -45,9 +45,9 @@ The `integration` description says "Review approved — verifying CI, merging, c
 - test_unchecked_states_return_none (line 216): explicitly tests that integration has no guards
 - kanban-protocol.md preconditions table: "todo, integration | (no preconditions)"
 
-**Acceptance criteria:** This is a documented design choice. The finding is informational — no code change needed. If a guard were desired, it could verify PR review status via `gh pr reviews --json state`.
-**Validation:** N/A — informational finding, no fix needed.
-**Status:** DEFERRED (intentional design)
+**Acceptance criteria:** Add `reviewer` entry guard for `integration` in check_preconditions. Update preconditions table in kanban-protocol.md. Add tests.
+**Validation:** `python -m pytest tests/test_kanban.py -k "test_integration_requires_reviewer or test_integration_ok_with_reviewer" -v`
+**Status:** RESOLVED — added reviewer entry guard, updated docs and tests (+2 tests)
 
 ---
 
@@ -97,6 +97,6 @@ Downstream consumers handle this gracefully:
 - check_preconditions is not called in the do_sync forced-close path
 - update_burndown.py line 137: graceful fallback
 
-**Acceptance criteria:** No code change needed — downstream consumers are safe. The finding documents the gap for future consumers that might assume `done` stories always have `pr_number`.
-**Validation:** N/A — informational finding.
-**Status:** DEFERRED (intentional design, consumers handle gracefully)
+**Acceptance criteria:** Add a warning in do_sync when forced-done story lacks pr_number. Add tests for both the warning case and the no-warning case.
+**Validation:** `python -m pytest tests/test_kanban.py -k "test_sync_forced_done" -v`
+**Status:** RESOLVED — added warning in do_sync forced-done path (+2 tests)

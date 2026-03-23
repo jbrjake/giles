@@ -5,7 +5,7 @@
 **Mode:** Targeted — kanban state flow + custom lenses (semantic-fidelity, temporal-protocol)
 **Scope:** Commit ae4fa33 ("fix: apply entry semantics to kanban state transitions")
 **Baseline:** 1220 tests, 0 failures, lint clean, 16.65s
-**Final:** 1220 tests, 0 failures, lint clean, 16.82s
+**Final:** 1224 tests, 0 failures, lint clean, 17.68s
 
 ## Results
 
@@ -14,38 +14,25 @@
 | CRITICAL | 0 | 0 | 0 |
 | HIGH | 0 | 0 | 0 |
 | MEDIUM | 0 | 0 | 0 |
-| LOW | 4 | 2 | 2 |
-| **Total** | **4** | **2** | **2** |
+| LOW | 4 | 4 | 0 |
+| **Total** | **4** | **4** | **0** |
 
-**Tests:** 1220 → 1220 (no change — doc-only fixes)
+**Tests:** 1220 → 1224 (+4 new)
 **Lint:** clean → clean
 
-## Key Assessment
+## Fixes
 
-The entry-semantics documentation change (ae4fa33) was **overwhelmingly accurate**. The commit updated 6 documentation files to frame the kanban state machine as using "entry semantics" — states are entered when work BEGINS, not when it ends. The code was already implementing this correctly; the commit documented what was already true.
+### SF-001: `done` description claimed "burndown updated" at entry (doc fix)
+Changed to "Merged and issue closed — terminal state." Burndown is a post-transition side effect.
 
-The custom lenses found two small doc inaccuracies that standard lenses would have missed:
+### TP-001: Two sync paths not documented in protocol reference (doc fix)
+Added blockquote to kanban-protocol.md noting sync_tracking.py as complementary path.
 
-### SF-001: `done` description claimed "burndown updated" at entry (RESOLVED)
-The `done` state description said "Merged, issue closed, burndown updated" but burndown is updated in a separate post-transition step. Changed to "Merged and issue closed — terminal state."
+### SF-002: `integration` entry guard added (code fix)
+Added `reviewer` as entry guard for `integration` in `check_preconditions`. Every working state now has at least one guard verifying prior-phase deliverables. Updated preconditions table in kanban-protocol.md. +2 tests.
 
-### TP-001: Two sync paths not documented in protocol reference (RESOLVED)
-kanban-protocol.md's "GitHub Label Sync" section only mentioned `kanban.py` commands, omitting that `sync_tracking.py` is a complementary path with different enforcement. Added a blockquote noting the two-path design.
-
-### SF-002: `integration` has no entry guard (DEFERRED — intentional design)
-All working states except `integration` have code-enforced entry guards. The `integration` state's condition ("Review approved") is purely process-enforced. Documented in the Rules section as intentional.
-
-### SF-003: Forced-done via sync bypasses entry guard (DEFERRED — intentional design)
-`do_sync` can force a story to `done` without `pr_number` when GitHub issue is closed externally. Downstream consumers handle the missing field gracefully with fallback defaults.
-
-## Custom Lens Value Assessment
-
-| Lens | Findings | Standard lens equivalent |
-|------|----------|------------------------|
-| semantic-fidelity | 3 (SF-001, SF-002, SF-003) | 0 — standard lenses don't reason about temporal truthfulness of labels |
-| temporal-protocol | 1 (TP-001) + confirmation that entry semantics are clean | 0 — standard lenses don't trace multi-file orchestration sequences |
-
-The custom lenses proved their value: 4 findings that no standard lens would have caught. The `semantic-fidelity` lens is particularly useful for state machines — it asks "does this label tell the truth right now?" which surfaces documentation-reality mismatches that only manifest during execution.
+### SF-003: Forced-done warning for missing pr_number (code fix)
+`do_sync` now emits a warning when forcing a story to `done` without `pr_number` (issue closed externally from an early state). The transition still proceeds (GitHub close remains authoritative) but the metadata gap is visible in sync output. +2 tests.
 
 ## Prediction Accuracy
 
@@ -56,10 +43,6 @@ The custom lenses proved their value: 4 findings that no standard lens would hav
 | LOW | 1 | 1 | 100% |
 | **Total** | **3** | **3** | **100%** |
 
-High accuracy reflects a well-scoped targeted audit with specific, testable predictions derived from the custom lens definitions.
+## Custom Lens Value
 
-## Recommendation
-
-The entry-semantics documentation is now accurate and consistent across all files. The two doc fixes align the protocol reference with the actual runtime behavior. The deferred items are documented intentional design choices that don't need code changes.
-
-The custom lenses (`semantic-fidelity` and `temporal-protocol`) are strong candidates for the standard lens registry — they found genuine issues that four runs of standard lenses never caught.
+The semantic-fidelity and temporal-protocol lenses found 4 issues that 3 prior standard-lens runs missed. These lenses reason about WHEN things happen relative to WHEN they claim to happen — a dimension standard lenses don't cover.
