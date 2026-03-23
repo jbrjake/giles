@@ -18,7 +18,7 @@ right now?"
 | dev | `kanban:dev` | TDD in progress: failing tests, implementation, green, push |
 | review | `kanban:review` | Reviewer persona evaluating the PR |
 | integration | `kanban:integration` | Review approved — verifying CI, merging, closing issue |
-| done | `kanban:done` | Merged, issue closed, burndown updated |
+| done | `kanban:done` | Merged and issue closed — terminal state |
 
 <!-- §kanban-protocol.transitions_allowed_state_changes -->
 ## Transitions
@@ -92,6 +92,12 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/kanban.py" sync [--sprint N] [--prune]
 ```
 
 Use `kanban.py` exclusively for kanban label changes — it validates transitions, updates tracking files, and syncs GitHub atomically.
+
+> **Two sync paths:** `kanban.py sync` validates transitions and rejects illegal
+> external changes. `sync_tracking.py` is a complementary reconciliation path
+> that accepts any valid GitHub state without transition validation — it fills in
+> PR/branch metadata and corrects stale statuses. See CLAUDE.md "Two-path state
+> management" for the design rationale.
 
 <!-- §kanban-protocol.wip_limits_1_dev_persona_2_review_reviewer_3_integration -->
 ## WIP Limits
