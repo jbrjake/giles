@@ -110,8 +110,11 @@ def _unescape_basic_string(s: str) -> str:
     """Unescape TOML basic string escape sequences.
 
     Per TOML spec, double-quoted strings process escape sequences:
-    \" -> ", \\\\ -> \\, \\n -> newline, \\t -> tab, \\r -> CR.
+    \\", \\\\, \\n, \\t, \\r, \\b, \\f, \\uXXXX, \\UXXXXXXXX.
     Unknown escapes are preserved as-is for safety.
+
+    BK-002: Added \\b, \\f, \\uXXXX, \\UXXXXXXXX to match
+    validate_config._unescape_toml_string (PAT-004 fix).
     """
     result: list[str] = []
     i = 0
@@ -128,6 +131,24 @@ def _unescape_basic_string(s: str) -> str:
                 result.append('\t')
             elif nxt == 'r':
                 result.append('\r')
+            elif nxt == 'b':
+                result.append('\b')
+            elif nxt == 'f':
+                result.append('\f')
+            elif nxt == 'u' and i + 6 <= len(s):
+                try:
+                    result.append(chr(int(s[i + 2:i + 6], 16)))
+                    i += 6
+                    continue
+                except (ValueError, OverflowError):
+                    result.append(s[i:i + 2])
+            elif nxt == 'U' and i + 10 <= len(s):
+                try:
+                    result.append(chr(int(s[i + 2:i + 10], 16)))
+                    i += 10
+                    continue
+                except (ValueError, OverflowError):
+                    result.append(s[i:i + 2])
             else:
                 result.append(s[i])
                 result.append(nxt)
@@ -138,24 +159,35 @@ def _unescape_basic_string(s: str) -> str:
     return "".join(result)
 
 
+def _count_trailing_backslashes(s: str, pos: int) -> int:
+    """Count consecutive backslashes immediately before position *pos*.
+
+    BK-005: Shared with validate_config.py — used for even/odd parity
+    check to determine whether a quote character is escaped.
+    """
+    n = 0
+    while pos - 1 - n >= 0 and s[pos - 1 - n] == "\\":
+        n += 1
+    return n
+
+
 def _strip_inline_comment(val: str) -> str:
-    """Strip an inline TOML comment, respecting quoted strings."""
-    in_quote = False
-    quote_char = ""
-    i = 0
-    while i < len(val):
-        ch = val[i]
-        if ch == "\\" and in_quote and quote_char == '"':
-            i += 2
-            continue
-        if ch in ('"', "'") and not in_quote:
-            in_quote = True
-            quote_char = ch
-        elif ch == quote_char and in_quote:
-            in_quote = False
-        elif ch == "#" and not in_quote:
-            return val[:i].rstrip()
-        i += 1
+    """Remove trailing # comments that are outside of quotes.
+
+    BK-005: Aligned with validate_config._strip_inline_comment — same
+    parity-check algorithm for escape handling.
+    """
+    quote_char = None  # None, '"', or "'"
+    for i, ch in enumerate(val):
+        if quote_char is None:
+            if ch in ('"', "'"):
+                quote_char = ch
+            elif ch == "#":
+                return val[:i].rstrip()
+        elif ch == quote_char:
+            if quote_char == '"' and _count_trailing_backslashes(val, i) % 2 != 0:
+                continue  # escaped double quote
+            quote_char = None
     return val
 
 

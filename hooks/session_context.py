@@ -17,9 +17,12 @@ from _common import _find_project_root, exit_ok, exit_warn, read_toml_key
 
 
 # BH-009: TOML reading consolidated into _common.read_toml_key (PAT-003 fix)
-# Legacy _read_toml_string kept as thin wrapper for backward compatibility
 def _read_toml_string(text: str, section: str, key: str) -> str:
-    """Read a string value from a TOML section. Delegates to shared reader."""
+    """Read a string value from a TOML section. Delegates to shared reader.
+
+    Thin wrapper that coerces the result to str (read_toml_key can also
+    return lists for array values).
+    """
     result = read_toml_key(text, section, key)
     return result if isinstance(result, str) else ""
 
@@ -110,8 +113,9 @@ def extract_high_risks(config_dir: str = "sprint-config") -> list[str]:
     for line in text.splitlines():
         if "|" not in line or line.strip().startswith("|--"):
             continue
-        # BJ-006: Use raw split to preserve column positions; don't filter empties
-        cells = [c.strip() for c in line.split("|")]
+        # BK-003: Use escaped-pipe-aware split consistent with risk_register.py.
+        # Plain line.split("|") would misparse titles containing \| (escaped pipes).
+        cells = [c.strip() for c in re.split(r'(?<!\\)\|', line)]
         # Pipe-delimited rows start/end with |, so cells[0] and cells[-1] are empty
         # cells[0]='' (leading |), cells[1]=ID, cells[2]=Title,
         # cells[3]=Severity, cells[4]=Status, cells[5]='' (trailing |)

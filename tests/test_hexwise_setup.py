@@ -157,12 +157,26 @@ class TestHexwiseSetup(unittest.TestCase):
             get_epics_dir, get_story_map,
         )
         config = load_config("sprint-config")
-        # Hexwise now has deep docs — these should be detected and configured
-        self.assertIsNotNone(get_prd_dir(config))
-        self.assertIsNotNone(get_test_plan_dir(config))
-        self.assertIsNotNone(get_sagas_dir(config))
-        self.assertIsNotNone(get_epics_dir(config))
-        self.assertIsNotNone(get_story_map(config))
+        # BK-004: Verify paths point to correct directories, not just non-None
+        prd = get_prd_dir(config)
+        self.assertIsNotNone(prd)
+        self.assertIn("prd", str(prd).lower())
+
+        test_plan = get_test_plan_dir(config)
+        self.assertIsNotNone(test_plan)
+        self.assertIn("test-plan", str(test_plan).lower())
+
+        sagas = get_sagas_dir(config)
+        self.assertIsNotNone(sagas)
+        self.assertIn("sagas", str(sagas).lower())
+
+        epics = get_epics_dir(config)
+        self.assertIsNotNone(epics)
+        self.assertIn("epics", str(epics).lower())
+
+        story_map = get_story_map(config)
+        self.assertIsNotNone(story_map)
+        self.assertIn("story-map", str(story_map).lower())
 
     def test_scanner_detects_hexwise_deep_docs(self):
         """Scanner detects PRDs, test plan, sagas, epics in extended Hexwise."""

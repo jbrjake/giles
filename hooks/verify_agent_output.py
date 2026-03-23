@@ -26,13 +26,10 @@ from _common import (
 
 # ---------------------------------------------------------------------------
 # Config reading — BH-009: core TOML parsing now in _common.py
-# Legacy wrappers kept for backward compatibility with commit_gate import
 # ---------------------------------------------------------------------------
 
-
-# BH-009: These functions are now canonical in _common.py.
-# Re-exported here for backward compatibility (commit_gate imports _read_toml_key).
-# The imports from _common at the top of this file make them available.
+# BH-009: Canonical TOML parsing is in _common.py.
+# Internal alias for convenience (used by load_check_commands and run_verification).
 _read_toml_key = read_toml_key  # type: ignore[assignment]
 
 

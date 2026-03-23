@@ -3009,5 +3009,133 @@ class TestBH39_101_AssignDodLevelAtomicWrite(unittest.TestCase):
                         "assign_dod_level should import atomic_write_tf")
 
 
+# ---------------------------------------------------------------------------
+# BK-002: hooks TOML unescape must handle \b, \f, \uXXXX, \UXXXXXXXX
+# ---------------------------------------------------------------------------
+
+class TestBK002UnescapeAlignment(unittest.TestCase):
+    """BK-002: _common._unescape_basic_string must match validate_config."""
+
+    def test_backspace_and_formfeed(self):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        from _common import _unescape_basic_string
+        self.assertEqual(_unescape_basic_string(r"\b"), "\b")
+        self.assertEqual(_unescape_basic_string(r"\f"), "\f")
+
+    def test_unicode_4_digit(self):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        from _common import _unescape_basic_string
+        self.assertEqual(_unescape_basic_string(r"\u00e9"), "\u00e9")
+        self.assertEqual(_unescape_basic_string(r"caf\u00e9"), "caf\u00e9")
+
+    def test_unicode_8_digit(self):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        from _common import _unescape_basic_string
+        self.assertEqual(_unescape_basic_string(r"\U0001F600"), "\U0001F600")
+
+    def test_invalid_unicode_preserved(self):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        from _common import _unescape_basic_string
+        # Invalid hex digits — should preserve as-is
+        self.assertEqual(_unescape_basic_string(r"\uZZZZ"), "\\uZZZZ")
+
+    def test_parity_with_validate_config(self):
+        """Both parsers produce identical output for all escape types."""
+        sys.path.insert(0, str(ROOT / "hooks"))
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from _common import _unescape_basic_string
+        from validate_config import _unescape_toml_string
+        cases = [r"\n", r"\t", r"\r", r"\b", r"\f", r"\\", r"\"",
+                 r"\u00e9", r"\U0001F600", r"caf\u00e9"]
+        for s in cases:
+            self.assertEqual(_unescape_basic_string(s), _unescape_toml_string(s),
+                             f"Divergence on {s!r}")
+
+
+# ---------------------------------------------------------------------------
+# BK-003: session_context must handle escaped pipes in risk register
+# ---------------------------------------------------------------------------
+
+class TestBK003EscapedPipeSplit(unittest.TestCase):
+    """BK-003: extract_high_risks handles escaped pipes in risk titles."""
+
+    def test_escaped_pipe_in_title(self):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        from session_context import extract_high_risks
+        with tempfile.TemporaryDirectory() as td:
+            rp = Path(td) / "risk-register.md"
+            rp.write_text(
+                "# Risk Register\n\n"
+                "| ID | Title | Severity | Status | Raised | Sprints Open | Resolution |\n"
+                "|----|-------|----------|--------|--------|-------------|------------|\n"
+                r"| R1 | Auth \| AuthZ boundary | High | Open | 2026-03-01 | 1 | |"
+                "\n"
+            )
+            risks = extract_high_risks(td)
+            self.assertEqual(len(risks), 1, f"Expected 1 risk, got {len(risks)}: {risks}")
+            self.assertIn("HIGH", risks[0])
+
+
+# ---------------------------------------------------------------------------
+# BK-004: deep doc assertions must verify actual paths, not just non-None
+# ---------------------------------------------------------------------------
+# (Test enhancement — verified in test_hexwise_setup.py directly)
+
+
+# ---------------------------------------------------------------------------
+# BK-005: _strip_inline_comment parity between hooks and scripts
+# ---------------------------------------------------------------------------
+
+class TestBK005StripCommentParity(unittest.TestCase):
+    """BK-005: both _strip_inline_comment implementations must match."""
+
+    def _both(self, val):
+        sys.path.insert(0, str(ROOT / "hooks"))
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from _common import _strip_inline_comment as h
+        from validate_config import _strip_inline_comment as v
+        hr, vr = h(val), v(val)
+        self.assertEqual(hr, vr, f"Divergence on {val!r}: hooks={hr!r} scripts={vr!r}")
+        return hr
+
+    def test_simple_comment(self):
+        r = self._both('value  # comment')
+        self.assertEqual(r, 'value')
+
+    def test_quoted_hash(self):
+        r = self._both('"has # inside"  # real')
+        self.assertEqual(r, '"has # inside"')
+
+    def test_single_quoted_hash(self):
+        r = self._both("'has # inside'  # real")
+        self.assertEqual(r, "'has # inside'")
+
+    def test_escaped_quote_in_double(self):
+        self._both(r'"val\"still"  # comment')
+
+    def test_consecutive_backslashes_even(self):
+        # 2 backslashes = 1 literal backslash, then quote ends string
+        self._both(r'"val\\"  # comment')
+
+    def test_consecutive_backslashes_odd(self):
+        # 3 backslashes = literal backslash + escaped quote, still in string
+        self._both(r'"val\\\"" # comment')
+
+    def test_no_comment(self):
+        r = self._both('"just a value"')
+        self.assertEqual(r, '"just a value"')
+
+    def test_bare_value(self):
+        r = self._both('bare_value')
+        self.assertEqual(r, 'bare_value')
+
+    def test_hooks_uses_parity_check(self):
+        """Verify _common.py has _count_trailing_backslashes (structural alignment)."""
+        sys.path.insert(0, str(ROOT / "hooks"))
+        import _common
+        self.assertTrue(hasattr(_common, '_count_trailing_backslashes'),
+                        "_common.py should have _count_trailing_backslashes after BK-005")
+
+
 if __name__ == "__main__":
     unittest.main()
