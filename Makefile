@@ -58,7 +58,9 @@ lint: venv  ## Check Python syntax (stdlib only, no linter deps)
 	$(PYTHON) -m py_compile hooks/session_context.py
 	$(PYTHON) -m py_compile hooks/verify_agent_output.py
 	$(PYTHON) -m py_compile scripts/validate_anchors.py
+	$(PYTHON) -m py_compile scripts/check_lint_inventory.py
 	$(PYTHON) scripts/validate_anchors.py
+	$(PYTHON) scripts/check_lint_inventory.py
 
 clean:  ## Remove venv and __pycache__
 	rm -rf $(VENV) **/__pycache__

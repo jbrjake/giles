@@ -40,6 +40,7 @@ NAMESPACE_MAP: dict[str, str] = {
     "risk_register": "scripts/risk_register.py",
     "assign_dod_level": "scripts/assign_dod_level.py",
     "history_to_checklist": "scripts/history_to_checklist.py",
+    "check_lint_inventory": "scripts/check_lint_inventory.py",
     # Skill scripts (nested under skills/)
     "bootstrap_github": "skills/sprint-setup/scripts/bootstrap_github.py",
     "populate_issues": "skills/sprint-setup/scripts/populate_issues.py",

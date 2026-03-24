@@ -278,6 +278,13 @@ what you need without reading entire files.
 | §validate_anchors.fix_missing_anchors | `fix_missing_anchors()` | Auto-insert missing anchor comments |
 | §validate_anchors.main | `main()` | CLI: check or --fix mode |
 
+### scripts/check_lint_inventory.py
+| Anchor | Function | Purpose |
+|--------|----------|---------|
+| §check_lint_inventory.extract_lint_files | `extract_lint_files()` | Parse py_compile entries from Makefile |
+| §check_lint_inventory.discover_scripts | `discover_scripts()` | Find all .py files in script/hook dirs |
+| §check_lint_inventory.main | `main()` | CLI: compare Makefile lint vs disk, exit 1 if missing |
+
 ### skills/sprint-release/scripts/release_gate.py
 | Anchor | Function | Purpose |
 |--------|----------|---------|
