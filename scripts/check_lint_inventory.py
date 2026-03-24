@@ -21,8 +21,14 @@ _SCAN_GLOBS = ("skills/*/scripts",)
 # §check_lint_inventory.extract_lint_files
 def extract_lint_files(makefile: Path) -> set[str]:
     """Extract file paths from py_compile lines in the Makefile."""
-    text = makefile.read_text()
-    return set(re.findall(r"py_compile\s+(\S+\.py)", text))
+    found: set[str] = set()
+    for line in makefile.read_text().splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        m = re.search(r"py_compile\s+(\S+\.py)", line)
+        if m:
+            found.add(m.group(1))
+    return found
 
 
 # §check_lint_inventory.discover_scripts
@@ -47,8 +53,9 @@ def discover_scripts(root: Path) -> set[str]:
 
 
 # §check_lint_inventory.main
-def main() -> int:
-    root = Path(__file__).resolve().parent.parent
+def main(root: Path | None = None) -> int:
+    if root is None:
+        root = Path(__file__).resolve().parent.parent
     makefile = root / "Makefile"
 
     if not makefile.exists():

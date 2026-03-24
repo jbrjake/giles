@@ -26,6 +26,18 @@ class TestExtractLintFiles(unittest.TestCase):
             result = extract_lint_files(Path(f.name))
         self.assertEqual(result, {"scripts/foo.py", "hooks/bar.py"})
 
+    def test_ignores_commented_py_compile_lines(self):
+        with tempfile.NamedTemporaryFile("w", suffix="Makefile", delete=False) as f:
+            f.write(
+                "lint:\n"
+                "# py_compile scripts/old.py\n"
+                "\t# $(PYTHON) -m py_compile scripts/also_old.py\n"
+                "\t$(PYTHON) -m py_compile scripts/real.py\n"
+            )
+            f.flush()
+            result = extract_lint_files(Path(f.name))
+        self.assertEqual(result, {"scripts/real.py"})
+
     def test_ignores_non_py_compile_lines(self):
         with tempfile.NamedTemporaryFile("w", suffix="Makefile", delete=False) as f:
             f.write(
@@ -110,15 +122,19 @@ class TestMain(unittest.TestCase):
             makefile = root / "Makefile"
             makefile.write_text("lint:\n\techo noop\n")
 
-            import unittest.mock as mock
+            rc = check_lint_inventory.main(root=root)
+            self.assertEqual(rc, 1)
 
-            with mock.patch.object(
-                check_lint_inventory,
-                "main",
-                wraps=None,
-            ):
-                # Call the real logic with a patched root
-                lint_files = extract_lint_files(makefile)
-                disk_files = discover_scripts(root)
-                missing = disk_files - lint_files
-                self.assertEqual(missing, {"scripts/orphan.py"})
+    def test_main_returns_zero_for_stale_only(self):
+        """main() returns 0 when Makefile has entries for non-existent scripts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # No scripts/ or hooks/ dirs — all Makefile entries are stale
+            makefile = root / "Makefile"
+            makefile.write_text(
+                "lint:\n"
+                "\t$(PYTHON) -m py_compile scripts/ghost.py\n"
+            )
+
+            rc = check_lint_inventory.main(root=root)
+            self.assertEqual(rc, 0, "Stale-only should return 0 (warning, not error)")
