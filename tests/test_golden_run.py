@@ -57,7 +57,7 @@ class TestGoldenRun(unittest.TestCase):
         self.project = self.root / "hexwise"
         # Init git
         subprocess.run(
-            ["git", "init"], cwd=str(self.project),
+            ["git", "init", "-b", "main"], cwd=str(self.project),
             capture_output=True, text=True,
         )
         subprocess.run(

@@ -1400,7 +1400,7 @@ class TestDoReleaseIntegration(unittest.TestCase):
             assert r.returncode == 0, f"git {args}: {r.stderr}"
             return r
 
-        _git("init")
+        _git("init", "-b", "main")
         _git("config", "user.email", "test@test.com")
         _git("config", "user.name", "Test")
 

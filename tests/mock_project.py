@@ -46,7 +46,7 @@ class MockProject:
 
         if self._real_git:
             subprocess.run(
-                ["git", "init"], cwd=str(self.root),
+                ["git", "init", "-b", "main"], cwd=str(self.root),
                 capture_output=True, text=True,
             )
             subprocess.run(

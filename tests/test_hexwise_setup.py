@@ -48,7 +48,7 @@ class TestHexwiseSetup(unittest.TestCase):
 
         # Set up a git repo so detect_repo() can parse the remote
         subprocess.run(
-            ["git", "init"], cwd=cls.project_dir,
+            ["git", "init", "-b", "main"], cwd=cls.project_dir,
             capture_output=True, check=True,
         )
         subprocess.run(
@@ -371,7 +371,7 @@ class TestHexwisePipeline(unittest.TestCase):
         shutil.copytree(FIXTURE_DIR, self.root / "hexwise")
         self.project = self.root / "hexwise"
         subprocess.run(
-            ["git", "init"], cwd=str(self.project),
+            ["git", "init", "-b", "main"], cwd=str(self.project),
             capture_output=True, text=True,
         )
         subprocess.run(
