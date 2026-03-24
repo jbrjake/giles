@@ -269,10 +269,12 @@ to remember they exist:
   change. Try to commit without running tests first and it blocks you. It
   knows the difference between source code and documentation, so editing
   a README won't trigger it.
-- **Review gate.** Blocks `git push --force`, `git reset --hard`,
-  `git clean -f`, and other commands that destroy work. If you try one,
-  it explains why that's a bad idea and suggests a safer alternative. You
-  can override it, but you have to mean it.
+- **Review gate.** Blocks PR merges that don't have an approved review
+  and direct pushes to your base branch. Try to `gh pr merge` without
+  approval and it stops you. Push to `main` directly and it tells you to
+  open a PR instead. Bare `git push` with no explicit target gets a
+  warning, because it might be aimed at your base branch and you might
+  not realize it.
 - **Agent verification.** After an implementer subagent finishes, this
   hook runs your check commands and compares real results against what the
   agent claimed. Agents that say "all tests pass" when two are failing get

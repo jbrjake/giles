@@ -129,7 +129,12 @@ class ProjectScanner:
     # -- helpers --
 
     def _glob_md(self) -> list[Path]:
-        """Glob all .md files, excluding noise directories."""
+        """Glob all .md files, excluding noise directories.
+
+        Results are sorted by path for deterministic ordering across
+        platforms (macOS HFS+ returns alphabetical, Linux ext4 returns
+        inode order).
+        """
         results: list[Path] = []
         for p in self.root.rglob("*.md"):
             # Only check path parts relative to root, not the full absolute path
@@ -140,6 +145,7 @@ class ProjectScanner:
             if any(part in EXCLUDED_DIRS for part in rel.parts):
                 continue
             results.append(p)
+        results.sort()
         return results
 
     def _rel(self, p: Path) -> str:
@@ -324,7 +330,7 @@ class ProjectScanner:
                     self._rel(p), conf,
                     f"matched rich headings: {', '.join(rich_hits)}",
                 ))
-        results.sort(key=lambda s: s.confidence, reverse=True)
+        results.sort(key=lambda s: (-s.confidence, s.path))
         return results
 
     def detect_team_index(self) -> Detection:
@@ -360,7 +366,7 @@ class ProjectScanner:
                 results.append(ScoredFile(
                     self._rel(p), conf, ", ".join(evidence_parts),
                 ))
-        results.sort(key=lambda s: s.confidence, reverse=True)
+        results.sort(key=lambda s: (-s.confidence, s.path))
         return results
 
     def _walk_dirs(self, max_depth: int = 3) -> list[Path]:
@@ -384,7 +390,7 @@ class ProjectScanner:
                 return Detection(name, f"found {name}/", 0.9)
         # Content scan: directories with files containing ## Requirements + ## Design
         for d in self._walk_dirs(max_depth=3):
-            md_files = list(d.glob("*.md"))
+            md_files = sorted(d.glob("*.md"))
             if len(md_files) >= 2:
                 # BH35-026: Wrap in try/except like detect_backlog_files does
                 try:
