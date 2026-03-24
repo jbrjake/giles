@@ -1,76 +1,51 @@
-# 0h: Predictive Recon (Run 5)
+# Step 0h: Predictive Recon
 
-## Prediction 1
-**Target:** `skills/sprint-setup/scripts/populate_issues.py` — `parse_detail_blocks`, `format_issue_body`
-**Predicted Issue:** Code-fence-unaware parsing — regex applied to markdown body content that may contain fenced code blocks.
+**Run:** 6
+**Date:** 2026-03-23
+
+## Input Sources
+
+1. Pattern Brief: 4 patterns (PAT-001 through PAT-004), PAT-001 active, others resolved
+2. Impact Graph: 32 nodes, 35 edges, no high-risk nodes (highest: hooks/_common.py at 0.4)
+3. Git churn: no code changes since run 5 except check_lint_inventory.py
+4. Prior runs: 22 findings across 5 runs, all resolved. Only PAT-001 recurred.
+5. Global patterns: code-fence-unaware-parsing and regex-newline-leak had heuristic hits
+6. Recon observations: 1 new unaudited script, otherwise mature/stable codebase
+
+## Predictions
+
+### Prediction 1
+**Target:** `tests/test_check_lint_inventory.py:104-124` (`TestMain.test_main_returns_one_when_missing`)
+**Predicted Issue:** test/shallow — test name claims to test `main()` returning 1, but the test body uses `mock.patch` as a no-op and tests the component functions directly instead of `main()`. The error exit path of `main()` is untested.
 **Confidence:** HIGH
-**Basis:** Global pattern library match (code-fence-unaware-parsing.md) + detection heuristic hit
+**Basis:** Code reading during recon. The mock.patch(wraps=None) replaces main() but the test body never calls main(). It manually calls extract_lint_files() and discover_scripts() which are already tested separately.
 **Lens:** component
-**Graph Support:** populate_issues node exists, imports validate_config
-**Outcome:** UNCONFIRMED — The `**As a**` pattern is markdown-specific syntax unlikely inside code fences. The regex operates on individual story sections, not full document content.
+**Graph Support:** check_lint_inventory (risk_score: 0.0, audit_count: 1 — first audit)
+**Outcome:** CONFIRMED — BH-001
 
-## Prediction 2
-**Target:** `skills/sprint-release/scripts/release_gate.py` — `write_version_to_toml` around line 308-319
-**Predicted Issue:** TOML section parsing edge cases
-**Confidence:** MEDIUM
-**Basis:** Churn (4 changes in 50 commits) + global pattern hit
-**Lens:** component
-**Graph Support:** release_gate node exists
-**Outcome:** UNCONFIRMED — The code has multiple layers of defense: comment exclusion, next-section detection, quote-aware version matching.
-
-## Prediction 3
-**Target:** `scripts/validate_config.py` — `read_tf`, `extract_sp`
-**Predicted Issue:** Frontmatter parsing or body regex issues
-**Confidence:** MEDIUM
-**Basis:** Foundation file + regex on content variables
-**Lens:** component
-**Graph Support:** validate_config is hub node
-**Outcome:** UNCONFIRMED — The `read_tf` regex handles the `---` separator correctly (requires start-of-line). The `extract_sp` patterns are specific enough to avoid code-fence false matches in practice.
-
-## Prediction 4
-**Target:** `scripts/sprint_init.py` — `ProjectScanner` class
-**Predicted Issue:** Loose regex heuristics may produce false positives
-**Confidence:** MEDIUM
-**Basis:** 1027 LOC, heuristic-heavy code
-**Lens:** integration
-**Graph Support:** sprint_init imports validate_config
-**Outcome:** UNCONFIRMED — Heuristics use graduated confidence scores and multiple detection layers. The sprint header requirement for milestone detection prevents false positives from epics/sagas.
-
-## Prediction 5
-**Target:** `skills/sprint-monitor/scripts/check_status.py` — `check_ci`, `_first_error`
-**Predicted Issue:** CI output parsing ambiguity between success and error patterns
-**Confidence:** HIGH
-**Basis:** Detection heuristic hit + parsing arbitrary external output
-**Lens:** error-propagation
-**Graph Support:** check_status node exists
-**Outcome:** UNCONFIRMED — The false positive pattern correctly handles "0 errors"/"no failures". The compound-word case ("error-handling") is by design — the function treats any line with "error" as a potential error line, which is reasonable for CI log scanning.
-
-## Prediction 6
-**Target:** `hooks/session_context.py` — extraction functions
-**Predicted Issue:** Remaining edge cases in markdown extraction
+### Prediction 2
+**Target:** `scripts/validate_config.py:865-873` (`extract_sp` — regex on issue body)
+**Predicted Issue:** bug/logic — code-fence-unaware parsing. The `re.search` patterns for story points match table-like content (`| SP | 5 |`) in the full issue body without stripping code fences. If an issue body contains a code block with example table rows, the regex could match the wrong number.
 **Confidence:** LOW
-**Basis:** High churn + prior findings
+**Basis:** Global pattern library match (code-fence-unaware-parsing.md). Issue bodies are GitHub markdown and can contain code fences. However, the first match wins (re.search returns first), so if the real SP is in the metadata table before any code fence, it would be correct.
 **Lens:** data-flow
-**Graph Support:** session_context node exists
-**Outcome:** UNCONFIRMED — The extraction functions handle alignment markers, escaped pipes, and section boundaries correctly after runs 1-3 fixes.
+**Graph Support:** validate_config (risk_score: 0.2, audit_count: 5)
+**Outcome:** UNCONFIRMED — edge case is theoretical, well-defended by match-first semantics
 
-## Prediction 7
-**Target:** `scripts/kanban.py` — state machine semantics
-**Predicted Issue:** semantic-fidelity issues after run 4 changes
+### Prediction 3
+**Target:** `skills/sprint-setup/scripts/populate_issues.py:164-174` (milestone table parsing on `content`)
+**Predicted Issue:** bug/logic — code-fence-unaware parsing. `row_re.finditer(content)` scans the entire milestone file content for table rows. If a milestone file contained a markdown code fence with example table rows, those would be matched.
+**Confidence:** LOW
+**Basis:** Global pattern library match (code-fence-unaware-parsing.md). However, milestone files are structured data files (not documentation) — code fences are unlikely.
+**Lens:** data-flow
+**Graph Support:** populate_issues (risk_score: 0.0, audit_count: 5)
+**Outcome:** UNCONFIRMED — milestone files are structured data, code fences unlikely
+
+### Prediction 4
+**Target:** `scripts/check_lint_inventory.py:25` (`extract_lint_files` regex)
+**Predicted Issue:** bug/logic — the regex `r"py_compile\s+(\S+\.py)"` matches any line containing "py_compile" followed by a .py path, not just lines in the `lint:` target. Comments or other Makefile targets with py_compile would produce false matches.
 **Confidence:** MEDIUM
-**Basis:** Run 4 found 4 issues. Custom semantic-fidelity lens.
-**Lens:** semantic-fidelity (custom)
-**Graph Support:** kanban node, assumes edges
-**Outcome:** UNCONFIRMED — State descriptions align with entry semantics after run 4 fixes. Preconditions table matches code.
-
-## Prediction 8
-**Target:** Cross-file: `kanban.py` + `sync_tracking.py` + `kanban-protocol.md`
-**Predicted Issue:** Temporal ordering assumptions in two-path state management
-**Confidence:** MEDIUM
-**Basis:** Custom temporal-protocol lens + two-path architecture
-**Lens:** temporal-protocol (custom)
-**Graph Support:** kanban→sync_tracking relationship
-**Outcome:** UNCONFIRMED — Both paths use lock_sprint for mutual exclusion. The two-path design is well-documented and the differences are intentional.
-
-## Summary
-0 of 8 predictions confirmed. The codebase has been hardened by 4 prior audit runs + 39 bug-hunter passes. The predicted areas are well-defended.
+**Basis:** New unaudited code + regex applied to full file content without scope narrowing
+**Lens:** component
+**Graph Support:** check_lint_inventory (risk_score: 0.0, audit_count: 1 — first audit)
+**Outcome:** UNCONFIRMED — current Makefile has py_compile only in lint target

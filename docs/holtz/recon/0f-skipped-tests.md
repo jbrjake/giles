@@ -1,8 +1,17 @@
-# 0f: Skipped Tests
+# Step 0f: Skipped Tests
 
-**Total skipped:** 0 unconditional skips
+**Run:** 6
+**Date:** 2026-03-23
 
-**Conditional skip:** 1
-- `tests/test_golden_run.py:116` — `self.skipTest()` when golden snapshots not recorded (GOLDEN_RECORD env var). This is expected behavior for snapshot testing.
+## Conditional Skips (2)
 
-No `@pytest.mark.skip`, `@unittest.skip`, or `pytest.skip()` decorators found.
+1. `tests/test_check_lint_inventory.py:83` — `self.skipTest("no Makefile")` — skips if Makefile is absent (integration guard)
+2. `tests/test_golden_run.py:116` — `self.skipTest(...)` — conditional on golden recording state
+
+## Unconditional Skips
+
+None.
+
+## Assessment
+
+Both skips are conditional environment guards, not disabled tests. No test debt.

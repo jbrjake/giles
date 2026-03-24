@@ -1,7 +1,10 @@
-# 0d: Lint Results
+# Step 0d: Lint Results
 
-**validate_anchors.py:** CLEAN — 0 broken references (19 defined-but-unreferenced, info level)
-**py_compile:** Core files compile OK (validate_config, kanban, _common)
-**Makefile lint target:** Covers 21 production scripts via py_compile
+**Run:** 6
+**Date:** 2026-03-23
 
-No actionable lint findings.
+## Results
+
+- **py_compile:** PASS — 32 production scripts compiled successfully
+- **validate_anchors:** PASS — 558 references checked, all resolved. 19 defined but unreferenced anchors (info only).
+- **check_lint_inventory:** PASS — all production scripts present in Makefile lint target

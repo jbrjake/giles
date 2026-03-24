@@ -77,6 +77,7 @@ Source: CLAUDE.md, README.md, plugin.json
 | hook_session_context | hook_common |
 | hook_verify_agent | hook_common, commit_gate (deferred: mark_verified) |
 | validate_anchors | (none — standalone) |
+| check_lint_inventory | (none — standalone) |
 
 ### Layering Direction
 
@@ -106,7 +107,7 @@ Source: CLAUDE.md, README.md, plugin.json
 **Assessment:** clean boundaries with validate_config as a clear hub
 
 **Observations:**
-- validate_config.py (1245 LOC) is the hub — imported by 20 of 25 production scripts
+- validate_config.py (1247 LOC) is the hub — imported by 20 of 26 production scripts
 - Hooks are fully isolated from production scripts (separate import chain)
 - Two-path state management (kanban + sync_tracking) is well-documented
 - Sprint teardown is notably standalone — no imports from validate_config
@@ -126,4 +127,10 @@ Source: CLAUDE.md, README.md, plugin.json
 **Type:** baseline-omission
 **Evidence:** Dependency scan revealed three dependencies not in Run 1 baseline: (1) check_status imports sync_backlog.main and smoke_test.write_history at module level (conditional, with error handling), (2) manage_sagas imports manage_epics.parse_epic (deferred, inside function), (3) verify_agent_output imports commit_gate.mark_verified (deferred, inside function — the surviving direction from Run 2's bidirectional fix). All three predate Run 3; the baseline was incomplete.
 **Severity:** LOW (no bugs — baseline accuracy correction)
+**Punchlist item:** None — baseline updated inline
+
+### 2026-03-23 (run 6): New standalone script not in baseline
+**Type:** baseline-omission
+**Evidence:** `scripts/check_lint_inventory.py` added in commit `ce946e0` after Run 5 audit. Standalone script (no imports from validate_config), follows naming conventions, fits Layer 3.
+**Severity:** LOW (no bugs — baseline accuracy update)
 **Punchlist item:** None — baseline updated inline

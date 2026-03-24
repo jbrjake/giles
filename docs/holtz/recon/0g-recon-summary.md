@@ -1,32 +1,26 @@
-# 0g: Recon Summary (Run 5)
+# Step 0g: Recon Summary
 
-**Project:** giles — Claude Code agile sprint plugin
-**Baseline:** 1224 tests, 0 failures, 17.37s
-**Prior runs:** 4 (22 findings resolved total)
-**Impact graph:** 31 nodes, 35 edges, no drift
+**Run:** 6
+**Date:** 2026-03-23
 
-## Key Observations
+## Key Facts
 
-1. **Mature, heavily-tested codebase.** 4 prior Holtz runs + 39 bug-hunter passes. Test-to-production ratio is ~1.8:1 by LOC. Hard to find surface bugs.
+- **Code changes since Run 5:** 1 new script (`check_lint_inventory.py`, 82 LOC) + 1 new test file (`test_check_lint_inventory.py`, 124 LOC). Implements the PAT-001 prevention recommendation from runs 1 and 5.
+- **Tests:** 1232 passed (up from 1224 in Run 5), 0 failed, 18.03s
+- **Lint:** clean (32 scripts compiled, anchors valid, lint inventory validated)
+- **Graph:** 32 nodes (1 added for new script), 35 edges, no drift
+- **Architecture:** unchanged — new script is standalone, fits existing layers
+- **Recurring recommendations:** The lint inventory check recommendation (runs 1, 5) has been implemented. No unaddressed recurring recommendations.
 
-2. **Hooks remain highest-churn subsystem.** 4 hook files accumulated 21 changes in 50 commits. Most prior findings clustered here. The TOML consolidation (runs 2-3) addressed the main defects, but churn suggests continued evolution.
+## Areas of Interest for Audit
 
-3. **Large, complex scripts.** validate_config.py (1247 LOC) and sprint_init.py (1027 LOC) are the two largest files. kanban.py (826 LOC) has complex state machine logic. These are where deep bugs hide.
+1. **`check_lint_inventory.py`** — new, unaudited script (82 LOC). Only code change since Run 5. Tests exist but test quality hasn't been audited.
+2. **Code-fence-unaware parsing** — global pattern heuristic flagged ~10 production regex matches on multi-line `content`/`body`/`text` variables. Several parse markdown that could contain code fences.
+3. **Regex newline leak** — global pattern heuristic flagged 40+ `\s*`/`\s+` uses. Some on multi-line content (e.g., `validate_config.py:866`, `populate_issues.py:249`).
 
-4. **Global pattern detection:**
-   - **Code-fence-unaware-parsing:** Multiple regex patterns applied to `content`/`body`/`text` variables without fence masking. Targets: populate_issues.py, update_burndown.py, bootstrap_github.py, check_status.py, release_gate.py.
-   - **Regex-newline-leak:** `\s*` / `\s+` in many regexes applied to multi-line input. Most are in line-by-line contexts (safe), but some operate on full text (e.g., `extract_sp`, `read_tf`, populate_issues body parsing).
-   - **Dual-parser-divergence:** After 3 runs of consolidation, the hooks/scripts TOML parsers should be aligned. However, there are still multiple `parse_*` and `extract_*` functions for the same data — need to verify they agree.
+## Low-Interest Areas
 
-5. **Custom lenses found issues that 3 prior standard runs missed.** semantic-fidelity and temporal-protocol must be applied throughout this run.
-
-6. **Recommendation escalation:** No recommendations appeared in 2+ prior summaries. Skipped.
-
-## Risk Areas for This Run
-
-1. **populate_issues.py** (565 LOC) — heavy regex, parses markdown with code blocks, high code-fence risk
-2. **release_gate.py** (776 LOC) — TOML parsing, version calculation, gate logic
-3. **check_status.py** (616 LOC) — CI output parsing, pattern matching against arbitrary output
-4. **sprint_init.py** (1027 LOC) — project scanning, config generation, many heuristics
-5. **validate_config.py** (1247 LOC) — foundation. Any bug here propagates everywhere.
-6. **kanban.py** (826 LOC) — state machine. Run 4 found semantic-fidelity issues.
+- TOML parsing: PAT-003/004 resolved in runs 2-3, heavily tested
+- Hook security: PAT-002 resolved in run 1, no hooks changed since
+- Kanban state machine: SF-001/002/003, TP-001 resolved in run 4, no changes since
+- Architecture: stable, no boundary erosion or layering breaches

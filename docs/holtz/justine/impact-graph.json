@@ -1,0 +1,106 @@
+{
+  "nodes": {
+    "check_lint_inventory:extract_lint_files": {
+      "id": "check_lint_inventory:extract_lint_files",
+      "type": "function",
+      "file": "scripts/check_lint_inventory.py",
+      "line": 22,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "check_lint_inventory:discover_scripts": {
+      "id": "check_lint_inventory:discover_scripts",
+      "type": "function",
+      "file": "scripts/check_lint_inventory.py",
+      "line": 29,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "check_lint_inventory:main": {
+      "id": "check_lint_inventory:main",
+      "type": "function",
+      "file": "scripts/check_lint_inventory.py",
+      "line": 50,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.2
+    },
+    "test_check_lint_inventory": {
+      "id": "test_check_lint_inventory",
+      "type": "test_file",
+      "file": "tests/test_check_lint_inventory.py",
+      "line": 1,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    },
+    "Makefile:lint": {
+      "id": "Makefile:lint",
+      "type": "config",
+      "file": "Makefile",
+      "line": 29,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
+    }
+  },
+  "edges": [
+    {
+      "source": "check_lint_inventory:main",
+      "target": "check_lint_inventory:extract_lint_files",
+      "type": "calls",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "check_lint_inventory:main",
+      "target": "check_lint_inventory:discover_scripts",
+      "type": "calls",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "Makefile:lint",
+      "target": "check_lint_inventory:main",
+      "type": "calls",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "test_check_lint_inventory",
+      "target": "check_lint_inventory:extract_lint_files",
+      "type": "tests",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "test_check_lint_inventory",
+      "target": "check_lint_inventory:discover_scripts",
+      "type": "tests",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium"
+      }
+    },
+    {
+      "source": "test_check_lint_inventory",
+      "target": "check_lint_inventory:main",
+      "type": "tests",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "BJ-001: test_main_returns_one_when_missing does not actually call main()"
+      }
+    }
+  ]
+}

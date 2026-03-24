@@ -1,53 +1,49 @@
-# 0a: Project Overview
+# Step 0a: Project Overview
 
-**Project:** giles — Claude Code plugin for agile sprints with persona-based development
-**Language:** Python 3.10+ (stdlib-only at runtime)
-**Size:** 31 production scripts (~11,400 LOC), 19 test files (~21,000 LOC)
-**Test framework:** pytest + hypothesis
-**Baseline:** 1224 tests passing, 0 failures, 0 skips (excl. 1 conditional skipTest in golden_run)
+**Run:** 6
+**Date:** 2026-03-23
+
+## Project
+
+giles — Claude Code plugin for agile sprints with persona-based development.
+Language: Python (stdlib-only for users, dev deps for testing).
+31 production scripts (6984 LOC scripts/ + 1260 hooks/ + 1545 skills/*/scripts/ = ~9789 LOC production).
+17 test files (~21191 LOC tests).
+Test-to-production ratio: ~2.2:1.
+
+## Structure
+
+- `scripts/` (20 files) — shared business logic, validate_config.py is the hub (1247 LOC)
+- `hooks/` (5 files + __init__) — independent subsystem with _common.py foundation
+- `skills/*/scripts/` (6 files) — skill-specific scripts
+- `tests/` (17 files) — pytest, hypothesis, fake_github, golden_replay
+- `references/skeletons/` — 20 .tmpl files for scaffolding
+- `skills/` — 5 skills with SKILL.md entry points
+
+## Changes Since Run 5
+
+**Zero code commits since Run 5.** The codebase is identical to the state audited in Run 5. All findings from runs 1-5 (22 total) have been resolved.
+
+Most recent code changes (last 5 commits before run 5 artifacts):
+- `ce946e0` feat: lint inventory check (new script + tests) — closes PAT-001 gap
+- `ae2104e` fix: hooks in Makefile lint, gh wrapper invariant (BH-001, BH-002)
+- `7b47c24` fix: integration entry guard and forced-done warning (SF-002, SF-003)
+- `ae4fa33` fix: entry semantics for kanban state transitions
+- `a475497` chore: Holtz run 4 artifacts
+
+## Global Pattern Heuristic Results
+
+| Pattern | Hits | Assessment |
+|---------|------|-----------|
+| code-fence-unaware-parsing | 27 | ~10 in production code regex on `content`/`body`/`text` vars. Worth checking if any parse markdown with embedded code fences. |
+| dual-parser-divergence | 29 | PAT-003/004 resolved. Remaining parsers are distinct (TOML, markdown tables, YAML frontmatter, story IDs). No new duplicates. |
+| regex-newline-leak | 40+ | Many `\s*`/`\s+` uses. Several on multi-line content (body, text). Worth auditing `validate_config.py:866` and `populate_issues.py:249`. |
+| incomplete-layer-isolation | (not run) | Known: `gh()` wrapper with documented exception for auth check. |
+| missing-edge-case-handling | (deferred to Phase 3) | Many dict accesses; assessed in prior runs. |
+| doc-spec-drift | (deferred to Phase 1) | Doc audit covers this. |
 
 ## Architecture
 
-- **Foundation layer:** `validate_config.py` (1247 LOC) — TOML parser, config loading, shared helpers
-- **Business logic:** `kanban.py` (826 LOC), `sprint_init.py` (1027 LOC), `manage_epics.py`, `manage_sagas.py`, etc.
-- **Skill scripts:** setup (bootstrap_github, populate_issues, setup_ci), run (sync_tracking, update_burndown), monitor (check_status), release (release_gate)
-- **Hooks:** independent subsystem — `_common.py` + 4 hooks (commit_gate, review_gate, session_context, verify_agent_output)
-- **Two-path state management:** kanban.py (mutation, local-first) vs sync_tracking.py (reconciliation, GitHub-first)
-- **Cross-skill coupling:** sync_backlog imports from sprint-setup scripts (documented, intentional)
-
-## High-Churn Files (last 50 commits)
-
-1. test_hooks.py (13 changes)
-2. test_verify_fixes.py (9 changes)
-3. kanban.py (7 changes)
-4. commit_gate.py in hooks (7 changes)
-5. sync_tracking.py (6 changes)
-6. kanban-protocol.md (6 changes)
-7. review_gate.py (6 changes)
-8. session_context.py (5 changes)
-9. check_status.py (5 changes)
-10. sprint_init.py (5 changes)
-
-## Prior Audit History
-
-- **Run 1:** 11 findings (3 HIGH, 6 MEDIUM, 2 LOW) — compound bypass, TOML parser gaps, missing lint entries
-- **Run 2:** 2 findings (2 MEDIUM) — TOML consolidation, unquoted base_branch
-- **Run 3:** 5 findings (3 MEDIUM, 2 LOW) — TOML escape alignment, pipe splitting, rubber stamps
-- **Run 4 (targeted):** 4 findings (4 LOW) — custom lenses found semantic-fidelity/temporal-protocol issues
-- **Total resolved across runs:** 22 findings
-
-## Pattern History
-
-- PAT-001: Batch addition without full wiring (3 instances)
-- PAT-002: Inconsistent security hardening across parallel hooks (2 instances)
-- PAT-003: Triple TOML parser divergence (resolved in run 2)
-- PAT-004: Dual parser divergence hooks vs scripts (resolved in run 3)
-
-## Lint Status
-
-- validate_anchors.py: 0 broken refs (19 defined-but-unreferenced, info level)
-- Makefile lint: py_compile on all scripts
-
-## Architecture Drift
-
-- No new drift detected. Baseline from run 1 remains accurate. Run 2 resolved bidirectional hook imports. Run 3 corrected 3 baseline omissions.
+Unchanged from baseline. Five layers: Skills → Skill scripts → Shared scripts → validate_config → Hooks (independent).
+One documented exception: sync_backlog cross-skill import.
+Hub: validate_config.py (imported by 20 of 25 production scripts).

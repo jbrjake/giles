@@ -1,66 +1,44 @@
-# Holtz Punchlist
-> Generated: 2026-03-23 | Project: giles | Baseline: 1224 pass, 0 fail, 0 skip
+# Holtz Punchlist — Run 6
 
-## Summary
-| Severity | Open | Resolved | Deferred |
-|----------|------|----------|----------|
-| CRITICAL | 0 | 0 | 0 |
-| HIGH | 0 | 0 | 0 |
-| MEDIUM | 0 | 1 | 0 |
-| LOW | 0 | 1 | 0 |
-| **Total** | **0** | **2** | **0** |
-
-## Patterns
-
-(none new — BH-001 is PAT-001 instance from run 1)
+**Project:** giles
+**Date:** 2026-03-23
 
 ## Items
 
-### BH-001: Makefile lint target missing 5 hook scripts
+### BH-001: test_main_returns_one_when_missing doesn't test main()
 **Severity:** MEDIUM
-**Category:** design/inconsistency
-**Location:** `Makefile:29-56`
-**Status:** RESOLVED
-**Pattern:** PAT-001 (batch addition without full wiring)
+**Category:** test/shallow
+**Location:** `tests/test_check_lint_inventory.py:104-124`
+**Status:** OPEN
 **Lens:** component
+**Predicted:** Prediction 1 (confidence: HIGH)
 
-**Problem:** The Makefile `lint` target py_compiles 25 of 31 production Python files. The 5 hook scripts (`hooks/_common.py`, `hooks/commit_gate.py`, `hooks/review_gate.py`, `hooks/session_context.py`, `hooks/verify_agent_output.py`) are missing. These were moved to the plugin root in commit `2dc773d` but the Makefile was not updated.
+**Problem:** The test claims to verify that `main()` returns 1 when scripts are missing from the Makefile, but it never calls `main()`. It uses `mock.patch.object(check_lint_inventory, "main", wraps=None)` which replaces main with a mock, then manually calls `extract_lint_files()` and `discover_scripts()` — functions already tested separately. The error exit path of `main()` (stdout output, stale detection, return code) is untested.
 
-**Evidence:** `grep "py_compile" Makefile | wc -l` = 26 (before fix). `ls hooks/*.py | wc -l` = 6 (includes empty __init__.py). 5 non-empty hook files missing from lint.
+**Evidence:**
+```python
+# lines 115-124 of test_check_lint_inventory.py
+with mock.patch.object(
+    check_lint_inventory,
+    "main",
+    wraps=None,
+):
+    # Call the real logic with a patched root
+    lint_files = extract_lint_files(makefile)
+    disk_files = discover_scripts(root)
+    missing = disk_files - lint_files
+    self.assertEqual(missing, {"scripts/orphan.py"})
+```
+The mock.patch replaces `main` but the test body never calls `main()`. It directly calls the helper functions instead.
 
-**Discovery Chain:** Makefile lint entry count (26) < total production scripts (32) → 6 missing → hooks dir not present in Makefile → PAT-001 instance
+**Discovery Chain:** Prediction 1 flagged test quality for new script → read test → mock.patch(wraps=None) on main but main() never called inside with block → test verifies `missing` set which is already covered by TestDiscoverScripts → error exit path untested
 
 **Acceptance Criteria:**
-- [x] All 5 hook scripts appear in `make lint`
-- [x] `make lint` passes with the new entries
+- [ ] `main()` is actually called in the test and returns 1
+- [ ] The test exercises `main()` with a controlled filesystem where scripts are missing from Makefile
+- [ ] Stale detection path is also exercised (optional enhancement)
 
 **Validation Command:**
 ```bash
-grep -c "hooks/" Makefile
+.venv/bin/python -m pytest tests/test_check_lint_inventory.py::TestMain -v
 ```
-
-**Resolution:** Added 5 py_compile entries for hooks/_common.py, hooks/commit_gate.py, hooks/review_gate.py, hooks/session_context.py, hooks/verify_agent_output.py to Makefile lint target. All compile successfully. 1224 tests still passing.
-
-### BH-002: Architecture baseline invariant overly absolute about gh wrappers
-**Severity:** LOW
-**Category:** doc/drift
-**Location:** `docs/holtz/architecture-baseline.md:40`
-**Status:** RESOLVED
-**Lens:** contract
-
-**Problem:** Architecture baseline invariant stated "All `gh` CLI calls go through `validate_config.gh()` or `validate_config.gh_json()` wrappers." However, `populate_issues.check_prerequisites()` calls `subprocess.run(["gh", "auth", "status"])` directly. This is an auth check that runs before config is loaded.
-
-**Evidence:** `grep -rn "subprocess.run.*gh" skills/ scripts/ hooks/` finds one hit at populate_issues.py:39.
-
-**Discovery Chain:** Architecture baseline invariant "all gh calls use wrappers" → grep finds subprocess.run(["gh"]) in populate_issues.py:39 → invariant is overly absolute
-
-**Acceptance Criteria:**
-- [x] The invariant is qualified to document the exception
-- [x] The exception is explained (pre-config auth check)
-
-**Validation Command:**
-```bash
-grep "exception" docs/holtz/architecture-baseline.md
-```
-
-**Resolution:** Qualified the invariant to "All data/mutation `gh` CLI calls" with a parenthetical documenting the populate_issues.check_prerequisites() exception.

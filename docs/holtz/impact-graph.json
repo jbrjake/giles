@@ -278,6 +278,15 @@
       "last_audited": "2026-03-23",
       "audit_count": 1,
       "risk_score": 0.0
+    },
+    "check_lint_inventory": {
+      "id": "check_lint_inventory",
+      "type": "module",
+      "file": "scripts/check_lint_inventory.py",
+      "line": null,
+      "last_audited": "2026-03-23",
+      "audit_count": 1,
+      "risk_score": 0.0
     }
   },
   "edges": [
@@ -599,6 +608,16 @@
         "discovered": "2026-03-23",
         "confidence": "medium",
         "note": "both have independent TOML parsers for same project.toml"
+      }
+    },
+    {
+      "source": "check_lint_inventory",
+      "target": "validate_config",
+      "type": "assumes",
+      "metadata": {
+        "discovered": "2026-03-23",
+        "confidence": "medium",
+        "note": "check_lint_inventory scans the same directories that validate_config expects scripts to live in"
       }
     }
   ]
